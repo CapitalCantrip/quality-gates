@@ -1,0 +1,2 @@
+#!/bin/sh
+exec python3 -m quality_gates.comment_debt

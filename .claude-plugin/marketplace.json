@@ -1,0 +1,15 @@
+{
+  "name": "quality-gates",
+  "description": "Quality-gate skills and tools for agent-written code.",
+  "owner": {
+    "name": "CapitalCantrip"
+  },
+  "plugins": [
+    {
+      "name": "quality-gates",
+      "source": "./",
+      "description": "Quality-gate skills for agent-written code: no comments, cyclomatic complexity, CRAP.",
+      "version": "0.1.0"
+    }
+  ]
+}
