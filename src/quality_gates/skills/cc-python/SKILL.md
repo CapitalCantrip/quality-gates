@@ -69,10 +69,10 @@ pip3 install radon
 
 ## Installing the commands
 
-`cc-check`, `crap` and `comment-debt` come from this plugin's Python package. If one is missing:
+`cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.1"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.1"
 ```

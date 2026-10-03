@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.1 — 2026-10-04
+
+Skills for cloud sessions. A cloud session doesn't install plugins a repo
+enables in `.claude/settings.json`, so the skills never loaded there.
+
+- The skills ship inside the Python package (`src/quality_gates/skills/`); the
+  plugin manifest points there.
+- New command `qg-skills` copies them into `.claude/skills/`; `--check` exits 1
+  when the copies differ from the installed version.
+
+**When you bump the pin:** run `qg-skills`, commit `.claude/skills/`, add a test
+calling `skills_sync.main(["--check"])`, and remove the `quality-gates` entries
+from `extraKnownMarketplaces` and `enabledPlugins` so skills aren't listed twice.
+
 ## 0.3.0 — 2026-10-04
 
 A baseline ratchet for `cc-check` and `crap`, so a repo with existing debt can

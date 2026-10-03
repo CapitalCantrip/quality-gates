@@ -1,7 +1,10 @@
 {
   "name": "quality-gates",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "Quality-gate skills for agent-written code: no comments, cyclomatic complexity, CRAP.",
-  "author": { "name": "CapitalCantrip" },
-  "repository": "https://github.com/CapitalCantrip/quality-gates"
+  "author": {
+    "name": "CapitalCantrip"
+  },
+  "repository": "https://github.com/CapitalCantrip/quality-gates",
+  "skills": "./src/quality_gates/skills"
 }
