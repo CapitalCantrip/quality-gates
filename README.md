@@ -114,8 +114,9 @@ def test_no_function_is_more_complex_than_the_baseline_allows(self):
 
 ## Skills
 
-The repo is also a Claude Code plugin. Each skill runs its gate, reports the
-violations, proposes fixes, and gives the agent the limits to write within.
+Each skill runs its gate, reports the violations, proposes fixes, and gives the
+agent the limits to write within. They ship inside the Python package, so the
+pinned install carries the matching skills.
 
 | Skill | Does |
 |---|---|
@@ -130,25 +131,30 @@ violations, proposes fixes, and gives the agent the limits to write within.
 Install the commands, pinned:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.1"
 ```
 
 or add the same requirement to the project's dev dependencies. Swift support
 needs `lizard`: install with the `[swift]` extra.
 
-Enable the skills in the project's `.claude/settings.json`, so local and cloud
-sessions both get them:
+Copy the skills into the project and commit them:
 
-```json
-{
-  "extraKnownMarketplaces": {
-    "quality-gates": { "source": { "source": "github", "repo": "CapitalCantrip/quality-gates" } }
-  },
-  "enabledPlugins": { "quality-gates@quality-gates": true }
-}
+```bash
+qg-skills            # writes .claude/skills/<skill>/ for each skill
+qg-skills --check    # exit 1 if the copies differ from the installed version
 ```
 
-Then adopt the comment gate as `skills/no-comments/SKILL.md` describes: a
+Committed copies load in local and cloud sessions alike. A cloud session does
+not install plugins a repo enables in `.claude/settings.json`, so the plugin
+route works only locally. Run `qg-skills` again after each pin bump, and add a
+test that calls `skills_sync.main(["--check"])` so CI catches a stale copy.
+`qg-skills` touches only the skills it ships; the repo's own skills are left
+alone.
+
+The repo is still a Claude Code plugin, for use outside any one project. Don't
+enable both in one repo, or every skill is listed twice.
+
+Then adopt the comment gate as the `/no-comments` skill describes: a
 baseline, a pre-commit hook, and a test so CI enforces it. Adopt the CC and CRAP
 gates the same way: see [Adopting the ratchet](#adopting-the-ratchet).
 
