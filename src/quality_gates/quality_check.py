@@ -9,7 +9,7 @@ Usage:
     python3 quality_check.py <path> [--threshold N] [--format text|json]
 
     <path>       File or directory to analyse (recursively for directories)
-    --threshold  CC score above which functions are flagged (default: 5)
+    --threshold  CC score above which functions are flagged (default: 8)
     --format     Output format: 'text' (default) or 'json'
 
 Exit codes:
@@ -33,6 +33,8 @@ import json
 import argparse
 from pathlib import Path
 
+AGENT_CC_CEILING = 8
+
 
 def main():
     parser = argparse.ArgumentParser(
@@ -42,8 +44,8 @@ def main():
     parser.add_argument(
         "--threshold",
         type=int,
-        default=5,
-        help="CC score above which functions are flagged (default: 5)",
+        default=AGENT_CC_CEILING,
+        help="CC score above which functions are flagged (default: 8)",
     )
     parser.add_argument(
         "--format",

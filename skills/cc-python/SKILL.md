@@ -16,7 +16,7 @@ functions above the complexity threshold.
 ```
 
 - `path` — file or directory (default: `.`)
-- `--threshold N` — flag CC > N (default: 5)
+- `--threshold N` — flag CC > N (default: 8). A project may pass a lower number, never a higher one
 
 ## Steps
 
@@ -25,7 +25,9 @@ functions above the complexity threshold.
    ```bash
    cc-check <dirs> --threshold 8 --format text
    ```
-   Use `--threshold 8` unless the user specifies otherwise (8 = agent-maintained code ceiling; Uncle Bob relaxes the human ceiling of 5 to 8 for agents)
+   8 is the agent-code ceiling (ADR-001); use a lower number only if the project sets one.
+   `cc-check` takes one path per run: run it once per directory.
+   Do not substitute `ruff --select C901`: ruff skips `and`/`or` and comprehension clauses and scores lower than radon, which CRAP also uses
 3. Report all flagged functions with file, line, CC score
 4. For each violation propose a concrete refactor: extract named sub-functions, replace long if/elif chains with dispatch dicts, simplify nested loops
 
@@ -34,9 +36,8 @@ functions above the complexity threshold.
 | CC  | Grade | Action |
 |-----|-------|--------|
 | 1–5 | A – simple | none |
-| 6–8 | B – moderate | acceptable for agent code; note it |
-| 9–10 | C | schedule refactor |
-| 11+ | D–F | refactor before next commit |
+| 6–8 | B – moderate | acceptable for agent code; needs tests to pass CRAP (62% at 6, 100% at 8) |
+| 9+ | C–F | fails the gate; refactor before commit |
 
 ## Architectural constraints — apply when writing new Python in this session
 
@@ -56,7 +57,7 @@ pip3 install radon
 `cc-check`, `crap` and `comment-debt` come from this plugin's Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.1.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.2.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.1.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.2.0"
 ```

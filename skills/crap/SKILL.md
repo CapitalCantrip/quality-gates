@@ -50,7 +50,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    crap --lang swift Sources/ --xcresult /tmp/out.xcresult
    ```
 
-   **Swift — worst-case:**
+   **Swift — worst-case** (SwiftPM packages: `swift test --enable-code-coverage` does not produce an `.xcresult`, so this is the only option):
    ```bash
    crap --lang swift Sources/ --no-coverage
    ```
@@ -60,7 +60,8 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    crap --lang python <dirs> --coverage-json coverage.json --json
    ```
 
-4. Report all FAIL rows in full; summarise WARN rows (CRAP 5–8 for Python/Swift; CC 11–15 for Rust).
+4. With `--no-coverage`, every function at CC 3 or above scores FAIL. That mode is a risk ranking, not a gate: report the top rows and say no coverage was available, never "the gate failed".
+   With coverage, report all FAIL rows in full; summarise WARN rows (CRAP 5–8 for Python/Swift; CC 11–15 for Rust).
 5. For each FAIL, recommend the cheaper fix first:
    - CC is the driver (high CC, low coverage): reduce CC — extract sub-functions
    - Coverage is the driver (low coverage, moderate CC): add tests
@@ -87,7 +88,7 @@ rustup component add clippy          # Rust
 `cc-check`, `crap` and `comment-debt` come from this plugin's Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.1.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.2.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.1.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.2.0"
 ```
