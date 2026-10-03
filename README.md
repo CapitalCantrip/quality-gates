@@ -131,7 +131,7 @@ pinned install carries the matching skills.
 Install the commands, pinned:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.1"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.2"
 ```
 
 or add the same requirement to the project's dev dependencies. Swift support
@@ -173,9 +173,8 @@ uv venv && uv pip install -e .
 .venv/bin/comment-debt
 ```
 
-This repo gates itself. The comment lines in `comment-debt.json` came with the
-tools from their first home and are paid down like any other debt
-([#1](https://github.com/CapitalCantrip/quality-gates/issues/1)).
+This repo gates itself, and carries no comment debt: `comment-debt.json` is
+`{}`.
 
 ## Licence
 
