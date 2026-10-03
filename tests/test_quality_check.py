@@ -220,6 +220,26 @@ class TestFlaggedCode(unittest.TestCase):
         self.assertEqual(rc, 1)
         self.assertIn("FLAGGED", out.getvalue())
 
+    def _exit_code_for_cc(self, cc):
+        radon_mod, complexity_mod = _make_radon_stubs()
+        complexity_mod.cc_visit.return_value = [_make_block("fn", cc)]
+        complexity_mod.cc_rank.return_value = "B"
+        rc = 0
+        with patch("sys.argv", ["qc", str(self.py_path)]), \
+             patch.dict(sys.modules, {"radon": radon_mod, "radon.complexity": complexity_mod}), \
+             patch("sys.stdout", io.StringIO()), patch("sys.stderr", io.StringIO()):
+            try:
+                qc.main()
+            except SystemExit as e:
+                rc = e.code
+        return rc
+
+    def test_default_threshold_passes_cc_8_the_agent_ceiling(self):
+        self.assertEqual(self._exit_code_for_cc(8), 0)
+
+    def test_default_threshold_flags_cc_9(self):
+        self.assertEqual(self._exit_code_for_cc(9), 1)
+
     def test_flagged_text_contains_function_name(self):
         radon_mod, complexity_mod = _make_radon_stubs()
         complexity_mod.cc_visit.return_value = [_make_block("big_function", 12)]
@@ -236,8 +256,8 @@ class TestFlaggedCode(unittest.TestCase):
 
     def test_custom_threshold_flags_at_right_level(self):
         radon_mod, complexity_mod = _make_radon_stubs()
-        # CC=7: above default threshold (5) but below custom threshold (10)
-        complexity_mod.cc_visit.return_value = [_make_block("moderate_fn", 7)]
+        # CC=9: above default threshold (8) but below custom threshold (10)
+        complexity_mod.cc_visit.return_value = [_make_block("moderate_fn", 9)]
         complexity_mod.cc_rank.return_value = "B"
         out, err = io.StringIO(), io.StringIO()
         rc = None
@@ -248,7 +268,7 @@ class TestFlaggedCode(unittest.TestCase):
                 qc.main()
             except SystemExit as e:
                 rc = e.code
-        # CC=7 <= threshold 10 → exit 0
+        # CC=9 <= threshold 10 → exit 0
         self.assertEqual(rc, 0)
 
 
