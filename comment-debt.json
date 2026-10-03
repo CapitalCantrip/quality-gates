@@ -1,5 +1,4 @@
 {
   "src/quality_gates/crap.py": 123,
-  "src/quality_gates/quality_check.py": 31,
   "tests/test_quality_check.py": 36
 }

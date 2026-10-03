@@ -67,6 +67,14 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    - Coverage is the driver (low coverage, moderate CC): add tests
    - Rust: extract private helpers; flatten control flow with early `return` or `?`
 
+## Adopting the gate in a repo with existing debt (Python / Swift)
+
+The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverage` (exit 2).
+
+1. Record the debt once: `crap --lang python <dirs> --coverage-json coverage.json --baseline crap-baseline.json --update`. Commit the file.
+2. Add a test that runs after coverage is collected and calls `crap.main([...same flags without --update...])`, asserting `SystemExit` code 0, so CI enforces it.
+3. A new or worse function fails; a lowered score fails until `--update` records it. `--update` never raises a score or adds a function.
+
 ## Exit codes (Python / Swift)
 
 | Code | Meaning |
@@ -88,7 +96,7 @@ rustup component add clippy          # Rust
 `cc-check`, `crap` and `comment-debt` come from this plugin's Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.2.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.2.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.0"
 ```

@@ -37,6 +37,7 @@ def _make_radon_stubs():
 def _make_block(name, complexity, lineno=1, class_name="Function"):
     b = MagicMock()
     b.name = name
+    b.fullname = name
     b.complexity = complexity
     b.lineno = lineno
     b.__class__ = type(class_name, (), {})

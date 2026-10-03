@@ -59,6 +59,8 @@ from pathlib import Path
 from subprocess import run, PIPE
 from typing import Optional
 
+from quality_gates import ratchet
+
 
 # ── Core formula ─────────────────────────────────────────────────────────────
 
@@ -226,6 +228,11 @@ def function_coverage_python(
     return _line_coverage_for_range(entry.lines, start_line, end_line)
 
 
+def _qualified_name(block: dict) -> str:
+    name = block.get("name", "?")
+    return f"{block['classname']}.{name}" if block.get("classname") else name
+
+
 def _py_block_to_result(
     block: dict,
     filepath: str,
@@ -243,7 +250,7 @@ def _py_block_to_result(
         return None
     start = block.get("lineno", 0)
     end   = block.get("endline", start)
-    name  = block.get("name", "?")
+    name  = _qualified_name(block)
     if no_coverage:
         cov = 0.0
     elif cov_data:
@@ -558,6 +565,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Exit 0 when no functions are found (suppresses the empty-scan error)")
     p.add_argument("--strict-freshness", action="store_true",
                    help="Exit 2 (tool error) when coverage file is older than the newest source file")
+    p.add_argument("--baseline", metavar="FILE",
+                   help="Fail only on functions that are new or worse than this file; needs coverage")
+    p.add_argument("--update", action="store_true",
+                   help="Lower the baseline to match the tree")
     return p
 
 
@@ -719,15 +730,44 @@ def _emit_output(results: list, args, n_fail: int) -> None:
         print_summary(results, warn_threshold=args.warn, fail_threshold=args.threshold)
 
 
-def main() -> None:
-    args = build_parser().parse_args()
+def _check_baseline_args(args) -> None:
+    if args.update and not args.baseline:
+        print("[crap] --update needs --baseline", file=sys.stderr)
+        sys.exit(2)
+    if args.baseline and args.no_coverage:
+        print(
+            "[crap] --baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
+def _failing_scores(results: list, root) -> dict:
+    scores: dict = {}
+    for r in results:
+        if r.grade == "FAIL":
+            ratchet.record(scores, ratchet.key(root, r.file, r.name), round(r.crap, 2))
+    return scores
+
+
+def _enforce_baseline(results: list, args, root) -> int:
+    out = sys.stderr if args.json_output else sys.stdout
+    current = _failing_scores(results, root or ratchet.repo_root())
+    return ratchet.enforce(current, Path(args.baseline), args.update, out)
+
+
+def main(argv=None, root=None) -> None:
+    args = build_parser().parse_args(argv)
     _validate_args(args)
     _check_coverage_source(args)
+    _check_baseline_args(args)
     _maybe_check_staleness(args)
     results = _run_analysis(args)
     _check_results_empty(results, args)
     n_fail = sum(1 for r in results if r.grade == "FAIL")
     _emit_output(results, args, n_fail)
+    if args.baseline:
+        sys.exit(_enforce_baseline(results, args, root))
     sys.exit(1 if n_fail > 0 else 0)
 
 

@@ -178,19 +178,28 @@ def rationale_count(root, path, lines):
     return sum(1 for n in lines if RATIONALE.search(text[n - 1]))
 
 
-def status(root, excluded, out):
-    current = {p: ls for p, ls in measure(root, tracked(root, excluded)).items() if ls}
+def group_by_area(root, current):
     areas = {}
     for path, lines in current.items():
         areas.setdefault(area(path), []).append((path, len(lines), rationale_count(root, path, lines)))
+    return areas
+
+
+def write_area(name, rows, out):
+    rows = sorted(rows, key=lambda r: (-r[2], r[1]))
+    out.write(f"\n## {name} — {sum(n for _, n, _ in rows)} lines\n")
+    for path, count, flagged in rows:
+        out.write(f"{count:5} {flagged:4}  {path}\n")
+
+
+def status(root, excluded, out):
+    current = {p: ls for p, ls in measure(root, tracked(root, excluded)).items() if ls}
+    areas = group_by_area(root, current)
     total = sum(len(ls) for ls in current.values())
     out.write(f"# Comment debt: {total} lines in {len(current)} files\n\n")
     out.write("Columns: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n")
     for name in sorted(areas, key=lambda a: -sum(n for _, n, _ in areas[a])):
-        rows = sorted(areas[name], key=lambda r: (-r[2], r[1]))
-        out.write(f"\n## {name} — {sum(n for _, n, _ in rows)} lines\n")
-        for path, count, flagged in rows:
-            out.write(f"{count:5} {flagged:4}  {path}\n")
+        write_area(name, areas[name], out)
     return 0
 
 

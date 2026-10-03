@@ -26,10 +26,25 @@ functions above the complexity threshold.
    cc-check <dirs> --threshold 8 --format text
    ```
    8 is the agent-code ceiling (ADR-001); use a lower number only if the project sets one.
-   `cc-check` takes one path per run: run it once per directory.
+   `cc-check` takes several paths in one run.
+   If the repo has a CC baseline (e.g. `cc-baseline.json`), add `--baseline <file>`: it then fails only on new or worse functions.
    Do not substitute `ruff --select C901`: ruff skips `and`/`or` and comprehension clauses and scores lower than radon, which CRAP also uses
 3. Report all flagged functions with file, line, CC score
 4. For each violation propose a concrete refactor: extract named sub-functions, replace long if/elif chains with dispatch dicts, simplify nested loops
+
+## Adopting the gate in a repo with existing debt
+
+1. Record the debt once: `cc-check <dirs> --baseline cc-baseline.json --update`. Commit the file.
+2. Add a test so CI enforces it:
+   ```python
+   def test_no_function_is_more_complex_than_the_baseline_allows(self):
+       with self.assertRaises(SystemExit) as stop:
+           quality_check.main(["src", "--baseline", "cc-baseline.json"])
+       self.assertEqual(stop.exception.code, 0)
+   ```
+3. When a refactor lowers a baselined score, the check fails until you run `--update` and commit the lower baseline. `--update` never records a new or worse function: fix those instead.
+
+Keys are `path::function` (`path::Class.method` for methods), relative to the git root; a renamed or moved function counts as new.
 
 ## Thresholds (McCabe scale)
 
@@ -57,7 +72,7 @@ pip3 install radon
 `cc-check`, `crap` and `comment-debt` come from this plugin's Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.2.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.2.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.0"
 ```
