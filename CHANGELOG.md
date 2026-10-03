@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.3.0 — 2026-10-04
+
+A baseline ratchet for `cc-check` and `crap`, so a repo with existing debt can
+put them in CI.
+
+- `cc-check` and `crap` take `--baseline FILE` and `--update`. The baseline maps
+  `path::function` to its score for functions over the threshold. The check
+  fails on a new or worse function, and on a lowered score until `--update`
+  records it. `--update` never raises a score or adds an entry. A missing
+  baseline file is an error (exit 2) except with `--update`, which creates it.
+- `crap --baseline` needs coverage: it exits 2 with `--no-coverage` or with no
+  coverage source.
+- `cc-check` takes several paths in one run: `cc-check src tests`.
+- `cc-check --format json` rows carry `fullname` (`Class.method` for methods).
+- `crap` names methods `Class.method` (was `method`).
+- `cc-check` and `crap` `main` take an `argv` list, so a test can call them.
+- `cc-check`'s `main` and `comment-debt`'s `status` are split to CC 8 or below.
+
+**When you bump the pin:** nothing breaks. To gate CI on CC or CRAP in a repo
+with existing debt, run the gate once with `--baseline <file> --update`, commit
+the file, and add a test that calls `main` with `--baseline <file>`. Scripts
+that ran `cc-check` once per directory can pass all the paths at once.
+
 ## 0.2.0 — 2026-10-04
 
 One complexity standard across languages. See ADR-001.

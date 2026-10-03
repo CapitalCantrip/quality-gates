@@ -1,138 +1,144 @@
 #!/usr/bin/env python3
-"""
-quality_check.py — Cyclomatic complexity reporter for Python code.
-
-Uses radon to compute per-function cyclomatic complexity (CC).
-Flags functions above a threshold. Used by the Cleaner agent pipeline stage.
-
-Usage:
-    python3 quality_check.py <path> [--threshold N] [--format text|json]
-
-    <path>       File or directory to analyse (recursively for directories)
-    --threshold  CC score above which functions are flagged (default: 8)
-    --format     Output format: 'text' (default) or 'json'
-
-Exit codes:
-    0  All functions at or below threshold (or --format json regardless)
-    1  One or more functions exceed threshold
-    2  No Python files found / bad arguments
-
-Cyclomatic Complexity scale (McCabe / radon):
-    1-5  (A) Simple, low risk
-    6-10 (B) Moderate — acceptable for agent-maintained code up to ~8
-    11+  (C-F) Complex — refactor required
-
-Uncle Bob / Martin guidance (from 2026-09-06 interview):
-    Human-maintained code: target CC <= 5
-    Agent-maintained code: target CC <= 8 (agents have exact short-term memory,
-    so some cognitive-load constraints that drive human thresholds can be relaxed)
-"""
-
-import sys
-import json
 import argparse
+import json
+import sys
 from pathlib import Path
 
+from quality_gates import ratchet
+
 AGENT_CC_CEILING = 8
+EXCLUDED_PARTS = {"__pycache__", ".git", "backups", "venv", ".venv", "node_modules"}
 
 
-def main():
-    parser = argparse.ArgumentParser(
-        description="Cyclomatic complexity reporter (Cleaner pipeline stage)"
-    )
-    parser.add_argument("path", help="File or directory to analyse")
+def build_parser():
+    parser = argparse.ArgumentParser(description="Cyclomatic complexity reporter for Python code")
+    parser.add_argument("paths", nargs="+", metavar="path", help="files or directories to analyse")
     parser.add_argument(
-        "--threshold",
-        type=int,
-        default=AGENT_CC_CEILING,
-        help="CC score above which functions are flagged (default: 8)",
+        "--threshold", type=int, default=AGENT_CC_CEILING,
+        help=f"CC score above which functions are flagged (default: {AGENT_CC_CEILING})",
     )
-    parser.add_argument(
-        "--format",
-        choices=["text", "json"],
-        default="text",
-        help="Output format (default: text)",
-    )
-    args = parser.parse_args()
+    parser.add_argument("--format", choices=["text", "json"], default="text", help="output format (default: text)")
+    parser.add_argument("--baseline", metavar="FILE", help="fail only on functions that are new or worse than this file")
+    parser.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
+    return parser
 
+
+def load_radon():
     try:
         from radon.complexity import cc_visit, cc_rank
     except ImportError:
         print("ERROR: radon not installed. Run: pip install radon", file=sys.stderr)
         sys.exit(2)
+    return cc_visit, cc_rank
 
-    target = Path(args.path)
+
+def python_files(target):
     if not target.exists():
         print(f"ERROR: path not found: {target}", file=sys.stderr)
         sys.exit(2)
-
-    # Collect Python files
     if target.is_file():
-        files = [target] if target.suffix == ".py" else []
-    else:
-        files = sorted(target.rglob("*.py"))
+        return [target] if target.suffix == ".py" else []
+    return sorted(target.rglob("*.py"))
 
-    # Exclude non-project paths
-    excluded = {"__pycache__", ".git", "backups", "venv", ".venv", "node_modules"}
-    files = [f for f in files if not any(part in excluded for part in f.parts)]
 
+def collect_files(paths):
+    files = []
+    for path in paths:
+        files.extend(f for f in python_files(Path(path)) if not EXCLUDED_PARTS.intersection(f.parts))
     if not files:
         print("No Python files found.", file=sys.stderr)
         sys.exit(2)
+    return files
 
-    results = []
-    for filepath in files:
-        try:
-            source = filepath.read_text(encoding="utf-8")
-        except Exception:
-            continue
-        try:
-            blocks = cc_visit(source)
-        except SyntaxError:
-            continue
-        for block in blocks:
-            results.append(
-                {
-                    "file": str(filepath),
-                    "name": block.name,
-                    "type": block.__class__.__name__,
-                    "complexity": block.complexity,
-                    "rank": cc_rank(block.complexity),
-                    "line": block.lineno,
-                    "above_threshold": block.complexity > args.threshold,
-                }
-            )
 
-    if args.format == "json":
-        print(json.dumps(results, indent=2))
-        sys.exit(0)
+def read_blocks(filepath, cc_visit):
+    try:
+        return cc_visit(filepath.read_text(encoding="utf-8"))
+    except (OSError, ValueError, SyntaxError):
+        return []
 
-    # Text output
-    flagged = [r for r in results if r["above_threshold"]]
-    ok = [r for r in results if not r["above_threshold"]]
 
-    print(f"\n=== Cyclomatic Complexity Report (threshold: CC > {args.threshold}) ===\n")
+def to_result(filepath, block, cc_rank, threshold):
+    return {
+        "file": str(filepath),
+        "name": block.name,
+        "fullname": block.fullname,
+        "type": block.__class__.__name__,
+        "complexity": block.complexity,
+        "rank": cc_rank(block.complexity),
+        "line": block.lineno,
+        "above_threshold": block.complexity > threshold,
+    }
 
-    if flagged:
-        print(f"FLAGGED — {len(flagged)} function(s) above threshold:\n")
-        for r in sorted(flagged, key=lambda x: -x["complexity"]):
-            rel = Path(r["file"]).relative_to(Path.cwd()) if Path(r["file"]).is_relative_to(Path.cwd()) else Path(r["file"]).name
-            print(f"  [{r['rank']}] CC={r['complexity']:>3}  {rel}:{r['line']}  {r['name']}")
-    else:
+
+def analyse(files, threshold):
+    cc_visit, cc_rank = load_radon()
+    return [
+        to_result(filepath, block, cc_rank, threshold)
+        for filepath in files
+        for block in read_blocks(filepath, cc_visit)
+    ]
+
+
+def display_path(file):
+    path = Path(file)
+    return path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path.name
+
+
+def print_flagged(flagged):
+    if not flagged:
         print("  All functions at or below threshold. ✓")
+        return
+    print(f"FLAGGED — {len(flagged)} function(s) above threshold:\n")
+    for r in sorted(flagged, key=lambda x: -x["complexity"]):
+        print(f"  [{r['rank']}] CC={r['complexity']:>3}  {display_path(r['file'])}:{r['line']}  {r['name']}")
 
-    print(f"\nSUMMARY:")
+
+def print_text(results, files, threshold):
+    flagged = [r for r in results if r["above_threshold"]]
+    print(f"\n=== Cyclomatic Complexity Report (threshold: CC > {threshold}) ===\n")
+    print_flagged(flagged)
+    print("\nSUMMARY:")
     print(f"  Files analysed:     {len(files)}")
     print(f"  Functions checked:  {len(results)}")
     print(f"  Above threshold:    {len(flagged)}")
-    print(f"  At/below threshold: {len(ok)}")
+    print(f"  At/below threshold: {len(results) - len(flagged)}")
+    print("\n  → Refactoring needed. Exit 1." if flagged else "\n  → Clean. Exit 0.")
+    return 1 if flagged else 0
 
-    if flagged:
-        print(f"\n  → Refactoring needed. Exit 1.")
-        sys.exit(1)
-    else:
-        print(f"\n  → Clean. Exit 0.")
-        sys.exit(0)
+
+def over_threshold(results, root):
+    scores = {}
+    for r in results:
+        if r["above_threshold"]:
+            ratchet.record(scores, ratchet.key(root, r["file"], r["fullname"]), r["complexity"])
+    return scores
+
+
+def report(results, files, args):
+    if args.format == "json":
+        print(json.dumps(results, indent=2))
+        return 0
+    return print_text(results, files, args.threshold)
+
+
+def run(argv, root):
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if args.update and not args.baseline:
+        parser.error("--update needs --baseline")
+    files = collect_files(args.paths)
+    results = analyse(files, args.threshold)
+    code = report(results, files, args)
+    if not args.baseline:
+        return code
+    out = sys.stderr if args.format == "json" else sys.stdout
+    current = over_threshold(results, root or ratchet.repo_root())
+    return ratchet.enforce(current, Path(args.baseline), args.update, out)
+
+
+def main(argv=None, root=None):
+    sys.exit(run(argv, root))
 
 
 if __name__ == "__main__":

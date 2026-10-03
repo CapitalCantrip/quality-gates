@@ -82,3 +82,20 @@ for the ranking, never a pass/fail result.
   unreachable even with full coverage.
 - **Separate numbers per language.** Swift's higher scores came from counting
   `switch` cases; removing that removed the case for a different number.
+
+## Addendum 2026-10-04: the baseline ratchet (v0.3.0)
+
+The standards above are unchanged. `cc-check` and `crap` gained `--baseline` so a
+repo with existing debt can enforce them in CI without first paying it all off.
+
+- **Key format:** `path::function`, with methods as `path::Class.method` and the
+  path relative to the git root (the working directory outside a git repo). A
+  key carries no line number, so editing elsewhere in the file does not move it;
+  a renamed or moved function is new, so debt cannot be laundered by renaming.
+- **Only functions over the threshold are recorded.** A function that drops to
+  the threshold leaves the baseline at the next `--update`, and cannot return.
+- **A missing baseline is an error, except with `--update`.** Treating it as
+  empty would fail every adopting repo on its first run; treating it as
+  permissive would let a mistyped path pass CI.
+- **CRAP baselines need coverage,** following the decision that CRAP without
+  coverage is a ranking, not a gate.
