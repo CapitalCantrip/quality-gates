@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.3.2 — 2026-10-04
+
+No comment debt left in the repo (#1).
+
+- `crap --help` is rewritten: the epilog came from the module docstring and
+  named a `../crap.py` path and a SwiftLint install that no longer apply. It
+  now lists the languages, examples, exit codes and dependencies. Defaults and
+  flags are unchanged.
+- `crap` has its own test suite covering the formula, coverage parsing for both
+  languages, the `--top` cap and every tool-error exit.
+
+**When you bump the pin:** run `qg-skills` and commit `.claude/skills/`; nothing
+else changes.
+
 ## 0.3.1 — 2026-10-04
 
 Skills for cloud sessions. A cloud session doesn't install plugins a repo

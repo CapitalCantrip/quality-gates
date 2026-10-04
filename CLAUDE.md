@@ -15,8 +15,7 @@ CapitalCantrip project holds agent-written code to. The standards table is in
   a consumer must do when they bump the pin, and update the skills' install
   lines. Consumers pin tags, so an unreleased fix reaches nobody.
 - **The repo passes its own gates.** `comment-debt` on every commit (the
-  pre-commit hook), `cc-check` at 8 and `crap` at 8 on code you change. Known
-  debt: #1 (comments).
+  pre-commit hook), `cc-check` at 8 and `crap` at 8 on code you change.
 - **Python 3.9 is the floor.** CI runs 3.9 and 3.12; the consumers include
   system Python on macOS.
 
