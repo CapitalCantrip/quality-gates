@@ -4,6 +4,8 @@ This repo is the source of truth for the quality standards every
 project that pins it holds agent-written code to. The standards table is in
 `README.md`; the reasons are in `docs/adr/`.
 
+**Asking the builder:** ask when uncertain about anything irreversible, outward-facing or large in scope, and proceed on reversible work with a stated default. Every question gives what is at stake in plain words, two or three options with only the pros and cons the builder would notice, and a recommendation with its reason (`standards` skill, *ask the builder*).
+
 ## Rules
 
 - **A standard changes only through an ADR.** Changing a threshold, a counting
@@ -31,5 +33,18 @@ uv venv && uv pip install -e .
 
 ## Issues
 
-GitHub Issues on this repo. Labels: `needs-triage`, `ready-for-agent`,
-`ready-for-human`.
+The tracker and the five triage labels: see Agent skills below.
+
+## Agent skills
+
+### Issue tracker
+
+GitHub Issues on this repo, through the `gh` CLI. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default triage labels: `needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.

@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.4.0 — 2026-10-06
+
+The workflow and principles layers of ADR-002, now accepted.
+
+- New skill `standards`: the size rule and 13 principles, one file each, with
+  an index the agent reads to pick the one that applies.
+- New skill `/setup-standards`: sets up or upgrades a project for all three
+  layers (agent docs, glossary, gates, baselines, hooks, CI, asking rule) and
+  ends with a plain report.
+- `qg-skills` also installs the stage guard (a Claude Code hook refusing
+  `git add -A`, `git add .`, `git commit -a`) and the asking-rule line in
+  `CLAUDE.md`. `qg-skills --check` fails when either is missing or stale, and
+  exits 2 when `.claude/settings.json` is not valid JSON.
+- New command `qg-agent-docs`: writes `docs/agents/` from Matt Pocock's setup
+  templates without overwriting your edits.
+- New command `qg-upstream`, run monthly by a workflow in this repo: reports
+  upstream changes to the files copied from Pocock and pstack.
+
+**When you bump the pin:** run `/setup-standards`, or at least `qg-skills`, and
+commit what it writes (`.claude/skills/`, `.claude/hooks/`,
+`.claude/settings.json`, `CLAUDE.md`). Until you do, a test calling
+`skills_sync.main(["--check"])` fails.
+
 ## 0.3.2 — 2026-10-04
 
 No comment debt left in the repo (#1).
