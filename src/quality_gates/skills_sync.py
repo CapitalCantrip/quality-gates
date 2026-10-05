@@ -5,6 +5,8 @@ import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
+from quality_gates import project_files
+
 SHIPPED = Path(__file__).parent / "skills"
 DEFAULT_DEST = Path(".claude") / "skills"
 SKILL_FILE = "SKILL.md"
@@ -56,8 +58,12 @@ def sync(dest, source=SHIPPED):
     return names
 
 
-def check(dest, source=SHIPPED):
-    found = differences(dest, source)
+def project_root(dest):
+    return dest.resolve().parent.parent
+
+
+def check(dest, source=SHIPPED, hooks=project_files.HOOKS_SOURCE):
+    found = differences(dest, source) + project_files.differences(dest.parent, project_root(dest), hooks)
     for line in found:
         print(line)
     if found:
@@ -70,17 +76,26 @@ def check(dest, source=SHIPPED):
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="qg-skills",
-        description="Copy the quality-gates skills into a repo, so cloud sessions load them.",
+        description="Copy the quality-gates skills and stage guard into a repo, register the guard, and add the asking-rule line to CLAUDE.md, so local and cloud sessions both get them.",
     )
     parser.add_argument("--dest", type=Path, default=DEFAULT_DEST, help="default: .claude/skills")
     parser.add_argument("--check", action="store_true", help="exit 1 if the copies differ from this version's")
     return parser
 
 
-def main(argv=None, source=SHIPPED):
+def install(dest, source, hooks):
+    names = sync(dest, source)
+    project_files.sync(dest.parent, project_root(dest), hooks)
+    print(f"Copied {', '.join(names)} from quality-gates {installed_version()} to {dest}")
+    print(f"Installed the stage guard in {dest.parent} and the asking-rule line in "
+          f"{project_files.instruction_file(project_root(dest)).name}")
+    return 0
+
+
+def main(argv=None, source=SHIPPED, hooks=project_files.HOOKS_SOURCE):
     args = build_parser().parse_args(argv)
-    if args.check:
-        sys.exit(check(args.dest, source))
-    names = sync(args.dest, source)
-    print(f"Copied {', '.join(names)} from quality-gates {installed_version()} to {args.dest}")
-    sys.exit(0)
+    try:
+        sys.exit(check(args.dest, source, hooks) if args.check else install(args.dest, source, hooks))
+    except project_files.SettingsError as error:
+        print(error, file=sys.stderr)
+        sys.exit(2)

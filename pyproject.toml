@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quality-gates"
-version = "0.3.2"
+version = "0.4.0"
 description = "Quality gates for agent-written code: comment ratchet, cyclomatic complexity, CRAP."
 requires-python = ">=3.9"
 dependencies = ["radon>=6"]
@@ -18,9 +18,11 @@ comment-debt = "quality_gates.comment_debt:main"
 cc-check = "quality_gates.quality_check:main"
 crap = "quality_gates.crap:main"
 qg-skills = "quality_gates.skills_sync:main"
+qg-agent-docs = "quality_gates.agent_docs:main"
+qg-upstream = "quality_gates.upstream:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-quality_gates = ["skills/**/*"]
+quality_gates = ["skills/**/*", "hooks/*", "agent_doc_templates/*", "upstream.json"]

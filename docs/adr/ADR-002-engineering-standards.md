@@ -1,5 +1,5 @@
 ---
-status: proposed
+status: accepted
 date: 2026-10-06
 ---
 
@@ -225,3 +225,41 @@ principle file names its source.
 - **One skill per principle, as pstack ships them.** Each skill costs a line in
   every session's skill list. One index costs one line.
 - **`GLOSSARY.md`.** See Workflow.
+
+## Addendum 2026-10-06: building the two skills (v0.4.0)
+
+The three layers, the size rule, the principles and the asking rule are
+unchanged. Building `standards` and `/setup-standards` changed five details of
+the decision above; where this addendum and the text above disagree, this
+addendum holds.
+
+- **Pocock's setup templates are copied, not called.** His
+  `setup-matt-pocock-skills` sets `disable-model-invocation`, so another skill
+  cannot run it. `qg-agent-docs` writes `docs/agents/` from copies of his
+  templates, with his MIT notice, and never overwrites a file the project
+  edited: it shows the template's own change instead, so the builder can adopt
+  it. `upstream.json` records the upstream commit every copied or adapted file
+  came from, Pocock's and pstack's; `qg-upstream` reports what changed since,
+  and a monthly workflow opens a `needs-triage` issue when it does. Adopting a
+  change is a release like any other.
+- **The glossary file is `GLOSSARY.md`.** This reverses the decision above and
+  the last item under Rejected. Pocock's current skills read and write
+  `GLOSSARY.md`, and a project on `CONTEXT.md` would have its glossary ignored
+  by them. `/setup-standards` renames an existing `CONTEXT.md` and writes a
+  starter glossary where there is none.
+- **The stage guard ships now,** not after a consuming project. It was built
+  and caught real mistakes in the project this ADR was written from, before
+  that project's details were removed. `qg-skills` installs it as a Claude Code
+  `PreToolUse` hook and registers it in `.claude/settings.json`; it refuses
+  `git add -A`, `git add .`, `git add -u`, `git stage` with those, and
+  `git commit -a`, and says to stage files by name.
+- **`qg-skills` installs and checks the asking-rule line,** as well as the
+  skills and the stage guard. `qg-skills --check` fails when any of them is
+  missing or out of date.
+- **Gate placement:** `cc-check` runs in the pre-commit hook and in CI; `crap`
+  runs in CI only, because it needs coverage from the whole suite.
+  `/setup-standards` covers Python, Swift and Rust. A SwiftPM-only package gets
+  no CRAP gate until issue #6 is fixed, and the report says so.
+
+*Stop and report when a loop runs on* uses an hour, or three review rounds,
+without a commit. Those numbers are a starting point, to be revised from use.

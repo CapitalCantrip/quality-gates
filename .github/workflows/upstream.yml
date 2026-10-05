@@ -1,0 +1,39 @@
+name: upstream
+
+on:
+  schedule:
+    - cron: "0 9 1 * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TITLE: "Upstream changed: Matt Pocock's skills or pstack"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Compare the copied files with upstream
+        run: |
+          set +e
+          qg-upstream > report.md
+          code=$?
+          set -e
+          cat report.md
+          if [ "$code" -eq 0 ]; then exit 0; fi
+          if [ "$code" -ne 1 ]; then exit "$code"; fi
+          open=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq length)
+          if [ "$open" -gt 0 ]; then
+            echo "An issue for this is already open."
+            exit 0
+          fi
+          gh issue create --title "$TITLE" --label needs-triage --body-file report.md

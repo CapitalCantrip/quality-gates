@@ -32,8 +32,7 @@ A standard moves down this table whenever it can. The workflow comes from
 [Matt Pocock's engineering skills](https://github.com/mattpocock/skills) and
 many principles from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack),
 both MIT. Why it is shaped this way:
-[ADR-002](docs/adr/ADR-002-engineering-standards.md). The workflow and
-principles layers are proposed; the gates below ship today.
+[ADR-002](docs/adr/ADR-002-engineering-standards.md).
 
 ### Workflow: size decides where to start
 
@@ -43,11 +42,12 @@ principles layers are proposed; the gates below ship today.
 | fits in one session but touches several parts of the code | `/grill-with-docs` |
 | is smaller than that | `/tdd` |
 
-Every route ends with `/code-review`, then the gates.
+Every route ends with `/code-review`, then the gates. The size rule and the
+principles ship as the `standards` skill.
 
-To prepare a project for all three layers, run `/setup-standards` (proposed in
-ADR-002): it installs the gates, records existing debt, adds the hooks and CI
-tests, and reports in plain words what it did.
+To prepare a project for all three layers, run `/setup-standards`: it writes the
+agent docs, installs the gates, records existing debt, adds the hooks and CI
+steps, and reports in plain words what it did. Run it again after each pin bump.
 
 ## Standards
 
@@ -167,13 +167,23 @@ pinned install carries the matching skills.
 | `/cc-swift` | Runs SwiftLint and lizard and proposes refactors |
 | `/cc-rust` | Runs `cargo clippy`; `setup` scaffolds `clippy.toml` and deny attributes |
 | `/crap` | Runs `crap` (Python, Swift) or `cargo clippy` (Rust) and says whether to add tests or reduce CC |
+| `standards` | The size rule and the principles, one file each; the agent opens one when its trigger matches |
+| `/setup-standards` | Sets up or upgrades a project for all three layers and reports what it did |
+
+Two more commands support them:
+
+- `qg-agent-docs --tracker github|gitlab|local` writes `docs/agents/` from
+  Matt Pocock's setup templates. It never overwrites a file you edited; it
+  shows the template's own change instead, so you can choose to adopt it.
+- `qg-upstream` reports what changed upstream in the files this repo copies
+  from Pocock and pstack. A monthly workflow runs it and opens an issue.
 
 ## Use it in a project
 
 Install the commands, pinned:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.3.2"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.4.0"
 ```
 
 or add the same requirement to the project's dev dependencies. Swift support
@@ -182,9 +192,14 @@ needs `lizard`: install with the `[swift]` extra.
 Copy the skills into the project and commit them:
 
 ```bash
-qg-skills            # writes .claude/skills/<skill>/ for each skill
-qg-skills --check    # exit 1 if the copies differ from the installed version
+qg-skills            # writes .claude/skills/, the stage guard and the asking-rule line
+qg-skills --check    # exit 1 if any of them differs from the installed version
 ```
+
+Besides the skills, `qg-skills` installs the stage guard, a hook in
+`.claude/hooks/` registered in `.claude/settings.json` that refuses
+`git add -A`, `git add .` and `git commit -a`, and adds the asking-rule line to
+`CLAUDE.md`.
 
 Committed copies load in local and cloud sessions alike. A cloud session does
 not install plugins a repo enables in `.claude/settings.json`, so the plugin

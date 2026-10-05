@@ -1,0 +1,36 @@
+{
+  "sources": [
+    {
+      "repo": "mattpocock/skills",
+      "commit": "d80fa0f4ebe0c5714af0adf8670336065233ecc6",
+      "copied": "verbatim, except SKILL.md, whose process setup-standards adapts",
+      "files": {
+        "skills/engineering/setup-matt-pocock-skills/domain.md": "src/quality_gates/agent_doc_templates/domain.md",
+        "skills/engineering/setup-matt-pocock-skills/issue-tracker-github.md": "src/quality_gates/agent_doc_templates/issue-tracker-github.md",
+        "skills/engineering/setup-matt-pocock-skills/issue-tracker-gitlab.md": "src/quality_gates/agent_doc_templates/issue-tracker-gitlab.md",
+        "skills/engineering/setup-matt-pocock-skills/issue-tracker-local.md": "src/quality_gates/agent_doc_templates/issue-tracker-local.md",
+        "skills/engineering/setup-matt-pocock-skills/triage-labels.md": "src/quality_gates/agent_doc_templates/triage-labels.md",
+        "LICENSE": "src/quality_gates/agent_doc_templates/LICENSE",
+        "skills/engineering/setup-matt-pocock-skills/SKILL.md": "src/quality_gates/skills/setup-standards/SKILL.md"
+      }
+    },
+    {
+      "repo": "cursor/plugins",
+      "commit": "4e5b1cf2ccb0ea3716f08c8ee0a5856b5ab93536",
+      "copied": "adapted",
+      "files": {
+        "pstack/skills/principle-prove-it-works/SKILL.md": "src/quality_gates/skills/standards/principles/prove-it-works.md",
+        "pstack/skills/principle-explain-the-number/SKILL.md": "src/quality_gates/skills/standards/principles/explain-the-number.md",
+        "pstack/skills/principle-build-the-lever/SKILL.md": "src/quality_gates/skills/standards/principles/build-the-lever.md",
+        "pstack/skills/principle-test-behavior-not-implementation/SKILL.md": "src/quality_gates/skills/standards/principles/test-behaviour-not-implementation.md",
+        "pstack/skills/principle-subtract-before-you-add/SKILL.md": "src/quality_gates/skills/standards/principles/subtract-before-you-add.md",
+        "pstack/skills/principle-boundary-discipline/SKILL.md": "src/quality_gates/skills/standards/principles/boundary-discipline.md",
+        "pstack/skills/principle-make-operations-idempotent/SKILL.md": "src/quality_gates/skills/standards/principles/make-operations-idempotent.md",
+        "pstack/skills/principle-minimize-reader-load/SKILL.md": "src/quality_gates/skills/standards/principles/minimise-reader-load.md",
+        "pstack/skills/principle-attack-the-premise/SKILL.md": "src/quality_gates/skills/standards/principles/attack-the-premise.md",
+        "pstack/skills/principle-encode-lessons-in-structure/SKILL.md": "src/quality_gates/skills/standards/principles/encode-lessons-in-structure.md",
+        "pstack/LICENSE": "src/quality_gates/skills/standards/LICENSE-pstack"
+      }
+    }
+  ]
+}

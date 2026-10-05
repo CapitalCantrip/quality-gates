@@ -1,2 +1,3 @@
 #!/bin/sh
-exec comment-debt
+comment-debt || exit 1
+exec cc-check src tests --baseline cc-baseline.json
