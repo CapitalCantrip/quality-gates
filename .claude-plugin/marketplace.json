@@ -9,7 +9,7 @@
       "name": "quality-gates",
       "source": "./",
       "description": "Quality-gate skills for agent-written code: no comments, cyclomatic complexity, CRAP.",
-      "version": "0.4.0"
+      "version": "0.4.1"
     }
   ]
 }

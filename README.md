@@ -183,7 +183,7 @@ Two more commands support them:
 Install the commands, pinned:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.4.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.4.1"
 ```
 
 or add the same requirement to the project's dev dependencies. Swift support
@@ -195,6 +195,12 @@ Copy the skills into the project and commit them:
 qg-skills            # writes .claude/skills/, the stage guard and the asking-rule line
 qg-skills --check    # exit 1 if any of them differs from the installed version
 ```
+
+The first time, run `qg-skills` before you start a Claude Code session in the
+project: a session loads skills only when it starts, so until then it has no
+`/setup-standards`. Then start a session and run `/setup-standards`; it does
+everything below and reports what it did. After a pin bump, run `qg-skills`
+again, start a new session, and run `/setup-standards` to upgrade.
 
 Besides the skills, `qg-skills` installs the stage guard, a hook in
 `.claude/hooks/` registered in `.claude/settings.json` that refuses
