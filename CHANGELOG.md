@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.1 — 2026-10-06
+
+Fixes from the first run of `/setup-standards` on a real project (localbar).
+
+- `/setup-standards` writes `CLAUDE.md` pointers that say what the file they
+  name holds, not just its path, and on a re-run rewrites existing pointers
+  that only name a file.
+- The README says how to start: run `qg-skills` before the first Claude Code
+  session, because a session loads skills only when it starts.
+
+**When you bump the pin:** run `qg-skills`, start a new session, run
+`/setup-standards`, and commit what changes.
+
 ## 0.4.0 — 2026-10-06
 
 The workflow and principles layers of ADR-002, now accepted.
