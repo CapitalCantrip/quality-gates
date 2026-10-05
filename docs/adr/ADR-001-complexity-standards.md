@@ -8,9 +8,9 @@ date: 2026-10-04
 ## Context
 
 Before this decision the complexity limit was written down in five places with
-four values. AgenticOS enforced Python CC 6 through ruff and Swift 6/8 through
+four values. The first consuming project enforced Python CC 6 through ruff and Swift 6/8 through
 SwiftLint, both set by a commit and not a decision. The `/cc-python` skill said
-8. `cc-check` defaulted to 5. `/cc-swift` and AgenticOS's build checklist still
+8. `cc-check` defaulted to 5. `/cc-swift` and that project's build checklist still
 said 10/15.
 
 The tools also disagree about what CC means. On the same function, one `if`
@@ -70,8 +70,8 @@ for the ranking, never a pass/fail result.
   `.xcresult`. Until `crap` reads llvm-cov JSON (#6), a SwiftPM project's Swift CRAP
   stays worst-case and informational.
 - Swift has the same split Python had: SwiftLint gates CC, lizard scores CRAP,
-  and they count differently. Left as is while the only Swift consumer (AgenticOS
-  Dictate) is frozen.
+  and they count differently. Left as is while the only Swift consumer is
+  frozen.
 
 ## Rejected
 
