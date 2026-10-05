@@ -1,11 +1,53 @@
 # quality-gates
 
-Quality gates for agent-written code, shared across projects. Each project pins
-a tag, so a fix lands everywhere by bumping the pin.
+Engineering standards for software built with AI coding agents, by people who
+are not software engineers. Each project pins a tag, so a fix lands everywhere
+by bumping the pin.
 
-Agents follow a failing tool more reliably than a paragraph of guidance, so each
-standard here is a command that exits non-zero, plus a skill that tells the agent
-how to fix what it flags.
+## Who this is for
+
+You can describe what you want and tell whether the result works. You can't
+read a diff and spot a design flaw, an untested path or an error that is
+silently swallowed. That leaves four gaps:
+
+| The gap | What goes wrong | What this repo does |
+|---|---|---|
+| Nobody reviews the code | The agent's bad habits ship | Gates: commands that fail the commit or the build, with no expertise needed to read the result |
+| Written rules fade | "Never do X again" goes in a notes file, and X happens again | Lessons that recur become checks, not paragraphs |
+| Good process and busy process look alike | Hours of polish on a design nobody agreed, or no plan where one was needed | One question, how big is the work, picks the starting step |
+| Questions arrive in jargon | You choose between options you can't weigh | Every question states the stakes plainly, gives two or three options and recommends one |
+
+Agents follow a failing tool more reliably than a paragraph of guidance, so
+wherever a standard can be a command that exits non-zero, it is one.
+
+## Three layers
+
+| Layer | Answers | Relies on |
+|---|---|---|
+| Workflow | what order to work in, for the size of the work | you picking the right starting step |
+| Principles | how to judge each step, what counts as proof, how to ask you | the agent reading and applying them |
+| Gates | what fails, whatever anyone intended | nothing |
+
+A standard moves down this table whenever it can. The workflow comes from
+[Matt Pocock's engineering skills](https://github.com/mattpocock/skills) and
+many principles from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack),
+both MIT. Why it is shaped this way:
+[ADR-002](docs/adr/ADR-002-engineering-standards.md). The workflow and
+principles layers are proposed; the gates below ship today.
+
+### Workflow: size decides where to start
+
+| The work... | Start with |
+|---|---|
+| won't fit in one agent session | `/wayfinder` |
+| fits in one session but touches several parts of the code | `/grill-with-docs` |
+| is smaller than that | `/tdd` |
+
+Every route ends with `/code-review`, then the gates.
+
+To prepare a project for all three layers, run `/setup-standards` (proposed in
+ADR-002): it installs the gates, records existing debt, adds the hooks and CI
+tests, and reports in plain words what it did.
 
 ## Standards
 
@@ -34,7 +76,7 @@ test, a named constant, an ADR or an issue. Existing comments are debt, held in
 `comment-debt.json` as a line count per file. The gate fails if a file gains a
 comment, and also if it loses one without the baseline being lowered, so paid
 debt is always recorded. Python only for now
-([#3](https://github.com/CapitalCantrip/quality-gates/issues/3) adds Rust,
+([#3](../../issues/3) adds Rust,
 TypeScript and shell).
 
 ### `cc-check`: cyclomatic complexity
