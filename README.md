@@ -28,26 +28,25 @@ wherever a standard can be a command that exits non-zero, it is one.
 | Principles | how to judge each step, what counts as proof, how to ask you | the agent reading and applying them |
 | Gates | what fails, whatever anyone intended | nothing |
 
-A standard moves down this table whenever it can. The workflow comes from
+A standard moves down this table whenever it can. The workflow is
 [Matt Pocock's engineering skills](https://github.com/mattpocock/skills) and
-many principles from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack),
-both MIT. Why it is shaped this way:
-[ADR-002](docs/adr/ADR-002-engineering-standards.md).
+many principles come from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack).
+All three layers ship in this package, so neither needs installing separately. Why it
+is shaped this way: [ADR-002](docs/adr/ADR-002-engineering-standards.md).
 
 ### Workflow: size decides where to start
 
-| The work... | Start with |
-|---|---|
-| won't fit in one agent session | `/wayfinder` |
-| fits in one session but touches several parts of the code | `/grill-with-docs` |
-| is smaller than that | `/tdd` |
+| The work... | Start with | Then |
+|---|---|---|
+| won't fit in one agent session | `/wayfinder` | `/grill-with-docs`, `/to-spec`, `/to-tickets`, `/implement-spec` |
+| fits in one session but touches several parts of the code | `/grill-with-docs` | `/to-spec`, `/implement` |
+| is smaller than that | `/tdd`, or `/diagnosing-bugs` for a defect | |
 
 Every route ends with `/review-against-spec`, then the gates. The size rule and
 the principles ship as the `standards` skill, and Matt Pocock's skills for each
 step ship beside it, so a cloud session has them too
-([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)). What we changed in his
-skills, and how to redo it when he updates them:
-[docs/upstream-adaptations.md](docs/upstream-adaptations.md).
+([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)). The full list is under
+[Skills](#skills).
 
 To prepare a project for all three layers, run `/setup-standards`: it writes the
 agent docs, installs the gates, records existing debt, adds the hooks and CI
@@ -160,19 +159,64 @@ def test_no_function_is_more_complex_than_the_baseline_allows(self):
 
 ## Skills
 
-Each skill runs its gate, reports the violations, proposes fixes, and gives the
-agent the limits to write within. They ship inside the Python package, so the
-pinned install carries the matching skills.
+The skills ship inside the Python package, so the pinned install carries the
+matching ones, and `qg-skills` copies them into a project. In the *From*
+column, **ours** was written here, **Pocock** is a word-for-word copy of Matt
+Pocock's skill, and **Pocock, changed** is his skill with the changes listed,
+with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 
-| Skill | Does |
-|---|---|
-| `/no-comments` | Sets up `comment-debt` in a repo, or pays down one file's debt |
-| `/cc-python` | Runs `cc-check` at 8 and proposes refactors |
-| `/cc-swift` | Runs SwiftLint and lizard and proposes refactors |
-| `/cc-rust` | Runs `cargo clippy`; `setup` scaffolds `clippy.toml` and deny attributes |
-| `/crap` | Runs `crap` (Python, Swift) or `cargo clippy` (Rust) and says whether to add tests or reduce CC |
-| `standards` | The size rule and the principles, one file each; the agent opens one when its trigger matches |
-| `/setup-standards` | Sets up or upgrades a project for all three layers and reports what it did |
+**Set up and standards**
+
+| Skill | From | Does |
+|---|---|---|
+| `/setup-standards` | ours | Sets up or upgrades a project for all three layers and reports what it did |
+| `standards` | ours | The size rule and the principles, one file each; the agent opens one when its trigger matches |
+| `/setup-matt-pocock-skills` | ours | Points to `/setup-standards`, for his skills that ask for his setup |
+
+**Plan: work too big for one session, or touching several parts**
+
+| Skill | From | Does |
+|---|---|---|
+| `/wayfinder` | Pocock | Maps work too big for one session as decision tickets and settles them one at a time |
+| `/grill-with-docs` | Pocock | Questions you about a plan until it is sharp, writing ADRs and the glossary as it goes |
+| `/to-spec` | Pocock | Turns the conversation into a spec on the issue tracker |
+| `/to-tickets` | Pocock | Breaks a spec into tickets, each saying what it waits on |
+
+**Build**
+
+| Skill | From | Does |
+|---|---|---|
+| `/implement-spec` | Pocock, changed | Builds all of a spec's tickets, each after the ones it waits on |
+| `/implement` | Pocock, changed | Builds one piece of work from a spec or tickets |
+| `/tdd` | Pocock, changed | Builds test first: a failing test, then the code that passes it |
+| `/diagnosing-bugs` | Pocock | Finds the cause of a hard bug or slowdown before fixing it |
+
+**Check**
+
+| Skill | From | Does |
+|---|---|---|
+| `/review-against-spec` | Pocock, changed | Checks a change against the project's standards and the issue or spec it came from; his `code-review`, renamed so Claude Code's own `/code-review` still works |
+| `/no-comments` | ours | Sets up `comment-debt` in a repo, or pays down one file's debt |
+| `/cc-python` | ours | Runs `cc-check` at 8 and proposes refactors |
+| `/cc-swift` | ours | Runs SwiftLint and lizard and proposes refactors |
+| `/cc-rust` | ours | Runs `cargo clippy`; `setup` scaffolds `clippy.toml` and deny attributes |
+| `/crap` | ours | Runs `crap` (Python, Swift) or `cargo clippy` (Rust) and says whether to add tests or reduce CC |
+| `/improve-codebase-architecture` | Pocock | Finds code that resists change and proposes how to reshape it |
+
+**Used by the steps above, or beside them**
+
+| Skill | From | Does |
+|---|---|---|
+| `codebase-design` | Pocock | Shared terms for designing parts of the code that are simple to use |
+| `domain-modeling` | Pocock | Keeps the project's glossary and ADRs |
+| `/pr` | Pocock | Writes a pull request description |
+| `/triage` | Pocock | Sorts issues and labels them ready for an agent or a person |
+| `/retro` | Pocock | Looks back on a session for what to change next time |
+| `writing-for-agents` | Pocock | How to write skills, `CLAUDE.md` and other text an agent reads |
+| `/handoff` | Pocock | Writes a summary so another session can pick up the work; it is saved in a temporary folder, which a cloud session loses when it ends |
+
+The gate skills run their gate, report the violations, propose fixes, and give
+the agent the limits to write within.
 
 Two more commands support them:
 
@@ -180,14 +224,15 @@ Two more commands support them:
   Matt Pocock's setup templates. It never overwrites a file you edited; it
   shows the template's own change instead, so you can choose to adopt it.
 - `qg-upstream` reports what changed upstream in the files this repo copies
-  from Pocock and pstack. A monthly workflow runs it and opens an issue.
+  from Pocock and pstack; see
+  [Keeping the copied skills current](#keeping-the-copied-skills-current).
 
 ## Use it in a project
 
 Install the commands, pinned:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.1"
 ```
 
 or add the same requirement to the project's dev dependencies. Swift support
@@ -213,7 +258,14 @@ Besides the skills, `qg-skills` installs the stage guard, a hook in
 
 Committed copies load in local and cloud sessions alike. A cloud session does
 not install plugins a repo enables in `.claude/settings.json`, so the plugin
-route works only locally. Run `qg-skills` again after each pin bump, and add a
+route works only locally.
+
+A fresh cloud session (Claude Code on the web, or the Code tab of the Claude
+mobile app) fetches the project only when it gets its first message, so until
+then the `/` menu lists none of the project's skills. Send a first message,
+such as "hi", then use the `/` command.
+
+Run `qg-skills` again after each pin bump, and add a
 test that calls `skills_sync.main(["--check"])` so CI catches a stale copy.
 `qg-skills` touches only the skills it ships; the repo's own skills are left
 alone.
@@ -234,6 +286,26 @@ Bump `version` in `pyproject.toml`, `.claude-plugin/plugin.json` and
 the pinned tag in the skills' install lines, tag `vX.Y.Z`, then bump the pin in
 each consuming project.
 
+A change that alters no behaviour, such as a README fix, is still released.
+
+## Keeping the copied skills current
+
+The Pocock skills and the pstack principles are copies, so their authors'
+updates reach a project only through a release here
+([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)).
+
+1. On the 1st of each month the `upstream` workflow runs `qg-upstream` and, if
+   a copied file changed upstream, opens an issue with the changes.
+2. Replace each word-for-word copy with the new upstream file.
+3. For each changed file, take the new upstream version and redo every change
+   [docs/upstream-adaptations.md](docs/upstream-adaptations.md) lists for it.
+4. Move `commit` in `src/quality_gates/upstream.json` to the upstream commit
+   you copied from.
+5. Release, as above.
+
+A project gets the update when it bumps its pin and reruns `qg-skills`. Until
+then its `qg-skills --check` test fails, so a stale copy cannot pass CI.
+
 ## Development
 
 ```bash
@@ -247,4 +319,13 @@ This repo gates itself, and carries no comment debt: `comment-debt.json` is
 
 ## Licence
 
-MIT
+MIT, in [LICENSE](LICENSE). The package also carries copies of two other MIT
+works, each with its own notice:
+
+- [Matt Pocock's skills](https://github.com/mattpocock/skills): the notice is
+  `LICENSE-mattpocock` in each copied skill's folder, and
+  `src/quality_gates/agent_doc_templates/LICENSE` for his setup templates.
+- [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack):
+  the notice is `LICENSE-pstack` in the `standards` skill's folder.
+
+`qg-skills` copies each notice into the project with its skill.
