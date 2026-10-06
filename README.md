@@ -7,9 +7,8 @@ by bumping the pin.
 ## Get started
 
 Install the commands, copy the skills into the project, then run
-`/setup-standards` in a Claude Code session: it does the rest. Cloud sessions
-need no install of their own; they use what the project has committed. To
-update, install the new version and repeat.
+`/setup-standards`: it does the rest. You can do this on your computer or from
+a cloud session on your phone. To update, install the new version and repeat.
 
 ### Set up a project, on your computer
 
@@ -34,14 +33,23 @@ folder:
    commits.
 4. Push.
 
-Do step 2 before step 3: a session loads skills only when it starts, so a
-session started earlier has no `/setup-standards`.
+Do step 2 before step 3: a session on your computer loads skills when it
+starts, so a session started earlier has no `/setup-standards`.
+
+### Set up a project, from a cloud session
+
+Claude Code on the web, or the Code tab of the Claude mobile app:
+
+1. Open a new session on the project.
+2. Ask Claude to install quality-gates from GitHub with the line in step 1
+   above, run `qg-skills`, open a pull request and merge it.
+3. In the same session, run `/setup-standards`, then ask Claude to open a pull
+   request and merge it.
 
 ### Use it in a cloud session
 
-Claude Code on the web and the Code tab of the Claude mobile app load the skills
-the project committed, so set the project up on your computer first and push.
-Then:
+Once the project is set up, a cloud session has the skills from the project's
+files; it needs no install of its own.
 
 1. Open a session on the project.
 2. Send a first message, such as "hi". The session fetches the project only
@@ -51,13 +59,14 @@ Then:
 ### Keep it up to date
 
 Each [CHANGELOG.md](CHANGELOG.md) entry ends with what to do for that version.
-In general:
+In general, on your computer or by asking Claude in a cloud session:
 
-1. Run the install line from step 1 with the new version number.
+1. Install quality-gates again with the new version number in the line from
+   step 1.
 2. Run `qg-skills` and commit.
-3. Start a new session and run `/setup-standards`. It moves the project to the
-   new version and adds anything the release brought.
-4. Push.
+3. Run `/setup-standards` (on your computer, in a new session). It moves the
+   project to the new version and adds anything the release brought.
+4. Push, or open a pull request and merge it.
 
 ## Who this is for
 
