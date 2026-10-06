@@ -42,8 +42,12 @@ both MIT. Why it is shaped this way:
 | fits in one session but touches several parts of the code | `/grill-with-docs` |
 | is smaller than that | `/tdd` |
 
-Every route ends with `/code-review`, then the gates. The size rule and the
-principles ship as the `standards` skill.
+Every route ends with `/review-against-spec`, then the gates. The size rule and
+the principles ship as the `standards` skill, and Matt Pocock's skills for each
+step ship beside it, so a cloud session has them too
+([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)). What we changed in his
+skills, and how to redo it when he updates them:
+[docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 
 To prepare a project for all three layers, run `/setup-standards`: it writes the
 agent docs, installs the gates, records existing debt, adds the hooks and CI
@@ -183,7 +187,7 @@ Two more commands support them:
 Install the commands, pinned:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.4.1"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.0"
 ```
 
 or add the same requirement to the project's dev dependencies. Swift support
@@ -215,7 +219,9 @@ test that calls `skills_sync.main(["--check"])` so CI catches a stale copy.
 alone.
 
 The repo is still a Claude Code plugin, for use outside any one project. Don't
-enable both in one repo, or every skill is listed twice.
+enable both in one repo, or every skill is listed twice. The same goes for Matt
+Pocock's plugin: with it installed, his skills appear twice, once under its
+prefix. That is harmless; the unprefixed copies are the pinned ones.
 
 Then adopt the comment gate as the `/no-comments` skill describes: a
 baseline, a pre-commit hook, and a test so CI enforces it. Adopt the CC and CRAP

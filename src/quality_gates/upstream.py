@@ -15,7 +15,7 @@ SHORT_SHA = 7
 
 ADOPT = (
     "To adopt a change: carry it into the local file (verbatim copies are replaced, adapted ones "
-    "are edited by hand), set `commit` for that source in `src/quality_gates/upstream.json` to the "
+    "are edited by hand, redoing each change `docs/upstream-adaptations.md` lists for them), set `commit` for that source in `src/quality_gates/upstream.json` to the "
     "new head, and release it through a PR. To decline it, move `commit` to the new head in a PR "
     "that says why, so the next run stops reporting it."
 )

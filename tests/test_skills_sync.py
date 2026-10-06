@@ -1,5 +1,6 @@
 import contextlib
 import io
+import json
 import sys
 import tempfile
 import unittest
@@ -7,7 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import skills_sync
+from quality_gates import skills_sync, upstream
 
 
 def run(argv, source, hooks):
@@ -121,8 +122,24 @@ class SkillsSync(unittest.TestCase):
 
     def test_the_package_ships_every_skill_the_plugin_lists(self):
         names = skills_sync.skill_names(skills_sync.SHIPPED)
-        self.assertEqual(names, ["cc-python", "cc-rust", "cc-swift", "crap", "no-comments",
-                                 "setup-standards", "standards"])
+        self.assertEqual(names, ["cc-python", "cc-rust", "cc-swift", "codebase-design", "crap",
+                                 "diagnosing-bugs", "domain-modeling", "grill-with-docs", "handoff",
+                                 "implement", "implement-spec", "improve-codebase-architecture",
+                                 "no-comments", "pr", "retro", "review-against-spec",
+                                 "setup-matt-pocock-skills", "setup-standards", "standards", "tdd",
+                                 "to-spec", "to-tickets", "triage", "wayfinder", "writing-for-agents"])
+
+    def test_every_skill_copied_from_matt_pocock_carries_his_licence(self):
+        copied = {Path(local).parts[3] for source in json.loads(upstream.RECORD.read_text())["sources"]
+                  if source["repo"] == "mattpocock/skills"
+                  for local in source["files"].values() if "/skills/" in local}
+        copied.discard("setup-standards")
+        self.assertEqual(len(copied), 17)
+        for name in copied:
+            self.assertTrue((skills_sync.SHIPPED / name / "LICENSE-mattpocock").is_file(), name)
+
+    def test_no_shipped_skill_hides_claude_codes_own_code_review(self):
+        self.assertNotIn("code-review", skills_sync.skill_names(skills_sync.SHIPPED))
 
 
 if __name__ == "__main__":
