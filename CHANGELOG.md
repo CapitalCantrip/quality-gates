@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.1 — 2026-10-07
+
+Documentation only: the README describes the package as it is since 0.5.0.
+
+- A *Get started* section near the top gives the steps to set up a project
+  on your computer or from a cloud session, to use it in a cloud session,
+  and to keep it up to date.
+  The older *Use it in a project* section becomes *Setup details*.
+- The skills table lists every shipped skill, grouped by the step it serves,
+  and says which are ours, which are Matt Pocock's word for word, and which
+  are his with changes.
+- The workflow table gives each route's later steps, as the size rule does.
+- A fresh cloud session lists the project's skills only after its first
+  message; *Get started* says so.
+- A new maintainer section, *Keeping the copied skills current*, gives the
+  monthly upstream routine.
+- The licence section names the two upstream MIT works and where their
+  notices are.
+- The plugin manifests describe all three layers, not only the gates.
+
+**When you bump the pin:** nothing to do beyond `qg-skills`.
+
 ## 0.5.0 — 2026-10-07
 
 Matt Pocock's workflow skills ship with the package, so cloud sessions have

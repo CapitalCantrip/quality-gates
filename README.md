@@ -4,6 +4,70 @@ Engineering standards for software built with AI coding agents, by people who
 are not software engineers. Each project pins a tag, so a fix lands everywhere
 by bumping the pin.
 
+## Get started
+
+Install the commands, copy the skills into the project, then run
+`/setup-standards`: it does the rest. You can do this on your computer or from
+a cloud session on your phone. To update, install the new version and repeat.
+
+### Set up a project, on your computer
+
+You need [uv](https://docs.astral.sh/uv/) and Claude Code. In the project's
+folder:
+
+1. Install the commands, pinned to a version:
+
+   ```bash
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.1"
+   ```
+
+2. Copy the skills into the project:
+
+   ```bash
+   qg-skills
+   ```
+
+3. Start a new Claude Code session in the project and run `/setup-standards`.
+   It sets up the issue tracker docs, the gates, the record of existing debt,
+   the hooks and the CI checks, reports in plain words what it did, and
+   commits.
+4. Push.
+
+Do step 2 before step 3: a session on your computer loads skills when it
+starts, so a session started earlier has no `/setup-standards`.
+
+### Set up a project, from a cloud session
+
+Claude Code on the web, or the Code tab of the Claude mobile app:
+
+1. Open a new session on the project.
+2. Ask Claude to install quality-gates from GitHub with the line in step 1
+   above, run `qg-skills`, open a pull request and merge it.
+3. In the same session, run `/setup-standards`, then ask Claude to open a pull
+   request and merge it.
+
+### Use it in a cloud session
+
+Once the project is set up, a cloud session has the skills from the project's
+files; it needs no install of its own.
+
+1. Open a session on the project.
+2. Send a first message, such as "hi". The session fetches the project only
+   when it gets one, so before that the `/` menu lists none of its skills.
+3. Use the `/` commands.
+
+### Keep it up to date
+
+Each [CHANGELOG.md](CHANGELOG.md) entry ends with what to do for that version.
+In general, on your computer or by asking Claude in a cloud session:
+
+1. Install quality-gates again with the new version number in the line from
+   step 1.
+2. Run `qg-skills` and commit.
+3. Run `/setup-standards` (on your computer, in a new session). It moves the
+   project to the new version and adds anything the release brought.
+4. Push, or open a pull request and merge it.
+
 ## Who this is for
 
 You can describe what you want and tell whether the result works. You can't
@@ -14,7 +78,7 @@ silently swallowed. That leaves four gaps:
 |---|---|---|
 | Nobody reviews the code | The agent's bad habits ship | Gates: commands that fail the commit or the build, with no expertise needed to read the result |
 | Written rules fade | "Never do X again" goes in a notes file, and X happens again | Lessons that recur become checks, not paragraphs |
-| Good process and busy process look alike | Hours of polish on a design nobody agreed, or no plan where one was needed | One question, how big is the work, picks the starting step |
+| Good process and busy process look alike | Hours of polish on a design nobody agreed, or no plan where one was needed | The size of the work picks the starting step |
 | Questions arrive in jargon | You choose between options you can't weigh | Every question states the stakes plainly, gives two or three options and recommends one |
 
 Agents follow a failing tool more reliably than a paragraph of guidance, so
@@ -28,30 +92,25 @@ wherever a standard can be a command that exits non-zero, it is one.
 | Principles | how to judge each step, what counts as proof, how to ask you | the agent reading and applying them |
 | Gates | what fails, whatever anyone intended | nothing |
 
-A standard moves down this table whenever it can. The workflow comes from
+A standard moves down this table whenever it can. The workflow is
 [Matt Pocock's engineering skills](https://github.com/mattpocock/skills) and
-many principles from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack),
-both MIT. Why it is shaped this way:
-[ADR-002](docs/adr/ADR-002-engineering-standards.md).
+many principles come from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack).
+All three layers ship in this package, so neither Pocock's plugin nor pstack needs installing. Why it
+is shaped this way: [ADR-002](docs/adr/ADR-002-engineering-standards.md).
 
 ### Workflow: size decides where to start
 
-| The work... | Start with |
-|---|---|
-| won't fit in one agent session | `/wayfinder` |
-| fits in one session but touches several parts of the code | `/grill-with-docs` |
-| is smaller than that | `/tdd` |
+| The work... | Start with | Then |
+|---|---|---|
+| won't fit in one agent session | `/wayfinder` | `/grill-with-docs`, `/to-spec`, `/to-tickets`, `/implement-spec` |
+| fits in one session but touches several parts of the code | `/grill-with-docs` | `/to-spec`, `/implement` |
+| is smaller than that | `/tdd`, or `/diagnosing-bugs` for a defect | |
 
 Every route ends with `/review-against-spec`, then the gates. The size rule and
 the principles ship as the `standards` skill, and Matt Pocock's skills for each
 step ship beside it, so a cloud session has them too
-([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)). What we changed in his
-skills, and how to redo it when he updates them:
-[docs/upstream-adaptations.md](docs/upstream-adaptations.md).
-
-To prepare a project for all three layers, run `/setup-standards`: it writes the
-agent docs, installs the gates, records existing debt, adds the hooks and CI
-steps, and reports in plain words what it did. Run it again after each pin bump.
+([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)). The full list is under
+[Skills](#skills).
 
 ## Standards
 
@@ -75,8 +134,8 @@ Human-maintained code targets CC 5.
 
 Code carries no comments, docstrings or strings used as comments; bare pragmas
 such as `# noqa` are exempt. Comments drift from the code and agents copy them as
-permission, so the knowledge goes where it fails when it stops being true: a
-test, a named constant, an ADR or an issue. Existing comments are debt, held in
+permission. Put the knowledge where it shows when it stops being true: a test,
+a named constant, an ADR or an issue. Existing comments are debt, held in
 `comment-debt.json` as a line count per file. The gate fails if a file gains a
 comment, and also if it loses one without the baseline being lowered, so paid
 debt is always recorded. Python only for now
@@ -160,19 +219,61 @@ def test_no_function_is_more_complex_than_the_baseline_allows(self):
 
 ## Skills
 
-Each skill runs its gate, reports the violations, proposes fixes, and gives the
-agent the limits to write within. They ship inside the Python package, so the
-pinned install carries the matching skills.
+The skills ship inside the Python package, so the pinned install carries the
+matching ones, and `qg-skills` copies them into a project. In the *From*
+column, **ours** was written here, **Pocock** is a word-for-word copy of Matt
+Pocock's skill, and **Pocock, changed** is his skill with the changes listed,
+with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 
-| Skill | Does |
-|---|---|
-| `/no-comments` | Sets up `comment-debt` in a repo, or pays down one file's debt |
-| `/cc-python` | Runs `cc-check` at 8 and proposes refactors |
-| `/cc-swift` | Runs SwiftLint and lizard and proposes refactors |
-| `/cc-rust` | Runs `cargo clippy`; `setup` scaffolds `clippy.toml` and deny attributes |
-| `/crap` | Runs `crap` (Python, Swift) or `cargo clippy` (Rust) and says whether to add tests or reduce CC |
-| `standards` | The size rule and the principles, one file each; the agent opens one when its trigger matches |
-| `/setup-standards` | Sets up or upgrades a project for all three layers and reports what it did |
+**Set up and standards**
+
+| Skill | From | Does |
+|---|---|---|
+| `/setup-standards` | ours | Sets up or upgrades a project for all three layers and reports what it did |
+| `standards` | ours | The size rule and the principles, one file each; the agent opens one when its trigger matches |
+| `/setup-matt-pocock-skills` | ours | Points to `/setup-standards`, for his skills that ask for his setup |
+
+**Plan: work too big for one session, or touching several parts**
+
+| Skill | From | Does |
+|---|---|---|
+| `/wayfinder` | Pocock | Maps work too big for one session as decision tickets and settles them one at a time |
+| `/grill-with-docs` | Pocock | Questions you about a plan until it is sharp, writing ADRs and the glossary as it goes |
+| `/to-spec` | Pocock | Turns the conversation into a spec on the issue tracker |
+| `/to-tickets` | Pocock | Breaks a spec into tickets, each saying what it waits on |
+
+**Build**
+
+| Skill | From | Does |
+|---|---|---|
+| `/implement-spec` | Pocock, changed | Builds all of a spec's tickets, each after the ones it waits on |
+| `/implement` | Pocock, changed | Builds one piece of work from a spec or tickets |
+| `/tdd` | Pocock, changed | Builds test first: a failing test, then the code that passes it |
+| `/diagnosing-bugs` | Pocock | Finds the cause of a hard bug or slowdown before fixing it |
+
+**Check**
+
+| Skill | From | Does |
+|---|---|---|
+| `/review-against-spec` | Pocock, changed | Checks a change against the project's standards and the issue or spec it came from; his `code-review`, renamed so Claude Code's own `/code-review` still works |
+| `/no-comments` | ours | Sets up `comment-debt` in a repo, or pays down one file's debt |
+| `/cc-python` | ours | Runs `cc-check` at 8 and proposes refactors |
+| `/cc-swift` | ours | Runs SwiftLint and lizard and proposes refactors |
+| `/cc-rust` | ours | Runs `cargo clippy`; `setup` scaffolds `clippy.toml` and deny attributes |
+| `/crap` | ours | Runs `crap` (Python, Swift) or `cargo clippy` (Rust) and says whether to add tests or reduce CC |
+| `/improve-codebase-architecture` | Pocock | Finds code that resists change and proposes how to reshape it |
+
+**Used by the steps above, or beside them**
+
+| Skill | From | Does |
+|---|---|---|
+| `codebase-design` | Pocock | Shared terms for designing parts of the code that are simple to use |
+| `domain-modeling` | Pocock | Keeps the project's glossary and ADRs |
+| `/pr` | Pocock | Writes a pull request description |
+| `/triage` | Pocock | Sorts issues and labels them ready for an agent or a person |
+| `/retro` | Pocock | Looks back on a session for what to change next time |
+| `writing-for-agents` | Pocock | How to write skills, `CLAUDE.md` and other text an agent reads |
+| `/handoff` | Pocock | Writes a summary so another session can pick up the work; it is saved in a temporary folder, which a cloud session loses when it ends |
 
 Two more commands support them:
 
@@ -180,52 +281,32 @@ Two more commands support them:
   Matt Pocock's setup templates. It never overwrites a file you edited; it
   shows the template's own change instead, so you can choose to adopt it.
 - `qg-upstream` reports what changed upstream in the files this repo copies
-  from Pocock and pstack. A monthly workflow runs it and opens an issue.
+  from Pocock and pstack; see
+  [Keeping the copied skills current](#keeping-the-copied-skills-current).
 
-## Use it in a project
+## Setup details
 
-Install the commands, pinned:
+[Get started](#get-started) covers the steps. The details behind them:
 
-```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.0"
-```
-
-or add the same requirement to the project's dev dependencies. Swift support
-needs `lizard`: install with the `[swift]` extra.
-
-Copy the skills into the project and commit them:
-
-```bash
-qg-skills            # writes .claude/skills/, the stage guard and the asking-rule line
-qg-skills --check    # exit 1 if any of them differs from the installed version
-```
-
-The first time, run `qg-skills` before you start a Claude Code session in the
-project: a session loads skills only when it starts, so until then it has no
-`/setup-standards`. Then start a session and run `/setup-standards`; it does
-everything below and reports what it did. After a pin bump, run `qg-skills`
-again, start a new session, and run `/setup-standards` to upgrade.
-
-Besides the skills, `qg-skills` installs the stage guard, a hook in
-`.claude/hooks/` registered in `.claude/settings.json` that refuses
-`git add -A`, `git add .` and `git commit -a`, and adds the asking-rule line to
-`CLAUDE.md`.
-
-Committed copies load in local and cloud sessions alike. A cloud session does
-not install plugins a repo enables in `.claude/settings.json`, so the plugin
-route works only locally. Run `qg-skills` again after each pin bump, and add a
-test that calls `skills_sync.main(["--check"])` so CI catches a stale copy.
-`qg-skills` touches only the skills it ships; the repo's own skills are left
-alone.
-
-The repo is still a Claude Code plugin, for use outside any one project. Don't
-enable both in one repo, or every skill is listed twice. The same goes for Matt
-Pocock's plugin: with it installed, his skills appear twice, once under its
-prefix. That is harmless; the unprefixed copies are the pinned ones.
-
-Then adopt the comment gate as the `/no-comments` skill describes: a
-baseline, a pre-commit hook, and a test so CI enforces it. Adopt the CC and CRAP
-gates the same way: see [Adopting the ratchet](#adopting-the-ratchet).
+- Instead of `uv tool install`, you can add the same requirement to the
+  project's dev dependencies; `/setup-standards` does this for a Python
+  project. Swift support needs `lizard`: install `quality-gates[swift]`.
+- `qg-skills` writes `.claude/skills/`, the stage guard and the asking-rule
+  line in `CLAUDE.md`. It touches only the skills it ships; the project's own
+  skills are left alone. `qg-skills --check` exits 1 if any copy differs from
+  the installed version, and `/setup-standards` adds a test that runs it, so CI
+  catches a stale copy.
+- The stage guard is a hook in `.claude/hooks/`, registered in
+  `.claude/settings.json`, that refuses `git add -A`, `git add .` and
+  `git commit -a`.
+- `/setup-standards` adopts the gates with a baseline each; to do it by hand,
+  see `/no-comments` and [Adopting the ratchet](#adopting-the-ratchet).
+- This repo is also a Claude Code plugin, for use outside any one project. A
+  cloud session does not install plugins, so committed copies are the route
+  that works everywhere. Don't enable the plugin in a project that ran
+  `qg-skills`, or every skill is listed twice. The same goes for Matt Pocock's
+  plugin: with it installed, his skills appear twice, once under its prefix.
+  That is harmless; the unprefixed copies are the pinned ones.
 
 ## Releasing
 
@@ -233,6 +314,26 @@ Bump `version` in `pyproject.toml`, `.claude-plugin/plugin.json` and
 `.claude-plugin/marketplace.json` together, add a `CHANGELOG.md` entry, update
 the pinned tag in the skills' install lines, tag `vX.Y.Z`, then bump the pin in
 each consuming project.
+
+A change that alters no behaviour, such as a README fix, is still released.
+
+## Keeping the copied skills current
+
+The Pocock skills and the pstack principles are copies, so their authors'
+updates reach a project only through a release here
+([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)).
+
+1. On the 1st of each month the `upstream` workflow runs `qg-upstream` and, if
+   a copied file changed upstream, opens an issue with the changes.
+2. Replace each word-for-word copy with the new upstream file.
+3. For each changed file, take the new upstream version and redo every change
+   [docs/upstream-adaptations.md](docs/upstream-adaptations.md) lists for it.
+4. Move `commit` in `src/quality_gates/upstream.json` to the upstream commit
+   you copied from.
+5. Release, as above.
+
+A project gets the update when it bumps its pin and reruns `qg-skills`. Until
+then its `qg-skills --check` test fails, so a stale copy cannot pass CI.
 
 ## Development
 
@@ -247,4 +348,13 @@ This repo gates itself, and carries no comment debt: `comment-debt.json` is
 
 ## Licence
 
-MIT
+MIT, in [LICENSE](LICENSE). The package also carries copies of two other MIT
+works, each with its own notice:
+
+- [Matt Pocock's skills](https://github.com/mattpocock/skills): the notice is
+  `LICENSE-mattpocock` in each copied skill's folder, and
+  `src/quality_gates/agent_doc_templates/LICENSE` for his setup templates.
+- [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack):
+  the notice is `LICENSE-pstack` in the `standards` skill's folder.
+
+`qg-skills` copies each notice into the project with its skill.
