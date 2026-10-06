@@ -15,13 +15,14 @@ a cloud session on your phone. To update, install the new version and repeat.
 You need [uv](https://docs.astral.sh/uv/) and Claude Code. In the project's
 folder:
 
-1. Install the commands, pinned to a version:
+1. Install the commands, pinned to a version. This puts `qg-skills` and the
+   gate commands on your computer:
 
    ```bash
    uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.1"
    ```
 
-2. Copy the skills into the project:
+2. Run this command to copy the skills into the project:
 
    ```bash
    qg-skills
@@ -291,8 +292,21 @@ Two more commands support them:
 - Instead of `uv tool install`, you can add the same requirement to the
   project's dev dependencies; `/setup-standards` does this for a Python
   project. Swift support needs `lizard`: install `quality-gates[swift]`.
-- `qg-skills` writes `.claude/skills/`, the stage guard and the asking-rule
-  line in `CLAUDE.md`. It touches only the skills it ships; the project's own
+- Each command is a Python file in the package, linked to its name in
+  [pyproject.toml](pyproject.toml); installing the package makes the link:
+
+  | Command | Code |
+  |---|---|
+  | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
+  | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
+  | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |
+  | `comment-debt` | [src/quality_gates/comment_debt.py](src/quality_gates/comment_debt.py) |
+  | `cc-check` | [src/quality_gates/quality_check.py](src/quality_gates/quality_check.py) |
+  | `crap` | [src/quality_gates/crap.py](src/quality_gates/crap.py) |
+
+- `qg-skills` copies from the installed package, not from GitHub, so the
+  version you installed decides which skills a project gets. It writes
+  `.claude/skills/`, the stage guard and the asking-rule line in `CLAUDE.md`. It touches only the skills it ships; the project's own
   skills are left alone. `qg-skills --check` exits 1 if any copy differs from
   the installed version, and `/setup-standards` adds a test that runs it, so CI
   catches a stale copy.
