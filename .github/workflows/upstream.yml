@@ -36,4 +36,10 @@ jobs:
             echo "An issue for this is already open."
             exit 0
           fi
-          gh issue create --title "$TITLE" --label needs-triage --body-file report.md
+          if [ "$(wc -c < report.md)" -gt 60000 ]; then
+            head -c 60000 report.md > body.md
+            printf '\n\n_Cut to fit an issue. Run `qg-upstream` for the full report._\n' >> body.md
+          else
+            cp report.md body.md
+          fi
+          gh issue create --title "$TITLE" --label needs-triage --body-file body.md

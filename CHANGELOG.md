@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.5.0 — 2026-10-07
+
+Matt Pocock's workflow skills ship with the package, so cloud sessions have
+them ([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)).
+
+- `qg-skills` now also copies 17 of his skills: `wayfinder`,
+  `grill-with-docs`, `to-spec`, `to-tickets`, `implement`, `implement-spec`,
+  `tdd`, `diagnosing-bugs`, `improve-codebase-architecture`,
+  `codebase-design`, `domain-modeling`, `pr`, `triage`, `retro`,
+  `writing-for-agents`, `handoff`, and his `code-review` as
+  `/review-against-spec`, so it no longer hides Claude Code's `/code-review`.
+- `setup-matt-pocock-skills` is a pointer to `/setup-standards`.
+- The size rule ends every route with `/review-against-spec`, and the largest
+  route builds its tickets with `/implement-spec`.
+- Every change to a copied file is listed, with how to redo it, in
+  `docs/upstream-adaptations.md`; `qg-upstream` points there.
+
+**When you bump the pin:** run `qg-skills`, commit the new skill folders, and
+start a new session. If his plugin is installed, his skills appear twice; the
+unprefixed ones are the pinned copies. If your project has its own skill with
+one of the names above, `qg-skills` replaces it: rename yours first.
+
 ## 0.4.1 — 2026-10-06
 
 Fixes from the first run of `/setup-standards` on a real project (localbar).
