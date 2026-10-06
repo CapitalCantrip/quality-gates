@@ -4,12 +4,15 @@
 
 Documentation only: the README describes the package as it is since 0.5.0.
 
+- A *Get started* section near the top gives the steps to set up a project
+  on your computer, to use it in a cloud session, and to keep it up to date.
+  The older *Use it in a project* section becomes *Setup details*.
 - The skills table lists every shipped skill, grouped by the step it serves,
   and says which are ours, which are Matt Pocock's word for word, and which
   are his with changes.
 - The workflow table gives each route's later steps, as the size rule does.
 - A fresh cloud session lists the project's skills only after its first
-  message; the README says so.
+  message; *Get started* says so.
 - A new maintainer section, *Keeping the copied skills current*, gives the
   monthly upstream routine.
 - The licence section names the two upstream MIT works and where their

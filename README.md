@@ -4,6 +4,61 @@ Engineering standards for software built with AI coding agents, by people who
 are not software engineers. Each project pins a tag, so a fix lands everywhere
 by bumping the pin.
 
+## Get started
+
+Install the commands, copy the skills into the project, then run
+`/setup-standards` in a Claude Code session: it does the rest. Cloud sessions
+need no install of their own; they use what the project has committed. To
+update, install the new version and repeat.
+
+### Set up a project, on your computer
+
+You need [uv](https://docs.astral.sh/uv/) and Claude Code. In the project's
+folder:
+
+1. Install the commands, pinned to a version:
+
+   ```bash
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.1"
+   ```
+
+2. Copy the skills into the project:
+
+   ```bash
+   qg-skills
+   ```
+
+3. Start a new Claude Code session in the project and run `/setup-standards`.
+   It sets up the issue tracker docs, the gates, the record of existing debt,
+   the hooks and the CI checks, reports in plain words what it did, and
+   commits.
+4. Push.
+
+Do step 2 before step 3: a session loads skills only when it starts, so a
+session started earlier has no `/setup-standards`.
+
+### Use it in a cloud session
+
+Claude Code on the web and the Code tab of the Claude mobile app load the skills
+the project committed, so set the project up on your computer first and push.
+Then:
+
+1. Open a session on the project.
+2. Send a first message, such as "hi". The session fetches the project only
+   when it gets one, so before that the `/` menu lists none of its skills.
+3. Use the `/` commands.
+
+### Keep it up to date
+
+Each [CHANGELOG.md](CHANGELOG.md) entry ends with what to do for that version.
+In general:
+
+1. Run the install line from step 1 with the new version number.
+2. Run `qg-skills` and commit.
+3. Start a new session and run `/setup-standards`. It moves the project to the
+   new version and adds anything the release brought.
+4. Push.
+
 ## Who this is for
 
 You can describe what you want and tell whether the result works. You can't
@@ -14,7 +69,7 @@ silently swallowed. That leaves four gaps:
 |---|---|---|
 | Nobody reviews the code | The agent's bad habits ship | Gates: commands that fail the commit or the build, with no expertise needed to read the result |
 | Written rules fade | "Never do X again" goes in a notes file, and X happens again | Lessons that recur become checks, not paragraphs |
-| Good process and busy process look alike | Hours of polish on a design nobody agreed, or no plan where one was needed | One question, how big is the work, picks the starting step |
+| Good process and busy process look alike | Hours of polish on a design nobody agreed, or no plan where one was needed | The size of the work picks the starting step |
 | Questions arrive in jargon | You choose between options you can't weigh | Every question states the stakes plainly, gives two or three options and recommends one |
 
 Agents follow a failing tool more reliably than a paragraph of guidance, so
@@ -31,7 +86,7 @@ wherever a standard can be a command that exits non-zero, it is one.
 A standard moves down this table whenever it can. The workflow is
 [Matt Pocock's engineering skills](https://github.com/mattpocock/skills) and
 many principles come from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack).
-All three layers ship in this package, so neither needs installing separately. Why it
+All three layers ship in this package, so neither Pocock's plugin nor pstack needs installing. Why it
 is shaped this way: [ADR-002](docs/adr/ADR-002-engineering-standards.md).
 
 ### Workflow: size decides where to start
@@ -47,10 +102,6 @@ the principles ship as the `standards` skill, and Matt Pocock's skills for each
 step ship beside it, so a cloud session has them too
 ([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)). The full list is under
 [Skills](#skills).
-
-To prepare a project for all three layers, run `/setup-standards`: it writes the
-agent docs, installs the gates, records existing debt, adds the hooks and CI
-steps, and reports in plain words what it did. Run it again after each pin bump.
 
 ## Standards
 
@@ -74,8 +125,8 @@ Human-maintained code targets CC 5.
 
 Code carries no comments, docstrings or strings used as comments; bare pragmas
 such as `# noqa` are exempt. Comments drift from the code and agents copy them as
-permission, so the knowledge goes where it fails when it stops being true: a
-test, a named constant, an ADR or an issue. Existing comments are debt, held in
+permission. Put the knowledge where it shows when it stops being true: a test,
+a named constant, an ADR or an issue. Existing comments are debt, held in
 `comment-debt.json` as a line count per file. The gate fails if a file gains a
 comment, and also if it loses one without the baseline being lowered, so paid
 debt is always recorded. Python only for now
@@ -215,9 +266,6 @@ with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 | `writing-for-agents` | Pocock | How to write skills, `CLAUDE.md` and other text an agent reads |
 | `/handoff` | Pocock | Writes a summary so another session can pick up the work; it is saved in a temporary folder, which a cloud session loses when it ends |
 
-The gate skills run their gate, report the violations, propose fixes, and give
-the agent the limits to write within.
-
 Two more commands support them:
 
 - `qg-agent-docs --tracker github|gitlab|local` writes `docs/agents/` from
@@ -227,57 +275,29 @@ Two more commands support them:
   from Pocock and pstack; see
   [Keeping the copied skills current](#keeping-the-copied-skills-current).
 
-## Use it in a project
+## Setup details
 
-Install the commands, pinned:
+[Get started](#get-started) covers the steps. The details behind them:
 
-```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.1"
-```
-
-or add the same requirement to the project's dev dependencies. Swift support
-needs `lizard`: install with the `[swift]` extra.
-
-Copy the skills into the project and commit them:
-
-```bash
-qg-skills            # writes .claude/skills/, the stage guard and the asking-rule line
-qg-skills --check    # exit 1 if any of them differs from the installed version
-```
-
-The first time, run `qg-skills` before you start a Claude Code session in the
-project: a session loads skills only when it starts, so until then it has no
-`/setup-standards`. Then start a session and run `/setup-standards`; it does
-everything below and reports what it did. After a pin bump, run `qg-skills`
-again, start a new session, and run `/setup-standards` to upgrade.
-
-Besides the skills, `qg-skills` installs the stage guard, a hook in
-`.claude/hooks/` registered in `.claude/settings.json` that refuses
-`git add -A`, `git add .` and `git commit -a`, and adds the asking-rule line to
-`CLAUDE.md`.
-
-Committed copies load in local and cloud sessions alike. A cloud session does
-not install plugins a repo enables in `.claude/settings.json`, so the plugin
-route works only locally.
-
-A fresh cloud session (Claude Code on the web, or the Code tab of the Claude
-mobile app) fetches the project only when it gets its first message, so until
-then the `/` menu lists none of the project's skills. Send a first message,
-such as "hi", then use the `/` command.
-
-Run `qg-skills` again after each pin bump, and add a
-test that calls `skills_sync.main(["--check"])` so CI catches a stale copy.
-`qg-skills` touches only the skills it ships; the repo's own skills are left
-alone.
-
-The repo is still a Claude Code plugin, for use outside any one project. Don't
-enable both in one repo, or every skill is listed twice. The same goes for Matt
-Pocock's plugin: with it installed, his skills appear twice, once under its
-prefix. That is harmless; the unprefixed copies are the pinned ones.
-
-Then adopt the comment gate as the `/no-comments` skill describes: a
-baseline, a pre-commit hook, and a test so CI enforces it. Adopt the CC and CRAP
-gates the same way: see [Adopting the ratchet](#adopting-the-ratchet).
+- Instead of `uv tool install`, you can add the same requirement to the
+  project's dev dependencies; `/setup-standards` does this for a Python
+  project. Swift support needs `lizard`: install `quality-gates[swift]`.
+- `qg-skills` writes `.claude/skills/`, the stage guard and the asking-rule
+  line in `CLAUDE.md`. It touches only the skills it ships; the project's own
+  skills are left alone. `qg-skills --check` exits 1 if any copy differs from
+  the installed version, and `/setup-standards` adds a test that runs it, so CI
+  catches a stale copy.
+- The stage guard is a hook in `.claude/hooks/`, registered in
+  `.claude/settings.json`, that refuses `git add -A`, `git add .` and
+  `git commit -a`.
+- `/setup-standards` adopts the gates with a baseline each; to do it by hand,
+  see `/no-comments` and [Adopting the ratchet](#adopting-the-ratchet).
+- This repo is also a Claude Code plugin, for use outside any one project. A
+  cloud session does not install plugins, so committed copies are the route
+  that works everywhere. Don't enable the plugin in a project that ran
+  `qg-skills`, or every skill is listed twice. The same goes for Matt Pocock's
+  plugin: with it installed, his skills appear twice, once under its prefix.
+  That is harmless; the unprefixed copies are the pinned ones.
 
 ## Releasing
 
