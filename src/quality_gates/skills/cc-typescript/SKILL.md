@@ -35,11 +35,11 @@ Done when every flagged function is reported with a refactor, or the run is clea
 
 ## What counts
 
-Each `if`, `else if`, loop, `case`, `catch`, `&&`, `||` and `?:` adds one. A nested arrow function gets its own score. `??` counts as two, so the gate errs strict.
+ADR-001's TypeScript addendum lists what lizard counts, including its one known miscount.
 
 ## Baseline keys
 
-Keys are `path::name`, relative to the git root. lizard names a method without its class and every unnamed callback `(anonymous)`, so a name that repeats in a file gets its order as a suffix: `src/app.ts::(anonymous)#3`. Adding a same-named function above an old one shifts the suffixes, and the shifted entries fail as new until the debt is paid or the baseline is recorded again.
+A name that repeats in a file is keyed with its order, `path::(anonymous)#2`; ADR-001's TypeScript addendum gives the rule and the reason.
 
 ## Dependencies
 

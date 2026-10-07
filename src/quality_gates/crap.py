@@ -308,9 +308,9 @@ def function_coverage_swift(
     return None
 
 
-def _swift_fn_to_result(
+def _lizard_fn_to_result(
     fn: dict,
-    cov_data: dict,
+    coverage_of,
     no_coverage: bool,
     min_cc: int,
     warn_threshold: float,
@@ -319,16 +319,21 @@ def _swift_fn_to_result(
     cc = fn["cc"]
     if cc < min_cc:
         return None
-    if no_coverage:
-        cov = 0.0
-    elif cov_data:
-        cov = function_coverage_swift(cov_data, fn["file"], fn["name"], fn["start"])
-    else:
-        cov = None
-    cov_calc = cov if cov is not None else 0.0
-    score    = crap_score(cc, cov_calc)
-    grade    = crap_grade(score, warn_threshold, fail_threshold)
+    cov = 0.0 if no_coverage else coverage_of(fn)
+    score = crap_score(cc, cov if cov is not None else 0.0)
+    grade = crap_grade(score, warn_threshold, fail_threshold)
     return FunctionResult(fn["file"], fn["label"], fn["start"], cc, cov, score, grade)
+
+
+def _scored(functions: list, coverage_of, no_coverage, min_cc, warn_threshold, fail_threshold) -> list:
+    results = [
+        r for r in (
+            _lizard_fn_to_result(fn, coverage_of, no_coverage, min_cc, warn_threshold, fail_threshold)
+            for fn in functions
+        )
+        if r is not None
+    ]
+    return sorted(results, key=lambda r: r.crap, reverse=True)
 
 
 def analyse_swift(
@@ -340,37 +345,14 @@ def analyse_swift(
     fail_threshold: float,
 ) -> list:
     functions = cc_swift(paths)
-    cov_data: dict = {}
-    if xcresult:
-        cov_data = coverage_swift(xcresult)
-    results = [
-        r for r in (
-            _swift_fn_to_result(fn, cov_data, no_coverage, min_cc, warn_threshold, fail_threshold)
-            for fn in functions
-        )
-        if r is not None
-    ]
-    return sorted(results, key=lambda r: r.crap, reverse=True)
+    cov_data = coverage_swift(xcresult) if xcresult else {}
 
+    def coverage_of(fn):
+        if not cov_data:
+            return None
+        return function_coverage_swift(cov_data, fn["file"], fn["name"], fn["start"])
 
-def _ts_fn_to_result(
-    fn: dict,
-    cov_data: dict,
-    no_coverage: bool,
-    min_cc: int,
-    warn_threshold: float,
-    fail_threshold: float,
-) -> Optional[FunctionResult]:
-    cc = fn["cc"]
-    if cc < min_cc:
-        return None
-    if no_coverage:
-        cov = 0.0
-    else:
-        cov = istanbul.function_coverage(cov_data, fn["file"], fn["start"], fn["end"])
-    score = crap_score(cc, cov if cov is not None else 0.0)
-    grade = crap_grade(score, warn_threshold, fail_threshold)
-    return FunctionResult(fn["file"], fn["label"], fn["start"], cc, cov, score, grade)
+    return _scored(functions, coverage_of, no_coverage, min_cc, warn_threshold, fail_threshold)
 
 
 def analyse_typescript(
@@ -383,14 +365,11 @@ def analyse_typescript(
 ) -> list:
     functions = lizard_scan.scan(paths, "typescript", runner=run)
     cov_data = istanbul.load(istanbul_json) if istanbul_json else {}
-    results = [
-        r for r in (
-            _ts_fn_to_result(fn, cov_data, no_coverage, min_cc, warn_threshold, fail_threshold)
-            for fn in functions
-        )
-        if r is not None
-    ]
-    return sorted(results, key=lambda r: r.crap, reverse=True)
+
+    def coverage_of(fn):
+        return istanbul.function_coverage(cov_data, fn["file"], fn["start"], fn["end"])
+
+    return _scored(functions, coverage_of, no_coverage, min_cc, warn_threshold, fail_threshold)
 
 
 _GRADE_EMOJI  = {"ok": "✅", "WARN": "⚠️ ", "FAIL": "❌"}

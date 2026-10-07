@@ -126,6 +126,11 @@ branches: the rule `crap` already applies to Python. The function's lines come
 from Istanbul's `fnMap`, matched to lizard by start line, because lizard's end
 line runs on into the next declaration when the code has type annotations.
 
+**Known miscount:** lizard counts `??` as two paths, not one. That can only
+raise a score, so the gate errs strict; it is left as is.
+
+### Amended 2026-10-08, on acceptance
+
 **Repeated names get their order as a suffix in baseline keys.** lizard names a
 method without its class and every unnamed callback `(anonymous)`, and the
 ratchet keeps one score per key, so a new function could hide behind an old one
@@ -136,9 +141,6 @@ named function was rejected: lizard does not report nesting.
 
 **lizard is a core dependency,** no longer the `[swift]` extra: two languages
 need it, and it is pure Python.
-
-**Known miscount:** lizard counts `??` as two paths, not one. That can only
-raise a score, so the gate errs strict; it is left as is.
 
 ### Rejected
 

@@ -80,7 +80,7 @@ The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverag
 
 1. Record the debt once: `crap --lang python <dirs> --coverage-json coverage.json --baseline crap-baseline.json --update`. Commit the file.
 2. Add a test that runs after coverage is collected and calls `crap.main([...same flags without --update...])`, asserting `SystemExit` code 0, so CI enforces it.
-3. Keys are `path::name`. A name that repeats in a file (lizard's `(anonymous)`, or a method named without its class) gets its order as a suffix: `path::(anonymous)#2`.
+3. Keys are `path::name`; for Swift and TypeScript a repeated name is keyed `path::name#2` (ADR-001, TypeScript addendum).
 4. A new or worse function fails; a lowered score fails until `--update` records it. `--update` never raises a score or adds a function.
 
 ## Exit codes (Python / Swift / TypeScript)

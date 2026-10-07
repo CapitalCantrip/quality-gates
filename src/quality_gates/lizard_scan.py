@@ -43,8 +43,8 @@ def command(paths: list, lang: str) -> list:
 def _require_lizard() -> None:
     if importlib.util.find_spec("lizard") is None:
         print(
-            "[lizard] lizard is not installed.\n"
-            "  Install with: pip3 install lizard",
+            "[lizard] lizard is missing, though quality-gates depends on it.\n"
+            "  Reinstall quality-gates in this environment.",
             file=sys.stderr,
         )
         sys.exit(2)
@@ -62,7 +62,9 @@ def scan(paths: list, lang: str, runner=run) -> list:
 
 def with_labels(functions: list) -> list:
     seen: dict = {}
+    labelled = []
     for fn in sorted(functions, key=lambda f: (f["file"], f["start"])):
         count = seen[(fn["file"], fn["name"])] = seen.get((fn["file"], fn["name"]), 0) + 1
-        fn["label"] = fn["name"] if count == 1 else f"{fn['name']}{ORDINAL_MARK}{count}"
-    return functions
+        label = fn["name"] if count == 1 else f"{fn['name']}{ORDINAL_MARK}{count}"
+        labelled.append({**fn, "label": label})
+    return labelled
