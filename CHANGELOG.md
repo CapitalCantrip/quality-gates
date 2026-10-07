@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.3 — 2026-10-07
+
+Documentation only: the README's *Releasing* section says to push the release
+tag from a local session, because a cloud session's GitHub proxy refuses tag
+pushes.
+
+**When you bump the pin:** nothing to do beyond `qg-skills`.
+
 ## 0.5.2 — 2026-10-07
 
 Moving freely between local and cloud sessions.
