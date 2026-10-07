@@ -1,3 +1,4 @@
 #!/bin/sh
+[ -d .venv/bin ] && PATH="$PWD/.venv/bin:$PATH"
 comment-debt || exit 1
 exec cc-check src tests --baseline cc-baseline.json

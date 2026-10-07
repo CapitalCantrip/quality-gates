@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.5.2 — 2026-10-07
+
+Moving freely between local and cloud sessions.
+
+- The stage guard refuses `git add :.`, which stages the whole tree like
+  `git add .` (#16).
+- `/setup-standards` writes a pre-commit hook that puts `.venv/bin` on PATH
+  when the project has a `.venv`, so a commit from VS Code or a cloud shell
+  finds `comment-debt` and `cc-check` (#33).
+- The issue-tracker template has an *In a cloud session* section: there
+  `gh issue`, `gh pr` and `gh label` fail with HTTP 403, so use the GitHub MCP
+  tools or `gh api` REST calls (#35).
+- This repo only: a SessionStart hook installs `.venv` in cloud sessions (#36),
+  and its own pre-commit hook finds `.venv/bin` (#33).
+
+**When you bump the pin:** run `qg-skills` to get the new stage guard. If your
+`.githooks/pre-commit` calls the gates by bare name and you use a `.venv`, add
+`[ -d .venv/bin ] && PATH="$PWD/.venv/bin:$PATH"` after its shebang. If you
+copied the issue-tracker doc from the template, add its *In a cloud session*
+section.
+
 ## 0.5.1 — 2026-10-07
 
 Documentation only: the README describes the package as it is since 0.5.0.
