@@ -14,10 +14,10 @@ engineering knowledge. Run on a set-up project, every step finds its work
 already in place and changes nothing, so this is also the upgrade after a pin
 bump.
 
-The pin this skill belongs to: `v0.5.3`. Install line, used in step 2:
+The pin this skill belongs to: `v0.6.0`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.3"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`
@@ -68,7 +68,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 
 Detect the languages: Python (`pyproject.toml`, `setup.py` or `.py` files
 outside `.venv`), Swift (`Package.swift`, an `.xcodeproj` or `.swift` files),
-Rust (`Cargo.toml`). Do every block that applies.
+Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
+`.js` or `.jsx` files outside `node_modules`). Do every block that applies.
 
 - **All projects:** add the pinned requirement to the project's dev
   dependencies (Python), or to the CI install step (others), replacing any
@@ -84,6 +85,12 @@ Rust (`Cargo.toml`). Do every block that applies.
   that reason.
 - **Rust:** run the setup steps of `/cc-rust`: `clippy.toml` and the deny
   attributes.
+- **TypeScript / JavaScript:** `cc-check --lang typescript` and
+  `crap --lang typescript`, as `/cc-typescript` and `/crap` describe. CRAP
+  needs Istanbul's `coverage-final.json`: Vitest with `@vitest/coverage-v8`
+  and `--coverage.reporter=json`, or Jest with `--coverageReporters=json`. A
+  project on `node --test` cannot yet (it writes lcov), so report CRAP as not
+  done with that reason.
 
 Done when every detected language has its gates configured and `qg-skills`
 has run.
@@ -103,6 +110,11 @@ from the repo root and commit the file it writes.
   `// swiftlint:disable:next cyclomatic_complexity` above it; that pragma is its
   baseline entry. With an `.xcresult`, record `crap --lang swift` with
   `--baseline crap-baseline.json --update`.
+- **TypeScript / JavaScript:**
+  `cc-check --lang typescript <source dirs> --baseline cc-baseline.json --update`;
+  collect coverage as in step 2 and run
+  `crap --lang typescript <source dirs> --istanbul-json coverage/coverage-final.json --baseline crap-baseline.json --update`.
+  Add `coverage/` to `.gitignore`.
 - **Rust:** run `cargo clippy --all-targets`. Each function it fails gets
   `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]`;
   that attribute is its baseline entry.
@@ -114,7 +126,8 @@ recorded; new ones will fail". Done when the gate passes on today's tree.
 
 1. `.githooks/pre-commit` runs every fast gate, stopping at the first failure:
    `comment-debt` and `cc-check <source dirs> --baseline cc-baseline.json` for
-   Python; SwiftLint for Swift where installed. Keep any lines the project
+   Python; `cc-check --lang typescript <source dirs> --baseline cc-baseline.json`
+   for TypeScript or JavaScript; SwiftLint for Swift where installed. Keep any lines the project
    already had. Make it executable. If the project has a `.venv`, the hook's
    first line after the shebang is `[ -d .venv/bin ] && PATH="$PWD/.venv/bin:$PATH"`:
    VS Code and cloud shells run the hook without the venv activated.
@@ -137,6 +150,7 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   suite, and the CRAP step from the same file to the CI workflow after the
   tests.
 - **Rust:** a CI step running `cargo clippy --all-targets`.
+- **TypeScript / JavaScript:** the steps in [ci-typescript.md](ci-typescript.md).
 - **Swift:** a CI step running SwiftLint, on a macOS runner. If the project has
   no macOS CI job, report this as not done and say what it would cost.
 - If the project has no CI workflow, add `.github/workflows/tests.yml` that

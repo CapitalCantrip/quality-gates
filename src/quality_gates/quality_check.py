@@ -4,14 +4,18 @@ import json
 import sys
 from pathlib import Path
 
-from quality_gates import ratchet
+from quality_gates import lizard_scan, ratchet
 
 AGENT_CC_CEILING = 8
 EXCLUDED_PARTS = {"__pycache__", ".git", "backups", "venv", ".venv", "node_modules"}
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Cyclomatic complexity reporter for Python code")
+    parser = argparse.ArgumentParser(description="Cyclomatic complexity reporter for Python and TypeScript code")
+    parser.add_argument(
+        "--lang", choices=["python", "typescript"], default="python",
+        help="python counts with radon; typescript counts .ts .tsx .js .jsx with lizard (default: python)",
+    )
     parser.add_argument("paths", nargs="+", metavar="path", help="files or directories to analyse")
     parser.add_argument(
         "--threshold", type=int, default=AGENT_CC_CEILING,
@@ -80,6 +84,44 @@ def analyse(files, threshold):
     ]
 
 
+def check_paths_exist(paths):
+    for path in paths:
+        if not Path(path).exists():
+            print(f"ERROR: path not found: {path}", file=sys.stderr)
+            sys.exit(2)
+
+
+def lizard_to_result(fn, cc_rank, threshold):
+    return {
+        "file": fn["file"],
+        "name": fn["name"],
+        "fullname": fn["label"],
+        "type": "Function",
+        "complexity": fn["cc"],
+        "rank": cc_rank(fn["cc"]),
+        "line": fn["start"],
+        "above_threshold": fn["cc"] > threshold,
+    }
+
+
+def analyse_typescript(paths, threshold):
+    check_paths_exist(paths)
+    _, cc_rank = load_radon()
+    functions = lizard_scan.scan(paths, "typescript")
+    if not functions:
+        print("No TypeScript or JavaScript functions found.", file=sys.stderr)
+        sys.exit(2)
+    files = sorted({fn["file"] for fn in functions})
+    return [lizard_to_result(fn, cc_rank, threshold) for fn in functions], files
+
+
+def analyse_paths(args):
+    if args.lang == "typescript":
+        return analyse_typescript(args.paths, args.threshold)
+    files = collect_files(args.paths)
+    return analyse(files, args.threshold), files
+
+
 def display_path(file):
     path = Path(file)
     return path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path.name
@@ -127,8 +169,7 @@ def run(argv, root):
     args = parser.parse_args(argv)
     if args.update and not args.baseline:
         parser.error("--update needs --baseline")
-    files = collect_files(args.paths)
-    results = analyse(files, args.threshold)
+    results, files = analyse_paths(args)
     code = report(results, files, args)
     if not args.baseline:
         return code

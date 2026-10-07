@@ -206,12 +206,15 @@ class RadonTest(unittest.TestCase):
 
 
 class CoverageSourceTest(unittest.TestCase):
-    def source(self, coverage_json=None, xcresult=None, no_coverage=False):
-        return crap._coverage_source(Namespace(coverage_json=coverage_json, xcresult=xcresult, no_coverage=no_coverage))
+    def source(self, coverage_json=None, xcresult=None, istanbul_json=None, no_coverage=False):
+        return crap._coverage_source(Namespace(
+            coverage_json=coverage_json, xcresult=xcresult, istanbul_json=istanbul_json, no_coverage=no_coverage,
+        ))
 
     def test_each_coverage_flag_is_reported_by_its_own_tag(self):
         self.assertEqual(self.source(coverage_json="c.json"), "coverage-json")
         self.assertEqual(self.source(xcresult="r.xcresult"), "xcresult")
+        self.assertEqual(self.source(istanbul_json="coverage-final.json"), "istanbul-json")
         self.assertEqual(self.source(no_coverage=True), "assumed-zero")
 
     def test_no_coverage_flag_has_no_tag(self):
@@ -285,14 +288,14 @@ class SwiftCoverageTest(unittest.TestCase):
         stdout = "\n".join([lizard_row("load", 4, 10, 30), "too,short", lizard_row("bad", "x", 1, 2)])
         with patch.object(crap, "run", return_value=completed(stdout)):
             functions = crap.cc_swift(["Sources"])
-        self.assertEqual(functions, [{"file": "Sources/App.swift", "name": "load", "cc": 4, "start": 10, "end": 30}])
+        self.assertEqual(functions, [{"file": "Sources/App.swift", "name": "load", "cc": 4, "start": 10, "end": 30, "label": "load"}])
 
     def test_lizard_exit_1_is_not_a_failure(self):
         with patch.object(crap, "run", return_value=completed(lizard_row("load", 4, 10, 30), 1)):
             self.assertEqual(len(crap.cc_swift(["Sources"])), 1)
 
     def test_a_missing_lizard_is_a_tool_error(self):
-        with patch.object(crap, "run", side_effect=FileNotFoundError), redirect_stderr(io.StringIO()):
+        with patch("importlib.util.find_spec", return_value=None), redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as stop:
                 crap.cc_swift(["Sources"])
         self.assertEqual(stop.exception.code, 2)

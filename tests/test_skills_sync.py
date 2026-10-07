@@ -122,7 +122,7 @@ class SkillsSync(unittest.TestCase):
 
     def test_the_package_ships_every_skill_the_plugin_lists(self):
         names = skills_sync.skill_names(skills_sync.SHIPPED)
-        self.assertEqual(names, ["cc-python", "cc-rust", "cc-swift", "codebase-design", "crap",
+        self.assertEqual(names, ["cc-python", "cc-rust", "cc-swift", "cc-typescript", "codebase-design", "crap",
                                  "diagnosing-bugs", "domain-modeling", "grill-with-docs", "handoff",
                                  "implement", "implement-spec", "improve-codebase-architecture",
                                  "no-comments", "pr", "retro", "review-against-spec",

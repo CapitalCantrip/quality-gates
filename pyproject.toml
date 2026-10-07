@@ -4,13 +4,12 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "quality-gates"
-version = "0.5.3"
+version = "0.6.0"
 description = "Quality gates for agent-written code: comment ratchet, cyclomatic complexity, CRAP."
 requires-python = ">=3.9"
-dependencies = ["radon>=6"]
+dependencies = ["radon>=6", "lizard>=1.17"]
 
 [project.optional-dependencies]
-swift = ["lizard>=1.17"]
 dev = ["coverage>=7"]
 
 [project.scripts]
