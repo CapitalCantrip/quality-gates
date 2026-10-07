@@ -8,24 +8,20 @@ from pathlib import Path
 from subprocess import run, PIPE
 from typing import Optional
 
-from quality_gates import ratchet
+from quality_gates import istanbul, lizard_scan, ratchet
 
 FAIL_THRESHOLD = 8.0
 WARN_THRESHOLD = 5.0
 LABEL_WIDTH = 50
 
-LIZARD_CCN = 1
-LIZARD_FILE = 6
-LIZARD_NAME = 7
-LIZARD_START = 9
-LIZARD_END = 10
-
 USAGE = """\
 A fully covered function scores its CC; an uncovered one scores CC² + CC.
 
 Languages:
-  python   CC from radon, coverage from `coverage json`
-  swift    CC from lizard, coverage from an Xcode .xcresult bundle via xcrun xccov
+  python      CC from radon, coverage from `coverage json`
+  swift       CC from lizard, coverage from an Xcode .xcresult bundle via xcrun xccov
+  typescript  CC from lizard (.ts .tsx .js .jsx), coverage from Istanbul's
+              coverage-final.json, written by Vitest and Jest
 
 Examples:
   coverage run -m unittest && coverage json
@@ -33,6 +29,9 @@ Examples:
 
   xcodebuild test -scheme MyScheme -resultBundlePath /tmp/MyScheme.xcresult
   crap --lang swift Sources/ --xcresult /tmp/MyScheme.xcresult
+
+  vitest run --coverage --coverage.reporter=json
+  crap --lang typescript src/ --istanbul-json coverage/coverage-final.json
 
   crap --lang python src/ --no-coverage    worst-case ranking, not a gate
 
@@ -44,8 +43,8 @@ Exit codes:
   1  one or more functions score above --threshold
   2  tool error: missing dependency, bad input, or no functions found
 
-Dependencies: radon (Python CC), coverage (Python coverage), lizard (Swift CC,
-the [swift] extra), xcrun xccov (Swift coverage, from Xcode).
+Dependencies: radon (Python CC), coverage (Python coverage), lizard (Swift and
+TypeScript CC), xcrun xccov (Swift coverage, from Xcode).
 """
 
 
@@ -245,53 +244,8 @@ def analyse_python(
     return sorted(results, key=lambda r: r.crap, reverse=True)
 
 
-def _parse_lizard_row(row: list) -> Optional[dict]:
-    if len(row) <= LIZARD_END:
-        return None
-    try:
-        return {
-            "file":  row[LIZARD_FILE].strip(),
-            "name":  row[LIZARD_NAME].strip(),
-            "cc":    int(row[LIZARD_CCN]),
-            "start": int(row[LIZARD_START]),
-            "end":   int(row[LIZARD_END]),
-        }
-    except (ValueError, IndexError):
-        return None
-
-
 def cc_swift(paths: list) -> list:
-    import csv, io
-
-    try:
-        result = run(
-            ["lizard", "--language", "swift", "--csv"] + paths,
-            stdout=PIPE, stderr=PIPE, text=True,
-        )
-    except FileNotFoundError:
-        print(
-            "[crap] lizard not found.\n"
-            "  Install with: pip3 install lizard\n"
-            "  lizard provides language-agnostic cyclomatic complexity for Swift.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-
-    if result.returncode not in (0, 1):
-        print(f"[crap] lizard failed:\n{result.stderr.strip()}", file=sys.stderr)
-        sys.exit(2)
-
-    raw = result.stdout.strip()
-    if not raw:
-        return []
-
-    return [
-        fn for fn in (
-            _parse_lizard_row(row)
-            for row in csv.reader(io.StringIO(raw))
-        )
-        if fn is not None
-    ]
+    return lizard_scan.scan(paths, "swift", runner=run)
 
 
 def _extract_file_funcs(file_data: dict) -> dict:
@@ -374,7 +328,7 @@ def _swift_fn_to_result(
     cov_calc = cov if cov is not None else 0.0
     score    = crap_score(cc, cov_calc)
     grade    = crap_grade(score, warn_threshold, fail_threshold)
-    return FunctionResult(fn["file"], fn["name"], fn["start"], cc, cov, score, grade)
+    return FunctionResult(fn["file"], fn["label"], fn["start"], cc, cov, score, grade)
 
 
 def analyse_swift(
@@ -392,6 +346,46 @@ def analyse_swift(
     results = [
         r for r in (
             _swift_fn_to_result(fn, cov_data, no_coverage, min_cc, warn_threshold, fail_threshold)
+            for fn in functions
+        )
+        if r is not None
+    ]
+    return sorted(results, key=lambda r: r.crap, reverse=True)
+
+
+def _ts_fn_to_result(
+    fn: dict,
+    cov_data: dict,
+    no_coverage: bool,
+    min_cc: int,
+    warn_threshold: float,
+    fail_threshold: float,
+) -> Optional[FunctionResult]:
+    cc = fn["cc"]
+    if cc < min_cc:
+        return None
+    if no_coverage:
+        cov = 0.0
+    else:
+        cov = istanbul.function_coverage(cov_data, fn["file"], fn["start"], fn["end"])
+    score = crap_score(cc, cov if cov is not None else 0.0)
+    grade = crap_grade(score, warn_threshold, fail_threshold)
+    return FunctionResult(fn["file"], fn["label"], fn["start"], cc, cov, score, grade)
+
+
+def analyse_typescript(
+    paths: list,
+    istanbul_json: Optional[str],
+    no_coverage: bool,
+    min_cc: int,
+    warn_threshold: float,
+    fail_threshold: float,
+) -> list:
+    functions = lizard_scan.scan(paths, "typescript", runner=run)
+    cov_data = istanbul.load(istanbul_json) if istanbul_json else {}
+    results = [
+        r for r in (
+            _ts_fn_to_result(fn, cov_data, no_coverage, min_cc, warn_threshold, fail_threshold)
             for fn in functions
         )
         if r is not None
@@ -454,7 +448,7 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=USAGE,
     )
-    p.add_argument("--lang", choices=["python", "swift"], required=True,
+    p.add_argument("--lang", choices=["python", "swift", "typescript"], required=True,
                    help="Language to analyse")
     p.add_argument("paths", nargs="*", default=["."],
                    help="Files or directories to scan (default: current dir)")
@@ -465,6 +459,8 @@ def build_parser() -> argparse.ArgumentParser:
     cov.add_argument("--xcresult", metavar="FILE",
                      help="Swift: .xcresult bundle from xcodebuild "
                           "(not SwiftPM's swift test, which produces .profdata)")
+    cov.add_argument("--istanbul-json", metavar="FILE",
+                     help="TypeScript: Istanbul coverage-final.json from Vitest or Jest")
     cov.add_argument("--no-coverage", action="store_true",
                      help="Assume 0%% coverage (worst-case scores)")
 
@@ -499,6 +495,21 @@ def _check_paths_exist(paths: list) -> None:
             sys.exit(2)
 
 
+COVERAGE_FLAGS = {
+    "python": ("coverage_json", "--coverage-json", "Python-only"),
+    "swift": ("xcresult", "--xcresult", "Swift-only"),
+    "typescript": ("istanbul_json", "--istanbul-json", "TypeScript-only"),
+}
+
+
+def _check_coverage_flag(args) -> None:
+    own = COVERAGE_FLAGS[args.lang][1]
+    for lang, (attr, flag, scope) in COVERAGE_FLAGS.items():
+        if lang != args.lang and getattr(args, attr):
+            print(f"[crap] {flag} is {scope}; use {own} for {args.lang}", file=sys.stderr)
+            sys.exit(2)
+
+
 def _validate_args(args) -> None:
     if args.warn >= args.threshold:
         print(
@@ -506,17 +517,12 @@ def _validate_args(args) -> None:
             file=sys.stderr,
         )
         sys.exit(2)
-    if args.lang == "python" and args.xcresult:
-        print("[crap] --xcresult is Swift-only; use --coverage-json for Python", file=sys.stderr)
-        sys.exit(2)
-    if args.lang == "swift" and args.coverage_json:
-        print("[crap] --coverage-json is Python-only; use --xcresult for Swift", file=sys.stderr)
-        sys.exit(2)
+    _check_coverage_flag(args)
     _check_paths_exist(args.paths)
 
 
 def _check_coverage_source(args) -> None:
-    if args.coverage_json or args.xcresult or args.no_coverage:
+    if _coverage_path(args) or args.no_coverage:
         return
     args.no_coverage = True
     if not args.json_output:
@@ -559,11 +565,14 @@ def _check_staleness(coverage_path: str, source_paths: list, strict: bool) -> No
         sys.exit(2)
 
 
+def _coverage_path(args) -> Optional[str]:
+    return args.coverage_json or args.xcresult or args.istanbul_json
+
+
 def _maybe_check_staleness(args) -> None:
-    if args.coverage_json:
-        _check_staleness(args.coverage_json, args.paths, args.strict_freshness)
-    elif args.xcresult:
-        _check_staleness(args.xcresult, args.paths, args.strict_freshness)
+    path = _coverage_path(args)
+    if path:
+        _check_staleness(path, args.paths, args.strict_freshness)
 
 
 def _run_analysis(args) -> list:
@@ -571,6 +580,15 @@ def _run_analysis(args) -> list:
         return analyse_python(
             args.paths,
             coverage_json=args.coverage_json,
+            no_coverage=args.no_coverage,
+            min_cc=args.min_cc,
+            warn_threshold=args.warn,
+            fail_threshold=args.threshold,
+        )
+    if args.lang == "typescript":
+        return analyse_typescript(
+            args.paths,
+            istanbul_json=args.istanbul_json,
             no_coverage=args.no_coverage,
             min_cc=args.min_cc,
             warn_threshold=args.warn,
@@ -604,6 +622,8 @@ def _coverage_source(args) -> Optional[str]:
         return "coverage-json"
     if args.xcresult:
         return "xcresult"
+    if args.istanbul_json:
+        return "istanbul-json"
     if args.no_coverage:
         return "assumed-zero"
     return None

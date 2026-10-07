@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.6.0 — 2026-10-08
+
+CC and CRAP gates for TypeScript and JavaScript (#21, ADR-001 addendum of
+2026-10-07, now accepted).
+
+- `cc-check --lang typescript PATHS` counts `.ts`, `.tsx`, `.js` and `.jsx`
+  with lizard and fails above 8, with `--baseline` as for Python. `--lang`
+  defaults to `python`, so existing calls are unchanged.
+- `crap --lang typescript PATHS --istanbul-json coverage/coverage-final.json`
+  takes per-function coverage from Istanbul's JSON report (Vitest, Jest).
+  `--no-coverage` and `--baseline` work as for the other languages.
+- A new `/cc-typescript` skill; `/crap` and `/setup-standards` cover
+  TypeScript, and `/setup-standards` has CI steps for it.
+- Baseline keys: a function name that repeats in a file is keyed with its
+  order, `path::(anonymous)#2`. This also applies to Swift.
+- lizard is now a core dependency; the `[swift]` extra is gone.
+
+**When you bump the pin:** run `qg-skills`. If you installed
+`quality-gates[swift]`, drop `[swift]`. A Swift project with a
+`crap-baseline.json` whose functions share a name in one file: run its
+`crap --lang swift ... --update` once, as the second and later of those
+entries are now keyed `name#2`, `#3`. A TypeScript or JavaScript project:
+run `/setup-standards` to add the gates.
+
 ## 0.5.3 — 2026-10-07
 
 Documentation only: the README's *Releasing* section says to push the release

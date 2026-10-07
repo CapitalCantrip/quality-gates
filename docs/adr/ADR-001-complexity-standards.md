@@ -100,7 +100,7 @@ repo with existing debt can enforce them in CI without first paying it all off.
 - **CRAP baselines need coverage,** following the decision that CRAP without
   coverage is a ranking, not a gate.
 
-## Addendum 2026-10-07: TypeScript and JavaScript (proposed)
+## Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)
 
 The standards above extend to `.ts`, `.tsx`, `.js` and `.jsx`. Nothing changes
 for Python, Swift or Rust.
@@ -125,6 +125,17 @@ its branch coverage within its lines, or its statement coverage when it has no
 branches: the rule `crap` already applies to Python. The function's lines come
 from Istanbul's `fnMap`, matched to lizard by start line, because lizard's end
 line runs on into the next declaration when the code has type annotations.
+
+**Repeated names get their order as a suffix in baseline keys.** lizard names a
+method without its class and every unnamed callback `(anonymous)`, and the
+ratchet keeps one score per key, so a new function could hide behind an old one
+of the same name. The second and later functions of a name in a file are keyed
+`path::name#2`, `#3`, in order of their start line. This applies to Swift too;
+a Swift baseline with no repeated names is unchanged. Keying by the enclosing
+named function was rejected: lizard does not report nesting.
+
+**lizard is a core dependency,** no longer the `[swift]` extra: two languages
+need it, and it is pure Python.
 
 **Known miscount:** lizard counts `??` as two paths, not one. That can only
 raise a score, so the gate errs strict; it is left as is.

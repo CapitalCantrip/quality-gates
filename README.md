@@ -19,7 +19,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.3"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -122,10 +122,11 @@ them. Why each number is what it is: [ADR-001](docs/adr/ADR-001-complexity-stand
 |---|---|---|---|---|
 | No new comments | Python | `comment-debt` | the file's baseline | — |
 | Cyclomatic complexity | Python | `cc-check` (radon) | 8 | — |
+| Cyclomatic complexity | TypeScript, JavaScript | `cc-check --lang typescript` (lizard) | 8 | — |
 | Cyclomatic complexity | Swift | SwiftLint, `ignores_case_statements: true` | 8 | 6 |
 | Cognitive complexity | Rust | `cargo clippy` | 10 | — |
 | Function length | Rust | `cargo clippy` | 25 lines | — |
-| CRAP | Python, Swift | `crap` | 8 | 5 |
+| CRAP | Python, Swift, TypeScript, JavaScript | `crap` | 8 | 5 |
 
 Human-maintained code targets CC 5.
 
@@ -151,7 +152,8 @@ to run after each function is written. It counts with radon, the same counter
 CRAP uses, so the two numbers agree. ruff's C901 skips boolean operators and
 comprehensions and can score the same function several points lower; don't use
 it as the gate. Takes any number of files and directories in one run:
-`cc-check src tests`. With `--baseline FILE` it fails only on functions that are
+`cc-check src tests`. `--lang typescript` counts `.ts`, `.tsx`, `.js` and `.jsx`
+with lizard instead, skipping `node_modules`. With `--baseline FILE` it fails only on functions that are
 new or worse than the baseline; see [Adopting the ratchet](#adopting-the-ratchet).
 
 ### `crap`: complexity weighted by missing tests
@@ -169,7 +171,8 @@ a function scores its CC; uncovered, CC² + CC. Coverage needed to pass at 8:
 
 It runs once per ticket, after the functions are written and their tests exist.
 Python coverage comes from `coverage json`; Swift from an Xcode `.xcresult`
-bundle. Without coverage (`--no-coverage`) every function at CC 3 or above fails,
+bundle; TypeScript and JavaScript from Istanbul's `coverage-final.json`
+(`--istanbul-json`), which Vitest and Jest write. Without coverage (`--no-coverage`) every function at CC 3 or above fails,
 so that mode ranks functions by risk and is never read as pass/fail. `crap`
 takes `--baseline FILE` too, and refuses it without coverage (exit 2).
 
@@ -194,7 +197,10 @@ cc-check src --baseline cc-baseline.json               # the check CI runs
 
 The baseline maps `path::function` to its score, and holds only functions over
 the threshold. Paths are relative to the git root, so the file is the same on
-every machine and in CI. A method is keyed `path::Class.method`.
+every machine and in CI. A Python method is keyed `path::Class.method`. lizard
+(Swift, TypeScript) names a method without its class and an unnamed callback
+`(anonymous)`, so a name that repeats in a file gets its order as a suffix:
+`path::(anonymous)#2`.
 
 - A function over the threshold that is not in the baseline fails. A renamed or
   moved function counts as new.
@@ -259,6 +265,7 @@ with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 | `/review-against-spec` | Pocock, changed | Checks a change against the project's standards and the issue or spec it came from; his `code-review`, renamed so Claude Code's own `/code-review` still works |
 | `/no-comments` | ours | Sets up `comment-debt` in a repo, or pays down one file's debt |
 | `/cc-python` | ours | Runs `cc-check` at 8 and proposes refactors |
+| `/cc-typescript` | ours | Runs `cc-check --lang typescript` at 8 and proposes refactors |
 | `/cc-swift` | ours | Runs SwiftLint and lizard and proposes refactors |
 | `/cc-rust` | ours | Runs `cargo clippy`; `setup` scaffolds `clippy.toml` and deny attributes |
 | `/crap` | ours | Runs `crap` (Python, Swift) or `cargo clippy` (Rust) and says whether to add tests or reduce CC |
@@ -292,7 +299,7 @@ Two more commands support them:
 
 - Instead of `uv tool install`, you can add the same requirement to the
   project's dev dependencies; `/setup-standards` does this for a Python
-  project. Swift support needs `lizard`: install `quality-gates[swift]`.
+  project. lizard, which counts Swift and TypeScript, installs with the package.
 - Each command is a Python file in the package, linked to its name in
   [pyproject.toml](pyproject.toml); installing the package makes the link:
 
