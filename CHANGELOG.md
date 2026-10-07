@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.5.3 — 2026-10-07
+
+Documentation only: the README's *Releasing* section says to push the release
+tag from a local session, because a cloud session's GitHub proxy refuses tag
+pushes.
+
+**When you bump the pin:** nothing to do beyond `qg-skills`.
+
+## 0.5.2 — 2026-10-07
+
+Moving freely between local and cloud sessions.
+
+- The stage guard refuses `git add :.`, which stages the whole tree like
+  `git add .` (#16).
+- `/setup-standards` writes a pre-commit hook that puts `.venv/bin` on PATH
+  when the project has a `.venv`, so a commit from VS Code or a cloud shell
+  finds `comment-debt` and `cc-check` (#33).
+- The issue-tracker template has an *In a cloud session* section: there
+  `gh issue`, `gh pr` and `gh label` fail with HTTP 403, so use the GitHub MCP
+  tools or `gh api` REST calls (#35).
+- PR bodies go through the `pr` skill. `qg-agent-docs` now writes
+  `.github/pull_request_template.md` with its Summary / Evidence / Merge
+  Danger headings, and adds a *Pull requests* section to the Agent skills
+  block in `CLAUDE.md`, even when the block is already there. Before this,
+  nothing pointed an agent at the skill, so PR bodies came out freehand.
+- This repo only: a SessionStart hook installs `.venv` in cloud sessions (#36),
+  and its own pre-commit hook finds `.venv/bin` (#33).
+
+**When you bump the pin:** run `qg-skills` to get the new stage guard, and
+`qg-agent-docs --tracker <yours>` (or `/setup-standards`) for the PR template
+and the *Pull requests* section; if you already have a PR template, it is kept
+and the tool shows the difference. If your
+`.githooks/pre-commit` calls the gates by bare name and you use a `.venv`, add
+`[ -d .venv/bin ] && PATH="$PWD/.venv/bin:$PATH"` after its shebang. If you
+copied the issue-tracker doc from the template, add its *In a cloud session*
+section.
+
 ## 0.5.1 — 2026-10-07
 
 Documentation only: the README describes the package as it is since 0.5.0.

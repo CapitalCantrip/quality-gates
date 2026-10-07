@@ -14,10 +14,10 @@ engineering knowledge. Run on a set-up project, every step finds its work
 already in place and changes nothing, so this is also the upgrade after a pin
 bump.
 
-The pin this skill belongs to: `v0.5.1`. Install line, used in step 2:
+The pin this skill belongs to: `v0.5.3`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.1"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.3"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`
@@ -35,8 +35,10 @@ or **not done** with the reason. Step 7 reads from it.
 2. If `.claude/agents/` holds `issue-tracker.md`, `triage-labels.md` or
    `domain.md` (Pocock's earlier layout), `git mv` each into `docs/agents/`.
 3. Run `qg-agent-docs --tracker <github|gitlab|local>`. It writes
-   `docs/agents/` from Matt Pocock's setup templates, adds the Agent skills
-   block to `CLAUDE.md`, and never overwrites a file the project edited. Copy
+   `docs/agents/` from Matt Pocock's setup templates, writes
+   `.github/pull_request_template.md` with the `pr` skill's headings, adds the
+   Agent skills block to `CLAUDE.md` (with a *Pull requests* section that
+   sends PR bodies to the `pr` skill), and never overwrites a file the project edited. Copy
    every line of its output into the report, including any template diff, so
    the builder can choose to adopt it.
 4. On GitHub, create each of the five labels in `docs/agents/triage-labels.md`
@@ -113,7 +115,9 @@ recorded; new ones will fail". Done when the gate passes on today's tree.
 1. `.githooks/pre-commit` runs every fast gate, stopping at the first failure:
    `comment-debt` and `cc-check <source dirs> --baseline cc-baseline.json` for
    Python; SwiftLint for Swift where installed. Keep any lines the project
-   already had. Make it executable.
+   already had. Make it executable. If the project has a `.venv`, the hook's
+   first line after the shebang is `[ -d .venv/bin ] && PATH="$PWD/.venv/bin:$PATH"`:
+   VS Code and cloud shells run the hook without the venv activated.
 2. Run `git config core.hooksPath .githooks`.
 3. Add a `SessionStart` hook to `.claude/settings.json` that runs
    `git config core.hooksPath .githooks`, so cloud sessions get the hook too.

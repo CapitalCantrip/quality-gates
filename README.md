@@ -19,7 +19,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.1"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.3"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -279,7 +279,8 @@ with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 Two more commands support them:
 
 - `qg-agent-docs --tracker github|gitlab|local` writes `docs/agents/` from
-  Matt Pocock's setup templates. It never overwrites a file you edited; it
+  Matt Pocock's setup templates, and `.github/pull_request_template.md` from
+  the `pr` skill's headings. It never overwrites a file you edited; it
   shows the template's own change instead, so you can choose to adopt it.
 - `qg-upstream` reports what changed upstream in the files this repo copies
   from Pocock and pstack; see
@@ -328,6 +329,9 @@ Bump `version` in `pyproject.toml`, `.claude-plugin/plugin.json` and
 `.claude-plugin/marketplace.json` together, add a `CHANGELOG.md` entry, update
 the pinned tag in the skills' install lines, tag `vX.Y.Z`, then bump the pin in
 each consuming project.
+
+Push the tag from a local session: a Claude Code cloud session's GitHub proxy
+refuses tag pushes and the API call that creates a tag.
 
 A change that alters no behaviour, such as a README fix, is still released.
 

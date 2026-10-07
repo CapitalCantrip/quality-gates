@@ -26,7 +26,7 @@ class BulkStagingIsBlocked(unittest.TestCase):
 
     def test_git_add_all_in_every_spelling_is_blocked(self):
         for command in ["git add -A", "git add --all", "git add .", "git add ./", "git add -u",
-                        "git add --update", "git add :/", "git add *", "git add -Av", "git stage -A"]:
+                        "git add --update", "git add :/", "git add :.", "git add *", "git add -Av", "git stage -A"]:
             self.assertBlocked(command)
 
     def test_git_commit_all_in_every_spelling_is_blocked(self):
