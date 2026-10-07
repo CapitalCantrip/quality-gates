@@ -19,7 +19,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.2"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.5.3"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -329,6 +329,9 @@ Bump `version` in `pyproject.toml`, `.claude-plugin/plugin.json` and
 `.claude-plugin/marketplace.json` together, add a `CHANGELOG.md` entry, update
 the pinned tag in the skills' install lines, tag `vX.Y.Z`, then bump the pin in
 each consuming project.
+
+Push the tag from a local session: a Claude Code cloud session's GitHub proxy
+refuses tag pushes and the API call that creates a tag.
 
 A change that alters no behaviour, such as a README fix, is still released.
 
