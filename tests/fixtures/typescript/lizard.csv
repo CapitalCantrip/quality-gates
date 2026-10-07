@@ -1,0 +1,13 @@
+1,3,11,1,1,"f@1-1@tests/fixtures/typescript/nullish.ts","tests/fixtures/typescript/nullish.ts","f","f ( a )",1,1
+1,1,32,0,1,"(anonymous)@3-3@tests/fixtures/typescript/sample.test.ts","tests/fixtures/typescript/sample.test.ts","(anonymous)","(anonymous)",3,3
+1,1,34,0,1,"(anonymous)@4-4@tests/fixtures/typescript/sample.test.ts","tests/fixtures/typescript/sample.test.ts","(anonymous)","(anonymous)",4,4
+1,1,21,0,1,"(anonymous)@5-5@tests/fixtures/typescript/sample.test.ts","tests/fixtures/typescript/sample.test.ts","(anonymous)","(anonymous)",5,5
+9,5,45,2,10,"grade@1-10@tests/fixtures/typescript/sample.ts","tests/fixtures/typescript/sample.ts","grade","grade ( n , strict )",1,10
+1,1,6,0,1,"(anonymous)@13-13@tests/fixtures/typescript/sample.ts","tests/fixtures/typescript/sample.ts","(anonymous)","(anonymous)",13,13
+4,2,39,1,4,"total@12-15@tests/fixtures/typescript/sample.ts","tests/fixtures/typescript/sample.ts","total","total ( discount )",12,15
+2,1,13,1,2,"pick@18-19@tests/fixtures/typescript/sample.ts","tests/fixtures/typescript/sample.ts","pick","pick ( xs )",18,19
+1,2,10,0,1,"(anonymous)@19-19@tests/fixtures/typescript/sample.ts","tests/fixtures/typescript/sample.ts","(anonymous)","(anonymous)",19,19
+7,3,32,1,7,"untested@21-27@tests/fixtures/typescript/sample.ts","tests/fixtures/typescript/sample.ts","untested","untested ( x )",21,27
+4,1,13,1,5,"f@1-5@tests/fixtures/typescript/typed_then_class.ts","tests/fixtures/typescript/typed_then_class.ts","f","f ( n )",1,5
+1,1,9,0,1,"g@6-6@tests/fixtures/typescript/typed_then_class.ts","tests/fixtures/typescript/typed_then_class.ts","g","g ( )",6,6
+4,3,31,1,4,"V@1-4@tests/fixtures/typescript/component.tsx","tests/fixtures/typescript/component.tsx","V","V ( a a )",1,4
