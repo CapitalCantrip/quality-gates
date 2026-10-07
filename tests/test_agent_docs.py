@@ -12,7 +12,7 @@ class AgentDocs(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp())
         self.templates = self.root / "templates"
         self.templates.mkdir()
-        for name in ["issue-tracker-github.md", "issue-tracker-local.md", "triage-labels.md", "domain.md"]:
+        for name in ["issue-tracker-github.md", "issue-tracker-local.md", "triage-labels.md", "domain.md", "pull-request.md"]:
             (self.templates / name).write_text(f"{name} v1\n")
         self.repo = self.root / "repo"
         self.repo.mkdir()
@@ -49,13 +49,38 @@ class AgentDocs(unittest.TestCase):
         self.assertEqual(text.count("## Agent skills"), 1)
         self.assertIn("GitHub Issues on this repo, through the `gh` CLI. See `docs/agents/issue-tracker.md`.", text)
 
+    def test_a_first_run_writes_the_pull_request_template(self):
+        out = self.run_tool()
+        self.assertEqual((self.repo / ".github" / "pull_request_template.md").read_text(), "pull-request.md v1\n")
+        self.assertIn(".github/pull_request_template.md: created", out)
+
+    def test_the_agent_skills_block_routes_pull_requests_to_the_pr_skill(self):
+        self.run_tool()
+        self.assertIn("### Pull requests\n\nWrite every PR body with the `pr` skill", (self.repo / "CLAUDE.md").read_text())
+
+    def test_an_older_agent_skills_block_gains_the_pull_requests_section_once(self):
+        (self.repo / "CLAUDE.md").write_text("# Repo\n\n## Agent skills\n\n### Issue tracker\n\nOurs.\n\n## Later\n")
+        out = self.run_tool()
+        self.run_tool()
+        text = (self.repo / "CLAUDE.md").read_text()
+        self.assertEqual(text.count("### Pull requests"), 1)
+        self.assertLess(text.index("### Pull requests"), text.index("## Later"))
+        self.assertIn("Ours.", text)
+        self.assertIn("Agent skills block: pull requests section added", out)
+
+    def test_the_shipped_pull_request_template_matches_the_pr_skill(self):
+        skill = (agent_docs.TEMPLATES.parent / "skills" / "pr" / "SKILL.md").read_text()
+        shipped = (agent_docs.TEMPLATES / "pull-request.md").read_text()
+        body = skill.split("```markdown\n", 1)[1].split("```\n", 1)[0]
+        self.assertTrue(shipped.endswith(body))
+
     def test_a_second_run_reports_everything_in_place_and_changes_nothing(self):
         self.run_tool()
         before = {p: p.read_bytes() for p in self.repo.rglob("*") if p.is_file()}
         out = self.run_tool()
         after = {p: p.read_bytes() for p in self.repo.rglob("*") if p.is_file()}
         self.assertEqual(before, after)
-        self.assertEqual(out.count("already in place"), 4)
+        self.assertEqual(out.count("already in place"), 5)
 
     def test_an_unedited_doc_follows_a_template_upgrade(self):
         self.run_tool()

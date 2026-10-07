@@ -6,7 +6,7 @@ import sys
 BLOCK_EXIT = 2
 SEPARATORS = {"&&", "||", ";", "|", "&", "(", ")", "\n"}
 GIT_OPTIONS_WITH_VALUE = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
-BULK_ADD_ARGS = {"-A", "--all", "-u", "--update", "--no-ignore-removal", ".", "./", ":/", "*"}
+BULK_ADD_ARGS = {"-A", "--all", "-u", "--update", "--no-ignore-removal", ".", "./", ":/", ":.", "*"}
 BULK_ADD_LETTERS = set("Au")
 BULK_COMMIT_ARGS = {"-a", "--all"}
 COMMIT_LETTERS_WITH_VALUE = set("mFCct")
