@@ -99,3 +99,44 @@ repo with existing debt can enforce them in CI without first paying it all off.
   permissive would let a mistyped path pass CI.
 - **CRAP baselines need coverage,** following the decision that CRAP without
   coverage is a ranking, not a gate.
+
+## Addendum 2026-10-07: TypeScript and JavaScript (proposed)
+
+The standards above extend to `.ts`, `.tsx`, `.js` and `.jsx`. Nothing changes
+for Python, Swift or Rust.
+
+| Gate | Tool | Limit |
+|---|---|---|
+| CC | `cc-check --lang typescript` (lizard) | fail above 8 |
+| CRAP | `crap --lang typescript` (lizard, Istanbul coverage) | warn above 5, fail above 8 |
+
+**lizard counts both gates,** for the reason radon counts both for Python: with
+one counter a fully covered function's CRAP equals its CC, so the ceilings meet
+at 8. On test functions lizard agrees with a hand count for `if`, loops, `case`,
+`catch`, `&&`, `||` and `?:`, and gives a nested arrow function its own score.
+
+**`switch` cases count.** Swift is exempt because its compiler requires an
+exhaustive `switch`; TypeScript does not, so each `case` is a path that can go
+untested. lizard runs without `-m`.
+
+**Coverage comes from Istanbul's JSON report** (`coverage-final.json`, the
+`json` reporter), which Vitest and Jest both write. A function's coverage is
+its branch coverage within its lines, or its statement coverage when it has no
+branches: the rule `crap` already applies to Python. The function's lines come
+from Istanbul's `fnMap`, matched to lizard by start line, because lizard's end
+line runs on into the next declaration when the code has type annotations.
+
+**Known miscount:** lizard counts `??` as two paths, not one. That can only
+raise a score, so the gate errs strict; it is left as is.
+
+### Rejected
+
+- **ESLint's `complexity` rule as the CC gate.** It is the usual choice and runs
+  in the editor, but it is a second counter beside CRAP's: the split this ADR
+  removed for Python.
+- **A counter of our own on the TypeScript compiler API.** It would need Node
+  inside a Python package and would still be a second counter.
+- **`json-summary` coverage.** It holds totals per file; CRAP needs coverage per
+  function.
+- **lcov, for now.** Node's own test runner writes lcov, not Istanbul JSON. Add
+  it when a project on `node --test` adopts the gates.
