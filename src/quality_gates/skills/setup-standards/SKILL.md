@@ -35,8 +35,10 @@ or **not done** with the reason. Step 7 reads from it.
 2. If `.claude/agents/` holds `issue-tracker.md`, `triage-labels.md` or
    `domain.md` (Pocock's earlier layout), `git mv` each into `docs/agents/`.
 3. Run `qg-agent-docs --tracker <github|gitlab|local>`. It writes
-   `docs/agents/` from Matt Pocock's setup templates, adds the Agent skills
-   block to `CLAUDE.md`, and never overwrites a file the project edited. Copy
+   `docs/agents/` from Matt Pocock's setup templates, writes
+   `.github/pull_request_template.md` with the `pr` skill's headings, adds the
+   Agent skills block to `CLAUDE.md` (with a *Pull requests* section that
+   sends PR bodies to the `pr` skill), and never overwrites a file the project edited. Copy
    every line of its output into the report, including any template diff, so
    the builder can choose to adopt it.
 4. On GitHub, create each of the five labels in `docs/agents/triage-labels.md`

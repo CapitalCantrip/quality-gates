@@ -279,7 +279,8 @@ with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 Two more commands support them:
 
 - `qg-agent-docs --tracker github|gitlab|local` writes `docs/agents/` from
-  Matt Pocock's setup templates. It never overwrites a file you edited; it
+  Matt Pocock's setup templates, and `.github/pull_request_template.md` from
+  the `pr` skill's headings. It never overwrites a file you edited; it
   shows the template's own change instead, so you can choose to adopt it.
 - `qg-upstream` reports what changed upstream in the files this repo copies
   from Pocock and pstack; see
