@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.7.0 — 2026-10-09
+
+One complexity scan for both gates (#43, ADR-001 addendum of 2026-10-09).
+`cc-check` and `crap` now take their functions from one module, so they always
+list the same functions under the same names.
+
+- Classes are no longer scored by `cc-check`; `crap` never scored them.
+- Python closures and methods of nested classes are scored on their own, named
+  `outer.inner` and `K.Inner.deep`. A Python name that repeats in a file gets
+  `#2`, `#3`, as TypeScript and Swift names already did.
+- One skip list for both gates and every language: `.git`, `.venv`, `venv`,
+  `.direnv`, `node_modules`, `__pycache__`, `backups`, `build`, `dist`, `.tox`,
+  `.mypy_cache`, `.pytest_cache`, `.worktrees`, `.claude/worktrees`. `crap` now
+  skips `venv` and scans hidden folders such as `.claude/hooks`; `cc-check` now
+  skips `build`, `dist` and the tool caches.
+- Both gates end their report with `Skipped N folder(s): ...` naming every
+  skipped folder found inside the scanned paths. `crap --json` has it as a
+  `skipped` list; `cc-check --format json` writes the line to stderr.
+- `cc-check` drops the A–F letter. Its JSON loses `rank`, and `name` now holds
+  the full name (`K.m`), the same as `fullname`.
+- Error messages from radon and lizard now carry the tag of the gate that
+  printed them (`ERROR:` in `cc-check`, `[crap]` in `crap`) instead of
+  `[lizard]`. A missing radon reads the same in both gates. Exit codes are
+  unchanged.
+
+**When you bump the pin:** run `qg-skills`. Then, on the bump commit, with the
+gates passing on the commit before, delete `cc-baseline.json` and
+`crap-baseline.json`, run each gate with `--update` exactly as your hook and
+CI call it, and commit. Review the new entries in the pull request diff: they
+are closures, nested-class methods and functions in hidden folders that were
+over the limit all along. Anything that reads `cc-check --format json` must
+stop reading `rank`.
+
 ## 0.6.0 — 2026-10-08
 
 CC and CRAP gates for TypeScript and JavaScript (#21, ADR-001 addendum of

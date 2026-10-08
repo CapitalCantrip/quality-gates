@@ -4,10 +4,15 @@ import json
 import sys
 from pathlib import Path
 
-from quality_gates import lizard_scan, ratchet
+from quality_gates import complexity_scan, ratchet
+from quality_gates.errors import ToolError
 
 AGENT_CC_CEILING = 8
-EXCLUDED_PARTS = {"__pycache__", ".git", "backups", "venv", ".venv", "node_modules"}
+ERROR_TAG = "ERROR: "
+NOTHING_FOUND = {
+    "python": "No Python files found.",
+    "typescript": "No TypeScript or JavaScript functions found.",
+}
 
 
 def build_parser():
@@ -27,99 +32,16 @@ def build_parser():
     return parser
 
 
-def load_radon():
-    try:
-        from radon.complexity import cc_visit, cc_rank
-    except ImportError:
-        print("ERROR: radon not installed. Run: pip install radon", file=sys.stderr)
-        sys.exit(2)
-    return cc_visit, cc_rank
-
-
-def python_files(target):
-    if not target.exists():
-        print(f"ERROR: path not found: {target}", file=sys.stderr)
-        sys.exit(2)
-    if target.is_file():
-        return [target] if target.suffix == ".py" else []
-    return sorted(target.rglob("*.py"))
-
-
-def collect_files(paths):
-    files = []
-    for path in paths:
-        files.extend(f for f in python_files(Path(path)) if not EXCLUDED_PARTS.intersection(f.parts))
-    if not files:
-        print("No Python files found.", file=sys.stderr)
-        sys.exit(2)
-    return files
-
-
-def read_blocks(filepath, cc_visit):
-    try:
-        return cc_visit(filepath.read_text(encoding="utf-8"))
-    except (OSError, ValueError, SyntaxError):
-        return []
-
-
-def to_result(filepath, block, cc_rank, threshold):
+def to_result(fn, threshold):
     return {
-        "file": str(filepath),
-        "name": block.name,
-        "fullname": block.fullname,
-        "type": block.__class__.__name__,
-        "complexity": block.complexity,
-        "rank": cc_rank(block.complexity),
-        "line": block.lineno,
-        "above_threshold": block.complexity > threshold,
-    }
-
-
-def analyse(files, threshold):
-    cc_visit, cc_rank = load_radon()
-    return [
-        to_result(filepath, block, cc_rank, threshold)
-        for filepath in files
-        for block in read_blocks(filepath, cc_visit)
-    ]
-
-
-def check_paths_exist(paths):
-    for path in paths:
-        if not Path(path).exists():
-            print(f"ERROR: path not found: {path}", file=sys.stderr)
-            sys.exit(2)
-
-
-def lizard_to_result(fn, cc_rank, threshold):
-    return {
-        "file": fn["file"],
-        "name": fn["name"],
-        "fullname": fn["label"],
+        "file": fn.file,
+        "name": fn.name,
+        "fullname": fn.name,
         "type": "Function",
-        "complexity": fn["cc"],
-        "rank": cc_rank(fn["cc"]),
-        "line": fn["start"],
-        "above_threshold": fn["cc"] > threshold,
+        "complexity": fn.cc,
+        "line": fn.start,
+        "above_threshold": fn.cc > threshold,
     }
-
-
-def analyse_typescript(paths, threshold):
-    check_paths_exist(paths)
-    _, cc_rank = load_radon()
-    functions = lizard_scan.scan(paths, "typescript")
-    if not functions:
-        print("No TypeScript or JavaScript functions found.", file=sys.stderr)
-        sys.exit(2)
-    files = sorted({fn["file"] for fn in functions})
-    return [lizard_to_result(fn, cc_rank, threshold) for fn in functions], files
-
-
-def analyse_paths(args):
-    if args.lang == "typescript":
-        return analyse_typescript(args.paths, args.threshold)
-    files = collect_files(args.paths)
-    return analyse(files, args.threshold), files
 
 
 def display_path(file):
@@ -133,7 +55,7 @@ def print_flagged(flagged):
         return
     print(f"FLAGGED — {len(flagged)} function(s) above threshold:\n")
     for r in sorted(flagged, key=lambda x: -x["complexity"]):
-        print(f"  [{r['rank']}] CC={r['complexity']:>3}  {display_path(r['file'])}:{r['line']}  {r['name']}")
+        print(f"  CC={r['complexity']:>3}  {display_path(r['file'])}:{r['line']}  {r['name']}")
 
 
 def print_text(results, files, threshold):
@@ -164,18 +86,37 @@ def report(results, files, args):
     return print_text(results, files, args.threshold)
 
 
-def run(argv, root):
+def print_skipped(skipped, out):
+    line = complexity_scan.skipped_line(skipped)
+    if line:
+        print(line, file=out)
+
+
+def gate(argv, root):
     parser = build_parser()
     args = parser.parse_args(argv)
     if args.update and not args.baseline:
         parser.error("--update needs --baseline")
-    results, files = analyse_paths(args)
-    code = report(results, files, args)
+    found = complexity_scan.scan(args.paths, args.lang)
+    if not found.files:
+        print(NOTHING_FOUND[args.lang], file=sys.stderr)
+        return 2
+    results = [to_result(fn, args.threshold) for fn in found.functions]
+    code = report(results, found.files, args)
+    out = sys.stderr if args.format == "json" else sys.stdout
+    print_skipped(found.skipped, out)
     if not args.baseline:
         return code
-    out = sys.stderr if args.format == "json" else sys.stdout
     current = over_threshold(results, root or ratchet.repo_root())
     return ratchet.enforce(current, Path(args.baseline), args.update, out)
+
+
+def run(argv, root):
+    try:
+        return gate(argv, root)
+    except ToolError as error:
+        print(f"{ERROR_TAG}{error}", file=sys.stderr)
+        return 2
 
 
 def main(argv=None, root=None):

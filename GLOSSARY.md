@@ -47,6 +47,11 @@ A command that fails the commit or the build when a standard is broken, needing
 no one's cooperation.
 _Avoid_: linter, check, rule
 
+**Function**:
+What a complexity gate scores: a function, a method, a closure, or a method of
+a nested class, each scored on its own. A class is never scored.
+_Avoid_: block, unit
+
 **Asking rule**:
 When and how an agent puts a decision to the builder: plain stakes, two or
 three options, a recommendation.

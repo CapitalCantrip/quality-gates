@@ -21,7 +21,7 @@ are in ADR-001's TypeScript addendum.
 
 ## Steps
 
-1. Identify the source directories (`node_modules` is skipped by the tool).
+1. Identify the source directories. The tool skips the folders ADR-001's 2026-10-09 addendum lists and names each one it found on a last `Skipped N folder(s):` line; if that line names a folder holding real source, report it.
 2. Run:
    ```bash
    cc-check --lang typescript <dirs> --threshold 8
@@ -50,5 +50,5 @@ lizard ships with quality-gates. No Node packages are needed for CC.
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
 ```

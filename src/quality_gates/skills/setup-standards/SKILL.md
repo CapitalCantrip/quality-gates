@@ -14,10 +14,10 @@ engineering knowledge. Run on a set-up project, every step finds its work
 already in place and changes nothing, so this is also the upgrade after a pin
 bump.
 
-The pin this skill belongs to: `v0.6.0`. Install line, used in step 2:
+The pin this skill belongs to: `v0.7.0`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`
@@ -121,6 +121,10 @@ from the repo root and commit the file it writes.
 
 Report each baseline with its count: "12 functions over the complexity limit,
 recorded; new ones will fail". Done when the gate passes on today's tree.
+
+On an upgrade, a baseline that fails after the bump is re-recorded as the
+release's CHANGELOG entry says under *When you bump the pin*; v0.7.0 re-keys
+every `cc-baseline.json` and `crap-baseline.json`.
 
 ## 4. Hooks
 
