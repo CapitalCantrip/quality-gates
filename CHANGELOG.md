@@ -17,7 +17,11 @@ list the same functions under the same names.
   skips `build`, `dist` and the tool caches.
 - Both gates end their report with `Skipped N folder(s): ...` naming every
   skipped folder found inside the scanned paths. `crap --json` has it as a
-  `skipped` list; `cc-check --format json` writes the line to stderr.
+  `skipped` list; `cc-check --format json` writes the line to stderr. When
+  every file was skipped, the line comes before the "nothing found" error.
+- TypeScript and Swift scans read only the files under the given paths, so a
+  `build` or `dist` folder above the scanned path no longer hides the whole
+  project. A scan of `.` reports `src/a.ts`, not `./src/a.ts`.
 - `cc-check` drops the A–F letter. Its JSON loses `rank`, and `name` now holds
   the full name (`K.m`), the same as `fullname`.
 - Error messages from radon and lizard now carry the tag of the gate that
@@ -31,7 +35,7 @@ gates passing on the commit before, delete `cc-baseline.json` and
 CI call it, and commit. Review the new entries in the pull request diff: they
 are closures, nested-class methods and functions in hidden folders that were
 over the limit all along. Anything that reads `cc-check --format json` must
-stop reading `rank`.
+stop reading `rank`, and gets the full name (`K.m`) from `name`.
 
 ## 0.6.0 — 2026-10-08
 

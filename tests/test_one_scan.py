@@ -125,6 +125,21 @@ class SkippedFolderLineTest(InTempDir):
         self.assertEqual(json.loads(out)["skipped"], [])
 
 
+class EverythingSkippedTest(InTempDir):
+    def setUp(self):
+        super().setUp()
+        self.write("src/build/gen.py", "def gen(x):\n    return 1 if x else 2\n")
+
+    def test_cc_check_names_the_skipped_folders_before_saying_it_found_nothing(self):
+        code, _, err = call(qc.main, ["src"])
+        self.assertEqual((code, err), (2, "Skipped 1 folder(s): src/build\nNo Python files found.\n"))
+
+    def test_crap_names_the_skipped_folders_before_saying_it_analysed_nothing(self):
+        code, _, err = call(crap.main, ["--lang", "python", "src", "--no-coverage"])
+        self.assertEqual(code, 2)
+        self.assertTrue(err.startswith("Skipped 1 folder(s): src/build\n[crap] no functions analysed in: src\n"))
+
+
 class ToolErrorMessageTest(InTempDir):
     def setUp(self):
         super().setUp()

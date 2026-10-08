@@ -86,12 +86,6 @@ def report(results, files, args):
     return print_text(results, files, args.threshold)
 
 
-def print_skipped(skipped, out):
-    line = complexity_scan.skipped_line(skipped)
-    if line:
-        print(line, file=out)
-
-
 def gate(argv, root):
     parser = build_parser()
     args = parser.parse_args(argv)
@@ -99,12 +93,13 @@ def gate(argv, root):
         parser.error("--update needs --baseline")
     found = complexity_scan.scan(args.paths, args.lang)
     if not found.files:
+        complexity_scan.print_skipped(found.skipped, sys.stderr)
         print(NOTHING_FOUND[args.lang], file=sys.stderr)
         return 2
     results = [to_result(fn, args.threshold) for fn in found.functions]
     code = report(results, found.files, args)
     out = sys.stderr if args.format == "json" else sys.stdout
-    print_skipped(found.skipped, out)
+    complexity_scan.print_skipped(found.skipped, out)
     if not args.baseline:
         return code
     current = over_threshold(results, root or ratchet.repo_root())

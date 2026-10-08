@@ -180,13 +180,24 @@ closure, or a method of a nested class, each on its own.
   to the standard. An entry matches a folder of that name anywhere below the
   scanned path, so a real package called `build` or `dist` is skipped too; for
   that reason both gates end their report with a line naming every skipped
-  folder they found.
+  folder they found. A folder above the scanned path never counts: a project
+  checked out under `build/` is scanned in full, in every language.
+- **An empty scan is not a scan error.** The scan raises only for a missing
+  path, a missing tool or a crashed tool; a scan that finds nothing returns
+  nothing. Each gate keeps its own wording for that case, and `crap
+  --allow-empty` keeps working. This amends #43, which asked the scan to raise
+  on an empty result: that would have changed both messages and removed
+  `--allow-empty`, which the same issue asked to keep.
 - **The A–F letter is gone** from `cc-check`. It never decided pass or fail.
 
 ### Rejected
 
 - **Scoring classes in both gates.** A class's score double-counts its methods.
 - **Skipping every hidden folder.** It hid `.claude/hooks`, which agents write.
+- **Lizard's own `-x` exclude patterns.** They match the whole path as given,
+  so `*/build/*` skipped every file of a project that sits under a `build`
+  folder, and named nothing. Lizard now reads the list of files the shared walk
+  found.
 - **A flag to record new debt into a baseline on upgrade.** Consumers re-record
   their baselines once on the bump commit instead, so no flag exists that an
   agent could later use to accept debt quietly.

@@ -308,6 +308,7 @@ class SwiftGateTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.sources = tmp.name
+        Path(tmp.name, "App.swift").write_text("func load() {}\n", encoding="utf-8")
 
     def gate(self, rows, *extra, xccov=None):
         lizard = patch.object(complexity_scan, "run", return_value=completed("\n".join(rows)))

@@ -414,9 +414,10 @@ def _maybe_check_staleness(args) -> None:
         _check_staleness(path, args.paths, args.strict_freshness)
 
 
-def _check_results_empty(results: list, args) -> None:
+def _check_results_empty(results: list, args, skipped: list) -> None:
     if results:
         return
+    complexity_scan.print_skipped(skipped, sys.stderr)
     message = (
         f"no functions analysed in: {', '.join(args.paths)}\n"
         "  Check that the paths contain source files for the chosen --lang.\n"
@@ -471,9 +472,7 @@ def _emit_output(results: list, args, n_fail: int, skipped: list) -> None:
         return
     print_table(results, no_color=args.no_color, top=args.top)
     print_summary(results, warn_threshold=args.warn, fail_threshold=args.threshold)
-    line = complexity_scan.skipped_line(skipped)
-    if line:
-        print(line)
+    complexity_scan.print_skipped(skipped, sys.stdout)
 
 
 def _check_baseline_args(args) -> None:
@@ -504,7 +503,7 @@ def gate(argv, root) -> int:
     _check_baseline_args(args)
     _maybe_check_staleness(args)
     results, skipped = analyse(args)
-    _check_results_empty(results, args)
+    _check_results_empty(results, args, skipped)
     n_fail = sum(1 for r in results if r.grade == "FAIL")
     _emit_output(results, args, n_fail, skipped)
     if args.baseline:

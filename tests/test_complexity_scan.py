@@ -97,6 +97,12 @@ class SkipListTest(InTempDir):
         self.assertEqual(found.functions, [])
         self.assertEqual(found.skipped, sorted(complexity_scan.SKIPPED_FOLDERS))
 
+    def test_a_typescript_project_inside_a_build_folder_is_scanned_when_given_by_its_full_path(self):
+        self.write("build/proj/a.ts", "function a(x) { return x ? 1 : 2; }\n")
+        found = complexity_scan.scan([os.path.abspath("build/proj")], "typescript")
+        self.assertEqual([fn.name for fn in found.functions], ["a"])
+        self.assertEqual(found.skipped, [])
+
     def test_a_hidden_folder_not_on_the_skip_list_is_scanned(self):
         self.write(".claude/hooks/hook.py")
         self.assertEqual([fn.file for fn in complexity_scan.scan(["."], "python").functions], [".claude/hooks/hook.py"])
@@ -124,8 +130,41 @@ class SkipListTest(InTempDir):
             self.write(f"{folder}/x.ts", "function x(a) { return a ? 1 : 2; }\n")
         self.write(".claude/hooks/h.ts", "function h(a) { return a ? 1 : 2; }\n")
         found = complexity_scan.scan(["."], "typescript")
-        self.assertEqual([fn.file for fn in found.functions], ["./.claude/hooks/h.ts"])
+        self.assertEqual([fn.file for fn in found.functions], [".claude/hooks/h.ts"])
         self.assertEqual(found.skipped, sorted(complexity_scan.SKIPPED_FOLDERS))
+
+
+class LizardRunTest(InTempDir):
+    def setUp(self):
+        super().setUp()
+        self.write("App.swift", "func load() {}\n")
+
+    def test_lizard_exit_1_is_not_a_failure(self):
+        row = '5,4,30,1,10,"load@10-30@App.swift","App.swift","load","load()",10,30'
+        found = complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed(row, 1))
+        self.assertEqual([(fn.name, fn.cc, fn.start, fn.end) for fn in found.functions], [("load", 4, 10, 30)])
+
+    def test_malformed_lizard_rows_are_dropped(self):
+        rows = "too,short\n" + '5,x,30,1,10,"bad@1-2@A.swift","A.swift","bad","bad()",1,2'
+        found = complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed(rows))
+        self.assertEqual(found.functions, [])
+
+    def test_a_crashing_lizard_raises_a_tool_error(self):
+        with self.assertRaises(ToolError) as raised:
+            complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed("", 2, "boom"))
+        self.assertEqual(str(raised.exception), "lizard failed:\nboom")
+
+    def test_lizard_reads_only_the_walked_files_of_its_language(self):
+        self.write("notes.txt", "text")
+        self.write("build/Gen.swift", "func gen() {}\n")
+        given = []
+        runner = lambda cmd, **k: given.append(Path(cmd[-1]).read_text()) or completed("")
+        complexity_scan.scan(["."], "swift", runner=runner)
+        self.assertEqual(given, ["App.swift\n"])
+
+    def test_lizard_does_not_run_when_no_file_is_in_its_language(self):
+        runner = lambda *a, **k: self.fail("lizard ran")
+        self.assertEqual(complexity_scan.scan(["App.swift"], "typescript", runner=runner).functions, [])
 
 
 class LizardScanTest(unittest.TestCase):
@@ -153,21 +192,6 @@ class LizardScanTest(unittest.TestCase):
     def test_switch_cases_count_toward_complexity(self):
         found = complexity_scan.scan([f"{TS_FIXTURES}/sample.ts"], "typescript").functions
         self.assertEqual([fn.cc for fn in found if fn.name == "untested"], [3])
-
-    def test_lizard_exit_1_is_not_a_failure(self):
-        row = '5,4,30,1,10,"load@10-30@App.swift","App.swift","load","load()",10,30'
-        found = complexity_scan.scan(["."], "swift", runner=lambda *a, **k: completed(row, 1))
-        self.assertEqual([(fn.name, fn.cc, fn.start, fn.end) for fn in found.functions], [("load", 4, 10, 30)])
-
-    def test_malformed_lizard_rows_are_dropped(self):
-        rows = "too,short\n" + '5,x,30,1,10,"bad@1-2@A.swift","A.swift","bad","bad()",1,2'
-        found = complexity_scan.scan(["."], "swift", runner=lambda *a, **k: completed(rows))
-        self.assertEqual(found.functions, [])
-
-    def test_a_crashing_lizard_raises_a_tool_error(self):
-        with self.assertRaises(ToolError) as raised:
-            complexity_scan.scan(["."], "swift", runner=lambda *a, **k: completed("", 2, "boom"))
-        self.assertEqual(str(raised.exception), "lizard failed:\nboom")
 
     def test_a_missing_lizard_raises_a_tool_error(self):
         with patch.object(complexity_scan.importlib.util, "find_spec", return_value=None):

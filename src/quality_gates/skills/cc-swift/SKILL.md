@@ -63,8 +63,7 @@ counting one per case (ADR-001). If a project's file disagrees, report it.
 
 ```bash
 brew install swiftlint          # CC linting
-pip3 install lizard             # CC measurement (used by crap)
-xcode-select --install          # xcrun xccov for coverage (optional)
+xcode-select --install          # xcrun xccov for coverage (optional); lizard ships with quality-gates
 ```
 
 ## Installing the commands

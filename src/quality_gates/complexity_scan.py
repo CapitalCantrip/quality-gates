@@ -3,6 +3,7 @@ import importlib.util
 import io
 import os
 import sys
+import tempfile
 from dataclasses import dataclass, replace
 from pathlib import Path
 from subprocess import PIPE, run
@@ -19,6 +20,10 @@ LIZARD_END = 10
 LIZARD_LANGUAGES = {
     "swift": ["swift"],
     "typescript": ["typescript", "tsx", "javascript", "jsx"],
+}
+LIZARD_SUFFIXES = {
+    "swift": {".swift"},
+    "typescript": {".ts", ".tsx", ".js", ".jsx", ".cjs", ".mjs"},
 }
 PYTHON_SUFFIX = ".py"
 SKIPPED_FOLDERS = (
@@ -49,8 +54,9 @@ class Scan:
     skipped: list
 
 
-def skipped_line(skipped: list) -> Optional[str]:
-    return f"Skipped {len(skipped)} folder(s): {', '.join(skipped)}" if skipped else None
+def print_skipped(skipped: list, out) -> None:
+    if skipped:
+        print(f"Skipped {len(skipped)} folder(s): {', '.join(skipped)}", file=out)
 
 
 def is_skipped(folder: Path) -> bool:
@@ -91,16 +97,24 @@ def parse_row(row: list) -> Optional[Function]:
         return None
 
 
-def command(paths: list, lang: str) -> list:
+def command(file_list: str, lang: str) -> list:
     flags = [arg for language in LIZARD_LANGUAGES[lang] for arg in ("-l", language)]
-    excludes = [arg for folder in SKIPPED_FOLDERS for arg in ("-x", f"*/{folder}/*")]
-    return [sys.executable, "-m", "lizard", *flags, *excludes, "--csv", *paths]
+    return [sys.executable, "-m", "lizard", *flags, "--csv", "-f", file_list]
 
 
-def _lizard_functions(paths: list, lang: str, runner) -> list:
+def _run_lizard(files: list, lang: str, runner):
+    with tempfile.TemporaryDirectory() as folder:
+        file_list = os.path.join(folder, "files.txt")
+        Path(file_list).write_text("".join(f"{file}\n" for file in files), encoding="utf-8")
+        return (runner or run)(command(file_list, lang), stdout=PIPE, stderr=PIPE, text=True)
+
+
+def _lizard_functions(files: list, lang: str, runner) -> list:
     if importlib.util.find_spec("lizard") is None:
         raise ToolError(LIZARD_MISSING)
-    result = (runner or run)(command(paths, lang), stdout=PIPE, stderr=PIPE, text=True)
+    if not files:
+        return []
+    result = _run_lizard(files, lang, runner)
     if result.returncode not in (0, 1):
         raise ToolError(f"lizard failed:\n{result.stderr.strip()}")
     rows = csv.reader(io.StringIO(result.stdout.strip()))
@@ -159,5 +173,6 @@ def scan(paths: list, lang: str, runner=None) -> Scan:
     if lang == "python":
         sources = [f for f in files if f.suffix == PYTHON_SUFFIX]
         return Scan(with_labels(_python_functions(sources)), [str(f) for f in sources], skipped)
-    functions = with_labels(_lizard_functions(paths, lang, runner))
+    sources = [f for f in files if f.suffix in LIZARD_SUFFIXES[lang]]
+    functions = with_labels(_lizard_functions(sources, lang, runner))
     return Scan(functions, sorted({fn.file for fn in functions}), skipped)
