@@ -188,6 +188,12 @@ closure, or a method of a nested class, each on its own.
   --allow-empty` keeps working. This amends #43, which asked the scan to raise
   on an empty result: that would have changed both messages and removed
   `--allow-empty`, which the same issue asked to keep.
+- **A missing radon reads the same in both gates:** `radon is not installed.`
+  followed by `Install with: pip3 install radon`, the wording `crap` already
+  used. This amends #43, which asked every message body to stay word for word:
+  one scan raises one error, so `cc-check`'s old `radon not installed. Run:
+  pip install radon` could not be kept without a second message for the same
+  failure.
 - **The A–F letter is gone** from `cc-check`. It never decided pass or fail.
 
 ### Rejected

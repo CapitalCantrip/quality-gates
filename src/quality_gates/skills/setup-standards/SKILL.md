@@ -123,8 +123,7 @@ Report each baseline with its count: "12 functions over the complexity limit,
 recorded; new ones will fail". Done when the gate passes on today's tree.
 
 On an upgrade, a baseline that fails after the bump is re-recorded as the
-release's CHANGELOG entry says under *When you bump the pin*; v0.7.0 re-keys
-every `cc-baseline.json` and `crap-baseline.json`.
+release's CHANGELOG entry says under *When you bump the pin*.
 
 ## 4. Hooks
 
