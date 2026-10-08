@@ -153,3 +153,57 @@ need it, and it is pure Python.
   function.
 - **lcov, for now.** Node's own test runner writes lcov, not Istanbul JSON. Add
   it when a project on `node --test` adopts the gates.
+
+## Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)
+
+The limits above are unchanged. What a gate scores, and where it looks, is now
+decided in one module that both `cc-check` and `crap` take their functions from
+(#43), so the promise that the two gates count the same way is kept by code
+rather than by convention. Before this, Python was counted twice, classes were
+scored by one gate only, and each gate had its own list of folders to skip.
+
+**A Function is what is scored** (see `GLOSSARY.md`): a function, a method, a
+closure, or a method of a nested class, each on its own.
+
+- **Classes are not scored.** A class's radon score is built from its methods,
+  which are already scored, so a class could fail for complexity its methods
+  report.
+- **Closures and nested-class methods are scored on their own,** with names
+  dotted from the outside in: `outer.inner`, `K.Inner.deep`. Before, their
+  complexity sat in the enclosing class, or nowhere. The `#2` suffix for a
+  repeated name now applies to Python too. TypeScript and Swift names stay as
+  lizard gives them, since lizard does not report nesting.
+- **One skip list, for both gates and every language:** `.git`, `.venv`, `venv`,
+  `.direnv`, `node_modules`, `__pycache__`, `backups`, `build`, `dist`, `.tox`,
+  `.mypy_cache`, `.pytest_cache`, `.worktrees`, `.claude/worktrees`. Every other
+  hidden folder is scanned, so agent-written hooks in `.claude/hooks` are held
+  to the standard. An entry matches a folder of that name anywhere below the
+  scanned path, so a real package called `build` or `dist` is skipped too; for
+  that reason both gates end their report with a line naming every skipped
+  folder they found. A folder above the scanned path never counts: a project
+  checked out under `build/` is scanned in full, in every language.
+- **An empty scan is not a scan error.** The scan raises only for a missing
+  path, a missing tool or a crashed tool; a scan that finds nothing returns
+  nothing. Each gate keeps its own wording for that case, and `crap
+  --allow-empty` keeps working. This amends #43, which asked the scan to raise
+  on an empty result: that would have changed both messages and removed
+  `--allow-empty`, which the same issue asked to keep.
+- **A missing radon reads the same in both gates:** `radon is not installed.`
+  followed by `Install with: pip3 install radon`, the wording `crap` already
+  used. This amends #43, which asked every message body to stay word for word:
+  one scan raises one error, so `cc-check`'s old `radon not installed. Run:
+  pip install radon` could not be kept without a second message for the same
+  failure.
+- **The A–F letter is gone** from `cc-check`. It never decided pass or fail.
+
+### Rejected
+
+- **Scoring classes in both gates.** A class's score double-counts its methods.
+- **Skipping every hidden folder.** It hid `.claude/hooks`, which agents write.
+- **Lizard's own `-x` exclude patterns.** They match the whole path as given,
+  so `*/build/*` skipped every file of a project that sits under a `build`
+  folder, and named nothing. Lizard now reads the list of files the shared walk
+  found.
+- **A flag to record new debt into a baseline on upgrade.** Consumers re-record
+  their baselines once on the bump commit instead, so no flag exists that an
+  agent could later use to accept debt quietly.

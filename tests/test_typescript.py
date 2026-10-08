@@ -6,7 +6,8 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from quality_gates import crap, istanbul, lizard_scan
+from quality_gates import crap, istanbul
+from quality_gates.errors import ToolError
 from quality_gates import quality_check as qc
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -78,40 +79,13 @@ class IstanbulCoverageTest(InRepoRoot):
         self.assertIn(str(ROOT / SAMPLE), self.files)
 
     def test_an_unreadable_report_is_a_tool_error(self):
-        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as stop:
+        with self.assertRaises(ToolError):
             istanbul.load("no/such/coverage.json")
-        self.assertEqual(stop.exception.code, 2)
 
-
-class LizardScanTest(InRepoRoot):
-    def test_typescript_tsx_and_javascript_files_are_all_read(self):
-        names = {(Path(f["file"]).name, f["name"]) for f in lizard_scan.scan([FIXTURES], "typescript")}
-        self.assertIn(("component.tsx", "V"), names)
-        self.assertIn(("sample.ts", "pick"), names)
-
-    def test_switch_cases_count_toward_complexity(self):
-        untested = [f for f in lizard_scan.scan([SAMPLE], "typescript") if f["name"] == "untested"]
-        self.assertEqual(untested[0]["cc"], 3)
-
-    def test_repeated_names_in_a_file_get_their_order_as_a_suffix(self):
-        functions = [
-            {"file": "a.ts", "name": "(anonymous)", "start": 9},
-            {"file": "a.ts", "name": "(anonymous)", "start": 2},
-            {"file": "b.ts", "name": "(anonymous)", "start": 1},
-            {"file": "a.ts", "name": "render", "start": 5},
-        ]
-        labels = {(f["file"], f["start"]): f["label"] for f in lizard_scan.with_labels(functions)}
-        self.assertEqual(labels, {
-            ("a.ts", 2): "(anonymous)", ("a.ts", 9): "(anonymous)#2",
-            ("b.ts", 1): "(anonymous)", ("a.ts", 5): "render",
-        })
-
-    def test_node_modules_is_skipped(self):
-        with tempfile.TemporaryDirectory() as tmp:
-            vendored = Path(tmp) / "node_modules" / "lib"
-            vendored.mkdir(parents=True)
-            (vendored / "x.js").write_text("function x(a) { return a ? 1 : 2; }\n", encoding="utf-8")
-            self.assertEqual(lizard_scan.scan([tmp], "typescript"), [])
+    def test_crap_names_an_unreadable_report_under_its_own_tag(self):
+        code, _, err = run_main(crap.main, ["--lang", "typescript", SAMPLE, "--istanbul-json", "no/such.json"])
+        self.assertEqual(code, 2)
+        self.assertEqual(err, "[crap] cannot open Istanbul coverage file: [Errno 2] No such file or directory: 'no/such.json'\n")
 
 
 class CrapTypescriptTest(InRepoRoot):

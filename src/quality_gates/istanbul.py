@@ -1,7 +1,8 @@
 import json
-import sys
 from pathlib import Path
 from typing import Optional
+
+from quality_gates.errors import ToolError
 
 
 def load(report_path: str) -> dict:
@@ -9,11 +10,9 @@ def load(report_path: str) -> dict:
         with open(report_path, encoding="utf-8") as fh:
             data = json.load(fh)
     except OSError as exc:
-        print(f"[crap] cannot open Istanbul coverage file: {exc}", file=sys.stderr)
-        sys.exit(2)
+        raise ToolError(f"cannot open Istanbul coverage file: {exc}") from None
     except json.JSONDecodeError as exc:
-        print(f"[crap] bad Istanbul coverage JSON: {exc}", file=sys.stderr)
-        sys.exit(2)
+        raise ToolError(f"bad Istanbul coverage JSON: {exc}") from None
     return {str(Path(path).resolve()): entry for path, entry in data.items()}
 
 

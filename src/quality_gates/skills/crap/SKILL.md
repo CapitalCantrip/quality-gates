@@ -69,6 +69,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 
 4. With `--no-coverage`, every function at CC 3 or above scores FAIL. That mode is a risk ranking, not a gate: report the top rows and say no coverage was available, never "the gate failed".
    With coverage, report all FAIL rows in full; summarise WARN rows (CRAP 5–8 for Python/Swift/TypeScript; CC 11–15 for Rust).
+   `crap` skips the folders ADR-001's 2026-10-09 addendum lists and names each one it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it.
 5. For each FAIL, recommend the cheaper fix first:
    - CC is the driver (high CC, low coverage): reduce CC — extract sub-functions
    - Coverage is the driver (low coverage, moderate CC): add tests
@@ -80,7 +81,7 @@ The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverag
 
 1. Record the debt once: `crap --lang python <dirs> --coverage-json coverage.json --baseline crap-baseline.json --update`. Commit the file.
 2. Add a test that runs after coverage is collected and calls `crap.main([...same flags without --update...])`, asserting `SystemExit` code 0, so CI enforces it.
-3. Keys are `path::name`; for Swift and TypeScript a repeated name is keyed `path::name#2` (ADR-001, TypeScript addendum).
+3. Keys are `path::name`; a repeated name in a file is keyed `path::name#2`. Python names are dotted from the outside in (`Class.method`, `outer.inner`, `K.Inner.deep`) and classes are not scored (ADR-001, 2026-10-09 addendum).
 4. A new or worse function fails; a lowered score fails until `--update` records it. `--update` never raises a score or adds a function.
 
 ## Exit codes (Python / Swift / TypeScript)
@@ -94,7 +95,7 @@ The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverag
 ## Dependencies
 
 ```bash
-pip3 install radon lizard coverage   # Python CC + coverage; lizard for Swift and TypeScript CC
+pip3 install coverage               # Python coverage; radon and lizard ship with quality-gates
 xcode-select --install               # xcrun xccov (Swift coverage, optional)
 rustup component add clippy          # Rust
 ```
@@ -104,7 +105,7 @@ rustup component add clippy          # Rust
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
 ```

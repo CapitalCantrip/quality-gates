@@ -9,7 +9,8 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from quality_gates import crap
+from quality_gates import complexity_scan, crap
+from quality_gates.errors import ToolError
 
 
 def call(argv):
@@ -32,15 +33,6 @@ def lizard_row(name, cc, start, end, path="Sources/App.swift"):
 
 def completed(stdout, returncode=0):
     return CompletedProcess([], returncode, stdout=stdout, stderr="")
-
-
-def exit_code(fn, *args):
-    with redirect_stderr(io.StringIO()):
-        try:
-            fn(*args)
-        except SystemExit as stop:
-            return stop.code
-    raise AssertionError(f"{fn.__name__} did not exit")
 
 
 class CrapScoreTest(unittest.TestCase):
@@ -163,13 +155,13 @@ class PythonGateTest(unittest.TestCase):
     def test_a_missing_coverage_file_is_a_tool_error(self):
         code, _, err = self.gate()
         self.assertEqual(code, 2)
-        self.assertIn("cannot open coverage file", err)
+        self.assertTrue(err.startswith("[crap] cannot open coverage file: [Errno 2]"))
 
     def test_malformed_coverage_json_is_a_tool_error(self):
         self.coverage.write_text("{not json")
         code, _, err = self.gate()
         self.assertEqual(code, 2)
-        self.assertIn("bad coverage JSON", err)
+        self.assertTrue(err.startswith("[crap] bad coverage JSON: Expecting property name"))
 
     def test_coverage_older_than_the_source_warns(self):
         self.write_coverage(list(range(1, 16)), [])
@@ -185,24 +177,6 @@ class PythonGateTest(unittest.TestCase):
         os.utime(self.coverage, (past, past))
         code, _, _ = self.gate("--strict-freshness")
         self.assertEqual(code, 2)
-
-
-class RadonTest(unittest.TestCase):
-    def test_a_missing_radon_is_a_tool_error(self):
-        with patch.object(crap.importlib.util, "find_spec", return_value=None):
-            self.assertEqual(exit_code(crap.cc_python, ["src"]), 2)
-
-    def test_a_failed_radon_run_is_a_tool_error(self):
-        with patch.object(crap, "run", return_value=completed("", 1)):
-            self.assertEqual(exit_code(crap.cc_python, ["src"]), 2)
-
-    def test_unparseable_radon_output_is_a_tool_error(self):
-        with patch.object(crap, "run", return_value=completed("{not json")):
-            self.assertEqual(exit_code(crap.cc_python, ["src"]), 2)
-
-    def test_empty_radon_output_means_no_functions(self):
-        with patch.object(crap, "run", return_value=completed("  \n")):
-            self.assertEqual(crap.cc_python(["src"]), {})
 
 
 class CoverageSourceTest(unittest.TestCase):
@@ -240,7 +214,7 @@ class ArgumentTest(unittest.TestCase):
     def test_a_missing_source_path_is_a_tool_error(self):
         code, _, err = call(["--lang", "python", "/no/such/path", "--no-coverage"])
         self.assertEqual(code, 2)
-        self.assertIn("path not found", err)
+        self.assertEqual(err, "[crap] path not found: /no/such/path\n")
 
     def test_update_needs_a_baseline(self):
         code, _, err = call(["--lang", "python", ".", "--coverage-json", "c.json", "--update"])
@@ -284,33 +258,16 @@ class TableTest(unittest.TestCase):
 
 
 class SwiftCoverageTest(unittest.TestCase):
-    def test_lizard_rows_are_read_by_column_and_malformed_rows_are_dropped(self):
-        stdout = "\n".join([lizard_row("load", 4, 10, 30), "too,short", lizard_row("bad", "x", 1, 2)])
-        with patch.object(crap, "run", return_value=completed(stdout)):
-            functions = crap.cc_swift(["Sources"])
-        self.assertEqual(functions, [{"file": "Sources/App.swift", "name": "load", "cc": 4, "start": 10, "end": 30, "label": "load"}])
-
-    def test_lizard_exit_1_is_not_a_failure(self):
-        with patch.object(crap, "run", return_value=completed(lizard_row("load", 4, 10, 30), 1)):
-            self.assertEqual(len(crap.cc_swift(["Sources"])), 1)
-
-    def test_a_missing_lizard_is_a_tool_error(self):
-        with patch("importlib.util.find_spec", return_value=None), redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as stop:
-                crap.cc_swift(["Sources"])
-        self.assertEqual(stop.exception.code, 2)
-
-    def test_a_lizard_crash_is_a_tool_error(self):
-        with patch.object(crap, "run", return_value=completed("", 2)):
-            self.assertEqual(exit_code(crap.cc_swift, ["Sources"]), 2)
-
-    def test_empty_lizard_output_means_no_functions(self):
-        with patch.object(crap, "run", return_value=completed("")):
-            self.assertEqual(crap.cc_swift(["Sources"]), [])
-
     def test_unparseable_xccov_output_is_a_tool_error(self):
         with patch.object(crap, "run", return_value=completed("{not json")):
-            self.assertEqual(exit_code(crap.coverage_swift, "r.xcresult"), 2)
+            with self.assertRaises(ToolError):
+                crap.coverage_swift("r.xcresult")
+
+    def test_a_failed_xccov_is_a_tool_error(self):
+        with patch.object(crap, "run", return_value=CompletedProcess([], 1, stdout="", stderr="no bundle")):
+            with self.assertRaises(ToolError) as raised:
+                crap.coverage_swift("r.xcresult")
+        self.assertEqual(str(raised.exception), "xcrun xccov failed:\nno bundle")
 
     def test_an_overloaded_function_is_matched_by_its_line(self):
         funcs = crap._extract_file_funcs({"functions": [
@@ -345,34 +302,44 @@ class SwiftCoverageTest(unittest.TestCase):
             cov_map = crap.coverage_swift("r.xcresult")
         self.assertEqual({"/src/App.swift", "App.swift", "App"}, set(cov_map))
 
-    def test_a_failed_xccov_is_a_tool_error(self):
-        with patch.object(crap, "run", return_value=completed("", 1)), redirect_stderr(io.StringIO()):
-            with self.assertRaises(SystemExit) as stop:
-                crap.coverage_swift("r.xcresult")
-        self.assertEqual(stop.exception.code, 2)
+
+class SwiftGateTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.sources = tmp.name
+        Path(tmp.name, "App.swift").write_text("func load() {}\n", encoding="utf-8")
+
+    def gate(self, rows, *extra, xccov=None):
+        lizard = patch.object(complexity_scan, "run", return_value=completed("\n".join(rows)))
+        xcrun = patch.object(crap, "run", return_value=completed(json.dumps(xccov or {})))
+        with lizard, xcrun:
+            code, out, _ = call(["--lang", "swift", self.sources, "--json", *extra])
+        return code, json.loads(out)["functions"]
 
     def test_swift_scores_join_lizard_complexity_with_xccov_coverage(self):
         report = {"targets": [{"files": [{"path": "Sources/App.swift", "functions": [
             {"name": "load()", "lineNumber": 10, "lineCoverage": 1.0},
         ]}]}]}
-        outputs = [completed(lizard_row("load", 4, 10, 30)), completed(json.dumps(report))]
-        with patch.object(crap, "run", side_effect=outputs):
-            results = crap.analyse_swift(["Sources"], "r.xcresult", False, 2, 5, 8)
-        self.assertEqual([(r.name, r.coverage, r.crap) for r in results], [("load", 1.0, 4)])
+        code, functions = self.gate([lizard_row("load", 4, 10, 30)], "--xcresult", "r.xcresult", xccov=report)
+        self.assertEqual([(f["name"], f["coverage"], f["crap"]) for f in functions], [("load", 1.0, 4)])
 
-    def swift_scores(self, xcresult, no_coverage, min_cc=2):
-        rows = "\n".join([lizard_row("load", 4, 10, 30), lizard_row("tiny", 1, 40, 41)])
-        with patch.object(crap, "run", return_value=completed(rows)):
-            return crap.analyse_swift(["Sources"], xcresult, no_coverage, min_cc, 5, 8)
+    def test_a_repeated_swift_name_still_finds_its_coverage_by_line(self):
+        report = {"targets": [{"files": [{"path": "Sources/App.swift", "functions": [
+            {"name": "load()", "lineNumber": 10, "lineCoverage": 1.0},
+            {"name": "load(_:)", "lineNumber": 40, "lineCoverage": 0.5},
+        ]}]}]}
+        rows = [lizard_row("load", 4, 10, 30), lizard_row("load", 4, 40, 50)]
+        _, functions = self.gate(rows, "--xcresult", "r.xcresult", xccov=report)
+        self.assertEqual({f["name"]: f["coverage"] for f in functions}, {"load": 1.0, "load#2": 0.5})
 
     def test_swift_functions_below_min_cc_are_skipped(self):
-        self.assertEqual([r.name for r in self.swift_scores(None, True)], ["load"])
+        _, functions = self.gate([lizard_row("load", 4, 10, 30), lizard_row("tiny", 1, 40, 41)], "--no-coverage")
+        self.assertEqual([f["name"] for f in functions], ["load"])
 
     def test_swift_without_coverage_scores_worst_case(self):
-        self.assertEqual([(r.coverage, r.crap) for r in self.swift_scores(None, True)], [(0.0, 20)])
-
-    def test_swift_without_any_coverage_data_scores_worst_case_with_unknown_coverage(self):
-        self.assertEqual([(r.coverage, r.crap) for r in self.swift_scores(None, False)], [(None, 20)])
+        _, functions = self.gate([lizard_row("load", 4, 10, 30)], "--no-coverage")
+        self.assertEqual([(f["coverage"], f["crap"]) for f in functions], [(0.0, 20)])
 
 
 if __name__ == "__main__":

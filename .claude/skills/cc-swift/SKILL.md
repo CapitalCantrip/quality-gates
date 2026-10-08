@@ -63,8 +63,7 @@ counting one per case (ADR-001). If a project's file disagrees, report it.
 
 ```bash
 brew install swiftlint          # CC linting
-pip3 install lizard             # CC measurement (used by crap)
-xcode-select --install          # xcrun xccov for coverage (optional)
+xcode-select --install          # xcrun xccov for coverage (optional); lizard ships with quality-gates
 ```
 
 ## Installing the commands
@@ -72,7 +71,7 @@ xcode-select --install          # xcrun xccov for coverage (optional)
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
 ```

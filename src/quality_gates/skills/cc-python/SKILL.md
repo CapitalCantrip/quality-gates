@@ -20,7 +20,7 @@ functions above the complexity threshold.
 
 ## Steps
 
-1. Identify Python source directories in the project (skip `venv`, `.venv`, `__pycache__`, `site-packages`)
+1. Identify Python source directories in the project. The tool skips the folders ADR-001's 2026-10-09 addendum lists and names each one it found on a last `Skipped N folder(s):` line; if that line names a folder holding real source, report it.
 2. Run:
    ```bash
    cc-check <dirs> --threshold 8 --format text
@@ -44,15 +44,15 @@ functions above the complexity threshold.
    ```
 3. When a refactor lowers a baselined score, the check fails until you run `--update` and commit the lower baseline. `--update` never records a new or worse function: fix those instead.
 
-Keys are `path::function` (`path::Class.method` for methods), relative to the git root; a renamed or moved function counts as new.
+Keys are `path::function`, relative to the git root, with names dotted from the outside in: `path::Class.method`, `path::outer.inner` for a closure, `path::K.Inner.deep` for a method of a nested class. A name that repeats in a file gets its order, `path::f#2`. Classes are not scored. A renamed or moved function counts as new.
 
-## Thresholds (McCabe scale)
+## Thresholds
 
-| CC  | Grade | Action |
-|-----|-------|--------|
-| 1–5 | A – simple | none |
-| 6–8 | B – moderate | acceptable for agent code; needs tests to pass CRAP (62% at 6, 100% at 8) |
-| 9+ | C–F | fails the gate; refactor before commit |
+| CC  | Action |
+|-----|--------|
+| 1–5 | none |
+| 6–8 | acceptable for agent code; needs tests to pass CRAP (62% at 6, 100% at 8) |
+| 9+ | fails the gate; refactor before commit |
 
 ## Architectural constraints — apply when writing new Python in this session
 
@@ -63,16 +63,14 @@ Keys are `path::function` (`path::Class.method` for methods), relative to the gi
 
 ## Dependencies
 
-```bash
-pip3 install radon
-```
+radon ships with quality-gates.
 
 ## Installing the commands
 
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
 ```

@@ -19,7 +19,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.6.0"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -153,7 +153,7 @@ CRAP uses, so the two numbers agree. ruff's C901 skips boolean operators and
 comprehensions and can score the same function several points lower; don't use
 it as the gate. Takes any number of files and directories in one run:
 `cc-check src tests`. `--lang typescript` counts `.ts`, `.tsx`, `.js` and `.jsx`
-with lizard instead, skipping `node_modules`. With `--baseline FILE` it fails only on functions that are
+with lizard instead. With `--baseline FILE` it fails only on functions that are
 new or worse than the baseline; see [Adopting the ratchet](#adopting-the-ratchet).
 
 ### `crap`: complexity weighted by missing tests
@@ -176,6 +176,18 @@ bundle; TypeScript and JavaScript from Istanbul's `coverage-final.json`
 so that mode ranks functions by risk and is never read as pass/fail. `crap`
 takes `--baseline FILE` too, and refuses it without coverage (exit 2).
 
+### What both gates score
+
+Both gates take their functions from one scan, so they always list the same
+functions under the same names. A function, method, closure or method of a
+nested class is scored on its own; a class is not. Both skip `.git`, `.venv`,
+`venv`, `.direnv`, `node_modules`, `__pycache__`, `backups`, `build`, `dist`,
+`.tox`, `.mypy_cache`, `.pytest_cache`, `.worktrees` and `.claude/worktrees`
+wherever they appear below the scanned path, and scan every other hidden folder.
+Each gate ends its report with a line naming the skipped folders it found, so a
+real package called `build` or `dist` is never dropped silently. The reasons are
+in ADR-001's 2026-10-09 addendum.
+
 ### How they fit together
 
 CC is the hard ceiling, checked function by function. CRAP is the sliding scale
@@ -197,10 +209,11 @@ cc-check src --baseline cc-baseline.json               # the check CI runs
 
 The baseline maps `path::function` to its score, and holds only functions over
 the threshold. Paths are relative to the git root, so the file is the same on
-every machine and in CI. A Python method is keyed `path::Class.method`. lizard
+every machine and in CI. Python names are dotted from the outside in:
+`path::Class.method`, `path::outer.inner`, `path::K.Inner.deep`. lizard
 (Swift, TypeScript) names a method without its class and an unnamed callback
-`(anonymous)`, so a name that repeats in a file gets its order as a suffix:
-`path::(anonymous)#2`.
+`(anonymous)`. In every language a name that repeats in a file gets its order
+as a suffix: `path::(anonymous)#2`.
 
 - A function over the threshold that is not in the baseline fails. A renamed or
   moved function counts as new. So does a `name#2` entry whose number shifted because

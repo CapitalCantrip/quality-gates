@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 import argparse
-import importlib.util
 import json
 import sys
 from dataclasses import dataclass
@@ -8,11 +7,13 @@ from pathlib import Path
 from subprocess import run, PIPE
 from typing import Optional
 
-from quality_gates import istanbul, lizard_scan, ratchet
+from quality_gates import complexity_scan, istanbul, ratchet
+from quality_gates.errors import ToolError
 
 FAIL_THRESHOLD = 8.0
 WARN_THRESHOLD = 5.0
 LABEL_WIDTH = 50
+TAG = "[crap] "
 
 USAGE = """\
 A fully covered function scores its CC; an uncovered one scores CC² + CC.
@@ -117,38 +118,14 @@ def _line_coverage_for_range(lines: dict, start: int, end: int) -> Optional[floa
     return sum(1 for hit in in_range.values() if hit) / len(in_range)
 
 
-def cc_python(paths: list) -> dict:
-    if importlib.util.find_spec("radon") is None:
-        print(
-            "[crap] radon is not installed.\n"
-            "  Install with: pip3 install radon",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-    cmd = [sys.executable, "-m", "radon", "cc", "--json"] + paths
-    result = run(cmd, stdout=PIPE, stderr=PIPE, text=True)
-    if result.returncode != 0:
-        print(f"[crap] radon failed:\n{result.stderr.strip()}", file=sys.stderr)
-        sys.exit(2)
-    if not result.stdout.strip():
-        return {}
-    try:
-        return json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        print(f"[crap] could not parse radon output: {exc}", file=sys.stderr)
-        sys.exit(2)
-
-
 def coverage_python(coverage_json_path: str) -> tuple:
     try:
         with open(coverage_json_path) as fh:
             data = json.load(fh)
     except OSError as exc:
-        print(f"[crap] cannot open coverage file: {exc}", file=sys.stderr)
-        sys.exit(2)
+        raise ToolError(f"cannot open coverage file: {exc}") from None
     except json.JSONDecodeError as exc:
-        print(f"[crap] bad coverage JSON: {exc}", file=sys.stderr)
-        sys.exit(2)
+        raise ToolError(f"bad coverage JSON: {exc}") from None
 
     out: dict = {}
     any_branches = False
@@ -186,68 +163,6 @@ def function_coverage_python(
     return _line_coverage_for_range(entry.lines, start_line, end_line)
 
 
-def _qualified_name(block: dict) -> str:
-    name = block.get("name", "?")
-    return f"{block['classname']}.{name}" if block.get("classname") else name
-
-
-def _py_block_to_result(
-    block: dict,
-    filepath: str,
-    cov_data: dict,
-    no_coverage: bool,
-    min_cc: int,
-    warn_threshold: float,
-    fail_threshold: float,
-) -> Optional[FunctionResult]:
-    if block.get("type") not in ("function", "method"):
-        return None
-    cc = block.get("complexity", 1)
-    if cc < min_cc:
-        return None
-    start = block.get("lineno", 0)
-    end   = block.get("endline", start)
-    name  = _qualified_name(block)
-    if no_coverage:
-        cov = 0.0
-    elif cov_data:
-        cov = function_coverage_python(cov_data, filepath, start, end)
-    else:
-        cov = None
-    cov_calc = cov if cov is not None else 0.0
-    score    = crap_score(cc, cov_calc)
-    grade    = crap_grade(score, warn_threshold, fail_threshold)
-    return FunctionResult(filepath, name, start, cc, cov, score, grade)
-
-
-def analyse_python(
-    paths: list,
-    coverage_json: Optional[str],
-    no_coverage: bool,
-    min_cc: int,
-    warn_threshold: float,
-    fail_threshold: float,
-) -> list:
-    radon_data = cc_python(paths)
-    cov_data: dict = {}
-    if coverage_json:
-        cov_data, _ = coverage_python(coverage_json)
-    results = []
-    for filepath, blocks in radon_data.items():
-        for block in blocks:
-            r = _py_block_to_result(
-                block, filepath, cov_data, no_coverage,
-                min_cc, warn_threshold, fail_threshold,
-            )
-            if r is not None:
-                results.append(r)
-    return sorted(results, key=lambda r: r.crap, reverse=True)
-
-
-def cc_swift(paths: list) -> list:
-    return lizard_scan.scan(paths, "swift", runner=run)
-
-
 def _extract_file_funcs(file_data: dict) -> dict:
     file_funcs: dict = {}
     for fn in file_data.get("functions", []):
@@ -275,14 +190,11 @@ def coverage_swift(xcresult_path: str) -> dict:
         stdout=PIPE, stderr=PIPE, text=True,
     )
     if result.returncode != 0:
-        print(f"[crap] xcrun xccov failed:\n{result.stderr.strip()}", file=sys.stderr)
-        sys.exit(2)
-
+        raise ToolError(f"xcrun xccov failed:\n{result.stderr.strip()}")
     try:
         data = json.loads(result.stdout)
     except json.JSONDecodeError as exc:
-        print(f"[crap] could not parse xccov output: {exc}", file=sys.stderr)
-        sys.exit(2)
+        raise ToolError(f"could not parse xccov output: {exc}") from None
 
     cov_map: dict = {}
     for target in data.get("targets", []):
@@ -308,68 +220,32 @@ def function_coverage_swift(
     return None
 
 
-def _lizard_fn_to_result(
-    fn: dict,
-    coverage_of,
-    no_coverage: bool,
-    min_cc: int,
-    warn_threshold: float,
-    fail_threshold: float,
-) -> Optional[FunctionResult]:
-    cc = fn["cc"]
-    if cc < min_cc:
+def _to_result(fn, coverage_of, args) -> Optional[FunctionResult]:
+    if fn.cc < args.min_cc:
         return None
-    cov = 0.0 if no_coverage else coverage_of(fn)
-    score = crap_score(cc, cov if cov is not None else 0.0)
-    grade = crap_grade(score, warn_threshold, fail_threshold)
-    return FunctionResult(fn["file"], fn["label"], fn["start"], cc, cov, score, grade)
+    cov = 0.0 if args.no_coverage else coverage_of(fn)
+    score = crap_score(fn.cc, cov if cov is not None else 0.0)
+    grade = crap_grade(score, args.warn, args.threshold)
+    return FunctionResult(fn.file, fn.name, fn.start, fn.cc, cov, score, grade)
 
 
-def _scored(functions: list, coverage_of, no_coverage, min_cc, warn_threshold, fail_threshold) -> list:
-    results = [
-        r for r in (
-            _lizard_fn_to_result(fn, coverage_of, no_coverage, min_cc, warn_threshold, fail_threshold)
-            for fn in functions
-        )
-        if r is not None
-    ]
-    return sorted(results, key=lambda r: r.crap, reverse=True)
+def _coverage_lookup(args):
+    if args.lang == "python":
+        cov_py = coverage_python(args.coverage_json)[0] if args.coverage_json else {}
+        return lambda fn: function_coverage_python(cov_py, fn.file, fn.start, fn.end)
+    if args.lang == "swift":
+        cov_swift = coverage_swift(args.xcresult) if args.xcresult else {}
+        return lambda fn: function_coverage_swift(cov_swift, fn.file, fn.plain_name, fn.start)
+    cov_ts = istanbul.load(args.istanbul_json) if args.istanbul_json else {}
+    return lambda fn: istanbul.function_coverage(cov_ts, fn.file, fn.start, fn.end)
 
 
-def analyse_swift(
-    paths: list,
-    xcresult: Optional[str],
-    no_coverage: bool,
-    min_cc: int,
-    warn_threshold: float,
-    fail_threshold: float,
-) -> list:
-    functions = cc_swift(paths)
-    cov_data = coverage_swift(xcresult) if xcresult else {}
-
-    def coverage_of(fn):
-        if not cov_data:
-            return None
-        return function_coverage_swift(cov_data, fn["file"], fn["name"], fn["start"])
-
-    return _scored(functions, coverage_of, no_coverage, min_cc, warn_threshold, fail_threshold)
-
-
-def analyse_typescript(
-    paths: list,
-    istanbul_json: Optional[str],
-    no_coverage: bool,
-    min_cc: int,
-    warn_threshold: float,
-    fail_threshold: float,
-) -> list:
-    functions = lizard_scan.scan(paths, "typescript", runner=run)
-    cov_data = istanbul.load(istanbul_json) if istanbul_json else {}
-
-    def coverage_of(fn):
-        return istanbul.function_coverage(cov_data, fn["file"], fn["start"], fn["end"])
-
-    return _scored(functions, coverage_of, no_coverage, min_cc, warn_threshold, fail_threshold)
+def analyse(args) -> tuple:
+    found = complexity_scan.scan(args.paths, args.lang)
+    coverage_of = _coverage_lookup(args)
+    scored = (_to_result(fn, coverage_of, args) for fn in found.functions)
+    results = sorted((r for r in scored if r is not None), key=lambda r: r.crap, reverse=True)
+    return results, found.skipped
 
 
 _GRADE_EMOJI  = {"ok": "✅", "WARN": "⚠️ ", "FAIL": "❌"}
@@ -467,13 +343,6 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-def _check_paths_exist(paths: list) -> None:
-    for p in paths:
-        if not Path(p).exists():
-            print(f"[crap] path not found: {p}", file=sys.stderr)
-            sys.exit(2)
-
-
 COVERAGE_FLAGS = {
     "python": ("coverage_json", "--coverage-json", "Python-only"),
     "swift": ("xcresult", "--xcresult", "Swift-only"),
@@ -485,19 +354,13 @@ def _check_coverage_flag(args) -> None:
     own = COVERAGE_FLAGS[args.lang][1]
     for lang, (attr, flag, scope) in COVERAGE_FLAGS.items():
         if lang != args.lang and getattr(args, attr):
-            print(f"[crap] {flag} is {scope}; use {own} for {args.lang}", file=sys.stderr)
-            sys.exit(2)
+            raise ToolError(f"{flag} is {scope}; use {own} for {args.lang}")
 
 
 def _validate_args(args) -> None:
     if args.warn >= args.threshold:
-        print(
-            f"[crap] --warn ({args.warn}) must be less than --threshold ({args.threshold})",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+        raise ToolError(f"--warn ({args.warn}) must be less than --threshold ({args.threshold})")
     _check_coverage_flag(args)
-    _check_paths_exist(args.paths)
 
 
 def _check_coverage_source(args) -> None:
@@ -535,13 +398,10 @@ def _check_staleness(coverage_path: str, source_paths: list, strict: bool) -> No
     newest = _newest_source_mtime(source_paths)
     if newest is None or newest <= cov_mtime:
         return
-    print(
-        f"[crap] ⚠️  coverage file may be stale: "
-        f"{Path(coverage_path).name} is older than the newest source file",
-        file=sys.stderr,
-    )
+    message = f"⚠️  coverage file may be stale: {Path(coverage_path).name} is older than the newest source file"
     if strict:
-        sys.exit(2)
+        raise ToolError(message)
+    print(f"{TAG}{message}", file=sys.stderr)
 
 
 def _coverage_path(args) -> Optional[str]:
@@ -554,46 +414,18 @@ def _maybe_check_staleness(args) -> None:
         _check_staleness(path, args.paths, args.strict_freshness)
 
 
-def _run_analysis(args) -> list:
-    if args.lang == "python":
-        return analyse_python(
-            args.paths,
-            coverage_json=args.coverage_json,
-            no_coverage=args.no_coverage,
-            min_cc=args.min_cc,
-            warn_threshold=args.warn,
-            fail_threshold=args.threshold,
-        )
-    if args.lang == "typescript":
-        return analyse_typescript(
-            args.paths,
-            istanbul_json=args.istanbul_json,
-            no_coverage=args.no_coverage,
-            min_cc=args.min_cc,
-            warn_threshold=args.warn,
-            fail_threshold=args.threshold,
-        )
-    return analyse_swift(
-        args.paths,
-        xcresult=args.xcresult,
-        no_coverage=args.no_coverage,
-        min_cc=args.min_cc,
-        warn_threshold=args.warn,
-        fail_threshold=args.threshold,
-    )
-
-
-def _check_results_empty(results: list, args) -> None:
+def _check_results_empty(results: list, args, skipped: list) -> None:
     if results:
         return
-    print(
-        f"[crap] no functions analysed in: {', '.join(args.paths)}\n"
+    complexity_scan.print_skipped(skipped, sys.stderr)
+    message = (
+        f"no functions analysed in: {', '.join(args.paths)}\n"
         "  Check that the paths contain source files for the chosen --lang.\n"
-        "  Use --allow-empty to suppress this error.",
-        file=sys.stderr,
+        "  Use --allow-empty to suppress this error."
     )
-    if not getattr(args, "allow_empty", False):
-        sys.exit(2)
+    if not args.allow_empty:
+        raise ToolError(message)
+    print(f"{TAG}{message}", file=sys.stderr)
 
 
 def _coverage_source(args) -> Optional[str]:
@@ -621,7 +453,7 @@ def _fn_to_dict(r: FunctionResult, cov_source: Optional[str]) -> dict:
     }
 
 
-def _print_json(results: list, args, n_fail: int) -> None:
+def _print_json(results: list, args, n_fail: int, skipped: list) -> None:
     cov_source = _coverage_source(args)
     payload = {
         "threshold":       args.threshold,
@@ -629,28 +461,25 @@ def _print_json(results: list, args, n_fail: int) -> None:
         "pass":            n_fail == 0,
         "coverage_source": cov_source,
         "functions":       [_fn_to_dict(r, cov_source) for r in results],
+        "skipped":         skipped,
     }
     print(json.dumps(payload, indent=2))
 
 
-def _emit_output(results: list, args, n_fail: int) -> None:
+def _emit_output(results: list, args, n_fail: int, skipped: list) -> None:
     if args.json_output:
-        _print_json(results, args, n_fail)
-    else:
-        print_table(results, no_color=args.no_color, top=args.top)
-        print_summary(results, warn_threshold=args.warn, fail_threshold=args.threshold)
+        _print_json(results, args, n_fail, skipped)
+        return
+    print_table(results, no_color=args.no_color, top=args.top)
+    print_summary(results, warn_threshold=args.warn, fail_threshold=args.threshold)
+    complexity_scan.print_skipped(skipped, sys.stdout)
 
 
 def _check_baseline_args(args) -> None:
     if args.update and not args.baseline:
-        print("[crap] --update needs --baseline", file=sys.stderr)
-        sys.exit(2)
+        raise ToolError("--update needs --baseline")
     if args.baseline and args.no_coverage:
-        print(
-            "[crap] --baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).",
-            file=sys.stderr,
-        )
-        sys.exit(2)
+        raise ToolError("--baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).")
 
 
 def _failing_scores(results: list, root) -> dict:
@@ -667,19 +496,28 @@ def _enforce_baseline(results: list, args, root) -> int:
     return ratchet.enforce(current, Path(args.baseline), args.update, out)
 
 
-def main(argv=None, root=None) -> None:
+def gate(argv, root) -> int:
     args = build_parser().parse_args(argv)
     _validate_args(args)
     _check_coverage_source(args)
     _check_baseline_args(args)
     _maybe_check_staleness(args)
-    results = _run_analysis(args)
-    _check_results_empty(results, args)
+    results, skipped = analyse(args)
+    _check_results_empty(results, args, skipped)
     n_fail = sum(1 for r in results if r.grade == "FAIL")
-    _emit_output(results, args, n_fail)
+    _emit_output(results, args, n_fail, skipped)
     if args.baseline:
-        sys.exit(_enforce_baseline(results, args, root))
-    sys.exit(1 if n_fail > 0 else 0)
+        return _enforce_baseline(results, args, root)
+    return 1 if n_fail > 0 else 0
+
+
+def main(argv=None, root=None) -> None:
+    try:
+        code = gate(argv, root)
+    except ToolError as error:
+        print(f"{TAG}{error}", file=sys.stderr)
+        code = 2
+    sys.exit(code)
 
 
 if __name__ == "__main__":
