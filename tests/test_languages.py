@@ -9,7 +9,7 @@ from quality_gates import quality_check as qc
 from quality_gates.complexity_scan import Function
 
 ROOT = Path(__file__).resolve().parents[1]
-PYTHON_REPORT = "tests/fixtures/python/coverage.json"
+PYTHON_REPORT = "tests/fixtures/python/coverage-report.json"
 PYTHON_SAMPLE = "tests/fixtures/python/sample.py"
 SWIFT_REPORT = ROOT / "tests/fixtures/swift/xccov-report.json"
 TYPESCRIPT_REPORT = "tests/fixtures/typescript/coverage-final.json"
