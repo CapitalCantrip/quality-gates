@@ -44,6 +44,23 @@ def outer(x):
 """
 
 
+SHARED_CLASS_IN_FUNCTION = """\
+def f(x):
+    class K:
+        def m(self, y):
+            def clos(z):
+                return 1 if z else 2
+
+            class L:
+                def n(self, w):
+                    return 1 if w else 2
+
+            return clos(y)
+
+    return K
+"""
+
+
 def call(main, argv):
     out, err = io.StringIO(), io.StringIO()
     with redirect_stdout(out), redirect_stderr(err):
@@ -80,6 +97,12 @@ class SameFunctionsTest(InTempDir):
     def test_both_gates_list_the_same_python_functions_by_the_same_names(self):
         self.write("src/mod.py", NESTED)
         expected = {("src/mod.py", name) for name in ("K.m", "K.Inner.deep", "outer", "outer.inner", "outer#2")}
+        self.assertEqual(cc_names("src"), expected)
+        self.assertEqual(crap_names("--lang", "python", "src"), expected)
+
+    def test_both_gates_list_the_methods_of_classes_defined_inside_functions_by_the_same_names(self):
+        self.write("src/mod.py", SHARED_CLASS_IN_FUNCTION)
+        expected = {("src/mod.py", name) for name in ("f", "f.K.m", "f.K.m.clos", "f.K.m.L.n")}
         self.assertEqual(cc_names("src"), expected)
         self.assertEqual(crap_names("--lang", "python", "src"), expected)
 

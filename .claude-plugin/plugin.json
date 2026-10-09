@@ -1,6 +1,6 @@
 {
   "name": "quality-gates",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "Engineering standards for agent-written code: gates (no comments, cyclomatic complexity, CRAP), the size rule and principles, and Matt Pocock's workflow skills.",
   "author": {
     "name": "CapitalCantrip"
