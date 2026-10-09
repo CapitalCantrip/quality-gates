@@ -19,7 +19,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.3"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.4"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -152,9 +152,10 @@ to run after each function is written. It counts with radon, the same counter
 CRAP uses, so the two numbers agree. ruff's C901 skips boolean operators and
 comprehensions and can score the same function several points lower; don't use
 it as the gate. Takes any number of files and directories in one run:
-`cc-check src tests`. `--lang typescript` counts `.ts`, `.tsx`, `.js` and `.jsx`
-with lizard instead. With `--baseline FILE` it fails only on functions that are
-new or worse than the baseline; see [Adopting the ratchet](#adopting-the-ratchet).
+`cc-check src tests`. `--lang typescript` counts `.ts`, `.tsx`, `.js`, `.jsx`,
+`.cjs` and `.mjs` with lizard instead. With `--baseline FILE` it fails only on
+functions that are new or worse than the baseline; see
+[Adopting the ratchet](#adopting-the-ratchet).
 
 ### `crap`: complexity weighted by missing tests
 
@@ -174,9 +175,10 @@ Python coverage comes from `coverage json`; Swift from an Xcode `.xcresult`
 bundle; TypeScript and JavaScript from Istanbul's `coverage-final.json`
 (`--istanbul-json`), which Vitest and Jest write. Functions that share a start
 line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10
-addendum. Without coverage (`--no-coverage`) every function at CC 3 or above fails,
-so that mode ranks functions by risk and is never read as pass/fail. `crap`
-takes `--baseline FILE` too, and refuses it without coverage (exit 2).
+addendum on shared start lines. Without coverage (`--no-coverage`) every function
+at CC 3 or above fails, so that mode ranks functions by risk and is never read as
+pass/fail. `crap` takes `--baseline FILE` too, and refuses it without
+coverage (exit 2).
 
 ### What both gates score
 

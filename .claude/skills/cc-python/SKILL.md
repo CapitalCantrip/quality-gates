@@ -44,7 +44,7 @@ functions above the complexity threshold.
    ```
 3. When a refactor lowers a baselined score, the check fails until you run `--update` and commit the lower baseline. `--update` never records a new or worse function: fix those instead.
 
-Keys are `path::function`, relative to the git root, with names dotted from the outside in: `path::Class.method`, `path::outer.inner` for a closure, `path::K.Inner.deep` for a method of a nested class. A name that repeats in a file gets its order, `path::f#2`. Classes are not scored. A renamed or moved function counts as new.
+Baseline keys follow ADR-001's ratchet section and its 2026-10-09 addendum. A renamed or moved function counts as new.
 
 ## Thresholds
 
@@ -70,7 +70,7 @@ radon ships with quality-gates.
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.3"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.4"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.3"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.4"
 ```

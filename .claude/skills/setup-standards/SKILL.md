@@ -14,10 +14,10 @@ engineering knowledge. Run on a set-up project, every step finds its work
 already in place and changes nothing, so this is also the upgrade after a pin
 bump.
 
-The pin this skill belongs to: `v0.7.3`. Install line, used in step 2:
+The pin this skill belongs to: `v0.7.4`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.3"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.4"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`
@@ -69,7 +69,7 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 Detect the languages: Python (`pyproject.toml`, `setup.py` or `.py` files
 outside `.venv`), Swift (`Package.swift`, an `.xcodeproj` or `.swift` files),
 Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
-`.js` or `.jsx` files outside `node_modules`). Do every block that applies.
+`.js`, `.jsx`, `.cjs` or `.mjs` files outside `node_modules`). Do every block that applies.
 
 - **All projects:** add the pinned requirement to the project's dev
   dependencies (Python), or to the CI install step (others), replacing any

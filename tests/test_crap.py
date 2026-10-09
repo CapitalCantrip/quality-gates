@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 import tempfile
 import unittest
 from argparse import Namespace
@@ -9,7 +10,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from quality_gates import complexity_scan, crap
+from quality_gates import complexity_scan, crap, languages
 from quality_gates import xccov as xccov_reader
 
 
@@ -33,6 +34,10 @@ def lizard_row(name, cc, start, end, path="Sources/App.swift"):
 
 def completed(stdout, returncode=0):
     return CompletedProcess([], returncode, stdout=stdout, stderr="")
+
+
+def tagged(err):
+    return [line for line in err.splitlines() if line.startswith("[crap] ")]
 
 
 class CrapScoreTest(unittest.TestCase):
@@ -136,6 +141,17 @@ class PythonGateTest(unittest.TestCase):
         code, _, _ = self.gate("--min-cc", "4", "--allow-empty")
         self.assertEqual(code, 0)
 
+    def test_allow_empty_prints_the_empty_scan_message_with_the_crap_tag(self):
+        self.write_coverage([], list(range(1, 16)))
+        _, _, err = self.gate("--min-cc", "4", "--allow-empty")
+        self.assertIn(f"[crap] no functions analysed in: {self.module}\n", err)
+
+    def test_an_empty_scan_without_allow_empty_is_a_tool_error_with_the_crap_tag(self):
+        self.write_coverage([], list(range(1, 16)))
+        code, _, err = self.gate("--min-cc", "4")
+        self.assertEqual(code, 2)
+        self.assertIn(f"[crap] no functions analysed in: {self.module}\n", err)
+
     def test_a_missing_coverage_file_is_a_tool_error(self):
         code, _, err = self.gate()
         self.assertEqual(code, 2)
@@ -155,12 +171,26 @@ class PythonGateTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("stale", err)
 
+    def test_the_stale_coverage_warning_is_printed_with_the_crap_tag(self):
+        self.write_coverage(list(range(1, 16)), [])
+        past = self.module.stat().st_mtime - 10
+        os.utime(self.coverage, (past, past))
+        _, _, err = self.gate()
+        self.assertTrue(any("coverage file may be stale: coverage.json" in line for line in tagged(err)))
+
     def test_strict_freshness_makes_stale_coverage_a_tool_error(self):
         self.write_coverage(list(range(1, 16)), [])
         past = self.module.stat().st_mtime - 10
         os.utime(self.coverage, (past, past))
         code, _, _ = self.gate("--strict-freshness")
         self.assertEqual(code, 2)
+
+    def test_strict_freshness_reports_the_stale_coverage_with_the_crap_tag(self):
+        self.write_coverage(list(range(1, 16)), [])
+        past = self.module.stat().st_mtime - 10
+        os.utime(self.coverage, (past, past))
+        _, _, err = self.gate("--strict-freshness")
+        self.assertTrue(any("coverage file may be stale: coverage.json" in line for line in tagged(err)))
 
 
 class CoverageSourceTest(unittest.TestCase):
@@ -287,6 +317,26 @@ class SwiftGateTest(unittest.TestCase):
     def test_swift_without_coverage_scores_worst_case(self):
         _, functions = self.gate([lizard_row("load", 4, 10, 30)], "--no-coverage")
         self.assertEqual([(f["coverage"], f["crap"]) for f in functions], [(0.0, 20)])
+
+
+class HelpTest(unittest.TestCase):
+    def flat_help(self):
+        code, out, _ = call(["--help"])
+        self.assertEqual(code, 0)
+        return " ".join(out.split())
+
+    def test_help_lists_every_suffix_of_every_language(self):
+        flat = self.flat_help()
+        for language in languages.LANGUAGES.values():
+            for suffix in language.suffixes:
+                with self.subTest(suffix):
+                    self.assertRegex(flat, re.escape(suffix) + r"\b")
+
+    def test_help_names_each_language_counter_with_the_suffixes_it_reads(self):
+        flat = self.flat_help()
+        for language in languages.LANGUAGES.values():
+            with self.subTest(language.label):
+                self.assertIn(f"CC from {language.counter} ({language.suffix_text})", flat)
 
 
 if __name__ == "__main__":
