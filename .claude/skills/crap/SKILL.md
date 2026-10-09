@@ -77,7 +77,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 
 ## TypeScript coverage matching
 
-Functions that start on the same line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10 addendum, and coverage is still counted by line. When a figure for such a function looks too high or too low, check for a neighbour function on its line before adding tests.
+Functions that start on the same line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10 addendum on shared start lines, and coverage is still counted by line. When a figure for such a function looks too high or too low, check for a neighbour function on its line before adding tests.
 
 ## Adopting the gate in a repo with existing debt (Python / Swift / TypeScript)
 
@@ -85,7 +85,7 @@ The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverag
 
 1. Record the debt once: `crap --lang python <dirs> --coverage-json coverage.json --baseline crap-baseline.json --update`. Commit the file.
 2. Add a test that runs after coverage is collected and calls `crap.main([...same flags without --update...])`, asserting `SystemExit` code 0, so CI enforces it.
-3. Baseline keys and function names follow ADR-001.
+3. Baseline keys follow ADR-001's ratchet section and its 2026-10-09 addendum.
 4. A new or worse function fails; a lowered score fails until `--update` records it. `--update` never raises a score or adds a function.
 
 ## Exit codes (Python / Swift / TypeScript)

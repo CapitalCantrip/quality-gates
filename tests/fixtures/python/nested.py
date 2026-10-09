@@ -1,4 +1,3 @@
-NESTED = """\
 def outer(x):
     def inner(y):
         if y:
@@ -20,4 +19,3 @@ class K:
 
 def outer(x):
     return 1 if x else 2
-"""

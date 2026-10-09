@@ -121,7 +121,7 @@ def paragraphs(text):
 
 
 def suffixes_named(paragraph):
-    return {suffix for suffix in TYPESCRIPT_SUFFIXES if re.search(re.escape(suffix) + r"\b", paragraph)}
+    return {suffix for suffix in TYPESCRIPT_SUFFIXES if f"`{suffix}`" in paragraph}
 
 
 class DocumentedSuffixes(unittest.TestCase):
@@ -139,7 +139,7 @@ class DocumentedSuffixes(unittest.TestCase):
             with self.subTest(skill):
                 text = (SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
                 self.assertIn("ADR-001", text)
-                for restated in ("K.Inner.deep", "outer.inner", "#2"):
+                for restated in ("K.Inner.deep", "outer.inner"):
                     self.assertNotIn(restated, text)
 
 

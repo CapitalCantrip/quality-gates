@@ -37,7 +37,7 @@ Done when every flagged function is reported with a refactor, or the run is clea
 
 ADR-001's TypeScript addendum lists what lizard counts, including its one known miscount.
 
-Functions that start on the same line, such as a callback in the first line of its holder, are each counted on their own. `crap` matches their coverage as ADR-001's 2026-10-10 addendum describes; `cc-check` is unaffected.
+Functions that start on the same line, such as a callback in the first line of its holder, are each counted on their own. `crap` matches their coverage as ADR-001's 2026-10-10 addendum on shared start lines describes; `cc-check` is unaffected.
 
 ## Baseline keys
 

@@ -6,11 +6,11 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from nested_fixture import NESTED
 from quality_gates import complexity_scan
 from quality_gates.errors import ToolError
 
 ROOT = Path(__file__).resolve().parents[1]
+NESTED = (Path(__file__).parent / "fixtures/python/nested.py").read_text(encoding="utf-8")
 TS_FIXTURES = "tests/fixtures/typescript"
 
 CLASS_IN_FUNCTION = """\

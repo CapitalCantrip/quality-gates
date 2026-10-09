@@ -8,7 +8,7 @@ The two `--help` texts, the README and the skills listed four TypeScript and
 JavaScript suffixes, but `.cjs` and `.mjs` have been counted since 0.7.0. The
 help is now generated from the language records, and all of them name the six.
 ADR-001 has a 2026-10-10 addendum for the list. Internally, the two gates share
-one error wrapper and one strict-or-print helper.
+one error wrapper, and crap's two strict-or-print checks share one helper.
 
 **When you bump the pin:** run `qg-skills`, because the skill text changed. Other
 projects: nothing else.

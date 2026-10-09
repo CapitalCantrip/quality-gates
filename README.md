@@ -175,9 +175,10 @@ Python coverage comes from `coverage json`; Swift from an Xcode `.xcresult`
 bundle; TypeScript and JavaScript from Istanbul's `coverage-final.json`
 (`--istanbul-json`), which Vitest and Jest write. Functions that share a start
 line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10
-addendum. Without coverage (`--no-coverage`) every function at CC 3 or above fails,
-so that mode ranks functions by risk and is never read as pass/fail. `crap`
-takes `--baseline FILE` too, and refuses it without coverage (exit 2).
+addendum on shared start lines. Without coverage (`--no-coverage`) every function
+at CC 3 or above fails, so that mode ranks functions by risk and is never read as
+pass/fail. `crap` takes `--baseline FILE` too, and refuses it without
+coverage (exit 2).
 
 ### What both gates score
 

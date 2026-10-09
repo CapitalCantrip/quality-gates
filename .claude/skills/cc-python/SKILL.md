@@ -44,7 +44,7 @@ functions above the complexity threshold.
    ```
 3. When a refactor lowers a baselined score, the check fails until you run `--update` and commit the lower baseline. `--update` never records a new or worse function: fix those instead.
 
-Baseline keys and function names follow ADR-001.
+Baseline keys follow ADR-001's ratchet section and its 2026-10-09 addendum. A renamed or moved function counts as new.
 
 ## Thresholds
 

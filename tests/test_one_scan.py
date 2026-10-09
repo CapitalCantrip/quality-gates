@@ -9,11 +9,11 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from nested_fixture import NESTED
 from quality_gates import complexity_scan, crap
 from quality_gates import quality_check as qc
 
 ROOT = Path(__file__).resolve().parents[1]
+NESTED = (Path(__file__).parent / "fixtures/python/nested.py").read_text(encoding="utf-8")
 TS_FIXTURES = str(ROOT / "tests/fixtures/typescript")
 LIZARD_MISSING = "lizard is missing, though quality-gates depends on it.\n  Reinstall quality-gates in this environment.\n"
 RADON_MISSING = "radon is not installed.\n  Install with: pip3 install radon\n"
