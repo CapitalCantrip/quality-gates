@@ -75,6 +75,10 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    - Coverage is the driver (low coverage, moderate CC): add tests
    - Rust: extract private helpers; flatten control flow with early `return` or `?`
 
+## TypeScript coverage matching
+
+Functions that start on the same line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10 addendum, and coverage is still counted by line. When a figure for such a function looks too high or too low, check for a neighbour function on its line before adding tests.
+
 ## Adopting the gate in a repo with existing debt (Python / Swift / TypeScript)
 
 The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverage` (exit 2).
@@ -105,7 +109,7 @@ rustup component add clippy          # Rust
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.2"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.3"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.2"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.3"
 ```

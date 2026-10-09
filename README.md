@@ -19,7 +19,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.2"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.3"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -172,7 +172,9 @@ a function scores its CC; uncovered, CC² + CC. Coverage needed to pass at 8:
 It runs once per ticket, after the functions are written and their tests exist.
 Python coverage comes from `coverage json`; Swift from an Xcode `.xcresult`
 bundle; TypeScript and JavaScript from Istanbul's `coverage-final.json`
-(`--istanbul-json`), which Vitest and Jest write. Without coverage (`--no-coverage`) every function at CC 3 or above fails,
+(`--istanbul-json`), which Vitest and Jest write. Functions that share a start
+line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10
+addendum. Without coverage (`--no-coverage`) every function at CC 3 or above fails,
 so that mode ranks functions by risk and is never read as pass/fail. `crap`
 takes `--baseline FILE` too, and refuses it without coverage (exit 2).
 
