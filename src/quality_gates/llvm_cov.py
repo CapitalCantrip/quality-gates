@@ -62,10 +62,6 @@ def _combined(regions: List[_Region]) -> List[_Region]:
     return combined
 
 
-def _repeats(last: _Segment, has_count: bool, count: int) -> bool:
-    return last.has_count == has_count and last.count == count and not last.is_entry
-
-
 def _segment_for(region: _Region, line: int, is_entry: bool, skipped: bool) -> _Segment:
     has_count = not skipped and region.kind != SKIPPED
     return _Segment(line, region.count if has_count else 0, has_count, is_entry, has_count and region.kind == GAP)
@@ -77,10 +73,7 @@ class _SegmentBuilder:
         self.active: List[_Region] = []
 
     def _start(self, region: _Region, loc: Location, is_entry: bool, skipped: bool = False) -> None:
-        segment = _segment_for(region, loc[0], is_entry, skipped)
-        if self.segments and not (is_entry or skipped) and _repeats(self.segments[-1], segment.has_count, region.count):
-            return
-        self.segments.append(segment)
+        self.segments.append(_segment_for(region, loc[0], is_entry, skipped))
 
     def _last_ending_like(self, index: int) -> _Region:
         end = self.active[index].end

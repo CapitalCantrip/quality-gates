@@ -307,15 +307,23 @@ xccov reports too; the two were not compared function by function.
   over several lines opens before the body's `{` but also ends before it. So
   neither is taken for its holder. No body inside the lines means unknown
   coverage.
-- **A Function sharing a line with a body it does not hold has unknown
-  coverage.** If another body within lizard's lines shares a line with the
-  chosen one and does not nest inside it, the regions cannot say which body is
-  this Function's. Two functions on one line are the common case. Taking the
+- **A Function whose lines hold the opening of another function's body has
+  unknown coverage,** when that body shares a line with its own. Two functions
+  on one line both do. A function that ends on the line where the next one
+  opens does, and the next one keeps its own figure, because the first body
+  opens outside its lines. If another body within lizard's lines shares a line
+  with the chosen one and does not nest inside it, the regions cannot say
+  which body is this Function's. Two functions on one line are the common
+  case. Taking the
   last-ending body there lends one function's coverage to the other: an
   untested function passes beside a tested one, as #49 showed for xccov.
-  Unknown scores worst case, so the gate fails safe. A closure default argument
-  that ends on the line its function's `{` opens on also gives unknown
-  coverage, because nothing in the regions tells it from a second function.
+  Unknown scores worst case, so the gate fails safe. A default argument that
+  llvm-cov lists as a function of its own, a closure (`= { _ in }`, `= {}`) or
+  an autoclosure (`= flagA && flagB`, `= x ?? nil`), also gives unknown
+  coverage when it ends on the line its function's `{` opens on, because
+  nothing in the regions tells it from a second function. The remedy is to put
+  the default argument on a line above the `{`. A literal default (`= 0`,
+  `= nil`, `= []`, `= .main`) has no body of its own and is unaffected.
 - **A function listed more than once,** as a generic specialisation or in more
   than one export, is scored once. The listings are merged, and each line keeps
   its highest count, so a line ran if any listing ran it. Listings are the same
