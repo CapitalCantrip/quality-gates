@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Optional
 
-from quality_gates import coverage_json, istanbul, xccov
+from quality_gates import coverage_json, istanbul, llvm_cov, xccov
 
 if TYPE_CHECKING:
     from quality_gates.complexity_scan import Function
@@ -62,9 +62,15 @@ LANGUAGES = {
         coverage=(CoverageFormat(
             flag="--xcresult",
             source="xcresult",
-            help="Swift: .xcresult bundle from xcodebuild (not SwiftPM's swift test, which produces .profdata)",
+            help="Swift: .xcresult bundle from xcodebuild",
             read=xccov.read,
-        ),),
+        ), CoverageFormat(
+            flag="--llvm-cov-json",
+            source="llvm-cov-json",
+            help="Swift: llvm-cov export JSON from SwiftPM's `swift test --enable-code-coverage`"
+                 " (path from `swift test --show-codecov-path`)",
+            read=llvm_cov.read,
+        )),
         cc_check=False,
         cc_check_nothing_found=None,
     ),

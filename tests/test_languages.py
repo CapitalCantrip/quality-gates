@@ -13,12 +13,14 @@ ROOT = Path(__file__).resolve().parents[1]
 PYTHON_REPORT = "tests/fixtures/python/coverage-report.json"
 PYTHON_SAMPLE = "tests/fixtures/python/sample.py"
 SWIFT_REPORT = ROOT / "tests/fixtures/swift/xccov-report.json"
+SWIFTPM_REPORT = "tests/fixtures/swift/llvm-cov-export.json"
+SWIFTPM_STORE = "tests/fixtures/swift/package/Sources/Grades/Store.swift"
 TYPESCRIPT_REPORT = "tests/fixtures/typescript/coverage-final.json"
 TYPESCRIPT_SAMPLE = "tests/fixtures/typescript/sample.ts"
 
 
-def reader(lang):
-    return languages.LANGUAGES[lang].coverage[0].read
+def reader(lang, position=0):
+    return languages.LANGUAGES[lang].coverage[position].read
 
 
 class LanguageRecordTest(unittest.TestCase):
@@ -54,12 +56,13 @@ class LanguageRecordTest(unittest.TestCase):
 
     def test_coverage_flags_are_offered_in_language_order(self):
         flags = [coverage.flag for coverage in languages.COVERAGE_FORMATS]
-        self.assertEqual(flags, ["--coverage-json", "--xcresult", "--istanbul-json"])
+        self.assertEqual(flags, ["--coverage-json", "--xcresult", "--llvm-cov-json", "--istanbul-json"])
 
     def test_each_coverage_format_names_its_own_json_source_tag(self):
         sources = {coverage.flag: coverage.source for coverage in languages.COVERAGE_FORMATS}
         self.assertEqual(sources, {
-            "--coverage-json": "coverage-json", "--xcresult": "xcresult", "--istanbul-json": "istanbul-json",
+            "--coverage-json": "coverage-json", "--xcresult": "xcresult", "--llvm-cov-json": "llvm-cov-json",
+            "--istanbul-json": "istanbul-json",
         })
 
     def test_each_coverage_format_stores_its_report_where_argparse_would_by_default(self):
@@ -87,6 +90,10 @@ class CoverageReaderTest(unittest.TestCase):
             coverage_of = reader("swift")("App.xcresult")
         self.assertEqual(coverage_of(Function("Sources/Store.swift", "load#2", 3, 20, 30, "load")), 0.25)
 
+    def test_swiftpm_coverage_is_the_line_coverage_of_the_llvm_cov_body_that_opens_inside_the_function(self):
+        coverage_of = reader("swift", 1)(SWIFTPM_REPORT)
+        self.assertAlmostEqual(coverage_of(Function(SWIFTPM_STORE, "add", 3, 6, 16, "add")), 9 / 11)
+
     def test_typescript_coverage_is_the_branch_coverage_within_istanbuls_function_range(self):
         coverage_of = reader("typescript")(TYPESCRIPT_REPORT)
         self.assertEqual(coverage_of(Function(TYPESCRIPT_SAMPLE, "grade", 5, 1, 10, "grade")), 0.875)
@@ -96,6 +103,7 @@ class CoverageReaderTest(unittest.TestCase):
             readers = {
                 "python": reader("python")(PYTHON_REPORT),
                 "swift": reader("swift")("App.xcresult"),
+                "swiftpm": reader("swift", 1)(SWIFTPM_REPORT),
                 "typescript": reader("typescript")(TYPESCRIPT_REPORT),
             }
         for lang, coverage_of in readers.items():

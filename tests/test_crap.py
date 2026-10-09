@@ -164,14 +164,16 @@ class PythonGateTest(unittest.TestCase):
 
 
 class CoverageSourceTest(unittest.TestCase):
-    def source(self, coverage_json=None, xcresult=None, istanbul_json=None, no_coverage=False):
+    def source(self, coverage_json=None, xcresult=None, llvm_cov_json=None, istanbul_json=None, no_coverage=False):
         return crap._coverage_source(crap._given_report(Namespace(
-            coverage_json=coverage_json, xcresult=xcresult, istanbul_json=istanbul_json, no_coverage=no_coverage,
+            coverage_json=coverage_json, xcresult=xcresult, llvm_cov_json=llvm_cov_json,
+            istanbul_json=istanbul_json, no_coverage=no_coverage,
         )))
 
     def test_each_coverage_flag_is_reported_by_its_own_tag(self):
         self.assertEqual(self.source(coverage_json="c.json"), "coverage-json")
         self.assertEqual(self.source(xcresult="r.xcresult"), "xcresult")
+        self.assertEqual(self.source(llvm_cov_json="Pkg.json"), "llvm-cov-json")
         self.assertEqual(self.source(istanbul_json="coverage-final.json"), "istanbul-json")
         self.assertEqual(self.source(no_coverage=True), "assumed-zero")
 
