@@ -263,3 +263,13 @@ addendum holds.
 
 *Stop and report when a loop runs on* uses an hour, or three review rounds,
 without a commit. Those numbers are a starting point, to be revised from use.
+
+## Addendum 2026-10-10: a CRAP gate for SwiftPM packages (#6)
+
+The gate placement above still holds. `crap --lang swift` now reads a SwiftPM
+package's coverage from the llvm-cov export JSON that
+`swift test --enable-code-coverage` writes, through `--llvm-cov-json`. The
+sentence above about SwiftPM getting no CRAP gate until issue #6 no longer
+holds: `/setup-standards` gives a SwiftPM-only package a CRAP gate and a
+baseline, and its CI step runs on Linux as well as macOS. ADR-001's addendum
+of the same date records how a Function's figure is worked out and matched.

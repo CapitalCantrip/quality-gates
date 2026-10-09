@@ -223,45 +223,55 @@ line that left SwiftPM's Swift CRAP worst-case and informational.
 The SwiftPM reader needs neither Xcode nor `xcrun`, so it also runs on Linux.
 Its JSON `coverage_source` is `llvm-cov-json`.
 
-**A Function's coverage is its line coverage,** the measure xccov reports: the
-share of the executable lines in its body that ran. Each line's count comes
-from the file's `segments` by llvm-cov's own rule, the one `llvm-cov show` and
-its lcov output use. On the committed fixture every function's figure equals
-the Lines column of `llvm-cov report --show-functions`.
+**A Function's coverage is llvm-cov's per-function line figure,** the Lines
+column `llvm-cov report --show-functions` prints for it, which is also the
+figure xccov reports for the same function. It is the share of the
+executable lines in the function's body that ran, worked out from that
+function's own regions by llvm-cov's own rules. On the committed fixture every
+function's figure equals that column.
 
 **Matching a Function to its llvm-cov body:**
 
-- **The file is the report file sharing the longest run of trailing path
-  folders with lizard's path.** llvm-cov records absolute build paths, which
+- **The file is the report file at lizard's resolved path, if there is one.**
+  Otherwise it is the one report file that shares the longest run of trailing
+  path parts with lizard's path, and that run must be at least two parts long:
+  the folder and the file name. llvm-cov records absolute build paths, which
   differ from a checkout's, so the paths are compared from the file name
-  upwards. When two report files tie, for example only the file name matches
-  and two folders hold a `Store.swift`, the coverage is unknown rather than
-  guessed. Matching by bare name or stem is the bug #49 records for xccov.
+  upwards. A file name alone is never enough. Fewer than two shared parts, or
+  two report files sharing the same longest run, means unknown coverage rather
+  than a guess. For example, `Sources/Untested/Grade.swift` does not take the
+  figures of `Sources/Grades/Grade.swift`. Matching by bare name or stem is the
+  bug #49 records for xccov.
 - **The body is the one that opens first within lizard's lines** for the
   Function, the outermost when two open on the same line. llvm-cov starts a
-  body at its `{`, while lizard starts a Function at `func`; an attribute line
-  above (`@discardableResult`) is outside both, and a signature over several
-  lines puts the `{` below lizard's start, still inside its lines. A closure
-  or autoclosure, which llvm-cov lists as a function of its own, opens later,
-  so it is never taken for its holder. No body inside the lines means unknown
+  body at its `{`, while lizard starts a Function at `func`. An attribute line
+  above (`@discardableResult`) is outside both. A signature over several lines
+  puts the `{` below lizard's start, still inside its lines. A closure or
+  autoclosure, which llvm-cov lists as a function of its own, opens later, so
+  it is never taken for its holder. No body inside the lines means unknown
   coverage.
 - **A function listed more than once,** as a generic specialisation or in more
-  than one export, is scored once: the bodies are merged, and each line keeps
+  than one export, is scored once. The listings are merged, and each line keeps
   its highest count, so a line ran if any listing ran it.
-- **A closure's lines count in the function that holds it,** at the closure's
-  own counts, because lizard counts a closure's branches in that function's CC.
-  A closure that never ran lowers its holder's coverage.
-- **A nested `func` gets its own body,** since lizard scores it on its own. Its
-  lines also count in the outer function, as they do in llvm-cov's report.
+- **A closure or nested `func` is scored on its own regions,** and its own
+  counts do not reach the function that holds it. In the holder's figure, its
+  lines carry the holder's count, as they do in llvm-cov's and xccov's figure.
+  A nested `func` that never ran therefore scores 0 on its own and leaves its
+  holder's figure unchanged.
 
 ### Rejected
 
 - **Matching on llvm-cov's mangled name.** It needs a Swift demangler, and
   overloads and nested functions still have to be told apart by line.
+- **Matching a file by its name alone when the name is unique in the report.**
+  A file the tests never compiled would take the figures of a different file
+  that happens to share its name.
 - **Region coverage,** llvm-cov's headline figure. The two Swift formats would
   then measure different things for the same code.
-- **llvm-cov's own per-function line figure,** built from the function's own
-  regions only. It counts the lines of a closure that never ran as run.
+- **Counting a closure's own counts against the function that holds it,**
+  because lizard counts a closure's branches in its holder's CC. The
+  `--xcresult` figure is xccov's per-function figure, which does not do this,
+  so the two Swift flags would score the same code differently.
 - **Running `llvm-cov export` inside `crap` from the `.profdata`.** It needs the
   test binary's path and the toolchain on the machine; `swift test` already
   writes the JSON.
