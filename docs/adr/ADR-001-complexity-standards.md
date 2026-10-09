@@ -307,11 +307,19 @@ xccov reports too; the two were not compared function by function.
   over several lines opens before the body's `{` but also ends before it. So
   neither is taken for its holder. No body inside the lines means unknown
   coverage.
+- **A Function sharing a line with a body it does not hold has unknown
+  coverage.** If another body within lizard's lines shares a line with the
+  chosen one and does not nest inside it, the regions cannot say which body is
+  this Function's. Two functions on one line are the common case. Taking the
+  last-ending body there lends one function's coverage to the other: an
+  untested function passes beside a tested one, as #49 showed for xccov.
+  Unknown scores worst case, so the gate fails safe. A closure default argument
+  that ends on the line its function's `{` opens on also gives unknown
+  coverage, because nothing in the regions tells it from a second function.
 - **A function listed more than once,** as a generic specialisation or in more
   than one export, is scored once. The listings are merged, and each line keeps
   its highest count, so a line ran if any listing ran it. Listings are the same
-  body only when they open at the same line and column, so two functions on
-  one line stay apart.
+  body only when they open at the same line and column.
 - **A closure or nested `func` is scored on its own regions,** and its own
   counts do not reach the function that holds it. In the holder's figure, its
   lines carry the holder's count, as they do in llvm-cov's figure.

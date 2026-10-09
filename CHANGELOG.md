@@ -10,7 +10,9 @@ Xcode nor `xcrun`, so it runs on Linux too. A function's coverage is the line
 figure `llvm-cov report --show-functions` prints for it. A report file matches
 only lizard's exact path, so coverage must be measured in the same checkout
 where `crap` runs; a report made in another checkout or container gives unknown
-coverage. `--xcresult` is unchanged. Giving another language's coverage flag
+coverage. A function that shares a source line with another function's body
+also gets unknown coverage, so neither can borrow the other's. `--xcresult` is
+unchanged. Giving another language's coverage flag
 now names both Swift flags in the error.
 
 **When you bump the pin:** run `qg-skills`. In a SwiftPM package, replace

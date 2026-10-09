@@ -183,9 +183,46 @@ class ExportCoverageTest(unittest.TestCase):
             report = export_of(record(str(Path(tmp) / "link" / "Main.swift"), region(1, 2, 1)))
             self.assertEqual(self.coverage(report, 1, 2, str(real / "Main.swift")), 1.0)
 
-    def test_two_functions_on_one_line_are_scored_apart(self):
+    def test_two_functions_on_one_line_have_unknown_coverage(self):
+        report = export_of(record(BUILT_AT, [1, 5, 1, 20, 1, 0, 0, CODE]), record(BUILT_AT, [1, 25, 1, 40, 1, 0, 0, CODE]))
+        self.assertIsNone(self.coverage(report, 1, 1))
+
+    def test_an_untested_function_sharing_a_line_with_a_tested_one_does_not_pass(self):
+        report = export_of(record(BUILT_AT, [1, 5, 1, 20, 0, 0, 0, CODE]), record(BUILT_AT, [1, 25, 1, 40, 1, 0, 0, CODE]))
+        self.assertIsNone(self.coverage(report, 1, 1))
+
+    def test_a_tested_function_sharing_a_line_with_an_untested_one_does_not_fail(self):
         report = export_of(record(BUILT_AT, [1, 5, 1, 20, 1, 0, 0, CODE]), record(BUILT_AT, [1, 25, 1, 40, 0, 0, 0, CODE]))
-        self.assertEqual(self.coverage(report, 1, 1), 0.0)
+        self.assertIsNone(self.coverage(report, 1, 1))
+
+    def test_a_function_whose_line_a_one_line_function_ends_on_has_unknown_coverage(self):
+        report = export_of(record(BUILT_AT, [1, 5, 1, 20, 0, 0, 0, CODE]), record(BUILT_AT, [1, 25, 4, 2, 1, 0, 0, CODE]))
+        self.assertIsNone(self.coverage(report, 1, 4))
+
+    def test_a_closure_default_argument_ending_on_the_line_the_body_opens_gives_unknown_coverage(self):
+        report = export_of(record(BUILT_AT, [1, 20, 1, 30, 0, 0, 0, CODE]), record(BUILT_AT, [1, 32, 4, 2, 1, 0, 0, CODE]))
+        self.assertIsNone(self.coverage(report, 1, 4))
+
+    def test_a_closure_inside_the_body_on_its_opening_line_keeps_the_body_s_coverage(self):
+        report = export_of(record(BUILT_AT, [1, 10, 3, 2, 1, 0, 0, CODE]), record(BUILT_AT, [1, 20, 1, 30, 0, 0, 0, CODE]))
+        self.assertEqual(self.coverage(report, 1, 3), 1.0)
+
+    def test_a_record_whose_filename_is_not_a_string_is_a_tool_error(self):
+        self.assertMalformed(export_of({"name": "f", "filenames": [7], "regions": [[1, 5, 3, 30, 1, 0, 0, 0]]}))
+
+    def test_a_record_whose_filename_has_a_nul_byte_is_a_tool_error(self):
+        self.assertMalformed(export_of(record("/checkout/App/Ma\u0000in.swift", region(1, 2, 1))))
+
+    def test_a_function_path_that_cannot_be_resolved_is_a_tool_error(self):
+        coverage_of = llvm_cov_reader()(self.write(export_of(record(BUILT_AT, region(1, 2, 1)))))
+        with self.assertRaises(ToolError) as raised:
+            coverage_of(function("/checkout/Ma\u0000in.swift", "f", 1, 2))
+        self.assertTrue(str(raised.exception).startswith("cannot resolve path "))
+
+    def write(self, report):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        return write_json(tmp.name, report)
 
     def test_a_record_with_a_region_that_is_not_numbers_is_a_tool_error(self):
         self.assertMalformed(export_of({"name": "f", "filenames": [BUILT_AT], "regions": [["1", 5, 3, 30, 1, 0, 0, 0]]}))

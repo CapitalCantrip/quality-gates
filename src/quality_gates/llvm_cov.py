@@ -183,12 +183,18 @@ def _own_regions(record: dict, main: int) -> List[_Region]:
     return _combined([_region(raw) for raw in record["regions"] if raw[REGION_FILE_ID] == main])
 
 
+def _filename(name: object) -> str:
+    if not isinstance(name, str) or "\0" in name:
+        raise ValueError(f"a filename must be a path, got {name!r}")
+    return name
+
+
 def _record_shape(record: dict) -> Optional[Tuple[str, List[_Region]]]:
     try:
         main = _main_file_id(record)
         if main is None:
             return None
-        return record["filenames"][main], _own_regions(record, main)
+        return _filename(record["filenames"][main]), _own_regions(record, main)
     except MALFORMED_RECORD as exc:
         raise ToolError(f"bad llvm-cov export record: {exc!r}") from None
 
@@ -200,7 +206,10 @@ class _Report:
 
     def real_path(self, filename: str) -> str:
         if filename not in self.real_paths:
-            self.real_paths[filename] = str(Path(filename).resolve())
+            try:
+                self.real_paths[filename] = str(Path(filename).resolve())
+            except (OSError, RuntimeError, ValueError) as exc:
+                raise ToolError(f"cannot resolve path {filename!r}: {exc}") from None
         return self.real_paths[filename]
 
     def add(self, record: dict) -> None:
@@ -217,9 +226,24 @@ class _Report:
         return self.files.get(self.real_path(filepath), {})
 
 
+def _nests(outer: _Body, inner: _Body) -> bool:
+    return outer.start <= inner.start and inner.end <= outer.end
+
+
+def _shares_a_line(one: _Body, other: _Body) -> bool:
+    return one.start[0] <= other.end[0] and other.start[0] <= one.end[0]
+
+
+def _beside(chosen: _Body, other: _Body) -> bool:
+    return _shares_a_line(chosen, other) and not _nests(chosen, other)
+
+
 def _body_within(bodies: Dict[_Body, LineCounts], start: int, end: int) -> Optional[_Body]:
     inside = [body for body in bodies if start <= body.start[0] <= end]
-    return max(inside, key=lambda body: (body.end, (-body.start[0], -body.start[1])), default=None)
+    chosen = max(inside, key=lambda body: (body.end, (-body.start[0], -body.start[1])), default=None)
+    if chosen is None or any(_beside(chosen, other) for other in inside):
+        return None
+    return chosen
 
 
 def _coverage(lines: LineCounts) -> Optional[float]:

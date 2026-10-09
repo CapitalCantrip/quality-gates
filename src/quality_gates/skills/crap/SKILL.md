@@ -56,7 +56,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    swift test --enable-code-coverage
    crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
    ```
-   Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a report made in another checkout or container gives every function unknown coverage.
+   Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a report made in another checkout or container gives every function unknown coverage. A function sharing a line with another function's body also gets unknown coverage; put each on its own lines.
 
    **Swift — no tests yet:**
    ```bash
