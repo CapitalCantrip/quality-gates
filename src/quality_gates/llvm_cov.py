@@ -14,6 +14,7 @@ MIN_SHARED_TAIL = 2
 REGION_FILE_ID = 5
 REGION_EXPANDED_FILE_ID = 6
 REGION_KIND = 7
+MALFORMED_RECORD = (AttributeError, IndexError, KeyError, TypeError, ValueError)
 
 Location = Tuple[int, int]
 LineCounts = Dict[int, int]
@@ -219,6 +220,10 @@ def _report_name(by_file_name: Dict[str, List[str]], filepath: str) -> Optional[
     names = by_file_name.get(path.name, [])
     if str(path) in names:
         return str(path)
+    return _unique_longest_tail(path, [name for name in names if not Path(name).exists()])
+
+
+def _unique_longest_tail(path: Path, names: List[str]) -> Optional[str]:
     tails = {name: _shared_tail(path.parts, Path(name).parts) for name in names}
     longest = max(tails.values(), default=0)
     best = [name for name, tail in tails.items() if tail == longest]
@@ -227,7 +232,7 @@ def _report_name(by_file_name: Dict[str, List[str]], filepath: str) -> Optional[
 
 def _body_within(bodies: Dict[_Body, LineCounts], start: int, end: int) -> Optional[_Body]:
     inside = [body for body in bodies if start <= body.start <= end]
-    return min(inside, key=lambda body: (body.start, -body.end), default=None)
+    return max(inside, key=lambda body: (body.end, -body.start), default=None)
 
 
 def _coverage(lines: LineCounts) -> Optional[float]:
@@ -259,9 +264,27 @@ def _exports(export_path: str) -> list:
     return document["data"]
 
 
+def _function_lists(exports: list) -> list:
+    listed = [export.get("functions") for export in exports]
+    return [records for records in listed if records is not None]
+
+
+def _add_records(report: _Report, exports: list) -> int:
+    try:
+        function_lists = _function_lists(exports)
+        for records in function_lists:
+            for record in records:
+                report.add(record)
+    except MALFORMED_RECORD as exc:
+        raise ToolError(f"bad llvm-cov export record: {exc!r}") from None
+    return len(function_lists)
+
+
 def read(export_path: str) -> "CoverageOf":
     report = _Report()
-    for export in _exports(export_path):
-        for record in export.get("functions", []):
-            report.add(record)
+    if not _add_records(report, _exports(export_path)):
+        raise ToolError(
+            f"no function records in llvm-cov export: {export_path}; "
+            "an export made with -summary-only has none, so export without it"
+        )
     return lambda fn: _function_coverage(report, fn.file, fn.start, fn.end)

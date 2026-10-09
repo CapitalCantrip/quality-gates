@@ -38,6 +38,10 @@ final class GradesTests: XCTestCase {
         XCTAssertEqual(mode(false), "debug")
     }
 
+    func testScaled() {
+        XCTAssertEqual(scaled(3, log: { $0 }), 3)
+    }
+
     func testStore() {
         var store = Grades.Store()
         XCTAssertTrue(store.add(50))

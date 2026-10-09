@@ -63,6 +63,7 @@ LLVM_COV_REPORT_SHOW_FUNCTIONS = [
     (GRADE, "penalty", 71, 76, 0 / 6),
     (GRADE, "tally", 70, 84, 14 / 15),
     (GRADE, "mode", 86, 95, 5 / 6),
+    (GRADE, "scaled", 97, 107, 5 / 6),
     (GRADES_STORE, "add", 6, 16, 9 / 11),
     (GRADES_STORE, "passing", 18, 22, 5 / 5),
     (LEDGER_STORE, "add", 6, 15, 0 / 10),
@@ -84,6 +85,9 @@ class FixtureCoverageTest(InRepoRoot):
 
     def test_lines_compiled_out_by_an_if_config_are_not_counted(self):
         self.assertAlmostEqual(self.coverage_of(function(GRADE, "mode", 86, 95)), 5 / 6)
+
+    def test_a_closure_default_argument_in_a_signature_over_several_lines_is_not_taken_for_the_function(self):
+        self.assertAlmostEqual(self.coverage_of(function(GRADE, "scaled", 97, 107)), 5 / 6)
 
     def test_an_attribute_line_above_the_declaration_does_not_move_the_match(self):
         self.assertAlmostEqual(self.coverage_of(function(GRADE, "describe", 29, 37)), 5 / 8)
@@ -112,6 +116,28 @@ def write_json(tmp, document):
     path = Path(tmp) / "export.json"
     path.write_text(json.dumps(document), encoding="utf-8")
     return str(path)
+
+
+class SameCheckoutMatchingTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name).resolve()
+        self.tested = self.source("Sources/Core/Models/Item.swift")
+        self.untested = self.source("Sources/Extra/Models/Item.swift")
+        self.coverage_of = llvm_cov_reader()(write_json(tmp.name, export_of(record(str(self.tested), region(1, 2, 1)))))
+
+    def source(self, relative):
+        path = self.root / relative
+        path.parent.mkdir(parents=True)
+        path.write_text("func f() {\n}\n", encoding="utf-8")
+        return path
+
+    def test_a_file_in_this_checkout_is_matched_by_its_exact_path(self):
+        self.assertEqual(self.coverage_of(function(str(self.tested), "f", 1, 2)), 1.0)
+
+    def test_a_file_in_an_untested_target_sharing_folder_and_name_with_a_tested_file_has_unknown_coverage(self):
+        self.assertIsNone(self.coverage_of(function(str(self.untested), "f", 1, 2)))
 
 
 class ExportCoverageTest(unittest.TestCase):
@@ -183,6 +209,36 @@ class ExportCoverageTest(unittest.TestCase):
         report = export_of(record(BUILT_AT, region(1, 3, 0, kind=SKIPPED)))
         self.assertIsNone(self.coverage(report, 1, 3))
 
+    def test_a_closure_that_opens_before_the_body_is_not_taken_for_the_function(self):
+        report = export_of(record(BUILT_AT, region(2, 3, 0)), record(BUILT_AT, region(4, 6, 1)))
+        self.assertEqual(self.coverage(report, 1, 6), 1.0)
+
+    def test_a_record_with_a_short_region_is_a_tool_error(self):
+        self.assertMalformed(export_of({"name": "f", "filenames": [BUILT_AT], "regions": [[1, 5, 3]]}))
+
+    def test_a_record_with_no_regions_key_is_a_tool_error(self):
+        self.assertMalformed(export_of({"name": "f", "filenames": [BUILT_AT]}))
+
+    def test_a_record_whose_regions_are_not_a_list_is_a_tool_error(self):
+        self.assertMalformed(export_of({"name": "f", "filenames": [BUILT_AT], "regions": 7}))
+
+    def test_a_data_item_that_is_not_an_object_is_a_tool_error(self):
+        self.assertMalformed({"type": "llvm.coverage.json.export", "data": [[]]})
+
+    def assertMalformed(self, report):
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ToolError) as raised:
+                llvm_cov_reader()(write_json(tmp, report))
+        self.assertTrue(str(raised.exception).startswith("bad llvm-cov export record: "))
+
+    def test_a_summary_only_export_with_no_function_records_is_a_tool_error(self):
+        summary_only = {"type": "llvm.coverage.json.export", "version": "3.0.1",
+                        "data": [{"files": [{"filename": BUILT_AT, "summary": {}}], "totals": {}}]}
+        with tempfile.TemporaryDirectory() as tmp:
+            with self.assertRaises(ToolError) as raised:
+                llvm_cov_reader()(write_json(tmp, summary_only))
+        self.assertIn("-summary-only", str(raised.exception))
+
     def test_a_report_with_no_data_gives_every_function_unknown_coverage(self):
         self.assertIsNone(self.coverage(export_of()))
 
@@ -241,6 +297,13 @@ class CrapSwiftPMTest(InRepoRoot):
             code, _, err = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", write_json(tmp, [])])
         self.assertEqual(code, 2)
         self.assertIn("not an llvm-cov export: ", err)
+
+    def test_crap_exits_2_on_an_export_with_a_malformed_function_record(self):
+        broken = export_of({"name": "f", "filenames": [BUILT_AT], "regions": [[1, 5, 3]]})
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _, err = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", write_json(tmp, broken)])
+        self.assertEqual(code, 2)
+        self.assertIn("bad llvm-cov export record: ", err)
 
     def test_llvm_cov_json_is_refused_for_python(self):
         code, _, err = run_crap(["--lang", "python", "src", "--llvm-cov-json", EXPORT])

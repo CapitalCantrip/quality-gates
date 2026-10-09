@@ -93,3 +93,15 @@ public func mode(_ loud: Bool) -> String {
     return "release"
     #endif
 }
+
+public func scaled(
+    _ value: Int,
+    log: (Int) -> Int = { x in
+        x * 2
+    }
+) -> Int {
+    if value < 0 {
+        return 0
+    }
+    return log(value)
+}
