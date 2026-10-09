@@ -78,6 +78,17 @@ def f(x):
 """
 
 
+CLASS_IN_METHOD = """\
+class Top:
+    def meth(self, x):
+        class N:
+            def inner(self, y):
+                return 1 if y else 2
+
+        return N
+"""
+
+
 def completed(stdout, returncode=0, stderr=""):
     return CompletedProcess([], returncode, stdout=stdout, stderr=stderr)
 
@@ -134,6 +145,10 @@ class PythonScanTest(InTempDir):
         self.write("mod.py", DEEP_CLASSES)
         functions = self.functions()
         self.assertEqual((functions["f"].cc, functions["f.K.m"].cc), (1, 2))
+
+    def test_a_class_defined_in_a_method_of_a_top_level_class_is_scored_under_the_full_path(self):
+        self.write("mod.py", CLASS_IN_METHOD)
+        self.assertEqual(set(self.functions()), {"Top.meth", "Top.meth.N.inner"})
 
     def test_a_class_defined_under_an_if_inside_a_function_is_scored(self):
         self.write("mod.py", "def f(x):\n    if x:\n        class K:\n            def m(self):\n                return 1\n")

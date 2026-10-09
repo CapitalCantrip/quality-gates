@@ -146,15 +146,12 @@ def _classes_in(node) -> list:
 def _classes_defined_in(block, nodes: dict, visitors) -> list:
     node = nodes.get((block.name, block.lineno, block.col_offset))
     classes = []
-    for class_node in _classes_in(node) if node else []:
-        visitor = visitors.ComplexityVisitor()
-        visitor.visit(class_node)
-        classes.extend(visitor.classes)
+    for class_node in _classes_in(node):
+        classes.extend(visitors.ComplexityVisitor.from_ast(class_node).classes)
     return classes
 
 
-def _flatten(block, file: str, outer: tuple, source: tuple) -> list:
-    visitors, nodes = source
+def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     path = (*outer, block.name)
     if isinstance(block, visitors.Class):
         inner = block.methods + block.inner_classes
@@ -163,7 +160,7 @@ def _flatten(block, file: str, outer: tuple, source: tuple) -> list:
         inner = block.closures + _classes_defined_in(block, nodes, visitors)
         name = NAME_SEPARATOR.join(path)
         own = [Function(file, name, block.complexity, block.lineno, block.endline, name)]
-    return own + [fn for child in inner for fn in _flatten(child, file, path, source)]
+    return own + [fn for child in inner for fn in _flatten(child, file, path, visitors, nodes)]
 
 
 def _python_functions(files: list) -> list:
@@ -171,7 +168,7 @@ def _python_functions(files: list) -> list:
     functions = []
     for file in files:
         blocks, nodes = _read_source(file, visitors)
-        functions.extend(fn for block in blocks for fn in _flatten(block, str(file), (), (visitors, nodes)))
+        functions.extend(fn for block in blocks for fn in _flatten(block, str(file), (), visitors, nodes))
     return functions
 
 

@@ -44,7 +44,7 @@ def outer(x):
 """
 
 
-CLASS_IN_FUNCTION = """\
+SHARED_CLASS_IN_FUNCTION = """\
 def f(x):
     class K:
         def m(self, y):
@@ -101,7 +101,7 @@ class SameFunctionsTest(InTempDir):
         self.assertEqual(crap_names("--lang", "python", "src"), expected)
 
     def test_both_gates_list_the_methods_of_classes_defined_inside_functions_by_the_same_names(self):
-        self.write("src/mod.py", CLASS_IN_FUNCTION)
+        self.write("src/mod.py", SHARED_CLASS_IN_FUNCTION)
         expected = {("src/mod.py", name) for name in ("f", "f.K.m", "f.K.m.clos", "f.K.m.L.n")}
         self.assertEqual(cc_names("src"), expected)
         self.assertEqual(crap_names("--lang", "python", "src"), expected)

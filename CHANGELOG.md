@@ -7,12 +7,17 @@ radon drops a class defined in a function body, so neither `cc-check` nor `crap`
 ever listed its methods. They are now listed under the dotted name `f.K.m`, at
 any depth: a class in a method of a class in a function, a nested class in that
 class, and closures inside such a method. The enclosing function's own score is
-unchanged, nothing is counted twice, and no existing name changes. This is a bug
-fix: ADR-001 already says every method is scored.
+unchanged and nothing is counted twice. In a rare case a newly scored method
+takes a name an existing function had; the existing function, if it comes
+later in the file, is then keyed `#2`. This is a bug fix: ADR-001 already says
+every method is scored.
 
-**When you bump the pin:** run `qg-skills`. Python reports may gain functions
-that were never scored before. Fix them, or record them with `--update` on your
-`cc-check` and `crap` baselines.
+**When you bump the pin:** run `qg-skills`. Then, on the bump commit, with the
+gates passing on the commit before, delete `cc-baseline.json` and
+`crap-baseline.json`, run each gate with `--update` exactly as your hook and
+CI call it, and commit. Review the new entries in the pull request diff: they
+are methods of classes defined inside functions that were over the limit all
+along. Python reports may gain functions that were never scored before.
 
 ## 0.7.1 — 2026-10-10
 
