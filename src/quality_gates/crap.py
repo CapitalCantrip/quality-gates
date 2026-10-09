@@ -99,15 +99,28 @@ def _assume_zero(fn: complexity_scan.Function) -> float:
     return 0.0
 
 
-def _given_coverage(args) -> Optional[CoverageFormat]:
-    return next((coverage for coverage in COVERAGE_FORMATS if getattr(args, coverage.dest)), None)
+@dataclass(frozen=True)
+class CoverageReport:
+    format: CoverageFormat
+    path: str
 
 
-def _coverage_of(args) -> CoverageOf:
-    given = _given_coverage(args)
-    if given is None:
+def _given_report(args) -> Optional[CoverageReport]:
+    for coverage in COVERAGE_FORMATS:
+        path = getattr(args, coverage.dest)
+        if path:
+            return CoverageReport(coverage, path)
+    return None
+
+
+def _coverage_of(report: Optional[CoverageReport]) -> CoverageOf:
+    if report is None:
         return _assume_zero
-    return given.read(getattr(args, given.dest))
+    return report.format.read(report.path)
+
+
+def _coverage_source(report: Optional[CoverageReport]) -> str:
+    return report.format.source if report else ASSUMED_ZERO
 
 
 _GRADE_EMOJI  = {"ok": "✅", "WARN": "⚠️ ", "FAIL": "❌"}
@@ -201,7 +214,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def _check_coverage_flag(args) -> None:
-    own = LANGUAGES[args.lang].coverage[0].flag
+    own = " or ".join(coverage.flag for coverage in LANGUAGES[args.lang].coverage)
     for lang, language in LANGUAGES.items():
         for coverage in language.coverage:
             if lang != args.lang and getattr(args, coverage.dest):
@@ -214,10 +227,9 @@ def _validate_args(args) -> None:
     _check_coverage_flag(args)
 
 
-def _check_coverage_source(args) -> None:
-    if _coverage_path(args) or args.no_coverage:
+def _check_coverage_source(args, report: Optional[CoverageReport]) -> None:
+    if report or args.no_coverage:
         return
-    args.no_coverage = True
     if not args.json_output:
         print(
             "[crap] No coverage source given — computing worst-case scores "
@@ -255,15 +267,9 @@ def _check_staleness(coverage_path: str, source_paths: list, strict: bool) -> No
     print(f"{TAG}{message}", file=sys.stderr)
 
 
-def _coverage_path(args) -> Optional[str]:
-    given = _given_coverage(args)
-    return getattr(args, given.dest) if given else None
-
-
-def _maybe_check_staleness(args) -> None:
-    path = _coverage_path(args)
-    if path:
-        _check_staleness(path, args.paths, args.strict_freshness)
+def _maybe_check_staleness(args, report: Optional[CoverageReport]) -> None:
+    if report:
+        _check_staleness(report.path, args.paths, args.strict_freshness)
 
 
 def _check_results_empty(results: list, args, skipped: list) -> None:
@@ -280,13 +286,6 @@ def _check_results_empty(results: list, args, skipped: list) -> None:
     print(f"{TAG}{message}", file=sys.stderr)
 
 
-def _coverage_source(args) -> Optional[str]:
-    given = _given_coverage(args)
-    if given:
-        return given.source
-    return ASSUMED_ZERO if args.no_coverage else None
-
-
 def _fn_to_dict(r: FunctionResult, cov_source: Optional[str]) -> dict:
     return {
         "file":            r.file,
@@ -300,8 +299,7 @@ def _fn_to_dict(r: FunctionResult, cov_source: Optional[str]) -> dict:
     }
 
 
-def _print_json(results: list, args, n_fail: int, skipped: list) -> None:
-    cov_source = _coverage_source(args)
+def _print_json(results: list, args, n_fail: int, skipped: list, cov_source: str) -> None:
     payload = {
         "threshold":       args.threshold,
         "warn":            args.warn,
@@ -313,19 +311,19 @@ def _print_json(results: list, args, n_fail: int, skipped: list) -> None:
     print(json.dumps(payload, indent=2))
 
 
-def _emit_output(results: list, args, n_fail: int, skipped: list) -> None:
+def _emit_output(results: list, args, n_fail: int, skipped: list, cov_source: str) -> None:
     if args.json_output:
-        _print_json(results, args, n_fail, skipped)
+        _print_json(results, args, n_fail, skipped, cov_source)
         return
     print_table(results, no_color=args.no_color, top=args.top)
     print_summary(results, warn_threshold=args.warn, fail_threshold=args.threshold)
     complexity_scan.print_skipped(skipped, sys.stdout)
 
 
-def _check_baseline_args(args) -> None:
+def _check_baseline_args(args, report: Optional[CoverageReport]) -> None:
     if args.update and not args.baseline:
         raise ToolError("--update needs --baseline")
-    if args.baseline and args.no_coverage:
+    if args.baseline and report is None:
         raise ToolError("--baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).")
 
 
@@ -346,14 +344,15 @@ def _enforce_baseline(results: list, args, root) -> int:
 def gate(argv, root) -> int:
     args = build_parser().parse_args(argv)
     _validate_args(args)
-    _check_coverage_source(args)
-    _check_baseline_args(args)
-    _maybe_check_staleness(args)
+    report = _given_report(args)
+    _check_coverage_source(args, report)
+    _check_baseline_args(args, report)
+    _maybe_check_staleness(args, report)
     found = complexity_scan.scan(args.paths, args.lang)
-    results = score(found.functions, _coverage_of(args), Limits(args.min_cc, args.warn, args.threshold))
+    results = score(found.functions, _coverage_of(report), Limits(args.min_cc, args.warn, args.threshold))
     _check_results_empty(results, args, found.skipped)
     n_fail = sum(1 for r in results if r.grade == "FAIL")
-    _emit_output(results, args, n_fail, found.skipped)
+    _emit_output(results, args, n_fail, found.skipped, _coverage_source(report))
     if args.baseline:
         return _enforce_baseline(results, args, root)
     return 1 if n_fail > 0 else 0

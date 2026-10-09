@@ -11,7 +11,6 @@ from unittest.mock import patch
 
 from quality_gates import complexity_scan, crap
 from quality_gates import xccov as xccov_reader
-from quality_gates.errors import ToolError
 
 
 def call(argv):
@@ -56,7 +55,7 @@ class CrapScoreTest(unittest.TestCase):
 
 
 class ScoreTest(unittest.TestCase):
-    def test_every_language_is_scored_from_its_coverage_lookup_skipping_simple_functions_worst_first(self):
+    def test_score_applies_the_coverage_lookup_skips_functions_below_min_cc_and_ranks_worst_first(self):
         functions = [
             complexity_scan.Function("a.py", "simple", 1, 1, 2, "simple"),
             complexity_scan.Function("a.py", "half", 4, 3, 9, "half"),
@@ -166,9 +165,9 @@ class PythonGateTest(unittest.TestCase):
 
 class CoverageSourceTest(unittest.TestCase):
     def source(self, coverage_json=None, xcresult=None, istanbul_json=None, no_coverage=False):
-        return crap._coverage_source(Namespace(
+        return crap._coverage_source(crap._given_report(Namespace(
             coverage_json=coverage_json, xcresult=xcresult, istanbul_json=istanbul_json, no_coverage=no_coverage,
-        ))
+        )))
 
     def test_each_coverage_flag_is_reported_by_its_own_tag(self):
         self.assertEqual(self.source(coverage_json="c.json"), "coverage-json")
@@ -176,8 +175,17 @@ class CoverageSourceTest(unittest.TestCase):
         self.assertEqual(self.source(istanbul_json="coverage-final.json"), "istanbul-json")
         self.assertEqual(self.source(no_coverage=True), "assumed-zero")
 
-    def test_no_coverage_flag_has_no_tag(self):
-        self.assertIsNone(self.source())
+    def test_no_coverage_flag_at_all_is_reported_as_assumed_zero(self):
+        self.assertEqual(self.source(), "assumed-zero")
+
+    def test_a_gate_run_with_no_coverage_flag_at_all_tags_its_json_assumed_zero(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            module = Path(tmp) / "mod.py"
+            module.write_text("def f(x):\n    if x:\n        return 1\n    return 2\n")
+            _, out, _ = call(["--lang", "python", str(module), "--json"])
+        payload = json.loads(out)
+        self.assertEqual(payload["coverage_source"], "assumed-zero")
+        self.assertEqual({f["coverage_source"] for f in payload["functions"]}, {"assumed-zero"})
 
 
 class ArgumentTest(unittest.TestCase):

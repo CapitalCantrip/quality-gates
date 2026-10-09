@@ -1,5 +1,6 @@
 import os
 import unittest
+from dataclasses import fields
 from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
@@ -35,15 +36,27 @@ class LanguageRecordTest(unittest.TestCase):
 
     def test_every_language_cc_check_accepts_has_a_nothing_found_message(self):
         self.assertEqual(languages.CC_CHECK_LANGUAGES, ["python", "typescript"])
-        for name in languages.CC_CHECK_LANGUAGES:
+        for name, language in languages.LANGUAGES.items():
             with self.subTest(name):
-                self.assertEqual(qc.build_parser().parse_args(["--lang", name, "x"]).lang, name)
-                self.assertTrue(languages.LANGUAGES[name].cc_check_nothing_found)
+                self.assertEqual(name in languages.CC_CHECK_LANGUAGES, language.cc_check)
+                if language.cc_check:
+                    self.assertEqual(qc.build_parser().parse_args(["--lang", name, "x"]).lang, name)
+                    self.assertTrue(language.cc_check_nothing_found)
 
-    def test_every_coverage_flag_belongs_to_one_language_only(self):
+    def test_no_two_languages_share_a_coverage_flag(self):
         flags = [coverage.flag for coverage in languages.COVERAGE_FORMATS]
         self.assertEqual(sorted(flags), sorted(set(flags)))
+
+    def test_coverage_flags_are_offered_in_language_order(self):
+        flags = [coverage.flag for coverage in languages.COVERAGE_FORMATS]
         self.assertEqual(flags, ["--coverage-json", "--xcresult", "--istanbul-json"])
+
+    def test_each_coverage_format_names_its_own_json_source_tag(self):
+        sources = {coverage.flag: coverage.source for coverage in languages.COVERAGE_FORMATS}
+        self.assertEqual(sources, {
+            "--coverage-json": "coverage-json", "--xcresult": "xcresult", "--istanbul-json": "istanbul-json",
+        })
+        self.assertIn("source", [field.name for field in fields(languages.CoverageFormat)])
 
 
 class CoverageReaderTest(unittest.TestCase):

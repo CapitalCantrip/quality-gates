@@ -2,9 +2,12 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from quality_gates.errors import ToolError
+
+if TYPE_CHECKING:
+    from quality_gates.languages import CoverageOf
 
 NO_BRANCH_DATA = (
     "[crap] ⚠️  no branch data in coverage file — using line coverage only.\n"
@@ -98,6 +101,6 @@ def function_coverage(
     return _line_coverage_for_range(entry.lines, start_line, end_line)
 
 
-def read(coverage_json_path: str):
+def read(coverage_json_path: str) -> "CoverageOf":
     files = load(coverage_json_path)
     return lambda fn: function_coverage(files, fn.file, fn.start, fn.end)

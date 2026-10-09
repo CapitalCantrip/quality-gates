@@ -8,7 +8,6 @@ if TYPE_CHECKING:
 
 RADON = "radon"
 LIZARD = "lizard"
-FLAG_PREFIX = "--"
 
 CoverageOf = Callable[["Function"], Optional[float]]
 
@@ -16,16 +15,13 @@ CoverageOf = Callable[["Function"], Optional[float]]
 @dataclass(frozen=True)
 class CoverageFormat:
     flag: str
+    source: str
     help: str
     read: Callable[[str], CoverageOf]
 
     @property
     def dest(self) -> str:
         return self.source.replace("-", "_")
-
-    @property
-    def source(self) -> str:
-        return self.flag[len(FLAG_PREFIX):]
 
 
 @dataclass(frozen=True)
@@ -35,6 +31,7 @@ class Language:
     counter: str
     lizard_languages: tuple
     coverage: tuple
+    cc_check: bool
     cc_check_nothing_found: Optional[str]
 
     @property
@@ -48,7 +45,13 @@ LANGUAGES = {
         suffixes=frozenset({".py"}),
         counter=RADON,
         lizard_languages=(),
-        coverage=(CoverageFormat("--coverage-json", "Python: output of `coverage json`", coverage_json.read),),
+        coverage=(CoverageFormat(
+            flag="--coverage-json",
+            source="coverage-json",
+            help="Python: output of `coverage json`",
+            read=coverage_json.read,
+        ),),
+        cc_check=True,
         cc_check_nothing_found="No Python files found.",
     ),
     "swift": Language(
@@ -57,10 +60,12 @@ LANGUAGES = {
         counter=LIZARD,
         lizard_languages=("swift",),
         coverage=(CoverageFormat(
-            "--xcresult",
-            "Swift: .xcresult bundle from xcodebuild (not SwiftPM's swift test, which produces .profdata)",
-            xccov.read,
+            flag="--xcresult",
+            source="xcresult",
+            help="Swift: .xcresult bundle from xcodebuild (not SwiftPM's swift test, which produces .profdata)",
+            read=xccov.read,
         ),),
+        cc_check=False,
         cc_check_nothing_found=None,
     ),
     "typescript": Language(
@@ -69,11 +74,15 @@ LANGUAGES = {
         counter=LIZARD,
         lizard_languages=("typescript", "tsx", "javascript", "jsx"),
         coverage=(CoverageFormat(
-            "--istanbul-json", "TypeScript: Istanbul coverage-final.json from Vitest or Jest", istanbul.read,
+            flag="--istanbul-json",
+            source="istanbul-json",
+            help="TypeScript: Istanbul coverage-final.json from Vitest or Jest",
+            read=istanbul.read,
         ),),
+        cc_check=True,
         cc_check_nothing_found="No TypeScript or JavaScript functions found.",
     ),
 }
 
 COVERAGE_FORMATS = [coverage for language in LANGUAGES.values() for coverage in language.coverage]
-CC_CHECK_LANGUAGES = [name for name, language in LANGUAGES.items() if language.cc_check_nothing_found]
+CC_CHECK_LANGUAGES = [name for name, language in LANGUAGES.items() if language.cc_check]

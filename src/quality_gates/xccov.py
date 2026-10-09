@@ -1,9 +1,12 @@
 import json
 from pathlib import Path
 from subprocess import PIPE, run
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from quality_gates.errors import ToolError
+
+if TYPE_CHECKING:
+    from quality_gates.languages import CoverageOf
 
 
 def _extract_file_funcs(file_data: dict) -> dict:
@@ -63,6 +66,6 @@ def function_coverage(
     return None
 
 
-def read(xcresult_path: str):
+def read(xcresult_path: str) -> "CoverageOf":
     files = load(xcresult_path)
     return lambda fn: function_coverage(files, fn.file, fn.unlabelled_name, fn.start)
