@@ -4,16 +4,17 @@ import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from subprocess import run, PIPE
 from typing import Optional
 
-from quality_gates import complexity_scan, istanbul, ratchet
+from quality_gates import complexity_scan, ratchet
 from quality_gates.errors import ToolError
+from quality_gates.languages import COVERAGE_FORMATS, LANGUAGES, CoverageFormat, CoverageOf
 
 FAIL_THRESHOLD = 8.0
 WARN_THRESHOLD = 5.0
 LABEL_WIDTH = 50
 TAG = "[crap] "
+ASSUMED_ZERO = "assumed-zero"
 
 USAGE = """\
 A fully covered function scores its CC; an uncovered one scores CC² + CC.
@@ -73,179 +74,40 @@ class FunctionResult:
     grade: str
 
 
-@dataclass
-class FileCoverage:
-    lines: dict
-    branches: dict
-    has_branches: bool
+@dataclass(frozen=True)
+class Limits:
+    min_cc: int
+    warn: float
+    threshold: float
 
 
-def _build_branch_map(exec_b: list, miss_b: list) -> dict:
-    bmap: dict = {}
-    for from_ln, _ in miss_b:
-        bmap.setdefault(from_ln, [0, 0])[1] += 1
-    for from_ln, _ in exec_b:
-        entry = bmap.setdefault(from_ln, [0, 0])
-        entry[0] += 1
-        entry[1] += 1
-    return bmap
-
-
-def _parse_file_coverage(fd: dict) -> FileCoverage:
-    executed = set(fd.get("executed_lines", []))
-    missing  = set(fd.get("missing_lines", []))
-    lines = {ln: True for ln in executed}
-    lines.update({ln: False for ln in missing})
-    exec_b = fd.get("executed_branches", [])
-    miss_b = fd.get("missing_branches", [])
-    has_branches = bool(exec_b or miss_b)
-    branches = _build_branch_map(exec_b, miss_b) if has_branches else {}
-    return FileCoverage(lines=lines, branches=branches, has_branches=has_branches)
-
-
-def _branch_coverage_for_range(branches: dict, start: int, end: int) -> Optional[float]:
-    in_range = {ln: v for ln, v in branches.items() if start <= ln <= end}
-    if not in_range:
+def _to_result(fn: complexity_scan.Function, coverage_of: CoverageOf, limits: Limits) -> Optional[FunctionResult]:
+    if fn.cc < limits.min_cc:
         return None
-    total = sum(v[1] for v in in_range.values())
-    return (sum(v[0] for v in in_range.values()) / total) if total else None
-
-
-def _line_coverage_for_range(lines: dict, start: int, end: int) -> Optional[float]:
-    in_range = {ln: hit for ln, hit in lines.items() if start <= ln <= end}
-    if not in_range:
-        return None
-    return sum(1 for hit in in_range.values() if hit) / len(in_range)
-
-
-def coverage_python(coverage_json_path: str) -> tuple:
-    try:
-        with open(coverage_json_path) as fh:
-            data = json.load(fh)
-    except OSError as exc:
-        raise ToolError(f"cannot open coverage file: {exc}") from None
-    except json.JSONDecodeError as exc:
-        raise ToolError(f"bad coverage JSON: {exc}") from None
-
-    out: dict = {}
-    any_branches = False
-    for relpath, fd in data.get("files", {}).items():
-        entry = _parse_file_coverage(fd)
-        if entry.has_branches:
-            any_branches = True
-        abspath = str(Path(relpath).resolve())
-        out[abspath] = entry
-        out[relpath] = entry
-
-    if not any_branches:
-        print(
-            "[crap] ⚠️  no branch data in coverage file — using line coverage only.\n"
-            "  For more accurate scores add [run] branch=True to .coveragerc.",
-            file=sys.stderr,
-        )
-    return out, any_branches
-
-
-def function_coverage_python(
-    cov_map: dict,
-    filepath: str,
-    start_line: int,
-    end_line: int,
-) -> Optional[float]:
-    key = str(Path(filepath).resolve())
-    entry = cov_map.get(key) or cov_map.get(filepath)
-    if not entry:
-        return None
-    if entry.has_branches:
-        cov = _branch_coverage_for_range(entry.branches, start_line, end_line)
-        if cov is not None:
-            return cov
-    return _line_coverage_for_range(entry.lines, start_line, end_line)
-
-
-def _extract_file_funcs(file_data: dict) -> dict:
-    file_funcs: dict = {}
-    for fn in file_data.get("functions", []):
-        raw_name  = fn.get("name", "")
-        base_name = raw_name.split("(")[0].strip()
-        line_num  = fn.get("lineNumber", 0)
-        cov_frac  = min(1.0, max(0.0, float(fn.get("lineCoverage", 0.0))))
-        file_funcs[(base_name, line_num)] = cov_frac
-        file_funcs.setdefault(base_name, cov_frac)
-        short_name = base_name.rsplit(".", 1)[-1]
-        if short_name != base_name:
-            file_funcs.setdefault((short_name, line_num), cov_frac)
-            file_funcs.setdefault(short_name, cov_frac)
-    return file_funcs
-
-
-def _register_file_coverage(cov_map: dict, filepath: str, file_funcs: dict) -> None:
-    for key in (filepath, Path(filepath).name, Path(filepath).stem):
-        cov_map.setdefault(key, file_funcs)
-
-
-def coverage_swift(xcresult_path: str) -> dict:
-    result = run(
-        ["xcrun", "xccov", "view", "--report", xcresult_path, "--json"],
-        stdout=PIPE, stderr=PIPE, text=True,
-    )
-    if result.returncode != 0:
-        raise ToolError(f"xcrun xccov failed:\n{result.stderr.strip()}")
-    try:
-        data = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
-        raise ToolError(f"could not parse xccov output: {exc}") from None
-
-    cov_map: dict = {}
-    for target in data.get("targets", []):
-        for file_data in target.get("files", []):
-            filepath = file_data.get("path") or file_data.get("name", "")
-            _register_file_coverage(cov_map, filepath, _extract_file_funcs(file_data))
-    return cov_map
-
-
-def function_coverage_swift(
-    cov_map: dict,
-    filepath: str,
-    name: str,
-    start_line: int,
-) -> Optional[float]:
-    for key in (filepath, Path(filepath).name, Path(filepath).stem):
-        file_funcs = cov_map.get(key)
-        if file_funcs is None:
-            continue
-        val = file_funcs.get((name, start_line), file_funcs.get(name))
-        if val is not None:
-            return float(val)
-    return None
-
-
-def _to_result(fn, coverage_of, args) -> Optional[FunctionResult]:
-    if fn.cc < args.min_cc:
-        return None
-    cov = 0.0 if args.no_coverage else coverage_of(fn)
+    cov = coverage_of(fn)
     score = crap_score(fn.cc, cov if cov is not None else 0.0)
-    grade = crap_grade(score, args.warn, args.threshold)
+    grade = crap_grade(score, limits.warn, limits.threshold)
     return FunctionResult(fn.file, fn.name, fn.start, fn.cc, cov, score, grade)
 
 
-def _coverage_lookup(args):
-    if args.lang == "python":
-        cov_py = coverage_python(args.coverage_json)[0] if args.coverage_json else {}
-        return lambda fn: function_coverage_python(cov_py, fn.file, fn.start, fn.end)
-    if args.lang == "swift":
-        cov_swift = coverage_swift(args.xcresult) if args.xcresult else {}
-        return lambda fn: function_coverage_swift(cov_swift, fn.file, fn.plain_name, fn.start)
-    cov_ts = istanbul.load(args.istanbul_json) if args.istanbul_json else {}
-    return lambda fn: istanbul.function_coverage(cov_ts, fn.file, fn.start, fn.end)
+def score(functions: list, coverage_of: CoverageOf, limits: Limits) -> list:
+    scored = (_to_result(fn, coverage_of, limits) for fn in functions)
+    return sorted((r for r in scored if r is not None), key=lambda r: r.crap, reverse=True)
 
 
-def analyse(args) -> tuple:
-    found = complexity_scan.scan(args.paths, args.lang)
-    coverage_of = _coverage_lookup(args)
-    scored = (_to_result(fn, coverage_of, args) for fn in found.functions)
-    results = sorted((r for r in scored if r is not None), key=lambda r: r.crap, reverse=True)
-    return results, found.skipped
+def _assume_zero(fn: complexity_scan.Function) -> float:
+    return 0.0
+
+
+def _given_coverage(args) -> Optional[CoverageFormat]:
+    return next((coverage for coverage in COVERAGE_FORMATS if getattr(args, coverage.dest)), None)
+
+
+def _coverage_of(args) -> CoverageOf:
+    given = _given_coverage(args)
+    if given is None:
+        return _assume_zero
+    return given.read(getattr(args, given.dest))
 
 
 _GRADE_EMOJI  = {"ok": "✅", "WARN": "⚠️ ", "FAIL": "❌"}
@@ -303,19 +165,14 @@ def build_parser() -> argparse.ArgumentParser:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog=USAGE,
     )
-    p.add_argument("--lang", choices=["python", "swift", "typescript"], required=True,
+    p.add_argument("--lang", choices=list(LANGUAGES), required=True,
                    help="Language to analyse")
     p.add_argument("paths", nargs="*", default=["."],
                    help="Files or directories to scan (default: current dir)")
 
     cov = p.add_mutually_exclusive_group()
-    cov.add_argument("--coverage-json", metavar="FILE",
-                     help="Python: output of `coverage json`")
-    cov.add_argument("--xcresult", metavar="FILE",
-                     help="Swift: .xcresult bundle from xcodebuild "
-                          "(not SwiftPM's swift test, which produces .profdata)")
-    cov.add_argument("--istanbul-json", metavar="FILE",
-                     help="TypeScript: Istanbul coverage-final.json from Vitest or Jest")
+    for coverage in COVERAGE_FORMATS:
+        cov.add_argument(coverage.flag, dest=coverage.dest, metavar="FILE", help=coverage.help)
     cov.add_argument("--no-coverage", action="store_true",
                      help="Assume 0%% coverage (worst-case scores)")
 
@@ -343,18 +200,12 @@ def build_parser() -> argparse.ArgumentParser:
     return p
 
 
-COVERAGE_FLAGS = {
-    "python": ("coverage_json", "--coverage-json", "Python-only"),
-    "swift": ("xcresult", "--xcresult", "Swift-only"),
-    "typescript": ("istanbul_json", "--istanbul-json", "TypeScript-only"),
-}
-
-
 def _check_coverage_flag(args) -> None:
-    own = COVERAGE_FLAGS[args.lang][1]
-    for lang, (attr, flag, scope) in COVERAGE_FLAGS.items():
-        if lang != args.lang and getattr(args, attr):
-            raise ToolError(f"{flag} is {scope}; use {own} for {args.lang}")
+    own = LANGUAGES[args.lang].coverage[0].flag
+    for lang, language in LANGUAGES.items():
+        for coverage in language.coverage:
+            if lang != args.lang and getattr(args, coverage.dest):
+                raise ToolError(f"{coverage.flag} is {language.scope}; use {own} for {args.lang}")
 
 
 def _validate_args(args) -> None:
@@ -405,7 +256,8 @@ def _check_staleness(coverage_path: str, source_paths: list, strict: bool) -> No
 
 
 def _coverage_path(args) -> Optional[str]:
-    return args.coverage_json or args.xcresult or args.istanbul_json
+    given = _given_coverage(args)
+    return getattr(args, given.dest) if given else None
 
 
 def _maybe_check_staleness(args) -> None:
@@ -429,15 +281,10 @@ def _check_results_empty(results: list, args, skipped: list) -> None:
 
 
 def _coverage_source(args) -> Optional[str]:
-    if args.coverage_json:
-        return "coverage-json"
-    if args.xcresult:
-        return "xcresult"
-    if args.istanbul_json:
-        return "istanbul-json"
-    if args.no_coverage:
-        return "assumed-zero"
-    return None
+    given = _given_coverage(args)
+    if given:
+        return given.source
+    return ASSUMED_ZERO if args.no_coverage else None
 
 
 def _fn_to_dict(r: FunctionResult, cov_source: Optional[str]) -> dict:
@@ -502,10 +349,11 @@ def gate(argv, root) -> int:
     _check_coverage_source(args)
     _check_baseline_args(args)
     _maybe_check_staleness(args)
-    results, skipped = analyse(args)
-    _check_results_empty(results, args, skipped)
+    found = complexity_scan.scan(args.paths, args.lang)
+    results = score(found.functions, _coverage_of(args), Limits(args.min_cc, args.warn, args.threshold))
+    _check_results_empty(results, args, found.skipped)
     n_fail = sum(1 for r in results if r.grade == "FAIL")
-    _emit_output(results, args, n_fail, skipped)
+    _emit_output(results, args, n_fail, found.skipped)
     if args.baseline:
         return _enforce_baseline(results, args, root)
     return 1 if n_fail > 0 else 0

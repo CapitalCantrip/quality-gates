@@ -10,6 +10,7 @@ from subprocess import CompletedProcess
 from unittest.mock import patch
 
 from quality_gates import complexity_scan, crap
+from quality_gates import xccov as xccov_reader
 from quality_gates.errors import ToolError
 
 
@@ -54,35 +55,19 @@ class CrapScoreTest(unittest.TestCase):
         self.assertEqual(crap.crap_grade(8.01, 5, 8), "FAIL")
 
 
-class PythonCoverageTest(unittest.TestCase):
-    def test_branch_map_counts_taken_and_total_branches_per_source_line(self):
-        bmap = crap._build_branch_map([[3, 4], [3, 6], [9, 10]], [[3, 8], [9, 12]])
-        self.assertEqual(bmap, {3: [2, 3], 9: [1, 2]})
-
-    def test_branch_coverage_is_preferred_over_line_coverage(self):
-        entry = crap._parse_file_coverage({
-            "executed_lines": [1, 2, 3, 4],
-            "missing_lines": [],
-            "executed_branches": [[2, 3]],
-            "missing_branches": [[2, 4]],
-        })
-        self.assertEqual(crap.function_coverage_python({"m.py": entry}, "m.py", 1, 4), 0.5)
-
-    def test_line_coverage_is_used_when_the_function_has_no_branches(self):
-        entry = crap._parse_file_coverage({
-            "executed_lines": [1, 2, 10],
-            "missing_lines": [3, 4],
-            "executed_branches": [[10, 11]],
-            "missing_branches": [],
-        })
-        self.assertEqual(crap.function_coverage_python({"m.py": entry}, "m.py", 1, 4), 0.5)
-
-    def test_a_file_missing_from_coverage_has_no_coverage(self):
-        self.assertIsNone(crap.function_coverage_python({}, "m.py", 1, 4))
-
-    def test_a_function_with_no_tracked_lines_has_no_coverage(self):
-        entry = crap._parse_file_coverage({"executed_lines": [20], "missing_lines": []})
-        self.assertIsNone(crap.function_coverage_python({"m.py": entry}, "m.py", 1, 4))
+class ScoreTest(unittest.TestCase):
+    def test_every_language_is_scored_from_its_coverage_lookup_skipping_simple_functions_worst_first(self):
+        functions = [
+            complexity_scan.Function("a.py", "simple", 1, 1, 2, "simple"),
+            complexity_scan.Function("a.py", "half", 4, 3, 9, "half"),
+            complexity_scan.Function("a.py", "unknown", 4, 10, 20, "unknown"),
+        ]
+        coverage = {"half": 0.5, "unknown": None}
+        results = crap.score(functions, lambda fn: coverage[fn.name], crap.Limits(min_cc=2, warn=5, threshold=8))
+        self.assertEqual(
+            [(r.name, r.coverage, r.crap, r.grade) for r in results],
+            [("unknown", None, 20.0, "FAIL"), ("half", 0.5, 6.0, "WARN")],
+        )
 
 
 class PythonGateTest(unittest.TestCase):
@@ -257,52 +242,6 @@ class TableTest(unittest.TestCase):
         self.assertNotIn("x" * 50, row)
 
 
-class SwiftCoverageTest(unittest.TestCase):
-    def test_unparseable_xccov_output_is_a_tool_error(self):
-        with patch.object(crap, "run", return_value=completed("{not json")):
-            with self.assertRaises(ToolError):
-                crap.coverage_swift("r.xcresult")
-
-    def test_a_failed_xccov_is_a_tool_error(self):
-        with patch.object(crap, "run", return_value=CompletedProcess([], 1, stdout="", stderr="no bundle")):
-            with self.assertRaises(ToolError) as raised:
-                crap.coverage_swift("r.xcresult")
-        self.assertEqual(str(raised.exception), "xcrun xccov failed:\nno bundle")
-
-    def test_an_overloaded_function_is_matched_by_its_line(self):
-        funcs = crap._extract_file_funcs({"functions": [
-            {"name": "load(_:)", "lineNumber": 10, "lineCoverage": 1.0},
-            {"name": "load(_:into:)", "lineNumber": 20, "lineCoverage": 0.25},
-        ]})
-        cov_map = {"App.swift": funcs}
-        self.assertEqual(crap.function_coverage_swift(cov_map, "Sources/App.swift", "load", 20), 0.25)
-
-    def test_a_name_without_a_matching_line_takes_the_first_occurrence(self):
-        funcs = crap._extract_file_funcs({"functions": [
-            {"name": "load(_:)", "lineNumber": 10, "lineCoverage": 1.0},
-            {"name": "load(_:into:)", "lineNumber": 20, "lineCoverage": 0.25},
-        ]})
-        self.assertEqual(crap.function_coverage_swift({"App": funcs}, "App.swift", "load", 99), 1.0)
-
-    def test_a_class_qualified_xccov_name_matches_lizards_bare_method_name(self):
-        funcs = crap._extract_file_funcs({"functions": [
-            {"name": "Store.load(_:)", "lineNumber": 10, "lineCoverage": 0.5},
-        ]})
-        self.assertEqual(crap.function_coverage_swift({"App.swift": funcs}, "App.swift", "load", 10), 0.5)
-
-    def test_xccov_coverage_is_clamped_to_the_unit_interval(self):
-        funcs = crap._extract_file_funcs({"functions": [{"name": "f()", "lineNumber": 1, "lineCoverage": 1.7}]})
-        self.assertEqual(funcs["f"], 1.0)
-
-    def test_xccov_report_is_indexed_by_path_file_name_and_stem(self):
-        report = {"targets": [{"files": [{"path": "/src/App.swift", "functions": [
-            {"name": "load()", "lineNumber": 3, "lineCoverage": 0.5},
-        ]}]}]}
-        with patch.object(crap, "run", return_value=completed(json.dumps(report))):
-            cov_map = crap.coverage_swift("r.xcresult")
-        self.assertEqual({"/src/App.swift", "App.swift", "App"}, set(cov_map))
-
-
 class SwiftGateTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
@@ -312,7 +251,7 @@ class SwiftGateTest(unittest.TestCase):
 
     def gate(self, rows, *extra, xccov=None):
         lizard = patch.object(complexity_scan, "run", return_value=completed("\n".join(rows)))
-        xcrun = patch.object(crap, "run", return_value=completed(json.dumps(xccov or {})))
+        xcrun = patch.object(xccov_reader, "run", return_value=completed(json.dumps(xccov or {})))
         with lizard, xcrun:
             code, out, _ = call(["--lang", "swift", self.sources, "--json", *extra])
         return code, json.loads(out)["functions"]

@@ -53,3 +53,8 @@ def function_coverage(files: dict, filepath: str, start: int, fallback_end: int)
     span = function_range(entry, start, fallback_end)
     branch = _branch_coverage(entry, span)
     return branch if branch is not None else _statement_coverage(entry, span)
+
+
+def read(report_path: str):
+    files = load(report_path)
+    return lambda fn: function_coverage(files, fn.file, fn.start, fn.end)

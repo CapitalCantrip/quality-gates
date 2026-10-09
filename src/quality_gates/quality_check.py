@@ -4,21 +4,17 @@ import json
 import sys
 from pathlib import Path
 
-from quality_gates import complexity_scan, ratchet
+from quality_gates import complexity_scan, languages, ratchet
 from quality_gates.errors import ToolError
 
 AGENT_CC_CEILING = 8
 ERROR_TAG = "ERROR: "
-NOTHING_FOUND = {
-    "python": "No Python files found.",
-    "typescript": "No TypeScript or JavaScript functions found.",
-}
 
 
 def build_parser():
     parser = argparse.ArgumentParser(description="Cyclomatic complexity reporter for Python and TypeScript code")
     parser.add_argument(
-        "--lang", choices=["python", "typescript"], default="python",
+        "--lang", choices=languages.CC_CHECK_LANGUAGES, default="python",
         help="python counts with radon; typescript counts .ts .tsx .js .jsx with lizard (default: python)",
     )
     parser.add_argument("paths", nargs="+", metavar="path", help="files or directories to analyse")
@@ -94,7 +90,7 @@ def gate(argv, root):
     found = complexity_scan.scan(args.paths, args.lang)
     if not found.files:
         complexity_scan.print_skipped(found.skipped, sys.stderr)
-        print(NOTHING_FOUND[args.lang], file=sys.stderr)
+        print(languages.LANGUAGES[args.lang].cc_check_nothing_found, file=sys.stderr)
         return 2
     results = [to_result(fn, args.threshold) for fn in found.functions]
     code = report(results, found.files, args)
