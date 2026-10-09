@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.7.3 — 2026-10-10
+
+`crap --lang typescript` now scores each function that shares a start line with
+another over its own lines (#41, ADR-001 addendum of 2026-10-10). lizard gives
+no column, so in `const f = () => xs.map(x => x ? 1 : 2)` both functions start
+on line 1, and the first Istanbul entry on that line was taken for both: a
+callback on the first line of a multi-line function was scored over the whole
+function. Each lizard function now takes the entry that ends where it ends,
+else the narrowest entry that contains its end. TypeScript and JavaScript CRAP
+scores may change for functions that share a start line with another, up or
+down; a function that is the only one starting on its line scores as in 0.7.2.
+Coverage is still counted by line, so a callback sharing a line with its
+holder still counts that line's branches and statements. `cc-check` and
+Python and Swift scores do not change.
+
+**When you bump the pin:** run `qg-skills`. A project with a TypeScript or
+JavaScript `crap-baseline.json`: on the bump commit, with the gates passing on
+the commit before, collect coverage as your CI does, delete
+`crap-baseline.json`, run `crap` with `--update` exactly as your hook and CI
+call it, and commit. Review the diff in the pull request: an entry that rose
+or is new is a callback that was scored over a range with fewer or better
+tested branches than its own. `--update` only lowers scores, so do not run it
+against the old baseline. Other projects: nothing else.
+
 ## 0.7.2 — 2026-10-10
 
 A method of a class defined inside a function is now scored on its own (#44).
