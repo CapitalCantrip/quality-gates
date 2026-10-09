@@ -1,0 +1,10 @@
+{
+  "files": {
+    "tests/fixtures/python/sample.py": {
+      "executed_lines": [1, 2, 4],
+      "missing_lines": [3],
+      "executed_branches": [[2, 4]],
+      "missing_branches": [[2, 3]]
+    }
+  }
+}

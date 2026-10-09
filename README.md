@@ -19,7 +19,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.0"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.1"
    ```
 
 2. Run this command to copy the skills into the project:

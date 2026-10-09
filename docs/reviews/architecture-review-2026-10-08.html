@@ -1,0 +1,237 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Architecture review for quality-gates</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script type="module">
+  import mermaid from "https://cdn.jsdelivr.net/npm/mermaid@11.4.1/dist/mermaid.esm.min.mjs";
+  mermaid.initialize({ startOnLoad: true, theme: "neutral", securityLevel: "loose" });
+</script>
+<style>
+  .deep { background: linear-gradient(135deg, #0f172a, #1e293b); color: #f8fafc; }
+  .lbl { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+</style>
+</head>
+<body class="bg-stone-50 text-slate-900 font-sans">
+<main class="max-w-5xl mx-auto px-4 sm:px-6 py-12 space-y-12">
+
+<header class="space-y-3">
+  <h1 class="font-serif text-4xl">quality-gates · architecture review</h1>
+  <p class="text-sm text-slate-500">2026-10-08 · branch <code>ts-crap</code> · hot spots: <code>crap.py</code> (686 lines, touched by every language added), <code>quality_check.py</code>, <code>lizard_scan.py</code>, <code>istanbul.py</code>, <code>ratchet.py</code></p>
+  <div class="flex flex-wrap gap-4 text-xs text-slate-600">
+    <span><span class="inline-block w-3 h-3 border border-slate-500 align-middle"></span> module</span>
+    <span><span class="inline-block w-6 border-t-2 border-dashed border-slate-500 align-middle"></span> seam</span>
+    <span><span class="inline-block w-6 border-t-2 border-red-600 align-middle"></span> leakage / duplication</span>
+    <span><span class="inline-block w-3 h-3 deep align-middle"></span> deep module</span>
+  </div>
+</header>
+
+<section id="candidates" class="space-y-10">
+
+<!-- 1 -->
+<article id="c1" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">1 · One complexity scan for both gates</h2>
+    <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-semibold">Strong</span>
+    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">local-substitutable</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+    <li>src/quality_gates/quality_check.py</li>
+    <li>src/quality_gates/crap.py · cc_python, _py_block_to_result, cc_swift</li>
+    <li>src/quality_gates/lizard_scan.py</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <pre class="mermaid">
+flowchart TB
+  CC[cc-check] -->|in-process cc_visit| R1[radon]
+  CR[crap] -->|subprocess radon cc --json| R2[radon]
+  CC -->|scan| L[lizard_scan]
+  CR -->|scan| L
+  CC -.cc_rank only.-> R1
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class R1,R2 leak
+      </pre>
+      <p class="text-xs text-slate-500 mt-2">Python CC is counted two ways, with two exclusion lists and two function-naming rules. TypeScript cc-check loads radon just for <code>cc_rank</code>.</p>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <div class="flex flex-col items-center gap-3 py-4">
+        <div class="flex gap-6 text-sm"><div class="border border-slate-500 px-3 py-1">cc-check</div><div class="border border-slate-500 px-3 py-1">crap</div></div>
+        <div class="w-48 border-t-2 border-dashed border-slate-500"></div>
+        <div class="deep rounded-lg px-5 py-4 w-full max-w-xs">
+          <div class="font-mono text-sm">scan(paths, lang) → [Function]</div>
+          <div class="lbl text-slate-400 mt-2">file · label · cc · start · end</div>
+          <div class="mt-3 flex gap-2 text-xs opacity-60">
+            <span class="border border-slate-400 px-2 py-0.5">radon adapter</span>
+            <span class="border border-slate-400 px-2 py-0.5">lizard adapter</span>
+          </div>
+          <div class="text-xs opacity-60 mt-2">one exclusion list · one label rule</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <p><b>Problem.</b> ADR-001 says both gates must count CC the same way, but Python counting is implemented twice, so the guarantee lives in two places that can drift.</p>
+  <p><b>Solution.</b> Deepen <code>lizard_scan</code> into a complexity scan module that also hides radon behind the same interface. Both gates call it and only add their own threshold or coverage logic.</p>
+  <ul class="list-disc pl-5 text-sm space-y-0.5">
+    <li>ADR-001's "same counter" is enforced in one place</li>
+    <li>Baseline keys agree across gates</li>
+    <li>Tests: one fixture per language</li>
+    <li>Deletes the radon subprocess path in crap</li>
+  </ul>
+  <div class="rounded bg-emerald-50 border border-emerald-200 px-3 py-2 text-sm">Supports ADR-001 rather than contradicting it.</div>
+</article>
+
+<!-- 2 -->
+<article id="c2" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">2 · Coverage adapters behind one seam in crap</h2>
+    <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-xs font-semibold">Strong</span>
+    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">ports &amp; adapters</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+    <li>src/quality_gates/crap.py · coverage_python, coverage_swift, analyse_*, _run_analysis, COVERAGE_FLAGS, _coverage_path, _coverage_source</li>
+    <li>src/quality_gates/istanbul.py</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-2">Before · places a new language touches</div>
+      <div class="space-y-1 text-xs font-mono">
+        <div class="border-l-4 border-red-500 bg-red-50 px-2 py-1">--lang choices</div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-2 py-1">coverage flag on the mutually-exclusive group</div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-2 py-1">COVERAGE_FLAGS</div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-2 py-1">_coverage_path</div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-2 py-1">_coverage_source</div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-2 py-1">_run_analysis if-chain</div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-2 py-1">analyse_&lt;lang&gt; (3 copies, 6 params each)</div>
+        <div class="border-l-4 border-red-500 bg-red-50 px-2 py-1">coverage loader with its own return shape</div>
+      </div>
+      <p class="text-xs text-slate-500 mt-2">Python takes its own scoring path (<code>_py_block_to_result</code>); Swift and TypeScript share <code>_scored</code>.</p>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <pre class="mermaid">
+flowchart TB
+  CLI[crap CLI] --> S[score functions, coverage_of]
+  S --- seam{{coverage seam: load path → coverage_of fn}}
+  seam --> P[coverage.py JSON]
+  seam --> X[xccov]
+  seam --> I[Istanbul]
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+  class S deep
+      </pre>
+      <p class="text-xs text-slate-500 mt-2">A language is one table row: scanner, coverage flag, coverage adapter.</p>
+    </div>
+  </div>
+  <p><b>Problem.</b> Each language is spread across eight places in a 686-line file, and its coverage loader returns a different shape, so adding one (Rust is next in line) is shotgun surgery.</p>
+  <p><b>Solution.</b> Every coverage reader satisfies one interface — load a report, answer "coverage of this function" — and crap scores every language through one path.</p>
+  <ul class="list-disc pl-5 text-sm space-y-0.5">
+    <li>Three adapters: a real seam</li>
+    <li>One scoring path, tested once</li>
+    <li>Adapters tested with fixture reports</li>
+    <li>New language = one adapter + one row</li>
+  </ul>
+</article>
+
+<!-- 3 -->
+<article id="c3" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">3 · Leaf modules raise; only the CLI exits</h2>
+    <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-800 text-xs font-semibold">Worth exploring</span>
+    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+    <li>istanbul.py · lizard_scan.py · crap.py · quality_check.py (25 × sys.exit(2))</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <svg viewBox="0 0 300 180" class="w-full h-44">
+        <rect x="110" y="10" width="80" height="28" fill="none" stroke="#475569"/><text x="150" y="29" font-size="11" text-anchor="middle">main</text>
+        <rect x="10" y="80" width="80" height="28" fill="none" stroke="#475569"/><text x="50" y="99" font-size="11" text-anchor="middle">istanbul</text>
+        <rect x="110" y="80" width="80" height="28" fill="none" stroke="#475569"/><text x="150" y="99" font-size="11" text-anchor="middle">lizard_scan</text>
+        <rect x="210" y="80" width="80" height="28" fill="none" stroke="#475569"/><text x="250" y="99" font-size="11" text-anchor="middle">coverage_*</text>
+        <line x1="150" y1="38" x2="50" y2="80" stroke="#94a3b8"/><line x1="150" y1="38" x2="150" y2="80" stroke="#94a3b8"/><line x1="150" y1="38" x2="250" y2="80" stroke="#94a3b8"/>
+        <g stroke="#dc2626" stroke-width="2"><line x1="50" y1="108" x2="50" y2="150"/><line x1="150" y1="108" x2="150" y2="150"/><line x1="250" y1="108" x2="250" y2="150"/></g>
+        <text x="150" y="168" font-size="11" fill="#dc2626" text-anchor="middle">sys.exit(2) + "[crap]" print, from every leaf</text>
+      </svg>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <svg viewBox="0 0 300 180" class="w-full h-44">
+        <rect x="90" y="10" width="120" height="34" rx="6" fill="#0f172a"/><text x="150" y="31" font-size="11" fill="#f8fafc" text-anchor="middle">main: ToolError → exit 2</text>
+        <rect x="10" y="100" width="80" height="28" fill="none" stroke="#475569"/><text x="50" y="119" font-size="11" text-anchor="middle">istanbul</text>
+        <rect x="110" y="100" width="80" height="28" fill="none" stroke="#475569"/><text x="150" y="119" font-size="11" text-anchor="middle">lizard_scan</text>
+        <rect x="210" y="100" width="80" height="28" fill="none" stroke="#475569"/><text x="250" y="119" font-size="11" text-anchor="middle">coverage_*</text>
+        <g stroke="#475569" stroke-dasharray="4 4"><line x1="50" y1="100" x2="130" y2="44"/><line x1="150" y1="100" x2="150" y2="44"/><line x1="250" y1="100" x2="170" y2="44"/></g>
+        <text x="150" y="160" font-size="11" fill="#475569" text-anchor="middle">raise ToolError(message)</text>
+      </svg>
+    </div>
+  </div>
+  <p><b>Problem.</b> Reader modules print and exit themselves, so their interface includes "may kill the process", tests must catch <code>SystemExit</code>, and a shared reader like <code>istanbul</code> hard-codes the <code>[crap]</code> tag.</p>
+  <p><b>Solution.</b> Leaves raise one error type; each gate's <code>main</code> maps it to its tag and exit 2. Fits naturally inside candidates 1 and 2.</p>
+  <ul class="list-disc pl-5 text-sm space-y-0.5">
+    <li>Readers reusable by either gate</li>
+    <li>Tests assert on errors, not exits</li>
+    <li>Exit codes owned in one place</li>
+  </ul>
+</article>
+
+<!-- 4 -->
+<article id="c4" class="rounded-xl border border-slate-200 bg-white p-6 space-y-5">
+  <div class="flex flex-wrap items-center gap-2">
+    <h2 class="font-serif text-2xl mr-2">4 · comment-debt uses the shared baseline ratchet</h2>
+    <span class="px-2 py-0.5 rounded bg-slate-200 text-slate-700 text-xs font-semibold">Speculative</span>
+    <span class="px-2 py-0.5 rounded bg-slate-100 text-slate-700 text-xs">in-process</span>
+  </div>
+  <ul class="font-mono text-sm text-slate-600 space-y-0.5">
+    <li>src/quality_gates/comment_debt.py · ratchet, lowered, load_baseline, write_baseline, check, update</li>
+    <li>src/quality_gates/ratchet.py</li>
+  </ul>
+  <div class="grid md:grid-cols-2 gap-4">
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-2">Before</div>
+      <pre class="mermaid">
+flowchart LR
+  CD[comment-debt] --> OWN[own ratchet: over / under / stale]
+  CC[cc-check] --> RT[ratchet.enforce]
+  CR[crap] --> RT
+  classDef leak stroke:#dc2626,stroke-width:2px;
+  class OWN leak
+      </pre>
+    </div>
+    <div class="rounded-lg border border-slate-200 p-3">
+      <div class="lbl text-slate-500 mb-2">After</div>
+      <pre class="mermaid">
+flowchart LR
+  CD[comment-debt] --> RT[ratchet.enforce: key → number]
+  CC[cc-check] --> RT
+  CR[crap] --> RT
+  classDef deep fill:#0f172a,color:#f8fafc,stroke:#0f172a;
+  class RT deep
+      </pre>
+    </div>
+  </div>
+  <p><b>Problem.</b> The <b>baseline</b> rule ("fail on new or worse, and on paid debt not yet recorded") is implemented twice; comment-debt's copy predates <code>ratchet.py</code>.</p>
+  <p><b>Solution.</b> comment-debt feeds per-file counts into <code>ratchet.enforce</code>, keeping only its line-number detail and the "GONE" case as a small extension.</p>
+  <ul class="list-disc pl-5 text-sm space-y-0.5">
+    <li>One definition of Baseline</li>
+    <li>Same messages across three gates</li>
+  </ul>
+  <p class="text-xs text-slate-500">Speculative: comment-debt's file-keyed, line-detailed messages differ enough that the shared interface may need widening, which could cost more depth than it gains. It works and rarely changes.</p>
+</article>
+
+</section>
+
+<section id="top-recommendation" class="deep rounded-xl p-8 space-y-3">
+  <div class="lbl text-slate-400">Top recommendation</div>
+  <h2 class="font-serif text-3xl"><a href="#c1" class="underline decoration-emerald-400">1 · One complexity scan for both gates</a></h2>
+  <p class="text-slate-300">It turns ADR-001's central promise — both gates count CC the same way — from a convention held in two places into one module, and it is the base candidate 2 builds on. Do 3 along the way.</p>
+</section>
+
+</main>
+</body>
+</html>

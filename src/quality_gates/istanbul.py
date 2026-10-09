@@ -1,8 +1,11 @@
 import json
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Optional
 
 from quality_gates.errors import ToolError
+
+if TYPE_CHECKING:
+    from quality_gates.languages import CoverageOf
 
 
 def load(report_path: str) -> dict:
@@ -53,3 +56,8 @@ def function_coverage(files: dict, filepath: str, start: int, fallback_end: int)
     span = function_range(entry, start, fallback_end)
     branch = _branch_coverage(entry, span)
     return branch if branch is not None else _statement_coverage(entry, span)
+
+
+def read(report_path: str) -> "CoverageOf":
+    files = load(report_path)
+    return lambda fn: function_coverage(files, fn.file, fn.start, fn.end)

@@ -1,0 +1,17 @@
+{
+  "targets": [
+    {
+      "name": "App",
+      "files": [
+        {
+          "path": "/build/Sources/Store.swift",
+          "name": "Store.swift",
+          "functions": [
+            {"name": "Store.load(_:)", "lineNumber": 10, "lineCoverage": 0.75},
+            {"name": "Store.load(_:into:)", "lineNumber": 20, "lineCoverage": 0.25}
+          ]
+        }
+      ]
+    }
+  ]
+}

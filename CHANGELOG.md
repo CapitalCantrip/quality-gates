@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.7.1 — 2026-10-10
+
+One coverage seam in `crap` (#46, architecture review change 2; the review is
+now in `docs/reviews/`). Each language is one record that both gates read: its
+counting tool, its coverage flag and reader, and its "nothing found" message.
+Every coverage reader answers the same question, the coverage of one function,
+and `crap` scores every language through one path. No behaviour changes: the
+output of `crap` and `cc-check`, text and JSON, is the same as in 0.7.0.
+
+**When you bump the pin:** run `qg-skills`. Nothing else.
+
 ## 0.7.0 — 2026-10-09
 
 One complexity scan for both gates (#43, ADR-001 addendum of 2026-10-09).
