@@ -159,17 +159,19 @@ Make CI enforce what the hooks enforce, plus the slow gates.
 - **TypeScript / JavaScript:** the steps in [ci-typescript.md](ci-typescript.md).
 - **Swift:** a CI step running SwiftLint, on a macOS runner. If the project has
   no macOS CI job, report this as not done and say what it would cost. A
-  SwiftPM package also gets a CRAP step, which runs on a Linux runner as well
-  as macOS:
+  SwiftPM package also gets a CRAP step, which runs on Linux or macOS. Put it
+  on the one the baseline was recorded on, and run both commands in the same
+  job:
 
   ```bash
   swift test --enable-code-coverage
   crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json
   ```
 
-  Run the CRAP step on the platform the baseline was recorded on. A function
-  under `#if os(macOS)` or `canImport(UIKit)` has no coverage record on Linux,
-  so it scores worst case there.
+  A function under `#if os(macOS)` or `canImport(UIKit)` has no coverage
+  record on Linux, so it scores worst case there. A report made in another
+  checkout or container gives every function unknown coverage, because `crap`
+  matches a report file only at its exact path.
 - If the project has no CI workflow, add `.github/workflows/tests.yml` that
   installs the project, runs the tests and the steps above, on pull requests
   and pushes to the default branch.

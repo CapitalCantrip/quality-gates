@@ -75,7 +75,7 @@ LANGUAGES = {
             flag="--llvm-cov-json",
             source="llvm-cov-json",
             help="Swift: llvm-cov export JSON from SwiftPM's `swift test --enable-code-coverage`"
-                 " (path from `swift test --show-codecov-path`)",
+                 " (path from `swift test --show-codecov-path`), measured in this checkout",
             read=llvm_cov.read,
         )),
         cc_check=False,

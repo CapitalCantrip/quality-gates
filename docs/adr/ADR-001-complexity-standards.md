@@ -309,7 +309,9 @@ xccov reports too; the two were not compared function by function.
   coverage.
 - **A function listed more than once,** as a generic specialisation or in more
   than one export, is scored once. The listings are merged, and each line keeps
-  its highest count, so a line ran if any listing ran it.
+  its highest count, so a line ran if any listing ran it. Listings are the same
+  body only when they open at the same line and column, so two functions on
+  one line stay apart.
 - **A closure or nested `func` is scored on its own regions,** and its own
   counts do not reach the function that holds it. In the holder's figure, its
   lines carry the holder's count, as they do in llvm-cov's figure.

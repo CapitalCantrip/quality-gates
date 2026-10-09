@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 EXPORT_TYPE = "llvm.coverage.json.export"
 EXPANSION, SKIPPED, GAP = 1, 2, 3
-MIN_SHARED_TAIL = 2
+REGION_FIELDS = 8
 REGION_FILE_ID = 5
 REGION_EXPANDED_FILE_ID = 6
 REGION_KIND = 7
@@ -36,11 +36,14 @@ class _Segment(NamedTuple):
 
 
 class _Body(NamedTuple):
-    start: int
-    end: int
+    start: Location
+    end: Location
 
 
 def _region(raw: list) -> _Region:
+    fields = raw[:REGION_FIELDS]
+    if len(fields) < REGION_FIELDS or not all(type(value) is int for value in fields):
+        raise ValueError(f"a region needs {REGION_FIELDS} whole numbers, got {raw!r}")
     return _Region((raw[0], raw[1]), (raw[2], raw[3]), raw[4], raw[REGION_KIND])
 
 
@@ -180,59 +183,43 @@ def _own_regions(record: dict, main: int) -> List[_Region]:
     return _combined([_region(raw) for raw in record["regions"] if raw[REGION_FILE_ID] == main])
 
 
+def _record_shape(record: dict) -> Optional[Tuple[str, List[_Region]]]:
+    try:
+        main = _main_file_id(record)
+        if main is None:
+            return None
+        return record["filenames"][main], _own_regions(record, main)
+    except MALFORMED_RECORD as exc:
+        raise ToolError(f"bad llvm-cov export record: {exc!r}") from None
+
+
 @dataclass
 class _Report:
     files: Dict[str, Dict[_Body, LineCounts]] = field(default_factory=dict)
-    resolved: Dict[str, Optional[str]] = field(default_factory=dict)
-    by_file_name: Dict[str, List[str]] = field(default_factory=dict)
+    real_paths: Dict[str, str] = field(default_factory=dict)
+
+    def real_path(self, filename: str) -> str:
+        if filename not in self.real_paths:
+            self.real_paths[filename] = str(Path(filename).resolve())
+        return self.real_paths[filename]
 
     def add(self, record: dict) -> None:
-        main = _main_file_id(record)
-        regions = _own_regions(record, main) if main is not None else []
-        if not regions:
+        shape = _record_shape(record)
+        if shape is None or not shape[1]:
             return
-        body = _Body(regions[0].start[0], regions[0].end[0])
-        filename = record["filenames"][main]
-        if filename not in self.files:
-            self.by_file_name.setdefault(Path(filename).name, []).append(filename)
-        lines = self.files.setdefault(filename, {}).setdefault(body, {})
+        filename, regions = shape
+        body = _Body(regions[0].start, regions[0].end)
+        lines = self.files.setdefault(self.real_path(filename), {}).setdefault(body, {})
         for line, count in _line_counts(_SegmentBuilder().build(regions)).items():
             lines[line] = max(count, lines.get(line, 0))
 
     def bodies_in(self, filepath: str) -> Dict[_Body, LineCounts]:
-        if filepath not in self.resolved:
-            self.resolved[filepath] = _report_name(self.by_file_name, filepath)
-        name = self.resolved[filepath]
-        return self.files[name] if name is not None else {}
-
-
-def _shared_tail(left: tuple, right: tuple) -> int:
-    shared = 0
-    for a, b in zip(reversed(left), reversed(right)):
-        if a != b:
-            break
-        shared += 1
-    return shared
-
-
-def _report_name(by_file_name: Dict[str, List[str]], filepath: str) -> Optional[str]:
-    path = Path(filepath).resolve()
-    names = by_file_name.get(path.name, [])
-    if str(path) in names:
-        return str(path)
-    return _unique_longest_tail(path, [name for name in names if not Path(name).exists()])
-
-
-def _unique_longest_tail(path: Path, names: List[str]) -> Optional[str]:
-    tails = {name: _shared_tail(path.parts, Path(name).parts) for name in names}
-    longest = max(tails.values(), default=0)
-    best = [name for name, tail in tails.items() if tail == longest]
-    return best[0] if longest >= MIN_SHARED_TAIL and len(best) == 1 else None
+        return self.files.get(self.real_path(filepath), {})
 
 
 def _body_within(bodies: Dict[_Body, LineCounts], start: int, end: int) -> Optional[_Body]:
-    inside = [body for body in bodies if start <= body.start <= end]
-    return max(inside, key=lambda body: (body.end, -body.start), default=None)
+    inside = [body for body in bodies if start <= body.start[0] <= end]
+    return max(inside, key=lambda body: (body.end, (-body.start[0], -body.start[1])), default=None)
 
 
 def _coverage(lines: LineCounts) -> Optional[float]:
@@ -253,7 +240,7 @@ def _read_export(export_path: str) -> object:
             return json.load(fh)
     except OSError as exc:
         raise ToolError(f"cannot open llvm-cov export: {exc}") from None
-    except json.JSONDecodeError as exc:
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         raise ToolError(f"bad llvm-cov export JSON: {exc}") from None
 
 
@@ -265,18 +252,18 @@ def _exports(export_path: str) -> list:
 
 
 def _function_lists(exports: list) -> list:
-    listed = [export.get("functions") for export in exports]
-    return [records for records in listed if records is not None]
+    try:
+        listed = [export.get("functions") for export in exports]
+        return [list(records) for records in listed if records is not None]
+    except MALFORMED_RECORD as exc:
+        raise ToolError(f"bad llvm-cov export record: {exc!r}") from None
 
 
 def _add_records(report: _Report, exports: list) -> int:
-    try:
-        function_lists = _function_lists(exports)
-        for records in function_lists:
-            for record in records:
-                report.add(record)
-    except MALFORMED_RECORD as exc:
-        raise ToolError(f"bad llvm-cov export record: {exc!r}") from None
+    function_lists = _function_lists(exports)
+    for records in function_lists:
+        for record in records:
+            report.add(record)
     return len(function_lists)
 
 

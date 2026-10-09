@@ -11,7 +11,9 @@ from quality_gates.complexity_scan import Function
 from quality_gates.errors import ToolError
 
 ROOT = Path(__file__).resolve().parents[1]
-EXPORT = "tests/fixtures/swift/llvm-cov-export.json"
+EXPORT_AS_BUILT = ROOT / "tests/fixtures/swift/llvm-cov-export.json"
+PACKAGE_IN_THIS_CHECKOUT = ROOT / "tests/fixtures/swift/package"
+FIXTURE_BUILT_IN_ANOTHER_CHECKOUT_AT = "/ci/SwiftCovFixture"
 SOURCES = "tests/fixtures/swift/package/Sources"
 GRADE = f"{SOURCES}/Grades/Grade.swift"
 GRADES_STORE = f"{SOURCES}/Grades/Store.swift"
@@ -44,11 +46,21 @@ def export_of(*records):
             "data": [{"files": [], "functions": list(records)}]}
 
 
+def export_measured_in_this_checkout(tmp):
+    text = EXPORT_AS_BUILT.read_text(encoding="utf-8")
+    path = Path(tmp) / "llvm-cov-export.json"
+    path.write_text(text.replace(FIXTURE_BUILT_IN_ANOTHER_CHECKOUT_AT, str(PACKAGE_IN_THIS_CHECKOUT)), encoding="utf-8")
+    return str(path)
+
+
 class InRepoRoot(unittest.TestCase):
     def setUp(self):
         before = os.getcwd()
         os.chdir(ROOT)
         self.addCleanup(os.chdir, before)
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.export = export_measured_in_this_checkout(tmp.name)
 
 
 LLVM_COV_REPORT_SHOW_FUNCTIONS = [
@@ -73,7 +85,7 @@ LLVM_COV_REPORT_SHOW_FUNCTIONS = [
 class FixtureCoverageTest(InRepoRoot):
     def setUp(self):
         super().setUp()
-        self.coverage_of = llvm_cov_reader()(EXPORT)
+        self.coverage_of = llvm_cov_reader()(self.export)
 
     def test_each_function_gets_the_lines_figure_llvm_cov_report_show_functions_prints_for_it(self):
         for file, name, start, end, coverage in LLVM_COV_REPORT_SHOW_FUNCTIONS:
@@ -104,6 +116,10 @@ class FixtureCoverageTest(InRepoRoot):
 
     def test_a_file_sharing_only_its_name_with_two_report_files_has_unknown_coverage(self):
         self.assertIsNone(self.coverage_of(function("elsewhere/Store.swift", "add", 6, 16)))
+
+    def test_the_same_files_measured_in_another_checkout_have_unknown_coverage(self):
+        coverage_of = llvm_cov_reader()(str(EXPORT_AS_BUILT))
+        self.assertIsNone(coverage_of(function(GRADE, "grade", 5, 13)))
 
     def test_a_function_in_a_file_the_report_does_not_cover_has_unknown_coverage(self):
         self.assertIsNone(self.coverage_of(function(f"{SOURCES}/Grades/Other.swift", "grade", 5, 13)))
@@ -150,13 +166,37 @@ class ExportCoverageTest(unittest.TestCase):
         report = export_of(record(BUILT_AT, region(1, 2, 1)))
         self.assertEqual(self.coverage(report, 1, 2, BUILT_AT), 1.0)
 
-    def test_a_file_sharing_its_folder_and_name_with_one_report_file_is_matched(self):
+    def test_a_file_sharing_its_folder_and_name_with_one_report_file_is_not_matched(self):
         report = export_of(record(BUILT_AT, region(1, 2, 1)))
-        self.assertEqual(self.coverage(report, 1, 2, "/checkout/App/Main.swift"), 1.0)
-
-    def test_a_file_sharing_its_folder_and_name_equally_with_two_report_files_has_unknown_coverage(self):
-        report = export_of(record(BUILT_AT, region(1, 2, 1)), record("/other/App/Main.swift", region(1, 2, 1)))
         self.assertIsNone(self.coverage(report, 1, 2, "/checkout/App/Main.swift"))
+
+    def test_a_file_in_another_target_with_the_folder_and_name_of_a_file_measured_elsewhere_has_unknown_coverage(self):
+        report = export_of(record("/ci/Pkg/Sources/Core/Models/Item.swift", region(1, 2, 1)))
+        self.assertIsNone(self.coverage(report, 1, 2, "/checkout/Pkg/Sources/Admin/Models/Item.swift"))
+
+    def test_a_report_path_through_a_symlink_matches_the_real_path(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            real = Path(tmp).resolve() / "real"
+            real.mkdir()
+            (real / "Main.swift").write_text("func f() {\n}\n", encoding="utf-8")
+            (Path(tmp) / "link").symlink_to(real)
+            report = export_of(record(str(Path(tmp) / "link" / "Main.swift"), region(1, 2, 1)))
+            self.assertEqual(self.coverage(report, 1, 2, str(real / "Main.swift")), 1.0)
+
+    def test_two_functions_on_one_line_are_scored_apart(self):
+        report = export_of(record(BUILT_AT, [1, 5, 1, 20, 1, 0, 0, CODE]), record(BUILT_AT, [1, 25, 1, 40, 0, 0, 0, CODE]))
+        self.assertEqual(self.coverage(report, 1, 1), 0.0)
+
+    def test_a_record_with_a_region_that_is_not_numbers_is_a_tool_error(self):
+        self.assertMalformed(export_of({"name": "f", "filenames": [BUILT_AT], "regions": [["1", 5, 3, 30, 1, 0, 0, 0]]}))
+
+    def test_a_binary_profdata_passed_by_mistake_is_a_tool_error(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "default.profdata"
+            path.write_bytes(b"\xfflprofi\x81\x00\x00\x00\x0a\xff\xfe")
+            with self.assertRaises(ToolError) as raised:
+                llvm_cov_reader()(str(path))
+        self.assertTrue(str(raised.exception).startswith("bad llvm-cov export JSON: "))
 
     def test_a_closure_that_never_ran_does_not_count_against_the_function_that_holds_it(self):
         report = export_of(record(BUILT_AT, region(1, 6, 1)), record(BUILT_AT, region(3, 5, 0)))
@@ -201,7 +241,7 @@ class ExportCoverageTest(unittest.TestCase):
         report = export_of(record(BUILT_AT, region(1, 5, 1), [3, 1, 3, 40, 0, 0, 0, SKIPPED]))
         self.assertEqual(self.coverage(report, 1, 5), 1.0)
 
-    def test_the_outermost_body_starting_first_inside_the_function_is_the_match(self):
+    def test_a_body_nested_inside_the_one_that_ends_last_is_not_taken_for_the_function(self):
         report = export_of(record(BUILT_AT, region(3, 3, 0)), record(BUILT_AT, region(2, 5, 1), region(3, 4, 0)))
         self.assertAlmostEqual(self.coverage(report, 1, 5), 3 / 4)
 
@@ -280,7 +320,7 @@ def run_crap(argv):
 
 class CrapSwiftPMTest(InRepoRoot):
     def test_crap_scores_a_swiftpm_package_from_its_llvm_cov_export(self):
-        code, out, _ = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", EXPORT, "--json"])
+        code, out, _ = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", self.export, "--json"])
         payload = json.loads(out)
         rows = {(Path(f["file"]).parent.name, f["name"]): (f["cc"], round(f["coverage"], 4), f["grade"])
                 for f in payload["functions"]}
@@ -306,7 +346,7 @@ class CrapSwiftPMTest(InRepoRoot):
         self.assertIn("bad llvm-cov export record: ", err)
 
     def test_llvm_cov_json_is_refused_for_python(self):
-        code, _, err = run_crap(["--lang", "python", "src", "--llvm-cov-json", EXPORT])
+        code, _, err = run_crap(["--lang", "python", "src", "--llvm-cov-json", self.export])
         self.assertEqual(code, 2)
         self.assertIn("--llvm-cov-json is Swift-only", err)
 
