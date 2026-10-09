@@ -102,7 +102,7 @@ repo with existing debt can enforce them in CI without first paying it all off.
 
 ## Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)
 
-The standards above extend to `.ts`, `.tsx`, `.js` and `.jsx`. Nothing changes
+The standards above extend to `.ts`, `.tsx`, `.js`, `.jsx`, `.cjs` and `.mjs`. Nothing changes
 for Python, Swift or Rust.
 
 | Gate | Tool | Limit |
@@ -250,3 +250,19 @@ changes, and `cc-check` is untouched.
   position.** It would remove the shared-line overlap, but it needs each
   function's end column, and Istanbul's end columns can be null: nyc's
   remapping and Vitest both write `null` there.
+
+## Addendum 2026-10-10: the suffix list (v0.7.4)
+
+The limits and gates above are unchanged, and so is what each gate counts. The
+TypeScript addendum gave four suffixes, but `languages.py` has counted six since
+v0.7.0. The docs did not follow the code, and the `--help` text was written by
+hand from the same stale list.
+
+The TypeScript and JavaScript suffixes are `.ts`, `.tsx`, `.js`, `.jsx`, `.cjs`
+and `.mjs`. `languages.py` holds that list, and the `--help` text of `crap` and
+`cc-check` prints it from there. The README and the skills name the same six,
+and a test fails when a paragraph names some of them but not all.
+
+Nothing that is scanned or scored changes. The two suffixes missing from the
+TypeScript addendum have been counted since v0.7.0, so a consumer needs no action
+when bumping the pin.

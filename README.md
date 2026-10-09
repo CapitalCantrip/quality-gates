@@ -152,9 +152,10 @@ to run after each function is written. It counts with radon, the same counter
 CRAP uses, so the two numbers agree. ruff's C901 skips boolean operators and
 comprehensions and can score the same function several points lower; don't use
 it as the gate. Takes any number of files and directories in one run:
-`cc-check src tests`. `--lang typescript` counts `.ts`, `.tsx`, `.js` and `.jsx`
-with lizard instead. With `--baseline FILE` it fails only on functions that are
-new or worse than the baseline; see [Adopting the ratchet](#adopting-the-ratchet).
+`cc-check src tests`. `--lang typescript` counts `.ts`, `.tsx`, `.js`, `.jsx`,
+`.cjs` and `.mjs` with lizard instead. With `--baseline FILE` it fails only on
+functions that are new or worse than the baseline; see
+[Adopting the ratchet](#adopting-the-ratchet).
 
 ### `crap`: complexity weighted by missing tests
 

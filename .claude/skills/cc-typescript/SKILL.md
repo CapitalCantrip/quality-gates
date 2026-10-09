@@ -6,8 +6,8 @@ description: >
 
 # /cc-typescript — TypeScript and JavaScript Cyclomatic Complexity Check
 
-Runs `cc-check --lang typescript` against `.ts`, `.tsx`, `.js` and `.jsx` files
-and reports functions above the complexity threshold. lizard counts; the reasons
+Runs `cc-check --lang typescript` against `.ts`, `.tsx`, `.js`, `.jsx`, `.cjs` and
+`.mjs` files and reports functions above the complexity threshold. lizard counts; the reasons
 are in ADR-001's TypeScript addendum.
 
 ## Invocation

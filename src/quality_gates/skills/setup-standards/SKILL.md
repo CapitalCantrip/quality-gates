@@ -69,7 +69,7 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 Detect the languages: Python (`pyproject.toml`, `setup.py` or `.py` files
 outside `.venv`), Swift (`Package.swift`, an `.xcodeproj` or `.swift` files),
 Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
-`.js` or `.jsx` files outside `node_modules`). Do every block that applies.
+`.js`, `.jsx`, `.cjs` or `.mjs` files outside `node_modules`). Do every block that applies.
 
 - **All projects:** add the pinned requirement to the project's dev
   dependencies (Python), or to the CI install step (others), replacing any

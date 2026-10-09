@@ -2,13 +2,14 @@
 import argparse
 import json
 import sys
+import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
 from quality_gates import complexity_scan, ratchet
 from quality_gates.errors import ToolError, run_gate
-from quality_gates.languages import COVERAGE_FORMATS, LANGUAGES, CoverageFormat, CoverageOf
+from quality_gates.languages import COVERAGE_FORMATS, LANGUAGES, CoverageFormat, CoverageOf, Language
 
 FAIL_THRESHOLD = 8.0
 WARN_THRESHOLD = 5.0
@@ -16,14 +17,31 @@ LABEL_WIDTH = 50
 TAG = "[crap] "
 ASSUMED_ZERO = "assumed-zero"
 
-USAGE = """\
+USAGE_WIDTH = 79
+USAGE_INDENT = "  "
+LANGUAGE_NAME_WIDTH = 12
+
+
+def _language_entry(name: str, language: Language) -> str:
+    detail = f"CC from {language.counter} ({language.suffix_text}), coverage from {language.coverage_from}"
+    return textwrap.fill(
+        detail,
+        width=USAGE_WIDTH,
+        initial_indent=f"{USAGE_INDENT}{name:<{LANGUAGE_NAME_WIDTH}}",
+        subsequent_indent=" " * (len(USAGE_INDENT) + LANGUAGE_NAME_WIDTH),
+        break_on_hyphens=False,
+    )
+
+
+def _languages_usage() -> str:
+    entries = [_language_entry(name, language) for name, language in LANGUAGES.items()]
+    return "Languages:\n" + "\n".join(entries)
+
+
+USAGE = f"""\
 A fully covered function scores its CC; an uncovered one scores CC² + CC.
 
-Languages:
-  python      CC from radon, coverage from `coverage json`
-  swift       CC from lizard, coverage from an Xcode .xcresult bundle via xcrun xccov
-  typescript  CC from lizard (.ts .tsx .js .jsx), coverage from Istanbul's
-              coverage-final.json, written by Vitest and Jest
+{_languages_usage()}
 
 Examples:
   coverage run -m unittest && coverage json

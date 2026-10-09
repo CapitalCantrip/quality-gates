@@ -22,7 +22,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 
 ## Steps
 
-1. Detect language from project context (`Cargo.toml` → Rust; `.swift` files → Swift; `package.json` or `.ts`/`.tsx`/`.js`/`.jsx` files → TypeScript; else Python).
+1. Detect language from project context (`Cargo.toml` → Rust; `.swift` files → Swift; `package.json` or `.ts`/`.tsx`/`.js`/`.jsx`/`.cjs`/`.mjs` files → TypeScript; else Python).
 2. **Rust** — no coverage file needed; proceed to step 3.
    **Python** — look for `coverage.json` (`coverage run -m pytest && coverage json`).
    **Swift** — look for `.xcresult` bundle (`xcodebuild test --resultBundlePath ...`).
@@ -85,7 +85,7 @@ The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverag
 
 1. Record the debt once: `crap --lang python <dirs> --coverage-json coverage.json --baseline crap-baseline.json --update`. Commit the file.
 2. Add a test that runs after coverage is collected and calls `crap.main([...same flags without --update...])`, asserting `SystemExit` code 0, so CI enforces it.
-3. Keys are `path::name`; a repeated name in a file is keyed `path::name#2`. Python names are dotted from the outside in (`Class.method`, `outer.inner`, `K.Inner.deep`) and classes are not scored (ADR-001, 2026-10-09 addendum).
+3. Baseline keys and function names follow ADR-001.
 4. A new or worse function fails; a lowered score fails until `--update` records it. `--update` never raises a score or adds a function.
 
 ## Exit codes (Python / Swift / TypeScript)

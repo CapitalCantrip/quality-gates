@@ -1,8 +1,10 @@
 import json
+import re
 import tempfile
 import unittest
 from pathlib import Path
 
+from quality_gates import languages
 from quality_gates import project_files as pf
 
 
@@ -106,6 +108,39 @@ class ProjectFiles(unittest.TestCase):
     def test_claude_md_is_created_when_the_project_has_neither_file(self):
         self.sync()
         self.assertEqual((self.root / "CLAUDE.md").read_text(), pf.ASKING_LINE + "\n")
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SKILLS = ROOT / "src/quality_gates/skills"
+DOCUMENTS = [ROOT / "README.md", ROOT / "docs/adr/ADR-001-complexity-standards.md", *sorted(SKILLS.rglob("*.md"))]
+TYPESCRIPT_SUFFIXES = languages.LANGUAGES["typescript"].suffixes
+
+
+def paragraphs(text):
+    return [paragraph for paragraph in re.split(r"\n\s*\n", text) if paragraph.strip()]
+
+
+def suffixes_named(paragraph):
+    return {suffix for suffix in TYPESCRIPT_SUFFIXES if re.search(re.escape(suffix) + r"\b", paragraph)}
+
+
+class DocumentedSuffixes(unittest.TestCase):
+    def test_a_paragraph_naming_two_or_more_typescript_suffixes_names_all_of_them(self):
+        partial = [
+            f"{path.relative_to(ROOT)}: {' '.join(paragraph.split())[:70]}"
+            for path in DOCUMENTS
+            for paragraph in paragraphs(path.read_text(encoding="utf-8"))
+            if 2 <= len(suffixes_named(paragraph)) < len(TYPESCRIPT_SUFFIXES)
+        ]
+        self.assertEqual(partial, [])
+
+    def test_the_crap_and_cc_python_skills_cite_adr_001_instead_of_restating_its_names(self):
+        for skill in ("crap", "cc-python"):
+            with self.subTest(skill):
+                text = (SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
+                self.assertIn("ADR-001", text)
+                for restated in ("K.Inner.deep", "outer.inner", "#2"):
+                    self.assertNotIn(restated, text)
 
 
 if __name__ == "__main__":

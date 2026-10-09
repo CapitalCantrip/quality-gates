@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 import tempfile
 import unittest
 from argparse import Namespace
@@ -9,7 +10,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from quality_gates import complexity_scan, crap
+from quality_gates import complexity_scan, crap, languages
 from quality_gates import xccov as xccov_reader
 
 
@@ -316,6 +317,26 @@ class SwiftGateTest(unittest.TestCase):
     def test_swift_without_coverage_scores_worst_case(self):
         _, functions = self.gate([lizard_row("load", 4, 10, 30)], "--no-coverage")
         self.assertEqual([(f["coverage"], f["crap"]) for f in functions], [(0.0, 20)])
+
+
+class HelpTest(unittest.TestCase):
+    def flat_help(self):
+        code, out, _ = call(["--help"])
+        self.assertEqual(code, 0)
+        return " ".join(out.split())
+
+    def test_help_lists_every_suffix_of_every_language(self):
+        flat = self.flat_help()
+        for language in languages.LANGUAGES.values():
+            for suffix in language.suffixes:
+                with self.subTest(suffix):
+                    self.assertRegex(flat, re.escape(suffix) + r"\b")
+
+    def test_help_names_each_language_counter_with_the_suffixes_it_reads(self):
+        flat = self.flat_help()
+        for language in languages.LANGUAGES.values():
+            with self.subTest(language.label):
+                self.assertIn(f"CC from {language.counter} ({language.suffix_text})", flat)
 
 
 if __name__ == "__main__":

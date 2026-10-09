@@ -9,13 +9,31 @@ from quality_gates.errors import run_gate
 
 AGENT_CC_CEILING = 8
 ERROR_TAG = "ERROR: "
+DEFAULT_LANG = "python"
+
+
+def _cc_check_items():
+    return [(name, languages.LANGUAGES[name]) for name in languages.CC_CHECK_LANGUAGES]
+
+
+def _description() -> str:
+    labels = " and ".join(language.label for _, language in _cc_check_items())
+    return f"Cyclomatic complexity reporter for {labels} code"
+
+
+def _lang_help() -> str:
+    counts = "; ".join(
+        f"{name} counts {language.suffix_text} with {language.counter}"
+        for name, language in _cc_check_items()
+    )
+    return f"{counts} (default: {DEFAULT_LANG})"
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(description="Cyclomatic complexity reporter for Python and TypeScript code")
+    parser = argparse.ArgumentParser(description=_description())
     parser.add_argument(
-        "--lang", choices=languages.CC_CHECK_LANGUAGES, default="python",
-        help="python counts with radon; typescript counts .ts .tsx .js .jsx with lizard (default: python)",
+        "--lang", choices=languages.CC_CHECK_LANGUAGES, default=DEFAULT_LANG,
+        help=_lang_help(),
     )
     parser.add_argument("paths", nargs="+", metavar="path", help="files or directories to analyse")
     parser.add_argument(
