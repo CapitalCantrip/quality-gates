@@ -19,7 +19,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.4"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.0"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -171,14 +171,19 @@ a function scores its CC; uncovered, CC² + CC. Coverage needed to pass at 8:
 | Coverage | 0% | 18% | 37% | 51% | 62% | 73% | 100% |
 
 It runs once per ticket, after the functions are written and their tests exist.
-Python coverage comes from `coverage json`; Swift from an Xcode `.xcresult`
-bundle; TypeScript and JavaScript from Istanbul's `coverage-final.json`
-(`--istanbul-json`), which Vitest and Jest write. Functions that share a start
-line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10
-addendum on shared start lines. Without coverage (`--no-coverage`) every function
-at CC 3 or above fails, so that mode ranks functions by risk and is never read as
-pass/fail. `crap` takes `--baseline FILE` too, and refuses it without
-coverage (exit 2).
+Python coverage comes from `coverage json`. Swift coverage comes from an Xcode
+`.xcresult` bundle (`--xcresult`) or, in a SwiftPM package, from the llvm-cov
+export JSON that `swift test --enable-code-coverage` writes, passed as
+`--llvm-cov-json "$(swift test --show-codecov-path)"`; that needs no Xcode and
+runs on Linux. The export records absolute paths and only an exact path
+matches, so measure coverage and run `crap` in the same checkout (ADR-001's
+addendum "SwiftPM coverage (v0.8.0)"). TypeScript and JavaScript coverage comes
+from Istanbul's `coverage-final.json` (`--istanbul-json`), which Vitest and Jest
+write. Functions that share a start line are matched to their Istanbul entries
+by the rule in ADR-001's 2026-10-10 addendum on shared start lines. Without
+coverage (`--no-coverage`) every function at CC 3 or above fails, so that mode
+ranks functions by risk and is never read as pass/fail. `crap` takes
+`--baseline FILE` too, and refuses it without coverage (exit 2).
 
 ### What both gates score
 

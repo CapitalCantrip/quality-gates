@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.8.0 — 2026-10-10
+
+`crap --lang swift` reads SwiftPM coverage (#6, ADR-001 addendum "SwiftPM
+coverage (v0.8.0)"). The new `--llvm-cov-json FILE` takes the llvm-cov export
+JSON that `swift test --enable-code-coverage` writes, so a SwiftPM package with
+tests gets a Swift CRAP gate instead of worst-case scores. It needs neither
+Xcode nor `xcrun`, so it runs on Linux too. A function's coverage is the line
+figure `llvm-cov report --show-functions` prints for it. A report file matches
+only lizard's exact path, so coverage must be measured in the same checkout
+where `crap` runs; a report made in another checkout or container gives unknown
+coverage. A function whose lines hold the opening of another function's body
+gets unknown coverage rather than borrow it: two functions on one line both do,
+and so does a function that ends on the line where the next one opens, while
+that next one keeps its own figure. A closure or autoclosure default argument
+on the line of the function's `{` gives unknown coverage too; move it to a line
+above the `{`. `--xcresult` is unchanged. Giving another language's
+coverage flag now names both Swift flags in the error.
+
+**When you bump the pin:** run `qg-skills`. In a SwiftPM package, replace
+`--no-coverage` in CI with these two commands, run in the same checkout:
+
+```bash
+swift test --enable-code-coverage
+crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json
+```
+
+Record the baseline once by running the same two commands with `--update`
+added, on the platform CI runs on, and commit `crap-baseline.json`. An Xcode
+project needs to do nothing else.
+
 ## 0.7.4 — 2026-10-10
 
 Housekeeping: no score, threshold or scanned file changes (#47, #48).

@@ -267,3 +267,93 @@ and a test fails when a paragraph names some of them but not all.
 Nothing that is scanned or scored changes. The two suffixes the TypeScript addendum
 did not name until this note have been counted since v0.7.0, so a consumer needs no
 action when bumping the pin.
+
+## Addendum 2026-10-10: SwiftPM coverage (v0.8.0)
+
+The limits above are unchanged. Swift CRAP now reads coverage from a SwiftPM
+package as well as from an Xcode project, so a SwiftPM package with tests has a
+CRAP gate rather than a worst-case ranking. This supersedes the Consequences
+line that left SwiftPM's Swift CRAP worst-case and informational.
+
+| Project | Flag | Coverage report |
+|---|---|---|
+| Xcode | `--xcresult` | `.xcresult` bundle, read through `xcrun xccov`; unchanged |
+| SwiftPM | `--llvm-cov-json` | the llvm-cov export JSON that `swift test --enable-code-coverage` writes, at `swift test --show-codecov-path` |
+
+The SwiftPM reader needs neither Xcode nor `xcrun`, so it also runs on Linux.
+Its JSON `coverage_source` is `llvm-cov-json`.
+
+**A Function's coverage is llvm-cov's per-function line figure,** the Lines
+column `llvm-cov report --show-functions` prints for it. It is the share of the
+executable lines in the function's body that ran, worked out from that
+function's own regions by llvm-cov's own rules. On the committed fixture every
+function's figure equals that column. It is the per-function line measure
+xccov reports too; the two were not compared function by function.
+
+**Matching a Function to its llvm-cov body:**
+
+- **The file is the report file at lizard's exact resolved path,** with the
+  report's paths resolved too, so a symlinked path still matches. Any other
+  file has unknown coverage. llvm-cov records absolute paths, so coverage has
+  to be measured in the same checkout where `crap` runs: a report made in
+  another checkout or a container gives every function unknown coverage.
+- **The body is the one that ends last among those opening within lizard's
+  lines** for the Function, and of those the one that opens first. llvm-cov
+  starts a body at its `{`, while lizard starts a Function at `func`. An
+  attribute line above (`@discardableResult`) is outside both. A signature over
+  several lines puts the `{` below lizard's start, still inside its lines.
+  llvm-cov lists a closure or autoclosure as a function of its own. One inside
+  the body ends before the body does. A closure default argument in a signature
+  over several lines opens before the body's `{` but also ends before it. So
+  neither is taken for its holder. No body inside the lines means unknown
+  coverage.
+- **A Function whose lines hold the opening of another function's body has
+  unknown coverage,** when that body shares a line with its own. Two functions
+  on one line both do. A function that ends on the line where the next one
+  opens does, and the next one keeps its own figure, because the first body
+  opens outside its lines. If another body within lizard's lines shares a line
+  with the chosen one and does not nest inside it, the regions cannot say
+  which body is this Function's. Two functions on one line are the common
+  case. Taking the
+  last-ending body there lends one function's coverage to the other: an
+  untested function passes beside a tested one, as #49 showed for xccov.
+  Unknown scores worst case, so the gate fails safe. A default argument that
+  llvm-cov lists as a function of its own, a closure (`= { _ in }`, `= {}`) or
+  an autoclosure (`= flagA && flagB`, `= x ?? nil`), also gives unknown
+  coverage when it ends on the line its function's `{` opens on, because
+  nothing in the regions tells it from a second function. The remedy is to put
+  the default argument on a line above the `{`. A literal default (`= 0`,
+  `= nil`, `= []`, `= .main`) has no body of its own and is unaffected.
+- **A function listed more than once,** as a generic specialisation or in more
+  than one export, is scored once. The listings are merged, and each line keeps
+  its highest count, so a line ran if any listing ran it. Listings are the same
+  body only when they open at the same line and column.
+- **A closure or nested `func` is scored on its own regions,** and its own
+  counts do not reach the function that holds it. In the holder's figure, its
+  lines carry the holder's count, as they do in llvm-cov's figure.
+  A nested `func` that never ran therefore scores 0 on its own and leaves its
+  holder's figure unchanged.
+
+### Rejected
+
+- **Matching on llvm-cov's mangled name.** It needs a Swift demangler, and
+  overloads and nested functions still have to be told apart by line.
+- **Matching a file by its name, or by its trailing folders and name,** so that
+  a report made in another checkout or container still matches. A report made
+  elsewhere can then lend a tested target's coverage to an untested one with
+  the same folder and file name, such as `Core/Models/Item.swift` and
+  `Admin/Models/Item.swift`, and hide a FAIL: the bug #49 records for xccov,
+  again. Measuring coverage and running `crap` in the same checkout costs
+  nothing a consumer's CI does not already do.
+- **Taking the body that opens first.** A closure default argument in a
+  signature over several lines opens first, and would be scored as the
+  function.
+- **Region coverage,** llvm-cov's headline figure. The two Swift formats would
+  then measure different things for the same code.
+- **Counting a closure's own counts against the function that holds it,**
+  because lizard counts a closure's branches in its holder's CC. llvm-cov's
+  and xccov's per-function figures do not do this, so the two Swift flags
+  would score the same code differently.
+- **Running `llvm-cov export` inside `crap` from the `.profdata`.** It needs the
+  test binary's path and the toolchain on the machine; `swift test` already
+  writes the JSON.

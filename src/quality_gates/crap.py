@@ -50,13 +50,13 @@ Examples:
   xcodebuild test -scheme MyScheme -resultBundlePath /tmp/MyScheme.xcresult
   crap --lang swift Sources/ --xcresult /tmp/MyScheme.xcresult
 
+  swift test --enable-code-coverage
+  crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
+
   vitest run --coverage --coverage.reporter=json
   crap --lang typescript src/ --istanbul-json coverage/coverage-final.json
 
   crap --lang python src/ --no-coverage    worst-case ranking, not a gate
-
-SwiftPM's `swift test --enable-code-coverage` writes .profdata, not .xcresult;
-use --no-coverage for SwiftPM packages.
 
 Exit codes:
   0  no function scores above --threshold
@@ -64,7 +64,8 @@ Exit codes:
   2  tool error: missing dependency, bad input, or no functions found
 
 Dependencies: radon (Python CC), coverage (Python coverage), lizard (Swift and
-TypeScript CC), xcrun xccov (Swift coverage, from Xcode).
+TypeScript CC), xcrun xccov (Swift coverage from Xcode; not needed for
+--llvm-cov-json).
 """
 
 

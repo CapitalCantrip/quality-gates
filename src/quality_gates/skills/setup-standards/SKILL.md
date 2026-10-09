@@ -14,10 +14,10 @@ engineering knowledge. Run on a set-up project, every step finds its work
 already in place and changes nothing, so this is also the upgrade after a pin
 bump.
 
-The pin this skill belongs to: `v0.7.4`. Install line, used in step 2:
+The pin this skill belongs to: `v0.8.0`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.7.4"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.0"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`
@@ -79,10 +79,10 @@ Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
 - **Python:** `comment-debt`, `cc-check`, `crap`. The `/no-comments` skill
   describes the comment gate.
 - **Swift:** the complexity gate is SwiftLint's `cyclomatic_complexity` block,
-  exactly as `/cc-swift` gives it, in `.swiftlint.yml`. CRAP needs an Xcode
-  `.xcresult`: an Xcode project gets it as `/crap` describes; a SwiftPM-only
-  package cannot yet (quality-gates issue #6), so report CRAP as not done with
-  that reason.
+  exactly as `/cc-swift` gives it, in `.swiftlint.yml`. The CRAP gate is
+  `crap --lang swift`, reading coverage as `/crap` describes: an Xcode project
+  from its `.xcresult` bundle (`--xcresult`), a SwiftPM package from the
+  llvm-cov export JSON its tests write (`--llvm-cov-json`).
 - **Rust:** run the setup steps of `/cc-rust`: `clippy.toml` and the deny
   attributes.
 - **TypeScript / JavaScript:** `cc-check --lang typescript` and
@@ -108,8 +108,11 @@ from the repo root and commit the file it writes.
   Add `coverage.json` and `.coverage` to `.gitignore`.
 - **Swift:** run SwiftLint. Each function already over the limit gets
   `// swiftlint:disable:next cyclomatic_complexity` above it; that pragma is its
-  baseline entry. With an `.xcresult`, record `crap --lang swift` with
-  `--baseline crap-baseline.json --update`.
+  baseline entry. Then record CRAP from the project's coverage. In a SwiftPM
+  package, run `swift test --enable-code-coverage`, then
+  `crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json --update`.
+  In an Xcode project with an `.xcresult`, run
+  `crap --lang swift <source dirs> --xcresult <bundle> --baseline crap-baseline.json --update`.
 - **TypeScript / JavaScript:**
   `cc-check --lang typescript <source dirs> --baseline cc-baseline.json --update`;
   collect coverage as in step 2 and run
@@ -155,7 +158,20 @@ Make CI enforce what the hooks enforce, plus the slow gates.
 - **Rust:** a CI step running `cargo clippy --all-targets`.
 - **TypeScript / JavaScript:** the steps in [ci-typescript.md](ci-typescript.md).
 - **Swift:** a CI step running SwiftLint, on a macOS runner. If the project has
-  no macOS CI job, report this as not done and say what it would cost.
+  no macOS CI job, report this as not done and say what it would cost. A
+  SwiftPM package also gets a CRAP step, which runs on Linux or macOS. Put it
+  on the one the baseline was recorded on, and run both commands in the same
+  job:
+
+  ```bash
+  swift test --enable-code-coverage
+  crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json
+  ```
+
+  A function under `#if os(macOS)` or `canImport(UIKit)` has no coverage
+  record on Linux, so it scores worst case there. A report made in another
+  checkout or container gives every function unknown coverage, because `crap`
+  matches a report file only at its exact path.
 - If the project has no CI workflow, add `.github/workflows/tests.yml` that
   installs the project, runs the tests and the steps above, on pull requests
   and pushes to the default branch.

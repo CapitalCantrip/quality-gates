@@ -1,5 +1,6 @@
 import argparse
 import os
+import tempfile
 import unittest
 from pathlib import Path
 from subprocess import CompletedProcess
@@ -13,12 +14,26 @@ ROOT = Path(__file__).resolve().parents[1]
 PYTHON_REPORT = "tests/fixtures/python/coverage-report.json"
 PYTHON_SAMPLE = "tests/fixtures/python/sample.py"
 SWIFT_REPORT = ROOT / "tests/fixtures/swift/xccov-report.json"
+SWIFTPM_REPORT_AS_BUILT = ROOT / "tests/fixtures/swift/llvm-cov-export.json"
+SWIFTPM_PACKAGE_IN_THIS_CHECKOUT = ROOT / "tests/fixtures/swift/package"
+SWIFTPM_BUILT_IN_ANOTHER_CHECKOUT_AT = "/ci/SwiftCovFixture"
+SWIFTPM_STORE = "tests/fixtures/swift/package/Sources/Grades/Store.swift"
 TYPESCRIPT_REPORT = "tests/fixtures/typescript/coverage-final.json"
 TYPESCRIPT_SAMPLE = "tests/fixtures/typescript/sample.ts"
 
 
-def reader(lang):
-    return languages.LANGUAGES[lang].coverage[0].read
+def swiftpm_report_measured_in_this_checkout(test):
+    tmp = tempfile.TemporaryDirectory()
+    test.addCleanup(tmp.cleanup)
+    path = Path(tmp.name) / "llvm-cov-export.json"
+    text = SWIFTPM_REPORT_AS_BUILT.read_text(encoding="utf-8")
+    path.write_text(text.replace(SWIFTPM_BUILT_IN_ANOTHER_CHECKOUT_AT, str(SWIFTPM_PACKAGE_IN_THIS_CHECKOUT)), encoding="utf-8")
+    return str(path)
+
+
+def reader(flag):
+    formats = {coverage.flag: coverage for language in languages.LANGUAGES.values() for coverage in language.coverage}
+    return formats[flag].read
 
 
 class LanguageRecordTest(unittest.TestCase):
@@ -62,12 +77,13 @@ class LanguageRecordTest(unittest.TestCase):
 
     def test_coverage_flags_are_offered_in_language_order(self):
         flags = [coverage.flag for coverage in languages.COVERAGE_FORMATS]
-        self.assertEqual(flags, ["--coverage-json", "--xcresult", "--istanbul-json"])
+        self.assertEqual(flags, ["--coverage-json", "--xcresult", "--llvm-cov-json", "--istanbul-json"])
 
     def test_each_coverage_format_names_its_own_json_source_tag(self):
         sources = {coverage.flag: coverage.source for coverage in languages.COVERAGE_FORMATS}
         self.assertEqual(sources, {
-            "--coverage-json": "coverage-json", "--xcresult": "xcresult", "--istanbul-json": "istanbul-json",
+            "--coverage-json": "coverage-json", "--xcresult": "xcresult", "--llvm-cov-json": "llvm-cov-json",
+            "--istanbul-json": "istanbul-json",
         })
 
     def test_each_coverage_format_stores_its_report_where_argparse_would_by_default(self):
@@ -87,24 +103,29 @@ class CoverageReaderTest(unittest.TestCase):
         return patch.object(xccov, "run", return_value=CompletedProcess([], 0, stdout=stdout, stderr=""))
 
     def test_python_coverage_is_the_branch_coverage_within_the_functions_lines(self):
-        coverage_of = reader("python")(PYTHON_REPORT)
+        coverage_of = reader("--coverage-json")(PYTHON_REPORT)
         self.assertEqual(coverage_of(Function(PYTHON_SAMPLE, "grade", 2, 1, 4, "grade")), 0.5)
 
     def test_swift_coverage_is_matched_by_the_name_before_its_label_and_the_start_line(self):
         with self.xccov():
-            coverage_of = reader("swift")("App.xcresult")
+            coverage_of = reader("--xcresult")("App.xcresult")
         self.assertEqual(coverage_of(Function("Sources/Store.swift", "load#2", 3, 20, 30, "load")), 0.25)
 
+    def test_swiftpm_coverage_is_the_line_coverage_of_the_llvm_cov_body_that_opens_inside_the_function(self):
+        coverage_of = reader("--llvm-cov-json")(swiftpm_report_measured_in_this_checkout(self))
+        self.assertAlmostEqual(coverage_of(Function(SWIFTPM_STORE, "add", 3, 6, 16, "add")), 9 / 11)
+
     def test_typescript_coverage_is_the_branch_coverage_within_istanbuls_function_range(self):
-        coverage_of = reader("typescript")(TYPESCRIPT_REPORT)
+        coverage_of = reader("--istanbul-json")(TYPESCRIPT_REPORT)
         self.assertEqual(coverage_of(Function(TYPESCRIPT_SAMPLE, "grade", 5, 1, 10, "grade")), 0.875)
 
     def test_a_function_in_a_file_the_report_does_not_cover_has_unknown_coverage(self):
         with self.xccov():
             readers = {
-                "python": reader("python")(PYTHON_REPORT),
-                "swift": reader("swift")("App.xcresult"),
-                "typescript": reader("typescript")(TYPESCRIPT_REPORT),
+                "python": reader("--coverage-json")(PYTHON_REPORT),
+                "swift": reader("--xcresult")("App.xcresult"),
+                "swiftpm": reader("--llvm-cov-json")(swiftpm_report_measured_in_this_checkout(self)),
+                "typescript": reader("--istanbul-json")(TYPESCRIPT_REPORT),
             }
         for lang, coverage_of in readers.items():
             with self.subTest(lang):
