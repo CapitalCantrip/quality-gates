@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.8.0 — 2026-10-10
+
+`crap --lang swift` reads SwiftPM coverage (#6, ADR-001 addendum of
+2026-10-10). The new `--llvm-cov-json FILE` takes the llvm-cov export JSON that
+`swift test --enable-code-coverage` writes, so a SwiftPM package with tests gets
+a Swift CRAP gate instead of worst-case scores. It needs neither Xcode nor
+`xcrun`, so it runs on Linux too. A function's coverage is its line coverage,
+the measure `--xcresult` reports; the ADR addendum gives the matching rules.
+`--xcresult` is unchanged. Giving another language's coverage flag now names
+both Swift flags in the error.
+
+**When you bump the pin:** run `qg-skills`. In a SwiftPM package, replace
+`--no-coverage` in your hook and CI with:
+
+```bash
+swift test --enable-code-coverage
+crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
+```
+
+Add `--baseline crap-baseline.json`, and record it once with `--update`, if
+existing functions fail. An Xcode project needs do nothing else.
+
 ## 0.7.1 — 2026-10-10
 
 One coverage seam in `crap` (#46, architecture review change 2; the review is
