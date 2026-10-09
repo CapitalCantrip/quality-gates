@@ -12,7 +12,7 @@ the measure `--xcresult` reports; the ADR addendum gives the matching rules.
 both Swift flags in the error.
 
 **When you bump the pin:** run `qg-skills`. In a SwiftPM package, replace
-`--no-coverage` in your hook and CI with:
+`--no-coverage` in CI with:
 
 ```bash
 swift test --enable-code-coverage

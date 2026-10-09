@@ -232,23 +232,26 @@ function's figure equals that column.
 
 **Matching a Function to its llvm-cov body:**
 
-- **The file is the report file at lizard's resolved path, if there is one.**
-  Otherwise it is the one report file that shares the longest run of trailing
-  path parts with lizard's path, and that run must be at least two parts long:
-  the folder and the file name. llvm-cov records absolute build paths, which
-  differ from a checkout's, so the paths are compared from the file name
-  upwards. A file name alone is never enough. Fewer than two shared parts, or
-  two report files sharing the same longest run, means unknown coverage rather
-  than a guess. For example, `Sources/Untested/Grade.swift` does not take the
-  figures of `Sources/Grades/Grade.swift`. Matching by bare name or stem is the
-  bug #49 records for xccov.
-- **The body is the one that opens first within lizard's lines** for the
-  Function, the outermost when two open on the same line. llvm-cov starts a
-  body at its `{`, while lizard starts a Function at `func`. An attribute line
-  above (`@discardableResult`) is outside both. A signature over several lines
-  puts the `{` below lizard's start, still inside its lines. A closure or
-  autoclosure, which llvm-cov lists as a function of its own, opens later, so
-  it is never taken for its holder. No body inside the lines means unknown
+- **The file is the report file at lizard's resolved path.** When the report
+  was made in this checkout, its paths are this machine's paths, and only the
+  exact path matches. A report made in another checkout or a container records
+  paths that do not exist here. Only then does a report file whose own path does
+  not exist on this machine match by its trailing path parts: it must be the one
+  such file sharing the longest run with lizard's path, and that run must be at
+  least two parts long, the folder and the file name. A file name alone is never
+  enough. Anything else means unknown coverage rather than a guess. For example,
+  in the same checkout `Sources/Extra/Models/Item.swift`, in a target the tests
+  never compiled, does not take the figures of `Sources/Core/Models/Item.swift`.
+  Matching by bare name or stem is the bug #49 records for xccov.
+- **The body is the one that ends last among those opening within lizard's
+  lines** for the Function, and of those the one that opens first. llvm-cov
+  starts a body at its `{`, while lizard starts a Function at `func`. An
+  attribute line above (`@discardableResult`) is outside both. A signature over
+  several lines puts the `{` below lizard's start, still inside its lines.
+  llvm-cov lists a closure or autoclosure as a function of its own. One inside
+  the body ends before the body does. A closure default argument in a signature
+  over several lines opens before the body's `{` but also ends before it. So
+  neither is taken for its holder. No body inside the lines means unknown
   coverage.
 - **A function listed more than once,** as a generic specialisation or in more
   than one export, is scored once. The listings are merged, and each line keeps
@@ -263,9 +266,13 @@ function's figure equals that column.
 
 - **Matching on llvm-cov's mangled name.** It needs a Swift demangler, and
   overloads and nested functions still have to be told apart by line.
-- **Matching a file by its name alone when the name is unique in the report.**
-  A file the tests never compiled would take the figures of a different file
-  that happens to share its name.
+- **Matching a file by its name alone when the name is unique in the report,**
+  or by a shared tail when the report's path exists on this machine. A file the
+  tests never compiled would take the figures of a different file that happens
+  to share its name, or its folder and name, and hide a FAIL.
+- **Taking the body that opens first.** A closure default argument in a
+  signature over several lines opens first, and would be scored as the
+  function.
 - **Region coverage,** llvm-cov's headline figure. The two Swift formats would
   then measure different things for the same code.
 - **Counting a closure's own counts against the function that holds it,**

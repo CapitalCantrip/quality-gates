@@ -271,5 +271,8 @@ package's coverage from the llvm-cov export JSON that
 `swift test --enable-code-coverage` writes, through `--llvm-cov-json`. The
 sentence above about SwiftPM getting no CRAP gate until issue #6 no longer
 holds: `/setup-standards` gives a SwiftPM-only package a CRAP gate and a
-baseline, and its CI step runs on Linux as well as macOS. ADR-001's addendum
-of the same date records how a Function's figure is worked out and matched.
+baseline, and its CI step runs on Linux as well as macOS. The CRAP step runs
+on the platform the baseline was recorded on: a function under `#if os(macOS)`
+or `canImport(UIKit)` has no coverage record on Linux and scores worst case
+there. ADR-001's addendum of the same date records how a Function's figure is
+worked out and matched.

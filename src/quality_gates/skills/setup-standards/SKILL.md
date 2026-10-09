@@ -166,6 +166,10 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   swift test --enable-code-coverage
   crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json
   ```
+
+  Run the CRAP step on the platform the baseline was recorded on. A function
+  under `#if os(macOS)` or `canImport(UIKit)` has no coverage record on Linux,
+  so it scores worst case there.
 - If the project has no CI workflow, add `.github/workflows/tests.yml` that
   installs the project, runs the tests and the steps above, on pull requests
   and pushes to the default branch.
