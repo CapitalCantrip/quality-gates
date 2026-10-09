@@ -14,6 +14,8 @@ ROOT = Path(__file__).resolve().parents[1]
 FIXTURES = "tests/fixtures/typescript"
 COVERAGE = f"{FIXTURES}/coverage-final.json"
 SAMPLE = f"{FIXTURES}/sample.ts"
+SAME_LINE = f"{FIXTURES}/same_line.js"
+SAME_LINE_COVERAGE = f"{FIXTURES}/coverage-same-line.json"
 
 
 def run_main(main, argv):
@@ -86,6 +88,66 @@ class IstanbulCoverageTest(InRepoRoot):
         code, _, err = run_main(crap.main, ["--lang", "typescript", SAMPLE, "--istanbul-json", "no/such.json"])
         self.assertEqual(code, 2)
         self.assertEqual(err, "[crap] cannot open Istanbul coverage file: [Errno 2] No such file or directory: 'no/such.json'\n")
+
+
+def span_entry(line, last):
+    return {
+        "decl": {"start": {"line": line}},
+        "loc": {"start": {"line": line}, "end": {"line": last}},
+    }
+
+
+class SameLineFunctionsTest(InRepoRoot):
+    def setUp(self):
+        super().setUp()
+        report = istanbul.load(SAME_LINE_COVERAGE)
+        self.entry = report[str(ROOT / SAME_LINE)]
+
+    def span(self, start, end):
+        return istanbul.function_range(self.entry, start, end)
+
+    def test_a_callback_sharing_its_holders_line_is_scored_over_its_own_lines(self):
+        self.assertEqual(self.span(3, 3), (3, 3))
+
+    def test_the_holder_that_wraps_onto_a_second_line_keeps_both_lines(self):
+        self.assertEqual(self.span(3, 4), (3, 4))
+
+    def test_the_issues_one_line_callback_and_its_holder_are_both_scored_over_that_line(self):
+        self.assertEqual(self.span(1, 1), (1, 1))
+
+    def test_the_second_of_two_functions_on_one_line_is_matched_to_its_own_entry(self):
+        self.assertEqual(self.span(6, 11), (6, 11))
+
+    def test_the_first_of_two_functions_on_one_line_is_matched_to_its_own_entry(self):
+        self.assertEqual(self.span(6, 6), (6, 6))
+
+    def test_with_no_entry_ending_on_lizards_end_line_the_narrowest_entry_containing_it_is_used(self):
+        entry = {"fnMap": {"0": span_entry(1, 9), "1": span_entry(1, 5), "2": span_entry(1, 7)}}
+        self.assertEqual(istanbul.function_range(entry, 1, 4), (1, 5))
+
+    def test_with_no_entry_containing_lizards_end_line_the_first_entry_on_that_line_is_used(self):
+        entry = {"fnMap": {"0": span_entry(1, 8), "1": span_entry(1, 3)}}
+        self.assertEqual(istanbul.function_range(entry, 1, 10), (1, 8))
+
+    def test_an_entry_starting_on_another_line_is_never_matched(self):
+        entry = {"fnMap": {"0": span_entry(2, 4)}}
+        self.assertEqual(istanbul.function_range(entry, 1, 4), (1, 4))
+
+    def test_crap_scores_each_function_on_a_shared_line_over_its_own_lines(self):
+        code, out, _ = run_main(crap.main, [
+            "--lang", "typescript", SAME_LINE, "--istanbul-json", SAME_LINE_COVERAGE, "--json", "--min-cc", "1",
+        ])
+        scores = {(f["line"], f["name"]): (f["cc"], f["coverage"]) for f in json.loads(out)["functions"]}
+        self.assertEqual(code, 0)
+        self.assertEqual(scores, {
+            (1, "doubled"): (1, 0.5),
+            (1, "(anonymous)"): (2, 0.5),
+            (3, "bounded"): (1, 0.75),
+            (3, "(anonymous)#2"): (2, 0.5),
+            (4, "(anonymous)#3"): (2, 1.0),
+            (6, "first"): (2, 0.5),
+            (6, "second"): (2, 0.75),
+        })
 
 
 class CrapTypescriptTest(InRepoRoot):

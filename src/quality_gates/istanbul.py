@@ -19,11 +19,24 @@ def load(report_path: str) -> dict:
     return {str(Path(path).resolve()): entry for path, entry in data.items()}
 
 
+def _end_lines_starting_on(entry: dict, start: int) -> list:
+    return [
+        fn["loc"]["end"]["line"]
+        for fn in entry.get("fnMap", {}).values()
+        if fn["decl"]["start"]["line"] == start
+    ]
+
+
+def _matching_end(ends: list, lizard_end: int) -> int:
+    containing = [end for end in ends if end >= lizard_end]
+    return min(containing) if containing else ends[0]
+
+
 def function_range(entry: dict, start: int, fallback_end: int) -> tuple:
-    for fn in entry.get("fnMap", {}).values():
-        if fn["decl"]["start"]["line"] == start:
-            return start, fn["loc"]["end"]["line"]
-    return start, fallback_end
+    ends = _end_lines_starting_on(entry, start)
+    if not ends:
+        return start, fallback_end
+    return start, _matching_end(ends, fallback_end)
 
 
 def _in_range(line: int, span: tuple) -> bool:

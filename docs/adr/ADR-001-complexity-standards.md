@@ -207,3 +207,44 @@ closure, or a method of a nested class, each on its own.
 - **A flag to record new debt into a baseline on upgrade.** Consumers re-record
   their baselines once on the bump commit instead, so no flag exists that an
   agent could later use to accept debt quietly.
+
+## Addendum 2026-10-10: functions that share a start line (v0.7.3)
+
+The limits above are unchanged. This amends the TypeScript addendum's sentence
+that a function's lines come from Istanbul's `fnMap`, *matched to lizard by
+start line*. That rule is exact only when one function starts on a line. In
+`const f = () => xs.map(x => x ? 1 : 2)` lizard reports two functions at line
+1 and gives no column, so the first `fnMap` entry on that line was taken for
+both: a callback on the first line of a multi-line holder was scored over the
+holder's whole range, with the holder's branches and statements (#41).
+
+**Matching rule.** Among the `fnMap` entries whose declaration starts on
+lizard's start line, in this order:
+
+1. the entry whose end line equals lizard's end line;
+2. else the narrowest entry whose end line is at or after lizard's end line;
+3. else the first entry on that line, which is what 0.7.2 did, and the case
+   when lizard's end line runs past the real end because of type annotations.
+
+A function that is the only one starting on its line matches the same entry
+under all three, so its score is unchanged. Only the end lines of the entries
+matter, so entries that tie on end line give the same range.
+
+**The limit that remains.** Coverage is counted by line: a branch or statement
+belongs to a function when it starts inside the function's lines. A callback
+that shares a line with its holder, or with the function declared beside it,
+still counts that line's branches and statements, and the holder still counts
+the callback's. The rule fixes the range, not the overlap on a shared line.
+Two functions that start and end on the same line get the same coverage.
+
+**Effect.** TypeScript and JavaScript CRAP scores can change for functions that
+share a start line with another. No threshold, counting tool or gate coverage
+changes, and `cc-check` is untouched.
+
+### Rejected
+
+- **Matching by column.** lizard reports none, and Istanbul's columns are
+  unreliable under some reporters (v8 coverage gives a null end column).
+- **Attributing statements and branches to the narrowest enclosing function by
+  position.** It would remove the shared-line overlap, but needs columns on
+  the lizard side, which do not exist.
