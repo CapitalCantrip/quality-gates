@@ -21,7 +21,7 @@ class CoverageFormat:
 
     @property
     def dest(self) -> str:
-        return self.source.replace("-", "_")
+        return self.flag.lstrip("-").replace("-", "_")
 
 
 @dataclass(frozen=True)

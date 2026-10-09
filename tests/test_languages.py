@@ -1,6 +1,6 @@
+import argparse
 import os
 import unittest
-from dataclasses import fields
 from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
@@ -26,11 +26,16 @@ class LanguageRecordTest(unittest.TestCase):
         for name, language in languages.LANGUAGES.items():
             with self.subTest(name):
                 self.assertEqual(crap.build_parser().parse_args(["--lang", name]).lang, name)
+                self.assertTrue(language.label)
                 self.assertIn(language.counter, complexity_scan.COUNTING_TOOLS)
                 self.assertTrue(language.suffixes)
                 self.assertTrue(language.coverage)
+                if language.counter == languages.LIZARD:
+                    self.assertTrue(language.lizard_languages)
                 for coverage in language.coverage:
                     self.assertTrue(coverage.flag.startswith("--"))
+                    self.assertTrue(coverage.flag[len("--"):])
+                    self.assertTrue(coverage.source)
                     self.assertTrue(coverage.help)
                     self.assertTrue(callable(coverage.read))
 
@@ -56,7 +61,11 @@ class LanguageRecordTest(unittest.TestCase):
         self.assertEqual(sources, {
             "--coverage-json": "coverage-json", "--xcresult": "xcresult", "--istanbul-json": "istanbul-json",
         })
-        self.assertIn("source", [field.name for field in fields(languages.CoverageFormat)])
+
+    def test_each_coverage_format_stores_its_report_where_argparse_would_by_default(self):
+        for coverage in languages.COVERAGE_FORMATS:
+            with self.subTest(coverage.flag):
+                self.assertEqual(argparse.ArgumentParser().add_argument(coverage.flag).dest, coverage.dest)
 
 
 class CoverageReaderTest(unittest.TestCase):

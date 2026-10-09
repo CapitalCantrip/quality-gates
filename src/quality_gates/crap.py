@@ -286,7 +286,7 @@ def _check_results_empty(results: list, args, skipped: list) -> None:
     print(f"{TAG}{message}", file=sys.stderr)
 
 
-def _fn_to_dict(r: FunctionResult, cov_source: Optional[str]) -> dict:
+def _fn_to_dict(r: FunctionResult, cov_source: str) -> dict:
     return {
         "file":            r.file,
         "name":            r.name,
