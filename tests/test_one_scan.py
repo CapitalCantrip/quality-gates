@@ -13,34 +13,25 @@ from quality_gates import complexity_scan, crap
 from quality_gates import quality_check as qc
 
 ROOT = Path(__file__).resolve().parents[1]
+NESTED = (Path(__file__).parent / "fixtures/python/nested.py").read_text(encoding="utf-8")
 TS_FIXTURES = str(ROOT / "tests/fixtures/typescript")
 LIZARD_MISSING = "lizard is missing, though quality-gates depends on it.\n  Reinstall quality-gates in this environment.\n"
 RADON_MISSING = "radon is not installed.\n  Install with: pip3 install radon\n"
 
-NESTED = """\
-class K:
-    def m(self, x):
-        if x:
-            return 1
-        return 2
+SHARED_CLASS_IN_FUNCTION = """\
+def f(x):
+    class K:
+        def m(self, y):
+            def clos(z):
+                return 1 if z else 2
 
-    class Inner:
-        def deep(self, x):
-            if x:
-                return 1
-            return 2
+            class L:
+                def n(self, w):
+                    return 1 if w else 2
 
+            return clos(y)
 
-def outer(x):
-    def inner(y):
-        if y:
-            return 1
-        return 2
-    return inner(x) if x else 0
-
-
-def outer(x):
-    return 1 if x else 2
+    return K
 """
 
 
@@ -80,6 +71,12 @@ class SameFunctionsTest(InTempDir):
     def test_both_gates_list_the_same_python_functions_by_the_same_names(self):
         self.write("src/mod.py", NESTED)
         expected = {("src/mod.py", name) for name in ("K.m", "K.Inner.deep", "outer", "outer.inner", "outer#2")}
+        self.assertEqual(cc_names("src"), expected)
+        self.assertEqual(crap_names("--lang", "python", "src"), expected)
+
+    def test_both_gates_list_the_methods_of_classes_defined_inside_functions_by_the_same_names(self):
+        self.write("src/mod.py", SHARED_CLASS_IN_FUNCTION)
+        expected = {("src/mod.py", name) for name in ("f", "f.K.m", "f.K.m.clos", "f.K.m.L.n")}
         self.assertEqual(cc_names("src"), expected)
         self.assertEqual(crap_names("--lang", "python", "src"), expected)
 

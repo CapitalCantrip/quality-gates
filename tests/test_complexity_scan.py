@@ -10,26 +10,62 @@ from quality_gates import complexity_scan
 from quality_gates.errors import ToolError
 
 ROOT = Path(__file__).resolve().parents[1]
+NESTED = (Path(__file__).parent / "fixtures/python/nested.py").read_text(encoding="utf-8")
 TS_FIXTURES = "tests/fixtures/typescript"
 
-NESTED = """\
-def outer(x):
-    def inner(y):
-        if y:
-            return 1
-        return 2
-    return inner(x)
+CLASS_IN_FUNCTION = """\
+def f(x):
+    if x:
+        pass
 
-
-class K:
-    def m(self, x):
-        return x
-
-    class Inner:
-        def deep(self, x):
-            if x:
+    class K:
+        def m(self, y):
+            if y and x:
                 return 1
             return 2
+
+    return K
+"""
+
+DEEP_CLASSES = """\
+def f(x):
+    class K:
+        def m(self, y):
+            if y:
+                def clos(z):
+                    if z:
+                        return 1
+                    return 2
+
+                class L:
+                    def n(self, w):
+                        if w:
+                            return 1
+                        return 2
+
+                    class M:
+                        def o(self, v):
+                            return 1 if v else 2
+
+                return L
+            return 0
+
+        class J:
+            def p(self, u):
+                return 1 if u else 2
+
+    return K
+"""
+
+
+CLASS_IN_METHOD = """\
+class Top:
+    def meth(self, x):
+        class N:
+            def inner(self, y):
+                return 1 if y else 2
+
+        return N
 """
 
 
@@ -61,12 +97,46 @@ class PythonScanTest(InTempDir):
 
     def test_closures_and_nested_class_methods_are_named_from_the_outside_in(self):
         self.write("mod.py", NESTED)
-        self.assertEqual(set(self.functions()), {"outer", "outer.inner", "K.m", "K.Inner.deep"})
+        self.assertEqual(set(self.functions()), {"outer", "outer.inner", "K.m", "K.Inner.deep", "outer#2"})
 
     def test_a_closure_is_scored_on_its_own_and_not_folded_into_its_outer_function(self):
         self.write("mod.py", NESTED)
         functions = self.functions()
         self.assertEqual((functions["outer"].cc, functions["outer.inner"].cc), (1, 2))
+
+    def test_a_method_of_a_class_defined_inside_a_function_is_scored_under_the_function_class_method_name(self):
+        self.write("mod.py", CLASS_IN_FUNCTION)
+        method = self.functions()["f.K.m"]
+        self.assertEqual((method.file, method.cc, method.start, method.end), ("mod.py", 3, 6, 9))
+
+    def test_a_function_holding_a_class_keeps_its_own_complexity_and_nothing_is_listed_twice(self):
+        self.write("mod.py", CLASS_IN_FUNCTION)
+        listed = complexity_scan.scan(["mod.py"], "python").functions
+        self.assertEqual(sorted((fn.name, fn.cc) for fn in listed), [("f", 2), ("f.K.m", 3)])
+
+    def test_classes_and_closures_are_scored_at_every_depth_inside_a_function(self):
+        self.write("mod.py", DEEP_CLASSES)
+        self.assertEqual(
+            set(self.functions()),
+            {"f", "f.K.m", "f.K.m.clos", "f.K.m.L.n", "f.K.m.L.M.o", "f.K.J.p"},
+        )
+
+    def test_a_function_holding_deep_classes_keeps_its_own_complexity(self):
+        self.write("mod.py", DEEP_CLASSES)
+        functions = self.functions()
+        self.assertEqual((functions["f"].cc, functions["f.K.m"].cc), (1, 2))
+
+    def test_a_class_defined_in_a_method_of_a_top_level_class_is_scored_under_the_full_path(self):
+        self.write("mod.py", CLASS_IN_METHOD)
+        self.assertEqual(set(self.functions()), {"Top.meth", "Top.meth.N.inner"})
+
+    def test_a_class_defined_under_an_if_inside_a_function_is_scored(self):
+        self.write("mod.py", "def f(x):\n    if x:\n        class K:\n            def m(self):\n                return 1\n")
+        self.assertEqual(set(self.functions()), {"f", "f.K.m"})
+
+    def test_a_class_defined_in_an_async_function_is_scored(self):
+        self.write("mod.py", "async def f():\n    class K:\n        def m(self):\n            return 1\n")
+        self.assertEqual(set(self.functions()), {"f", "f.K.m"})
 
     def test_a_repeated_name_in_a_file_gets_its_order_as_a_suffix(self):
         self.write("mod.py", "def f():\n    pass\n\n\ndef f():\n    pass\n")

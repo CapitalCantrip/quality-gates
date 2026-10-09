@@ -152,9 +152,10 @@ to run after each function is written. It counts with radon, the same counter
 CRAP uses, so the two numbers agree. ruff's C901 skips boolean operators and
 comprehensions and can score the same function several points lower; don't use
 it as the gate. Takes any number of files and directories in one run:
-`cc-check src tests`. `--lang typescript` counts `.ts`, `.tsx`, `.js` and `.jsx`
-with lizard instead. With `--baseline FILE` it fails only on functions that are
-new or worse than the baseline; see [Adopting the ratchet](#adopting-the-ratchet).
+`cc-check src tests`. `--lang typescript` counts `.ts`, `.tsx`, `.js`, `.jsx`,
+`.cjs` and `.mjs` with lizard instead. With `--baseline FILE` it fails only on
+functions that are new or worse than the baseline; see
+[Adopting the ratchet](#adopting-the-ratchet).
 
 ### `crap`: complexity weighted by missing tests
 
@@ -174,10 +175,15 @@ Python coverage comes from `coverage json`. Swift coverage comes from an Xcode
 `.xcresult` bundle (`--xcresult`) or, in a SwiftPM package, from the llvm-cov
 export JSON that `swift test --enable-code-coverage` writes, passed as
 `--llvm-cov-json "$(swift test --show-codecov-path)"`; that needs no Xcode and
-runs on Linux. TypeScript and JavaScript coverage comes from Istanbul's
-`coverage-final.json` (`--istanbul-json`), which Vitest and Jest write. Without coverage (`--no-coverage`) every function at CC 3 or above fails,
-so that mode ranks functions by risk and is never read as pass/fail. `crap`
-takes `--baseline FILE` too, and refuses it without coverage (exit 2).
+runs on Linux. The export records absolute paths and only an exact path
+matches, so measure coverage and run `crap` in the same checkout (ADR-001's
+addendum "SwiftPM coverage (v0.8.0)"). TypeScript and JavaScript coverage comes
+from Istanbul's `coverage-final.json` (`--istanbul-json`), which Vitest and Jest
+write. Functions that share a start line are matched to their Istanbul entries
+by the rule in ADR-001's 2026-10-10 addendum on shared start lines. Without
+coverage (`--no-coverage`) every function at CC 3 or above fails, so that mode
+ranks functions by risk and is never read as pass/fail. `crap` takes
+`--baseline FILE` too, and refuses it without coverage (exit 2).
 
 ### What both gates score
 

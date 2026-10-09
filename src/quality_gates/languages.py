@@ -27,8 +27,9 @@ class CoverageFormat:
 @dataclass(frozen=True)
 class Language:
     label: str
-    suffixes: frozenset
+    suffixes: tuple
     counter: str
+    coverage_from: str
     lizard_languages: tuple
     coverage: tuple
     cc_check: bool
@@ -38,12 +39,17 @@ class Language:
     def scope(self) -> str:
         return f"{self.label}-only"
 
+    @property
+    def suffix_text(self) -> str:
+        return " ".join(self.suffixes)
+
 
 LANGUAGES = {
     "python": Language(
         label="Python",
-        suffixes=frozenset({".py"}),
+        suffixes=(".py",),
         counter=RADON,
+        coverage_from="`coverage json`",
         lizard_languages=(),
         coverage=(CoverageFormat(
             flag="--coverage-json",
@@ -56,8 +62,9 @@ LANGUAGES = {
     ),
     "swift": Language(
         label="Swift",
-        suffixes=frozenset({".swift"}),
+        suffixes=(".swift",),
         counter=LIZARD,
+        coverage_from="an Xcode .xcresult bundle via xcrun xccov, or the llvm-cov export JSON a SwiftPM package's tests write",
         lizard_languages=("swift",),
         coverage=(CoverageFormat(
             flag="--xcresult",
@@ -76,8 +83,9 @@ LANGUAGES = {
     ),
     "typescript": Language(
         label="TypeScript",
-        suffixes=frozenset({".ts", ".tsx", ".js", ".jsx", ".cjs", ".mjs"}),
+        suffixes=(".ts", ".tsx", ".js", ".jsx", ".cjs", ".mjs"),
         counter=LIZARD,
+        coverage_from="Istanbul's coverage-final.json, written by Vitest and Jest",
         lizard_languages=("typescript", "tsx", "javascript", "jsx"),
         coverage=(CoverageFormat(
             flag="--istanbul-json",

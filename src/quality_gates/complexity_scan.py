@@ -1,3 +1,4 @@
+import ast
 import csv
 import importlib.util
 import io
@@ -25,6 +26,7 @@ SKIPPED_FOLDERS = (
 SKIPPED_PARTS = [tuple(folder.split("/")) for folder in SKIPPED_FOLDERS]
 ORDINAL_MARK = "#"
 NAME_SEPARATOR = "."
+FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef)
 LIZARD_MISSING = "lizard is missing, though quality-gates depends on it.\n  Reinstall quality-gates in this environment."
 RADON_MISSING = "radon is not installed.\n  Install with: pip3 install radon"
 
@@ -121,34 +123,53 @@ def _radon_visitors():
     return visitors
 
 
-def _read_blocks(file: Path, visitors) -> list:
+def _read_source(file: Path, visitors) -> tuple:
     try:
-        found = visitors.ComplexityVisitor.from_code(file.read_text(encoding="utf-8"))
+        tree = ast.parse(file.read_text(encoding="utf-8"))
     except (OSError, ValueError, SyntaxError):
-        return []
-    return found.functions + found.classes
+        return [], {}
+    found = visitors.ComplexityVisitor.from_ast(tree)
+    nodes = {(n.name, n.lineno, n.col_offset): n for n in ast.walk(tree) if isinstance(n, FUNCTION_NODES)}
+    return found.functions + found.classes, nodes
 
 
-def _flatten(block, file: str, outer: tuple, visitors) -> list:
+def _classes_in(node) -> list:
+    found = []
+    for child in ast.iter_child_nodes(node):
+        if isinstance(child, ast.ClassDef):
+            found.append(child)
+        elif not isinstance(child, FUNCTION_NODES):
+            found.extend(_classes_in(child))
+    return found
+
+
+def _classes_defined_in(block, nodes: dict, visitors) -> list:
+    node = nodes.get((block.name, block.lineno, block.col_offset))
+    classes = []
+    for class_node in _classes_in(node):
+        classes.extend(visitors.ComplexityVisitor.from_ast(class_node).classes)
+    return classes
+
+
+def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     path = (*outer, block.name)
     if isinstance(block, visitors.Class):
         inner = block.methods + block.inner_classes
         own = []
     else:
-        inner = block.closures
+        inner = block.closures + _classes_defined_in(block, nodes, visitors)
         name = NAME_SEPARATOR.join(path)
         own = [Function(file, name, block.complexity, block.lineno, block.endline, name)]
-    return own + [fn for child in inner for fn in _flatten(child, file, path, visitors)]
+    return own + [fn for child in inner for fn in _flatten(child, file, path, visitors, nodes)]
 
 
 def _python_functions(files: list) -> list:
     visitors = _radon_visitors()
-    return [
-        fn
-        for file in files
-        for block in _read_blocks(file, visitors)
-        for fn in _flatten(block, str(file), (), visitors)
-    ]
+    functions = []
+    for file in files:
+        blocks, nodes = _read_source(file, visitors)
+        functions.extend(fn for block in blocks for fn in _flatten(block, str(file), (), visitors, nodes))
+    return functions
 
 
 def with_labels(functions: list) -> list:

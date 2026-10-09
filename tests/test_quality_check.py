@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import re
 import sys
 import tempfile
 import unittest
@@ -8,6 +9,7 @@ from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
+from quality_gates import languages
 from quality_gates import quality_check as qc
 
 
@@ -174,6 +176,30 @@ class TestDirectoryWalk(InTempDir):
         rc, out, _ = run_main(["pkg", "--format", "json"])
         self.assertEqual(rc, 0)
         self.assertEqual(len(json.loads(out)), 3)
+
+
+class HelpTest(unittest.TestCase):
+    def flat_help(self):
+        code, out, _ = run_main(["--help"])
+        self.assertEqual(code, 0)
+        return " ".join(out.split())
+
+    def test_help_lists_every_suffix_of_every_cc_check_language(self):
+        flat = self.flat_help()
+        for name in languages.CC_CHECK_LANGUAGES:
+            for suffix in languages.LANGUAGES[name].suffixes:
+                with self.subTest(suffix):
+                    self.assertRegex(flat, re.escape(suffix) + r"\b")
+
+    def test_the_lang_help_names_each_checker_with_the_suffixes_it_counts(self):
+        flat = self.flat_help()
+        for name in languages.CC_CHECK_LANGUAGES:
+            language = languages.LANGUAGES[name]
+            with self.subTest(name):
+                self.assertIn(f"{name} counts {language.suffix_text} with {language.counter}", flat)
+
+    def test_the_description_names_the_python_and_typescript_checkers(self):
+        self.assertIn("Cyclomatic complexity reporter for Python and TypeScript code", self.flat_help())
 
 
 if __name__ == "__main__":

@@ -2,25 +2,85 @@
 
 ## 0.8.0 — 2026-10-10
 
-`crap --lang swift` reads SwiftPM coverage (#6, ADR-001 addendum of
-2026-10-10). The new `--llvm-cov-json FILE` takes the llvm-cov export JSON that
-`swift test --enable-code-coverage` writes, so a SwiftPM package with tests gets
-a Swift CRAP gate instead of worst-case scores. It needs neither Xcode nor
-`xcrun`, so it runs on Linux too. A function's coverage is its line coverage,
-the measure `--xcresult` reports; the ADR addendum gives the matching rules.
-`--xcresult` is unchanged. Giving another language's coverage flag now names
-both Swift flags in the error.
+`crap --lang swift` reads SwiftPM coverage (#6, ADR-001 addendum "SwiftPM
+coverage (v0.8.0)"). The new `--llvm-cov-json FILE` takes the llvm-cov export
+JSON that `swift test --enable-code-coverage` writes, so a SwiftPM package with
+tests gets a Swift CRAP gate instead of worst-case scores. It needs neither
+Xcode nor `xcrun`, so it runs on Linux too. A function's coverage is the line
+figure `llvm-cov report --show-functions` prints for it. A report file matches
+only lizard's exact path, so coverage must be measured in the same checkout
+where `crap` runs; a report made in another checkout or container gives unknown
+coverage. `--xcresult` is unchanged. Giving another language's coverage flag
+now names both Swift flags in the error.
 
 **When you bump the pin:** run `qg-skills`. In a SwiftPM package, replace
-`--no-coverage` in CI with:
+`--no-coverage` in CI with these two commands, run in the same checkout:
 
 ```bash
 swift test --enable-code-coverage
-crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
+crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json
 ```
 
-Add `--baseline crap-baseline.json`, and record it once with `--update`, if
-existing functions fail. An Xcode project needs do nothing else.
+Record the baseline once by running the same two commands with `--update`
+added, on the platform CI runs on, and commit `crap-baseline.json`. An Xcode
+project needs to do nothing else.
+
+## 0.7.4 — 2026-10-10
+
+Housekeeping: no score, threshold or scanned file changes (#47, #48).
+
+The two `--help` texts, the README and the skills listed four TypeScript and
+JavaScript suffixes, but `.cjs` and `.mjs` have been counted since 0.7.0. The
+help is now generated from the language records, and all of them name the six.
+ADR-001 has a 2026-10-10 addendum for the list. Internally, the two gates share
+one error wrapper, and crap's two strict-or-print checks share one helper.
+
+**When you bump the pin:** run `qg-skills`, because the skill text changed. Other
+projects: nothing else.
+
+## 0.7.3 — 2026-10-10
+
+`crap --lang typescript` now scores each function that shares a start line with
+another over its own lines (#41, ADR-001 addendum of 2026-10-10). lizard gives
+no column, so in `const f = () => xs.map(x => x ? 1 : 2)` both functions start
+on line 1, and the first Istanbul entry on that line was taken for both: a
+callback on the first line of a multi-line function was scored over the whole
+function. Each lizard function now takes the entry that ends where it ends,
+else the narrowest entry that contains its end, else the one that ends
+last. TypeScript and JavaScript CRAP scores may change for functions that
+share a start line with another, up or down; a function that is the only one
+starting on its line scores as in 0.7.2. Coverage is still counted by line, so
+a callback sharing a line with its holder still counts that line's branches
+and statements. `cc-check` and Python and Swift scores do not change.
+
+**When you bump the pin:** run `qg-skills`. A project with a TypeScript or
+JavaScript `crap-baseline.json`: on the bump commit, with the gates passing on
+the commit before, collect coverage as your CI does, delete
+`crap-baseline.json`, run `crap` with `--update` exactly as your hook and CI
+call it, and commit. Review the diff in the pull request: an entry that rose
+or is new is a callback, or a function declared after another on the same line,
+that was scored over a range with fewer or better tested branches than its
+own. `--update` only lowers scores, so do not run it
+against the old baseline. Other projects: nothing else.
+
+## 0.7.2 — 2026-10-10
+
+A method of a class defined inside a function is now scored on its own (#44).
+radon drops a class defined in a function body, so neither `cc-check` nor `crap`
+ever listed its methods. They are now listed under the dotted name `f.K.m`, at
+any depth: a class in a method of a class in a function, a nested class in that
+class, and closures inside such a method. The enclosing function's own score is
+unchanged and nothing is counted twice. In a rare case a newly scored method
+takes a name an existing function had; the existing function, if it comes
+later in the file, is then keyed `#2`. This is a bug fix: ADR-001 already says
+every method is scored.
+
+**When you bump the pin:** run `qg-skills`. Then, on the bump commit, with the
+gates passing on the commit before, delete `cc-baseline.json` and
+`crap-baseline.json`, run each gate with `--update` exactly as your hook and
+CI call it, and commit. Review the new entries in the pull request diff: they
+are methods of classes defined inside functions that were over the limit all
+along. Python reports may gain functions that were never scored before.
 
 ## 0.7.1 — 2026-10-10
 

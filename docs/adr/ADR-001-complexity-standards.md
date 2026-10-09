@@ -102,8 +102,9 @@ repo with existing debt can enforce them in CI without first paying it all off.
 
 ## Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)
 
-The standards above extend to `.ts`, `.tsx`, `.js` and `.jsx`. Nothing changes
-for Python, Swift or Rust.
+The standards above extend to `.ts`, `.tsx`, `.js`, `.jsx`, `.cjs` and `.mjs`
+(`.cjs` and `.mjs` named by the 2026-10-10 addendum). Nothing changes for Python,
+Swift or Rust.
 
 | Gate | Tool | Limit |
 |---|---|---|
@@ -208,7 +209,66 @@ closure, or a method of a nested class, each on its own.
   their baselines once on the bump commit instead, so no flag exists that an
   agent could later use to accept debt quietly.
 
-## Addendum 2026-10-10: SwiftPM coverage from llvm-cov export JSON (#6)
+## Addendum 2026-10-10: functions that share a start line (v0.7.3)
+
+The limits above are unchanged. This amends the TypeScript addendum's sentence
+that a function's lines come from Istanbul's `fnMap`, *matched to lizard by
+start line*. That rule is exact only when one function starts on a line. In
+`const f = () => xs.map(x => x ? 1 : 2)` lizard reports two functions at line
+1 and gives no column, so the first `fnMap` entry on that line was taken for
+both: a callback on the first line of a multi-line holder was scored over the
+holder's whole range, with the holder's branches and statements (#41).
+
+**Matching rule.** Among the `fnMap` entries whose declaration starts on
+lizard's start line, in this order:
+
+1. the entry whose end line equals lizard's end line;
+2. else the narrowest entry whose end line is at or after lizard's end line;
+3. else, when no entry contains lizard's end line, the entry on that line that
+   ends last. This is the case when lizard's end line runs past the real end
+   because of type annotations, as when an `interface` follows the function.
+
+A function that is the only one starting on its line matches the same entry
+under all three, so its score is unchanged. Only the end lines of the entries
+matter, so entries that tie on end line give the same range.
+
+**The limit that remains.** Coverage is counted by line: a branch or statement
+belongs to a function when it starts inside the function's lines. A callback
+that shares a line with its holder, or with the function declared beside it,
+still counts that line's branches and statements, and the holder still counts
+the callback's. The rule fixes the range, not the overlap on a shared line.
+Two functions that start and end on the same line get the same coverage.
+
+**Effect.** TypeScript and JavaScript CRAP scores can change for functions that
+share a start line with another. No threshold, counting tool or gate coverage
+changes, and `cc-check` is untouched.
+
+### Rejected
+
+- **Matching by column.** lizard reports none, and Istanbul's columns are
+  unreliable under some reporters (v8 coverage gives a null end column).
+- **Attributing statements and branches to the narrowest enclosing function by
+  position.** It would remove the shared-line overlap, but it needs each
+  function's end column, and Istanbul's end columns can be null: nyc's
+  remapping and Vitest both write `null` there.
+
+## Addendum 2026-10-10: the suffix list (v0.7.4)
+
+The limits and gates above are unchanged, and so is what each gate counts. The
+TypeScript addendum named four suffixes until this note, but `languages.py` has
+counted six since v0.7.0. The docs did not follow the code, and the `--help` text
+was written by hand from the same stale list.
+
+The TypeScript and JavaScript suffixes are `.ts`, `.tsx`, `.js`, `.jsx`, `.cjs`
+and `.mjs`. `languages.py` holds that list, and the `--help` text of `crap` and
+`cc-check` prints it from there. The README and the skills name the same six,
+and a test fails when a paragraph names some of them but not all.
+
+Nothing that is scanned or scored changes. The two suffixes the TypeScript addendum
+did not name until this note have been counted since v0.7.0, so a consumer needs no
+action when bumping the pin.
+
+## Addendum 2026-10-10: SwiftPM coverage (v0.8.0)
 
 The limits above are unchanged. Swift CRAP now reads coverage from a SwiftPM
 package as well as from an Xcode project, so a SwiftPM package with tests has a
@@ -224,25 +284,19 @@ The SwiftPM reader needs neither Xcode nor `xcrun`, so it also runs on Linux.
 Its JSON `coverage_source` is `llvm-cov-json`.
 
 **A Function's coverage is llvm-cov's per-function line figure,** the Lines
-column `llvm-cov report --show-functions` prints for it, which is also the
-figure xccov reports for the same function. It is the share of the
+column `llvm-cov report --show-functions` prints for it. It is the share of the
 executable lines in the function's body that ran, worked out from that
 function's own regions by llvm-cov's own rules. On the committed fixture every
-function's figure equals that column.
+function's figure equals that column. It is the per-function line measure
+xccov reports too; the two were not compared function by function.
 
 **Matching a Function to its llvm-cov body:**
 
-- **The file is the report file at lizard's resolved path.** When the report
-  was made in this checkout, its paths are this machine's paths, and only the
-  exact path matches. A report made in another checkout or a container records
-  paths that do not exist here. Only then does a report file whose own path does
-  not exist on this machine match by its trailing path parts: it must be the one
-  such file sharing the longest run with lizard's path, and that run must be at
-  least two parts long, the folder and the file name. A file name alone is never
-  enough. Anything else means unknown coverage rather than a guess. For example,
-  in the same checkout `Sources/Extra/Models/Item.swift`, in a target the tests
-  never compiled, does not take the figures of `Sources/Core/Models/Item.swift`.
-  Matching by bare name or stem is the bug #49 records for xccov.
+- **The file is the report file at lizard's exact resolved path,** with the
+  report's paths resolved too, so a symlinked path still matches. Any other
+  file has unknown coverage. llvm-cov records absolute paths, so coverage has
+  to be measured in the same checkout where `crap` runs: a report made in
+  another checkout or a container gives every function unknown coverage.
 - **The body is the one that ends last among those opening within lizard's
   lines** for the Function, and of those the one that opens first. llvm-cov
   starts a body at its `{`, while lizard starts a Function at `func`. An
@@ -258,7 +312,7 @@ function's figure equals that column.
   its highest count, so a line ran if any listing ran it.
 - **A closure or nested `func` is scored on its own regions,** and its own
   counts do not reach the function that holds it. In the holder's figure, its
-  lines carry the holder's count, as they do in llvm-cov's and xccov's figure.
+  lines carry the holder's count, as they do in llvm-cov's figure.
   A nested `func` that never ran therefore scores 0 on its own and leaves its
   holder's figure unchanged.
 
@@ -266,19 +320,22 @@ function's figure equals that column.
 
 - **Matching on llvm-cov's mangled name.** It needs a Swift demangler, and
   overloads and nested functions still have to be told apart by line.
-- **Matching a file by its name alone when the name is unique in the report,**
-  or by a shared tail when the report's path exists on this machine. A file the
-  tests never compiled would take the figures of a different file that happens
-  to share its name, or its folder and name, and hide a FAIL.
+- **Matching a file by its name, or by its trailing folders and name,** so that
+  a report made in another checkout or container still matches. A report made
+  elsewhere can then lend a tested target's coverage to an untested one with
+  the same folder and file name, such as `Core/Models/Item.swift` and
+  `Admin/Models/Item.swift`, and hide a FAIL: the bug #49 records for xccov,
+  again. Measuring coverage and running `crap` in the same checkout costs
+  nothing a consumer's CI does not already do.
 - **Taking the body that opens first.** A closure default argument in a
   signature over several lines opens first, and would be scored as the
   function.
 - **Region coverage,** llvm-cov's headline figure. The two Swift formats would
   then measure different things for the same code.
 - **Counting a closure's own counts against the function that holds it,**
-  because lizard counts a closure's branches in its holder's CC. The
-  `--xcresult` figure is xccov's per-function figure, which does not do this,
-  so the two Swift flags would score the same code differently.
+  because lizard counts a closure's branches in its holder's CC. llvm-cov's
+  and xccov's per-function figures do not do this, so the two Swift flags
+  would score the same code differently.
 - **Running `llvm-cov export` inside `crap` from the `.profdata`.** It needs the
   test binary's path and the toolchain on the machine; `swift test` already
   writes the JSON.

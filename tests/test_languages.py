@@ -42,6 +42,14 @@ class LanguageRecordTest(unittest.TestCase):
                     self.assertTrue(coverage.help)
                     self.assertTrue(callable(coverage.read))
 
+    def test_every_language_says_where_its_coverage_comes_from(self):
+        for name, language in languages.LANGUAGES.items():
+            with self.subTest(name):
+                self.assertTrue(language.coverage_from)
+
+    def test_a_language_lists_its_suffixes_in_declaration_order_for_help(self):
+        self.assertEqual(languages.LANGUAGES["typescript"].suffix_text, ".ts .tsx .js .jsx .cjs .mjs")
+
     def test_every_language_cc_check_accepts_has_a_nothing_found_message(self):
         self.assertEqual(languages.CC_CHECK_LANGUAGES, ["python", "typescript"])
         for name, language in languages.LANGUAGES.items():
