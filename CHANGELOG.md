@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.7.2 — 2026-10-10
+
+A method of a class defined inside a function is now scored on its own (#44).
+radon drops a class defined in a function body, so neither `cc-check` nor `crap`
+ever listed its methods. They are now listed under the dotted name `f.K.m`, at
+any depth: a class in a method of a class in a function, a nested class in that
+class, and closures inside such a method. The enclosing function's own score is
+unchanged, nothing is counted twice, and no existing name changes. This is a bug
+fix: ADR-001 already says every method is scored.
+
+**When you bump the pin:** run `qg-skills`. Python reports may gain functions
+that were never scored before. Fix them, or record them with `--update` on your
+`cc-check` and `crap` baselines.
+
 ## 0.7.1 — 2026-10-10
 
 One coverage seam in `crap` (#46, architecture review change 2; the review is
