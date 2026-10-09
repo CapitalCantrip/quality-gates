@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from quality_gates import complexity_scan, languages, ratchet
-from quality_gates.errors import ToolError
+from quality_gates.errors import run_gate
 
 AGENT_CC_CEILING = 8
 ERROR_TAG = "ERROR: "
@@ -102,16 +102,8 @@ def gate(argv, root):
     return ratchet.enforce(current, Path(args.baseline), args.update, out)
 
 
-def run(argv, root):
-    try:
-        return gate(argv, root)
-    except ToolError as error:
-        print(f"{ERROR_TAG}{error}", file=sys.stderr)
-        return 2
-
-
 def main(argv=None, root=None):
-    sys.exit(run(argv, root))
+    sys.exit(run_gate(gate, argv, root, ERROR_TAG))
 
 
 if __name__ == "__main__":

@@ -6,32 +6,12 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
+from nested_fixture import NESTED
 from quality_gates import complexity_scan
 from quality_gates.errors import ToolError
 
 ROOT = Path(__file__).resolve().parents[1]
 TS_FIXTURES = "tests/fixtures/typescript"
-
-NESTED = """\
-def outer(x):
-    def inner(y):
-        if y:
-            return 1
-        return 2
-    return inner(x)
-
-
-class K:
-    def m(self, x):
-        return x
-
-    class Inner:
-        def deep(self, x):
-            if x:
-                return 1
-            return 2
-"""
-
 
 CLASS_IN_FUNCTION = """\
 def f(x):
@@ -117,7 +97,7 @@ class PythonScanTest(InTempDir):
 
     def test_closures_and_nested_class_methods_are_named_from_the_outside_in(self):
         self.write("mod.py", NESTED)
-        self.assertEqual(set(self.functions()), {"outer", "outer.inner", "K.m", "K.Inner.deep"})
+        self.assertEqual(set(self.functions()), {"outer", "outer.inner", "K.m", "K.Inner.deep", "outer#2"})
 
     def test_a_closure_is_scored_on_its_own_and_not_folded_into_its_outer_function(self):
         self.write("mod.py", NESTED)

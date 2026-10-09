@@ -35,6 +35,10 @@ def completed(stdout, returncode=0):
     return CompletedProcess([], returncode, stdout=stdout, stderr="")
 
 
+def tagged(err):
+    return [line for line in err.splitlines() if line.startswith("[crap] ")]
+
+
 class CrapScoreTest(unittest.TestCase):
     def test_a_fully_covered_function_scores_its_cc(self):
         self.assertEqual(crap.crap_score(5, 1.0), 5)
@@ -136,6 +140,17 @@ class PythonGateTest(unittest.TestCase):
         code, _, _ = self.gate("--min-cc", "4", "--allow-empty")
         self.assertEqual(code, 0)
 
+    def test_allow_empty_prints_the_empty_scan_message_with_the_crap_tag(self):
+        self.write_coverage([], list(range(1, 16)))
+        _, _, err = self.gate("--min-cc", "4", "--allow-empty")
+        self.assertIn(f"[crap] no functions analysed in: {self.module}\n", err)
+
+    def test_an_empty_scan_without_allow_empty_is_a_tool_error_with_the_crap_tag(self):
+        self.write_coverage([], list(range(1, 16)))
+        code, _, err = self.gate("--min-cc", "4")
+        self.assertEqual(code, 2)
+        self.assertIn(f"[crap] no functions analysed in: {self.module}\n", err)
+
     def test_a_missing_coverage_file_is_a_tool_error(self):
         code, _, err = self.gate()
         self.assertEqual(code, 2)
@@ -155,12 +170,26 @@ class PythonGateTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("stale", err)
 
+    def test_the_stale_coverage_warning_is_printed_with_the_crap_tag(self):
+        self.write_coverage(list(range(1, 16)), [])
+        past = self.module.stat().st_mtime - 10
+        os.utime(self.coverage, (past, past))
+        _, _, err = self.gate()
+        self.assertTrue(any("coverage file may be stale: coverage.json" in line for line in tagged(err)))
+
     def test_strict_freshness_makes_stale_coverage_a_tool_error(self):
         self.write_coverage(list(range(1, 16)), [])
         past = self.module.stat().st_mtime - 10
         os.utime(self.coverage, (past, past))
         code, _, _ = self.gate("--strict-freshness")
         self.assertEqual(code, 2)
+
+    def test_strict_freshness_reports_the_stale_coverage_with_the_crap_tag(self):
+        self.write_coverage(list(range(1, 16)), [])
+        past = self.module.stat().st_mtime - 10
+        os.utime(self.coverage, (past, past))
+        _, _, err = self.gate("--strict-freshness")
+        self.assertTrue(any("coverage file may be stale: coverage.json" in line for line in tagged(err)))
 
 
 class CoverageSourceTest(unittest.TestCase):

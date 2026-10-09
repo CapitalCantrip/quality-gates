@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Optional
 
 from quality_gates import complexity_scan, ratchet
-from quality_gates.errors import ToolError
+from quality_gates.errors import ToolError, run_gate
 from quality_gates.languages import COVERAGE_FORMATS, LANGUAGES, CoverageFormat, CoverageOf
 
 FAIL_THRESHOLD = 8.0
@@ -253,6 +253,12 @@ def _newest_source_mtime(source_paths: list) -> Optional[float]:
     return newest if newest > 0 else None
 
 
+def _fail_or_warn(message: str, strict: bool) -> None:
+    if strict:
+        raise ToolError(message)
+    print(f"{TAG}{message}", file=sys.stderr)
+
+
 def _check_staleness(coverage_path: str, source_paths: list, strict: bool) -> None:
     try:
         cov_mtime = Path(coverage_path).stat().st_mtime
@@ -261,10 +267,10 @@ def _check_staleness(coverage_path: str, source_paths: list, strict: bool) -> No
     newest = _newest_source_mtime(source_paths)
     if newest is None or newest <= cov_mtime:
         return
-    message = f"⚠️  coverage file may be stale: {Path(coverage_path).name} is older than the newest source file"
-    if strict:
-        raise ToolError(message)
-    print(f"{TAG}{message}", file=sys.stderr)
+    _fail_or_warn(
+        f"⚠️  coverage file may be stale: {Path(coverage_path).name} is older than the newest source file",
+        strict,
+    )
 
 
 def _maybe_check_staleness(args, report: Optional[CoverageReport]) -> None:
@@ -281,9 +287,7 @@ def _check_results_empty(results: list, args, skipped: list) -> None:
         "  Check that the paths contain source files for the chosen --lang.\n"
         "  Use --allow-empty to suppress this error."
     )
-    if not args.allow_empty:
-        raise ToolError(message)
-    print(f"{TAG}{message}", file=sys.stderr)
+    _fail_or_warn(message, strict=not args.allow_empty)
 
 
 def _fn_to_dict(r: FunctionResult, cov_source: str) -> dict:
@@ -359,12 +363,7 @@ def gate(argv, root) -> int:
 
 
 def main(argv=None, root=None) -> None:
-    try:
-        code = gate(argv, root)
-    except ToolError as error:
-        print(f"{TAG}{error}", file=sys.stderr)
-        code = 2
-    sys.exit(code)
+    sys.exit(run_gate(gate, argv, root, TAG))
 
 
 if __name__ == "__main__":
