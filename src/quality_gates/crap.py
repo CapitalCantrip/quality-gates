@@ -34,7 +34,7 @@ Examples:
   crap --lang swift Sources/ --xcresult /tmp/MyScheme.xcresult
 
   swift test --enable-code-coverage
-  crap --lang swift Sources/ --llvm-cov-json $(swift test --show-codecov-path)
+  crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
 
   vitest run --coverage --coverage.reporter=json
   crap --lang typescript src/ --istanbul-json coverage/coverage-final.json

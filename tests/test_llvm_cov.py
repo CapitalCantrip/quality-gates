@@ -185,7 +185,7 @@ class CrapSwiftPMTest(InRepoRoot):
     def test_help_says_how_a_swiftpm_package_gets_coverage(self):
         text = crap.build_parser().format_help()
         self.assertIn("swift test --enable-code-coverage", text)
-        self.assertIn("--llvm-cov-json $(swift test --show-codecov-path)", text)
+        self.assertIn('--llvm-cov-json "$(swift test --show-codecov-path)"', text)
 
 
 if __name__ == "__main__":

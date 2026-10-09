@@ -25,7 +25,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 1. Detect language from project context (`Cargo.toml` → Rust; `.swift` files → Swift; `package.json` or `.ts`/`.tsx`/`.js`/`.jsx` files → TypeScript; else Python).
 2. **Rust** — no coverage file needed; proceed to step 3.
    **Python** — look for `coverage.json` (`coverage run -m pytest && coverage json`).
-   **Swift** — look for `.xcresult` bundle (`xcodebuild test --resultBundlePath ...`).
+   **Swift** — an Xcode project: look for an `.xcresult` bundle (`xcodebuild test -resultBundlePath ...`). A SwiftPM package (`Package.swift`): run `swift test --enable-code-coverage`; the report is at `swift test --show-codecov-path`.
    **TypeScript** — look for `coverage/coverage-final.json` (Istanbul's `json` reporter, written by Vitest and Jest).
 3. Run the gate:
 
@@ -46,12 +46,18 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    crap --lang python <dirs> --no-coverage
    ```
 
-   **Swift — with coverage:**
+   **Swift — with coverage, Xcode project:**
    ```bash
    crap --lang swift Sources/ --xcresult /tmp/out.xcresult
    ```
 
-   **Swift — worst-case** (SwiftPM packages: `swift test --enable-code-coverage` does not produce an `.xcresult`, so this is the only option):
+   **Swift — with coverage, SwiftPM package:**
+   ```bash
+   swift test --enable-code-coverage
+   crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
+   ```
+
+   **Swift — no tests yet:**
    ```bash
    crap --lang swift Sources/ --no-coverage
    ```
@@ -96,7 +102,7 @@ The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverag
 
 ```bash
 pip3 install coverage               # Python coverage; radon and lizard ship with quality-gates
-xcode-select --install               # xcrun xccov (Swift coverage, optional)
+xcode-select --install               # xcrun xccov (Swift --xcresult coverage only; SwiftPM's --llvm-cov-json needs nothing extra)
 rustup component add clippy          # Rust
 ```
 
