@@ -30,6 +30,14 @@ final class GradesTests: XCTestCase {
         XCTAssertEqual(weighted(3, by: 2), 6)
     }
 
+    func testTally() {
+        XCTAssertEqual(tally([], strict: false), 0)
+    }
+
+    func testMode() {
+        XCTAssertEqual(mode(false), "debug")
+    }
+
     func testStore() {
         var store = Grades.Store()
         XCTAssertTrue(store.add(50))

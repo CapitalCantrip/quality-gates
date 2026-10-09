@@ -19,8 +19,9 @@ TYPESCRIPT_REPORT = "tests/fixtures/typescript/coverage-final.json"
 TYPESCRIPT_SAMPLE = "tests/fixtures/typescript/sample.ts"
 
 
-def reader(lang, position=0):
-    return languages.LANGUAGES[lang].coverage[position].read
+def reader(flag):
+    formats = {coverage.flag: coverage for language in languages.LANGUAGES.values() for coverage in language.coverage}
+    return formats[flag].read
 
 
 class LanguageRecordTest(unittest.TestCase):
@@ -82,29 +83,29 @@ class CoverageReaderTest(unittest.TestCase):
         return patch.object(xccov, "run", return_value=CompletedProcess([], 0, stdout=stdout, stderr=""))
 
     def test_python_coverage_is_the_branch_coverage_within_the_functions_lines(self):
-        coverage_of = reader("python")(PYTHON_REPORT)
+        coverage_of = reader("--coverage-json")(PYTHON_REPORT)
         self.assertEqual(coverage_of(Function(PYTHON_SAMPLE, "grade", 2, 1, 4, "grade")), 0.5)
 
     def test_swift_coverage_is_matched_by_the_name_before_its_label_and_the_start_line(self):
         with self.xccov():
-            coverage_of = reader("swift")("App.xcresult")
+            coverage_of = reader("--xcresult")("App.xcresult")
         self.assertEqual(coverage_of(Function("Sources/Store.swift", "load#2", 3, 20, 30, "load")), 0.25)
 
     def test_swiftpm_coverage_is_the_line_coverage_of_the_llvm_cov_body_that_opens_inside_the_function(self):
-        coverage_of = reader("swift", 1)(SWIFTPM_REPORT)
+        coverage_of = reader("--llvm-cov-json")(SWIFTPM_REPORT)
         self.assertAlmostEqual(coverage_of(Function(SWIFTPM_STORE, "add", 3, 6, 16, "add")), 9 / 11)
 
     def test_typescript_coverage_is_the_branch_coverage_within_istanbuls_function_range(self):
-        coverage_of = reader("typescript")(TYPESCRIPT_REPORT)
+        coverage_of = reader("--istanbul-json")(TYPESCRIPT_REPORT)
         self.assertEqual(coverage_of(Function(TYPESCRIPT_SAMPLE, "grade", 5, 1, 10, "grade")), 0.875)
 
     def test_a_function_in_a_file_the_report_does_not_cover_has_unknown_coverage(self):
         with self.xccov():
             readers = {
-                "python": reader("python")(PYTHON_REPORT),
-                "swift": reader("swift")("App.xcresult"),
-                "swiftpm": reader("swift", 1)(SWIFTPM_REPORT),
-                "typescript": reader("typescript")(TYPESCRIPT_REPORT),
+                "python": reader("--coverage-json")(PYTHON_REPORT),
+                "swift": reader("--xcresult")("App.xcresult"),
+                "swiftpm": reader("--llvm-cov-json")(SWIFTPM_REPORT),
+                "typescript": reader("--istanbul-json")(TYPESCRIPT_REPORT),
             }
         for lang, coverage_of in readers.items():
             with self.subTest(lang):

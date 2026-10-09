@@ -6,7 +6,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from quality_gates import crap, languages, llvm_cov
+from quality_gates import crap, languages
 from quality_gates.complexity_scan import Function
 from quality_gates.errors import ToolError
 
@@ -28,22 +28,20 @@ def function(file, name, start, end):
     return Function(file, name, 2, start, end, name)
 
 
-def segment(line, count, has_count=True, entry=True, gap=False):
-    return [line, 1, count, has_count, entry, gap]
+CODE, EXPANSION, SKIPPED = 0, 1, 2
 
 
-def export_of(*exports):
-    return {"type": "llvm.coverage.json.export", "version": "3.0.1", "data": list(exports)}
+def region(line_start, line_end, count, kind=CODE):
+    return [line_start, 5, line_end, 30, count, 0, 0, kind]
 
 
-def one_export(filename, segments, bodies):
-    return {
-        "files": [{"filename": filename, "segments": segments}],
-        "functions": [
-            {"name": f"f{i}", "filenames": [filename], "regions": [[start, 10, end, 2, 1, 0, 0, 0]]}
-            for i, (start, end) in enumerate(bodies)
-        ],
-    }
+def record(filename, *regions):
+    return {"name": "f", "count": regions[0][4], "filenames": [filename], "regions": list(regions)}
+
+
+def export_of(*records):
+    return {"type": "llvm.coverage.json.export", "version": "3.0.1",
+            "data": [{"files": [], "functions": list(records)}]}
 
 
 class InRepoRoot(unittest.TestCase):
@@ -53,40 +51,54 @@ class InRepoRoot(unittest.TestCase):
         self.addCleanup(os.chdir, before)
 
 
+LLVM_COV_REPORT_SHOW_FUNCTIONS = [
+    (GRADE, "grade", 5, 13, 8 / 9),
+    (GRADE, "clamp", 15, 17, 3 / 3),
+    (GRADE, "clamp", 19, 27, 7 / 9),
+    (GRADE, "describe", 30, 37, 5 / 8),
+    (GRADE, "largest", 39, 48, 10 / 10),
+    (GRADE, "label", 51, 53, 3 / 3),
+    (GRADE, "summary", 50, 58, 8 / 9),
+    (GRADE, "weighted", 60, 68, 5 / 6),
+    (GRADE, "penalty", 71, 76, 0 / 6),
+    (GRADE, "tally", 70, 84, 14 / 15),
+    (GRADE, "mode", 86, 95, 5 / 6),
+    (GRADES_STORE, "add", 6, 16, 9 / 11),
+    (GRADES_STORE, "passing", 18, 22, 5 / 5),
+    (LEDGER_STORE, "add", 6, 15, 0 / 10),
+]
+
+
 class FixtureCoverageTest(InRepoRoot):
     def setUp(self):
         super().setUp()
         self.coverage_of = llvm_cov_reader()(EXPORT)
 
-    def test_each_function_gets_the_line_coverage_llvm_cov_reports_for_it(self):
-        expected = [
-            (GRADE, "grade", 5, 13, 8 / 9),
-            (GRADE, "clamp", 15, 17, 1.0),
-            (GRADE, "clamp", 19, 27, 7 / 9),
-            (GRADE, "largest", 39, 48, 1.0),
-            (GRADES_STORE, "add", 6, 16, 9 / 11),
-            (GRADES_STORE, "passing", 18, 22, 1.0),
-            (LEDGER_STORE, "add", 6, 15, 0.0),
-        ]
-        for file, name, start, end, coverage in expected:
+    def test_each_function_gets_the_lines_figure_llvm_cov_report_show_functions_prints_for_it(self):
+        for file, name, start, end, coverage in LLVM_COV_REPORT_SHOW_FUNCTIONS:
             with self.subTest(f"{file}:{start}"):
                 self.assertAlmostEqual(self.coverage_of(function(file, name, start, end)), coverage)
 
+    def test_a_closure_and_a_nested_function_that_never_ran_do_not_count_against_the_function_holding_them(self):
+        self.assertAlmostEqual(self.coverage_of(function(GRADE, "tally", 70, 84)), 14 / 15)
+
+    def test_lines_compiled_out_by_an_if_config_are_not_counted(self):
+        self.assertAlmostEqual(self.coverage_of(function(GRADE, "mode", 86, 95)), 5 / 6)
+
     def test_an_attribute_line_above_the_declaration_does_not_move_the_match(self):
-        self.assertAlmostEqual(self.coverage_of(function(GRADE, "describe", 30, 37)), 5 / 8)
+        self.assertAlmostEqual(self.coverage_of(function(GRADE, "describe", 29, 37)), 5 / 8)
 
     def test_a_signature_over_several_lines_matches_the_body_that_opens_below_it(self):
-        self.assertAlmostEqual(self.coverage_of(function(GRADE, "weighted", 60, 67)), 5 / 6)
-
-    def test_a_nested_function_is_scored_on_its_own_lines_and_counted_in_its_outer_function(self):
-        self.assertAlmostEqual(self.coverage_of(function(GRADE, "label", 51, 53)), 1.0)
-        self.assertAlmostEqual(self.coverage_of(function(GRADE, "summary", 50, 58)), 8 / 9)
+        self.assertAlmostEqual(self.coverage_of(function(GRADE, "weighted", 60, 68)), 5 / 6)
 
     def test_two_files_with_the_same_name_are_each_scored_from_their_own_entry(self):
         self.assertAlmostEqual(self.coverage_of(function(GRADES_STORE, "add", 6, 16)), 9 / 11)
         self.assertEqual(self.coverage_of(function(LEDGER_STORE, "add", 6, 15)), 0.0)
 
-    def test_a_file_matched_by_its_name_alone_has_unknown_coverage_when_the_report_has_two_of_that_name(self):
+    def test_a_file_absent_from_the_report_whose_name_is_unique_in_the_report_has_unknown_coverage(self):
+        self.assertIsNone(self.coverage_of(function(f"{SOURCES}/Untested/Grade.swift", "grade", 5, 13)))
+
+    def test_a_file_sharing_only_its_name_with_two_report_files_has_unknown_coverage(self):
         self.assertIsNone(self.coverage_of(function("elsewhere/Store.swift", "add", 6, 16)))
 
     def test_a_function_in_a_file_the_report_does_not_cover_has_unknown_coverage(self):
@@ -96,39 +108,79 @@ class FixtureCoverageTest(InRepoRoot):
         self.assertIsNone(self.coverage_of(function(GRADE, "Grade", 1, 3)))
 
 
+def write_json(tmp, document):
+    path = Path(tmp) / "export.json"
+    path.write_text(json.dumps(document), encoding="utf-8")
+    return str(path)
+
+
 class ExportCoverageTest(unittest.TestCase):
-    def coverage(self, report, start=1, end=9, filepath="/checkout/Sources/App/Main.swift"):
+    def coverage(self, report, start=1, end=9, filepath=BUILT_AT):
         with tempfile.TemporaryDirectory() as tmp:
-            path = Path(tmp) / "export.json"
-            path.write_text(json.dumps(report), encoding="utf-8")
-            coverage_of = llvm_cov_reader()(str(path))
+            coverage_of = llvm_cov_reader()(write_json(tmp, report))
         return coverage_of(function(filepath, "f", start, end))
 
-    def test_a_closure_that_never_ran_counts_against_the_function_that_holds_it(self):
-        segments = [segment(1, 1), segment(3, 0), segment(5, 1, entry=False), segment(6, 0, has_count=False, entry=False)]
-        report = export_of(one_export(BUILT_AT, segments, [(1, 6), (3, 5)]))
-        self.assertAlmostEqual(self.coverage(report, 1, 6), 4 / 6)
+    def test_a_file_the_report_names_by_its_exact_path_is_matched(self):
+        report = export_of(record(BUILT_AT, region(1, 2, 1)))
+        self.assertEqual(self.coverage(report, 1, 2, BUILT_AT), 1.0)
+
+    def test_a_file_sharing_its_folder_and_name_with_one_report_file_is_matched(self):
+        report = export_of(record(BUILT_AT, region(1, 2, 1)))
+        self.assertEqual(self.coverage(report, 1, 2, "/checkout/App/Main.swift"), 1.0)
+
+    def test_a_file_sharing_its_folder_and_name_equally_with_two_report_files_has_unknown_coverage(self):
+        report = export_of(record(BUILT_AT, region(1, 2, 1)), record("/other/App/Main.swift", region(1, 2, 1)))
+        self.assertIsNone(self.coverage(report, 1, 2, "/checkout/App/Main.swift"))
+
+    def test_a_closure_that_never_ran_does_not_count_against_the_function_that_holds_it(self):
+        report = export_of(record(BUILT_AT, region(1, 6, 1)), record(BUILT_AT, region(3, 5, 0)))
+        self.assertEqual(self.coverage(report, 1, 6), 1.0)
+
+    def test_a_region_that_never_ran_inside_the_function_counts_against_it(self):
+        report = export_of(record(BUILT_AT, region(1, 6, 1), region(3, 4, 0)))
+        self.assertAlmostEqual(self.coverage(report, 1, 6), 5 / 6)
+
+    def test_lines_between_two_inner_regions_take_the_count_of_the_region_around_them(self):
+        report = export_of(record(BUILT_AT, region(1, 6, 1), region(2, 3, 0), [5, 10, 5, 20, 1, 0, 0, CODE]))
+        self.assertAlmostEqual(self.coverage(report, 1, 6), 5 / 6)
+
+    def test_regions_covering_the_same_span_add_their_counts(self):
+        report = export_of(record(BUILT_AT, region(1, 4, 1), region(2, 3, 0), region(2, 3, 1)))
+        self.assertEqual(self.coverage(report, 1, 4), 1.0)
+
+    def test_regions_in_a_file_a_macro_expands_into_are_not_counted_in_the_function(self):
+        expanded = {"name": "f", "count": 1, "filenames": ["/build/Pkg/Macros/Expanded.swift", BUILT_AT],
+                    "regions": [[1, 5, 3, 30, 1, 1, 0, CODE], [2, 5, 2, 20, 1, 1, 0, EXPANSION],
+                                [10, 1, 12, 2, 0, 0, 0, CODE]]}
+        self.assertEqual(self.coverage(export_of(expanded), 1, 3), 1.0)
+
+    def test_a_zero_length_region_takes_the_count_of_the_region_around_it(self):
+        report = export_of(record(BUILT_AT, region(1, 4, 0), [2, 5, 2, 5, 7, 0, 0, CODE], region(3, 3, 1)))
+        self.assertAlmostEqual(self.coverage(report, 1, 4), 1 / 4)
+
+    def test_a_zero_length_region_at_the_end_of_a_function_leaves_its_line_uncounted(self):
+        report = export_of(record(BUILT_AT, region(1, 4, 0), region(3, 3, 1), [4, 1, 4, 1, 0, 0, 0, CODE]))
+        self.assertAlmostEqual(self.coverage(report, 1, 4), 1 / 3)
+
+    def test_a_zero_length_skipped_region_inside_a_function_leaves_only_its_own_line_uncounted(self):
+        report = export_of(record(BUILT_AT, region(1, 5, 0), [2, 5, 2, 5, 0, 0, 0, SKIPPED], region(4, 4, 1)))
+        self.assertAlmostEqual(self.coverage(report, 1, 5), 1 / 4)
 
     def test_a_function_listed_more_than_once_is_scored_once_from_the_merged_lines(self):
-        ran = [segment(1, 1), segment(3, 0, has_count=False, entry=False)]
-        idle = [segment(1, 0), segment(3, 0, has_count=False, entry=False)]
-        report = export_of(one_export(BUILT_AT, ran, [(1, 3), (1, 3)]), one_export(BUILT_AT, idle, [(1, 3)]))
-        self.assertEqual(self.coverage(report, 1, 3), 1.0)
+        ran = record(BUILT_AT, region(1, 3, 1))
+        idle = record(BUILT_AT, region(1, 3, 0))
+        self.assertEqual(self.coverage(export_of(idle, ran, idle), 1, 3), 1.0)
 
     def test_a_line_inside_a_skipped_region_is_not_counted(self):
-        segments = [segment(1, 1), segment(2, 0), segment(3, 0, has_count=False), segment(4, 1, entry=False),
-                    segment(5, 0, has_count=False, entry=False)]
-        report = export_of(one_export(BUILT_AT, segments, [(1, 5)]))
+        report = export_of(record(BUILT_AT, region(1, 5, 1), [3, 1, 3, 40, 0, 0, 0, SKIPPED]))
         self.assertEqual(self.coverage(report, 1, 5), 1.0)
 
     def test_the_outermost_body_starting_first_inside_the_function_is_the_match(self):
-        segments = [segment(2, 0), segment(3, 1), segment(4, 0, entry=False), segment(5, 0, has_count=False, entry=False)]
-        report = export_of(one_export(BUILT_AT, segments, [(3, 3), (2, 5)]))
-        self.assertAlmostEqual(self.coverage(report, 1, 5), 2 / 4)
+        report = export_of(record(BUILT_AT, region(3, 3, 0)), record(BUILT_AT, region(2, 5, 1), region(3, 4, 0)))
+        self.assertAlmostEqual(self.coverage(report, 1, 5), 3 / 4)
 
-    def test_a_body_with_no_executable_line_has_unknown_coverage(self):
-        segments = [segment(5, 1), segment(6, 0, has_count=False, entry=False)]
-        report = export_of(one_export(BUILT_AT, segments, [(1, 3), (5, 6)]))
+    def test_a_function_whose_only_region_was_compiled_out_has_unknown_coverage(self):
+        report = export_of(record(BUILT_AT, region(1, 3, 0, kind=SKIPPED)))
         self.assertIsNone(self.coverage(report, 1, 3))
 
     def test_a_report_with_no_data_gives_every_function_unknown_coverage(self):
@@ -136,7 +188,7 @@ class ExportCoverageTest(unittest.TestCase):
 
     def test_an_unreadable_export_is_a_tool_error(self):
         with self.assertRaises(ToolError) as raised:
-            llvm_cov.load("no/such/export.json")
+            llvm_cov_reader()("no/such/export.json")
         self.assertTrue(str(raised.exception).startswith("cannot open llvm-cov export: "))
 
     def test_malformed_export_json_is_a_tool_error(self):
@@ -144,8 +196,20 @@ class ExportCoverageTest(unittest.TestCase):
             path = Path(tmp) / "export.json"
             path.write_text("{not json", encoding="utf-8")
             with self.assertRaises(ToolError) as raised:
-                llvm_cov.load(str(path))
+                llvm_cov_reader()(str(path))
         self.assertTrue(str(raised.exception).startswith("bad llvm-cov export JSON: "))
+
+    def test_json_that_is_not_an_llvm_cov_export_is_a_tool_error(self):
+        not_exports = {
+            "list": [],
+            "istanbul": {"/src/a.ts": {"path": "/src/a.ts", "statementMap": {}, "s": {}}},
+            "data not a list": {"type": "llvm.coverage.json.export", "data": {}},
+        }
+        for name, document in not_exports.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                with self.assertRaises(ToolError) as raised:
+                    llvm_cov_reader()(write_json(tmp, document))
+                self.assertTrue(str(raised.exception).startswith("not an llvm-cov export: "))
 
 
 def run_crap(argv):
@@ -171,6 +235,12 @@ class CrapSwiftPMTest(InRepoRoot):
         self.assertEqual({f["coverage_source"] for f in payload["functions"]}, {"llvm-cov-json"})
         self.assertFalse(payload["pass"])
         self.assertEqual(code, 1)
+
+    def test_crap_exits_2_on_json_that_is_not_an_llvm_cov_export(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            code, _, err = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", write_json(tmp, [])])
+        self.assertEqual(code, 2)
+        self.assertIn("not an llvm-cov export: ", err)
 
     def test_llvm_cov_json_is_refused_for_python(self):
         code, _, err = run_crap(["--lang", "python", "src", "--llvm-cov-json", EXPORT])

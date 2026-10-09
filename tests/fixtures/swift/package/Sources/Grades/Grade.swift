@@ -66,3 +66,30 @@ public func weighted(
     }
     return score * weight
 }
+
+public func tally(_ scores: [Int], strict: Bool) -> Int {
+    func penalty(_ score: Int) -> Int {
+        if score < 0 {
+            return 10
+        }
+        return 1
+    }
+    if strict {
+        return scores.map(penalty).reduce(0, +)
+    }
+    let kept = scores.filter { score in
+        score > 0
+    }
+    return kept.count
+}
+
+public func mode(_ loud: Bool) -> String {
+    #if DEBUG
+    if loud {
+        return "DEBUG"
+    }
+    return "debug"
+    #else
+    return "release"
+    #endif
+}
