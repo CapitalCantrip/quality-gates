@@ -29,14 +29,14 @@ def _end_lines_starting_on(entry: dict, start: int) -> list:
 
 def _matching_end(ends: list, lizard_end: int) -> int:
     containing = [end for end in ends if end >= lizard_end]
-    return min(containing) if containing else ends[0]
+    return min(containing) if containing else max(ends)
 
 
-def function_range(entry: dict, start: int, fallback_end: int) -> tuple:
+def function_range(entry: dict, start: int, lizard_end: int) -> tuple:
     ends = _end_lines_starting_on(entry, start)
     if not ends:
-        return start, fallback_end
-    return start, _matching_end(ends, fallback_end)
+        return start, lizard_end
+    return start, _matching_end(ends, lizard_end)
 
 
 def _in_range(line: int, span: tuple) -> bool:
@@ -62,11 +62,11 @@ def _statement_coverage(entry: dict, span: tuple) -> Optional[float]:
     return sum(1 for h in hits if h) / len(hits) if hits else None
 
 
-def function_coverage(files: dict, filepath: str, start: int, fallback_end: int) -> Optional[float]:
+def function_coverage(files: dict, filepath: str, start: int, lizard_end: int) -> Optional[float]:
     entry = files.get(str(Path(filepath).resolve()))
     if entry is None:
         return None
-    span = function_range(entry, start, fallback_end)
+    span = function_range(entry, start, lizard_end)
     branch = _branch_coverage(entry, span)
     return branch if branch is not None else _statement_coverage(entry, span)
 

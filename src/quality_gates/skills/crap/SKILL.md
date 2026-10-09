@@ -77,7 +77,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 
 ## TypeScript coverage matching
 
-Istanbul's `fnMap` gives each function's lines. lizard gives a start line and an end line but no column, so when several functions start on one line, each takes the entry that ends on its end line, else the narrowest entry that contains it (ADR-001, 2026-10-10 addendum). Coverage is still counted by line: a callback on its holder's line counts that line's branches and statements. When a figure for such a function looks too high or too low, check for a neighbour on its line before adding tests.
+Functions that start on the same line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10 addendum, and coverage is still counted by line. When a figure for such a function looks too high or too low, check for a neighbour function on its line before adding tests.
 
 ## Adopting the gate in a repo with existing debt (Python / Swift / TypeScript)
 

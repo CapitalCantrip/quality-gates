@@ -16,6 +16,8 @@ COVERAGE = f"{FIXTURES}/coverage-final.json"
 SAMPLE = f"{FIXTURES}/sample.ts"
 SAME_LINE = f"{FIXTURES}/same_line.js"
 SAME_LINE_COVERAGE = f"{FIXTURES}/coverage-same-line.json"
+SAME_LINE_TYPED = f"{FIXTURES}/same_line_typed.ts"
+SAME_LINE_TYPED_COVERAGE = f"{FIXTURES}/coverage-same-line-typed.json"
 
 
 def run_main(main, argv):
@@ -40,8 +42,8 @@ class IstanbulCoverageTest(InRepoRoot):
         super().setUp()
         self.files = istanbul.load(COVERAGE)
 
-    def coverage(self, start, fallback_end):
-        return istanbul.function_coverage(self.files, SAMPLE, start, fallback_end)
+    def coverage(self, start, lizard_end):
+        return istanbul.function_coverage(self.files, SAMPLE, start, lizard_end)
 
     def test_a_function_with_branches_scores_its_branch_arms(self):
         self.assertEqual(self.coverage(1, 10), 0.875)
@@ -125,9 +127,21 @@ class SameLineFunctionsTest(InRepoRoot):
         entry = {"fnMap": {"0": span_entry(1, 9), "1": span_entry(1, 5), "2": span_entry(1, 7)}}
         self.assertEqual(istanbul.function_range(entry, 1, 4), (1, 5))
 
-    def test_with_no_entry_containing_lizards_end_line_the_first_entry_on_that_line_is_used(self):
-        entry = {"fnMap": {"0": span_entry(1, 8), "1": span_entry(1, 3)}}
+    def test_with_no_entry_containing_lizards_end_line_the_entry_on_that_line_that_ends_last_is_used(self):
+        entry = {"fnMap": {"0": span_entry(1, 3), "1": span_entry(1, 8), "2": span_entry(1, 5)}}
         self.assertEqual(istanbul.function_range(entry, 1, 10), (1, 8))
+
+    def test_a_typed_function_whose_lizard_end_overruns_into_an_interface_keeps_its_own_end_line(self):
+        entry = istanbul.load(SAME_LINE_TYPED_COVERAGE)[str(ROOT / SAME_LINE_TYPED)]
+        self.assertEqual(istanbul.function_range(entry, 1, 8), (1, 6))
+
+    def test_crap_scores_a_typed_function_declared_after_another_on_one_line_over_its_own_lines(self):
+        code, out, _ = run_main(crap.main, [
+            "--lang", "typescript", SAME_LINE_TYPED, "--istanbul-json", SAME_LINE_TYPED_COVERAGE, "--json",
+        ])
+        scores = {f["name"]: (f["cc"], f["coverage"]) for f in json.loads(out)["functions"]}
+        self.assertEqual(code, 0)
+        self.assertEqual(scores, {"a1": (2, 0.5), "a2": (2, 0.75)})
 
     def test_an_entry_starting_on_another_line_is_never_matched(self):
         entry = {"fnMap": {"0": span_entry(2, 4)}}

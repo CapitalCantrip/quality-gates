@@ -223,8 +223,9 @@ lizard's start line, in this order:
 
 1. the entry whose end line equals lizard's end line;
 2. else the narrowest entry whose end line is at or after lizard's end line;
-3. else the first entry on that line, which is what 0.7.2 did, and the case
-   when lizard's end line runs past the real end because of type annotations.
+3. else, when no entry contains lizard's end line, the entry on that line that
+   ends last. This is the case when lizard's end line runs past the real end
+   because of type annotations, as when an `interface` follows the function.
 
 A function that is the only one starting on its line matches the same entry
 under all three, so its score is unchanged. Only the end lines of the entries
@@ -246,5 +247,6 @@ changes, and `cc-check` is untouched.
 - **Matching by column.** lizard reports none, and Istanbul's columns are
   unreliable under some reporters (v8 coverage gives a null end column).
 - **Attributing statements and branches to the narrowest enclosing function by
-  position.** It would remove the shared-line overlap, but needs columns on
-  the lizard side, which do not exist.
+  position.** It would remove the shared-line overlap, but it needs each
+  function's end column, and Istanbul's end columns can be null: nyc's
+  remapping and Vitest both write `null` there.

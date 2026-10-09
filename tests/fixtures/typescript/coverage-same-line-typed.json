@@ -1,0 +1,181 @@
+{
+ "tests/fixtures/typescript/same_line_typed.ts": {
+  "path": "tests/fixtures/typescript/same_line_typed.ts",
+  "statementMap": {
+   "0": {
+    "start": {
+     "line": 1,
+     "column": 40
+    },
+    "end": {
+     "line": 1,
+     "column": 58
+    }
+   },
+   "1": {
+    "start": {
+     "line": 2,
+     "column": 2
+    },
+    "end": {
+     "line": 4,
+     "column": null
+    }
+   },
+   "2": {
+    "start": {
+     "line": 3,
+     "column": 4
+    },
+    "end": {
+     "line": 3,
+     "column": null
+    }
+   },
+   "3": {
+    "start": {
+     "line": 5,
+     "column": 2
+    },
+    "end": {
+     "line": 5,
+     "column": null
+    }
+   }
+  },
+  "fnMap": {
+   "0": {
+    "name": "a1",
+    "decl": {
+     "start": {
+      "line": 1,
+      "column": 16
+     },
+     "end": {
+      "line": 1,
+      "column": 19
+     }
+    },
+    "loc": {
+     "start": {
+      "line": 1,
+      "column": 38
+     },
+     "end": {
+      "line": 1,
+      "column": 60
+     }
+    }
+   },
+   "1": {
+    "name": "a2",
+    "decl": {
+     "start": {
+      "line": 1,
+      "column": 76
+     },
+     "end": {
+      "line": 1,
+      "column": 79
+     }
+    },
+    "loc": {
+     "start": {
+      "line": 1,
+      "column": 98
+     },
+     "end": {
+      "line": 6,
+      "column": null
+     }
+    }
+   }
+  },
+  "branchMap": {
+   "0": {
+    "loc": {
+     "start": {
+      "line": 1,
+      "column": 47
+     },
+     "end": {
+      "line": 1,
+      "column": 58
+     }
+    },
+    "type": "cond-expr",
+    "locations": [
+     {
+      "start": {
+       "line": 1,
+       "column": 51
+      },
+      "end": {
+       "line": 1,
+       "column": 55
+      }
+     },
+     {
+      "start": {
+       "line": 1,
+       "column": 55
+      },
+      "end": {
+       "line": 1,
+       "column": 58
+      }
+     }
+    ]
+   },
+   "1": {
+    "loc": {
+     "start": {
+      "line": 2,
+      "column": 2
+     },
+     "end": {
+      "line": 4,
+      "column": null
+     }
+    },
+    "type": "if",
+    "locations": [
+     {
+      "start": {
+       "line": 2,
+       "column": 2
+      },
+      "end": {
+       "line": 4,
+       "column": null
+      }
+     },
+     {
+      "start": {},
+      "end": {}
+     }
+    ]
+   }
+  },
+  "s": {
+   "0": 1,
+   "1": 2,
+   "2": 1,
+   "3": 1
+  },
+  "f": {
+   "0": 1,
+   "1": 2
+  },
+  "b": {
+   "0": [
+    1,
+    0
+   ],
+   "1": [
+    1,
+    1
+   ]
+  }
+ }
+}
