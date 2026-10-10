@@ -423,8 +423,12 @@ records.
 - **Paths compare as text after resolving,** as for `--llvm-cov-json`. On a
   macOS volume that ignores case, a scan path typed in the wrong case
   (`twinapp/sources` for `TwinApp/Sources`) matches nothing and gives unknown
-  coverage. That fails safe, since the function scores worst case and the hint
-  line appears, so it is accepted rather than matched by file identity.
+  coverage. The same happens when an Xcode project's file reference spells a
+  file in another case than the disk (`model.swift` for `Model.swift`): xccov
+  records the project's spelling, that file's functions score worst case, and
+  the hint line does not appear if other files got figures. Both fail safe,
+  since the function scores worst case, so they are accepted rather than
+  matched by file identity; the fix is to correct the path or the reference.
 
 Rejected, as in the SwiftPM addendum: matching by file name or trailing folders,
 which lets a report made elsewhere lend one target's coverage to another.

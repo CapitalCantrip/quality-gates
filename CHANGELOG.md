@@ -14,7 +14,8 @@ paths (v0.8.2)"). No threshold changes.
 - A `.xcresult` bundle made in another checkout or container now gives every
   function unknown coverage (`?`, `null` in JSON), scored worst case, and
   `crap` prints the line about no scored function getting a figure. A report
-  file with no `path` is not matched.
+  file with no `path` is not matched. A scanned or report path that cannot be
+  resolved (a symlink loop, a NUL byte) exits 2, as `--llvm-cov-json` does.
 - Matching within one file (`(name, line)`, then the bare name) is unchanged.
 - Internal: the llvm-cov and xccov readers share one path resolver.
 
@@ -22,10 +23,10 @@ paths (v0.8.2)"). No threshold changes.
 `--xcresult`, run the tests in the checkout where `crap` runs. Re-record the
 crap baseline of every such project: delete `crap-baseline.json`, then run
 `crap --lang swift <source dirs> --xcresult <bundle> --baseline
-crap-baseline.json --update`. Before you commit it, check that no row shows `?`
-in the coverage column and that `crap` did not print the line about no scored
-function getting a figure: a baseline recorded from a bundle made elsewhere
-holds worst-case scores that exempt those functions (#81). Baselines of
+crap-baseline.json --update`. Before you commit it, check that `crap` did not
+print the line about no scored function getting a figure, and explain or fix
+every row that shows `?` in the coverage column: each is a worst-case score the
+baseline will exempt (#81). Baselines of
 Python, TypeScript and SwiftPM (`--llvm-cov-json`) projects are unaffected.
 
 ## 0.8.1 — 2026-10-11
