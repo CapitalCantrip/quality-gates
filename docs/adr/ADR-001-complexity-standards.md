@@ -357,3 +357,35 @@ xccov reports too; the two were not compared function by function.
 - **Running `llvm-cov export` inside `crap` from the `.profdata`.** It needs the
   test binary's path and the toolchain on the machine; `swift test` already
   writes the JSON.
+
+## Addendum 2026-10-11: coverage readers fail loudly
+
+The limits above are unchanged. Three behaviours of `crap` that let a gate pass
+or fail without saying why now say so. They amend the rule that CRAP is a gate
+only with coverage data: a coverage flag that is present but unusable no longer
+degrades to a worst-case ranking.
+
+- **A coverage flag given an empty or whitespace-only path is a tool error
+  (exit 2)** naming the flag, such as `--llvm-cov-json was given an empty path`.
+  Only an absent flag means no report. Before this, `--llvm-cov-json
+  "$(swift test --show-codecov-path)"` with a failing `swift test` printed the
+  worst-case note and exited 0, so a CI step whose coverage command failed
+  passed. It now fails the build.
+- **A file that is not UTF-8 is a tool error (exit 2)** in every coverage
+  reader that reads a JSON file, not a traceback with exit 1. The coverage.py
+  reader opens its file as UTF-8 explicitly, so the result does not depend on
+  the machine's locale. One loader, `json_report.load_json`, holds the three
+  failures (missing file, not UTF-8, bad JSON); each reader keeps its own
+  wording.
+- **An xccov function whose `lineCoverage` is null, missing or not a number has
+  unknown coverage,** the same answer #6 gives wherever a coverage reader is
+  unsure, never borrowed coverage. It scores worst case, so the gate fails
+  safe, and the other functions in the report score normally. A missing figure
+  no longer reads as 0.0 covered, and the lookup returns unknown for it rather
+  than falling through to a same-named entry. A present number is still
+  clamped to 0 through 1.
+
+When a coverage report was given, at least one function was scored and none got
+a figure, `crap` also prints one line to stderr, `[crap] no scanned function was
+found in the coverage report; measure coverage in this checkout`, for every
+coverage flag and in `--json` mode too. Scores and the exit code are unchanged.
