@@ -16,6 +16,12 @@ workaround for two lizard Swift bugs (v0.8.3)"). No threshold changes.
 - Swift projects may see new `init` Functions and fewer `set` ones in `crap
   --lang swift`, with either coverage flag. `cc-check` does not count Swift, so
   it is unaffected; Python and TypeScript scores are unchanged.
+- `package(set)`, and a comment or line break between a modifier and `(set)`,
+  are not covered and still make a `set` Function.
+- A lizard run that fails, such as a crash in the workaround, now stops `crap`
+  and `cc-check` with lizard's error output. Before, an exit of 1 was taken as
+  lizard's warning exit and read as a scan that found no functions. The scan
+  passes `-i -1`, so lizard's own warnings never fail it.
 - The bugs are reported upstream as terryyin/lizard#516. The workaround is
   removed once the lizard floor reaches a release that fixes them (#71).
 

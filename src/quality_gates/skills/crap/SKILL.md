@@ -64,7 +64,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    ```bash
    crap --lang swift Sources/ --no-coverage
    ```
-   In Swift a failable `init?` or `init!` is scored as `init`, and `private(set)` and the other `(set)` modifiers make no `set` Function; a property's own `get`, `set`, `willSet` and `didSet` blocks are Functions (ADR-001 addendum "a workaround for two lizard Swift bugs (v0.8.3)").
+   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: ADR-001 addendum "a workaround for two lizard Swift bugs (v0.8.3)".
 
    **TypeScript — with coverage** (Vitest needs `@vitest/coverage-v8`; under Jest use `npx jest --coverage --coverageReporters=json`):
    ```bash

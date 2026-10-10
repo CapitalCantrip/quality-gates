@@ -209,10 +209,27 @@ class LizardRunTest(InTempDir):
         super().setUp()
         self.write("App.swift", "func load() {}\n")
 
-    def test_lizard_exit_1_is_not_a_failure(self):
+    def test_a_lizard_row_gives_its_name_cc_and_line_range(self):
         row = '5,4,30,1,10,"load@10-30@App.swift","App.swift","load","load()",10,30'
-        found = complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed(row, 1))
+        found = complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed(row))
         self.assertEqual([(fn.name, fn.cc, fn.start, fn.end) for fn in found.functions], [("load", 4, 10, 30)])
+
+    def test_a_failing_wrapper_is_a_tool_error_that_shows_its_stderr(self):
+        crash = "Traceback (most recent call last):\nAttributeError: SwiftReader"
+        with self.assertRaises(ToolError) as raised:
+            complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed("", 1, crash))
+        self.assertEqual(str(raised.exception), f"lizard failed:\n{crash}")
+
+    def test_a_swift_scan_runs_lizard_through_the_workaround(self):
+        given = []
+        complexity_scan.scan(["App.swift"], "swift", runner=lambda cmd, **k: given.append(cmd) or completed(""))
+        self.assertEqual(given[0][1:3], ["-m", "quality_gates.lizard_swift_workaround"])
+
+    def test_a_typescript_scan_runs_plain_lizard(self):
+        self.write("app.ts", "function f() {}\n")
+        given = []
+        complexity_scan.scan(["app.ts"], "typescript", runner=lambda cmd, **k: given.append(cmd) or completed(""))
+        self.assertEqual(given[0][1:3], ["-m", "lizard"])
 
     def test_malformed_lizard_rows_are_dropped(self):
         rows = "too,short\n" + '5,x,30,1,10,"bad@1-2@A.swift","A.swift","bad","bad()",1,2'
@@ -324,6 +341,11 @@ class SwiftScanTest(InTempDir):
 
     def test_a_private_set_var_followed_by_an_init_reports_the_init_and_no_set(self):
         self.assertEqual(self.functions(SET_MODIFIER_THEN_INIT), [("init", 1, 3, 3), ("f", 2, 4, 7)])
+
+    def test_a_function_over_lizard_warning_limit_is_scanned_without_a_tool_error(self):
+        branches = "".join(f"    if x == {i} {{ return {i} }}\n" for i in range(20))
+        self.assertEqual(self.functions(f"func big(x: Int) -> Int {{\n{branches}    return 0\n}}\n"),
+                         [("big", 21, 1, 23)])
 
     def test_the_get_set_will_set_and_did_set_blocks_of_a_property_are_reported_as_before(self):
         self.assertEqual(self.functions(COMPUTED_PROPERTY), [

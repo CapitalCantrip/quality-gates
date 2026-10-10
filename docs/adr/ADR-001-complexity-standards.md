@@ -454,9 +454,10 @@ scan now corrects both before lizard's state machine sees them.
   body. The declaration after it, such as `init() {}`, was swallowed into a
   `set` Function and not scored under its own name.
 
-**The workaround.** The scan runs lizard through
+**The workaround.** A Swift scan runs lizard through
 `quality_gates.lizard_swift_workaround`, which puts a subclass of lizard's Swift
-reader in place and then calls lizard as before. The subclass rewrites the
+reader in place and then calls lizard as before; a TypeScript scan runs plain
+`lizard`. The subclass rewrites the
 token stream in lizard's preprocessing step: `init?` and `init!` become `init`,
 and the `(set)` after one of those four modifiers is dropped. A failable
 initialiser is then a Function named `init` with its own CC and lines; its `?`
@@ -465,6 +466,17 @@ and `didSet` blocks are still Functions, as before. No token that holds a line
 break is touched, so line numbers and file paths are those of the source file
 and coverage matching is unchanged. Source files on disk are never rewritten.
 
+Not covered: `package(set)`, and a comment or line break between the modifier
+and `(set)`. Each still makes a `set` Function that swallows the next
+declaration, and each is filed separately.
+
+**A failing lizard stops the gate.** The scan passes `-i -1`, so lizard exits 0
+however many functions exceed its own warning limit (checked on 1.17.10 and
+1.24.1). Any other exit, such as a crash in the workaround when a lizard
+release renames what it patches, is a tool error that shows lizard's error
+output. Before this, an exit of 1 was taken as lizard's warning exit, so a crash
+read as a scan that found no functions.
+
 `crap --lang swift` sees the fix with either coverage flag, since it reads the
 shared scan. `cc-check` does not count Swift (SwiftLint does, with its own
 parser), so it is unaffected. Running `lizard` directly still shows both bugs.
@@ -472,15 +484,16 @@ parser), so it is unaffected. Running `lizard` directly still shows both bugs.
 **Upstream and removal.** Both bugs are reported as terryyin/lizard#516, fixed
 on lizard's master after 1.24.1. The workaround is removed, not kept, once the
 lizard floor in `pyproject.toml` reaches a release with the fix: delete the
-workaround module and its test file, and run lizard as `-m lizard` again (#71).
+workaround module and its test file, and run Swift scans as `-m lizard` again
+(#71).
 Every release checks #516 (README § Releasing).
 
 Rejected:
 - Rewriting source files on disk before scanning. The scan would read copies,
   so file paths would no longer match the coverage report.
-- Running lizard in-process in the gates. It would change how the scan calls
-  lizard for every language to fix one; the subprocess keeps the patch inside
-  lizard's own process.
+- Patching lizard inside the gates' own process. The swapped reader would stay
+  in place for everything else that process does with lizard; the wrapper
+  confines it to a lizard subprocess that only Swift scans start.
 - Waiting for a lizard release. Until then a failable initialiser of any CC
   passes the gate unscored.
 
