@@ -23,9 +23,8 @@ CI_WITHOUT_TEST_TARGET_PHRASES = (
 )
 BASELINES_CAN_FINISH = "or is reported not done with its reason"
 CLOSURE_RULE = (
-    "In Swift, a new or changed closure (including a trailing closure or a nested `func`) "
-    "that contains a branch has a test that runs it. Until #53 is built, the CRAP gate cannot "
-    "catch an untested one; ADR-001's 2026-10-10 addendum on SwiftPM coverage has the reason."
+    "a new or changed closure (including a trailing closure or a nested `func`) "
+    "that contains a branch has a test that runs it"
 )
 
 

@@ -357,3 +357,11 @@ xccov reports too; the two were not compared function by function.
 - **Running `llvm-cov export` inside `crap` from the `.profdata`.** It needs the
   test binary's path and the toolchain on the machine; `swift test` already
   writes the JSON.
+
+## Addendum 2026-10-11: a review rule covers the closure gap (#70)
+
+Until #53 is built, the CRAP gate does not count a closure's lines against the
+function that holds it, so an untested closure can pass inside a tested
+function. Until then `/cc-swift` carries a review rule, a judgement call and not
+a gate: a new or changed closure with a branch has a test that runs it. No
+threshold, counting tool or gate scope changes.
