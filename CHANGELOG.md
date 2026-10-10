@@ -11,6 +11,15 @@ changes.
   language and is named on the *Skipped N folder(s)* line (#54). A scan of a
   package root no longer returns functions from `.build/debug` or from
   checked-out dependencies under `.build/checkouts`.
+- The shared walk follows symlinked folders (#58). A function in
+  `Sources/Shop -> ../shared/Shop` is now scanned by both gates; before, the
+  linked folder was left out without a word. The same real folder is walked once
+  per scan: a link to an ancestor (a loop), a second link to one folder, and a
+  folder reached from two scanned paths each give their repeat a place on the
+  *Skipped* line. File names keep the link path as scanned, so baseline keys are
+  what you typed. A link named on the skip list is still skipped, a dangling
+  link is ignored. Scanned paths that overlap (`src src/pkg`) now list the inner
+  folder's functions once, where they were listed twice, the second numbered `#2`.
 
 ## 0.8.2 — 2026-10-11
 

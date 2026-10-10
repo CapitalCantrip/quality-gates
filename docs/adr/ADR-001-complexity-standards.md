@@ -467,3 +467,52 @@ are re-recorded.
 - **A Swift-only skip list.** `.build` is generated output wherever it appears,
   and the one list is what keeps the two gates and every language counting the
   same way.
+
+## Addendum 2026-10-11: follow symlinked folders (v0.9.0)
+
+The limits above are unchanged. The shared walk of the 2026-10-09 addendum did
+not follow symlinks, so with `Sources/Shop -> ../shared/Shop` a scan of
+`Sources/` returned functions from `Sources/A` only and left the linked folder
+out of both gates, silently (#58). A symlinked source folder is source the
+project ships, and a gate that covers less than it appears to is the failure
+mode these standards guard against.
+
+**The rule.** The walk follows a symlinked folder unless its name is on the skip
+list, and never walks the same real folder twice in one scan:
+
+- **Once each, across the whole scan.** A folder's real path is recorded when the
+  walk enters it, including each scanned path itself. A folder whose real path
+  was already entered is not walked again, which covers a link to an ancestor
+  (a loop), two links to one folder, a link beside the real folder, and a folder
+  reached from two scanned paths. The second visit is named on the *Skipped N
+  folder(s)* line, like a skip-list folder.
+- **Which visit wins is fixed.** Among the folders under one parent, real
+  folders are entered before links, then by name; the walk is depth first in
+  that order. The first visit is scanned, so the same checkout always yields the
+  same file names.
+- **File names keep the link path as scanned.** A file reached through a link is
+  reported as `Sources/Shop/Shop.swift`, not its real path, so a baseline key
+  follows what the builder typed, and the coverage readers (which already resolve
+  both sides to a real path) still match it.
+- **The skip list still applies by name.** A link called `build` is skipped and
+  named, as a real folder of that name would be. A link to a folder that does not
+  exist is ignored. A scanned path that is itself a link is followed.
+
+**Effect on existing scores.** A repo with a symlinked source folder gains the
+functions in it, so a crap or cc baseline recorded before may lack their rows
+and is re-recorded. A repo with no such links scans as before. A scan given
+overlapping paths (`src src/pkg`) used to list the inner folder's functions
+twice, the second copy numbered `#2`; it now lists them once and names the
+repeat as skipped.
+
+### Rejected
+
+- **Not following links.** It leaves shipped source out of the gates without a
+  word, which is the failure the standards guard against.
+- **Following links with no guard.** A link to a parent never ends, and two
+  links to one folder double its functions.
+- **Reporting the real path of a linked file.** It would rename every
+  function in the folder if the link target moves, and baseline keys would no
+  longer match what the builder passes on the command line.
+- **Counting a repeated visit under its link path as well.** The same function
+  would be scored, and baselined, twice.

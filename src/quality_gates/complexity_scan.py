@@ -57,24 +57,49 @@ def is_skipped(folder: Path) -> bool:
     return any(folder.parts[-len(parts):] == parts for parts in SKIPPED_PARTS)
 
 
-def _walk(root: Path) -> tuple:
+def _enter(folder: Path, seen: set) -> bool:
+    real = os.path.realpath(folder)
+    if real in seen:
+        return False
+    seen.add(real)
+    return True
+
+
+def _is_link(here: Path, name: str) -> bool:
+    return os.path.islink(here / name)
+
+
+def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
+    kept, skipped = [], []
+    for name in sorted(dirnames, key=lambda d: (_is_link(here, d), d)):
+        child = here / name
+        if is_skipped(child) or not _enter(child, seen):
+            skipped.append(os.path.relpath(child))
+        else:
+            kept.append(name)
+    return kept, skipped
+
+
+def _walk(root: Path, seen: set) -> tuple:
     if not root.is_dir():
         return [root], []
+    if not _enter(root, seen):
+        return [], [os.path.relpath(root)]
     files, skipped = [], []
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         here = Path(dirpath)
-        skipped.extend(os.path.relpath(here / d) for d in dirnames if is_skipped(here / d))
-        dirnames[:] = [d for d in dirnames if not is_skipped(here / d)]
+        dirnames[:], left = _subfolders(here, dirnames, seen)
+        skipped.extend(left)
         files.extend(here / name for name in filenames)
     return files, skipped
 
 
 def _walk_all(paths: list) -> tuple:
-    files, skipped = [], set()
+    files, skipped, seen = [], set(), set()
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
-        found, folders = _walk(Path(path))
+        found, folders = _walk(Path(path), seen)
         files.extend(found)
         skipped.update(folders)
     return sorted(files), sorted(skipped)
