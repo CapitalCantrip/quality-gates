@@ -18,6 +18,7 @@ LIZARD_FILE = 6
 LIZARD_NAME = 7
 LIZARD_START = 9
 LIZARD_END = 10
+LIZARD_MODULE = "quality_gates.lizard_swift_workaround"
 
 SKIPPED_FOLDERS = (
     ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", "dist",
@@ -93,7 +94,7 @@ def parse_row(row: list) -> Optional[Function]:
 
 def command(file_list: str, lizard_languages: tuple) -> list:
     flags = [arg for language in lizard_languages for arg in ("-l", language)]
-    return [sys.executable, "-m", "lizard", *flags, "--csv", "-f", file_list]
+    return [sys.executable, "-m", LIZARD_MODULE, *flags, "--csv", "-f", file_list]
 
 
 def _run_lizard(files: list, lizard_languages: tuple, runner):

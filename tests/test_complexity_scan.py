@@ -274,5 +274,62 @@ class LizardScanTest(unittest.TestCase):
         self.assertEqual(str(raised.exception), "path not found: no/such/path")
 
 
+FAILABLE_INIT = """\
+struct S {
+    init?(text: String) {
+        if text.isEmpty { return nil }
+        if text == "a" { return nil }
+    }
+}
+"""
+
+SET_MODIFIER_THEN_INIT = """\
+struct T {
+    private(set) var x = 0
+    init() {}
+    func f(y: Int) -> Int {
+        if y > 0 { return 1 }
+        return 0
+    }
+}
+"""
+
+COMPUTED_PROPERTY = """\
+struct U {
+    private var stored = 0
+    var value: Int {
+        get {
+            if stored > 0 { return stored }
+            return 0
+        }
+        set(newValue) {
+            if newValue > 0 && newValue < 9 { stored = newValue }
+        }
+    }
+    var watched = 0 {
+        willSet { print(newValue) }
+        didSet { if watched > 1 { print(oldValue) } }
+    }
+}
+"""
+
+
+class SwiftScanTest(InTempDir):
+    def functions(self, text):
+        self.write("App.swift", text)
+        return [(fn.name, fn.cc, fn.start, fn.end) for fn in complexity_scan.scan(["App.swift"], "swift").functions]
+
+    def test_a_failable_init_with_two_ifs_is_reported_with_cc_3_at_its_own_lines(self):
+        self.assertEqual(self.functions(FAILABLE_INIT), [("init", 3, 2, 5)])
+
+    def test_a_private_set_var_followed_by_an_init_reports_the_init_and_no_set(self):
+        self.assertEqual(self.functions(SET_MODIFIER_THEN_INIT), [("init", 1, 3, 3), ("f", 2, 4, 7)])
+
+    def test_the_get_set_will_set_and_did_set_blocks_of_a_property_are_reported_as_before(self):
+        self.assertEqual(self.functions(COMPUTED_PROPERTY), [
+            ("get", 2, 4, 7), ("set", 3, 8, 10), ("willSet", 1, 13, 13), ("didSet", 2, 14, 14),
+        ])
+
+
 if __name__ == "__main__":
     unittest.main()
