@@ -20,7 +20,7 @@ functions above the complexity threshold.
 
 ## Steps
 
-1. Identify Python source directories in the project. The tool skips the folders ADR-001's 2026-10-09 addendum lists, and `.build` from its 2026-10-11 one, follows a symlinked folder once (the repeat is named as skipped), and names each skipped folder it found on a last `Skipped N folder(s):` line; if that line names a folder holding real source, report it.
+1. Identify Python source directories in the project. The tool skips the folders the lists in ADR-001's addenda "one complexity scan for both gates" and "skip SwiftPM's .build", follows symlinked folders by the rule in its addendum "follow symlinked folders", and names each skipped folder it found on a last `Skipped N folder(s):` line; if that line names a folder holding real source, report it; a folder marked `(already scanned)` was scanned once and is not lost source.
 2. Run:
    ```bash
    cc-check <dirs> --threshold 8 --format text

@@ -16,10 +16,17 @@ No threshold changes.
   linked folder was left out without a word. The same real folder is walked once
   per scan: a link to an ancestor (a loop), a second link to one folder, and a
   folder reached from two scanned paths each give their repeat a place on the
-  *Skipped* line. File names keep the link path as scanned, so baseline keys are
-  what you typed. A link named on the skip list is still skipped, a dangling
-  link is ignored. Scanned paths that overlap (`src src/pkg`) now list the inner
-  folder's functions once, where they were listed twice, the second numbered `#2`.
+  *Skipped* line, marked `(already scanned)` because its files were scanned once
+  and are not lost. File names keep the link path as scanned, and so do baseline
+  keys: a file behind a link is keyed `src/Shop/shop.py::f`, not by its real
+  path, and a scanned path that is itself a link is now keyed by the link path
+  too (main resolved it), which the same re-record covers. A link named on the
+  skip list is still skipped, a dangling link is ignored. The skip list checks a
+  link's own name, not its target, so a link into `node_modules` or `.build`, or
+  to a parent folder, widens the scan: name it on the skip list or remove it.
+  Scanned folders that overlap (`src src/pkg`) now list the inner folder's
+  functions once, where they were listed twice, the second numbered `#2`. Only
+  folders are deduplicated, not files named twice.
 - `crap`'s coverage freshness check reads the files the scan reads (#51). A
   newer file under a skipped folder (`node_modules`, `.git`, `.venv`, build
   output) or of another language no longer makes the report stale, with or
@@ -45,7 +52,8 @@ changed, once: delete the baseline file, then run the gate with `--update`.
   SwiftPM-only project has no `cc-check` baseline to re-record.
 - `crap` baseline (`crap --lang <lang> <dirs> <coverage flag> --baseline
   crap-baseline.json --update`), for every language, under the same conditions
-  (a SwiftPM package root, a symlinked source folder, or overlapping paths).
+  (a SwiftPM package root, a symlinked source folder, a scanned path that is a
+  link, or overlapping folders).
   A Python project also re-records it when a function ends in a nested `def` or
   `class`: its CRAP score can rise.
 - A project with none of these has nothing to re-record.

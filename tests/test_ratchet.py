@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -7,6 +8,7 @@ from pathlib import Path
 
 from quality_gates import crap
 from quality_gates import quality_check as qc
+from quality_gates import ratchet
 
 
 def branchy(name, branches, indent=""):
@@ -22,6 +24,48 @@ def call(entry, argv, root):
         except SystemExit as stop:
             return stop.code, out.getvalue() + err.getvalue()
     raise AssertionError("main did not exit")
+
+
+class KeyTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        before = os.getcwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, before)
+        (self.root / "shared" / "Shop").mkdir(parents=True)
+        (self.root / "src").mkdir()
+        (self.root / "shared" / "Shop" / "shop.py").write_text("x = 1\n")
+        (self.root / "src" / "mod.py").write_text("x = 1\n")
+        os.symlink(self.root / "shared" / "Shop", self.root / "src" / "Shop")
+
+    def test_a_file_behind_a_symlinked_folder_is_keyed_by_its_link_path(self):
+        self.assertEqual(ratchet.key(self.root, "src/Shop/shop.py", "f"), "src/Shop/shop.py::f")
+
+    def test_an_absolute_file_behind_a_symlinked_folder_is_keyed_by_its_link_path(self):
+        file = str(self.root / "src" / "Shop" / "shop.py")
+        self.assertEqual(ratchet.key(self.root, file, "f"), "src/Shop/shop.py::f")
+
+    def test_a_file_behind_a_link_to_a_folder_outside_the_repo_is_keyed_by_its_link_path(self):
+        outside = tempfile.TemporaryDirectory()
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / "o.py").write_text("x = 1\n")
+        os.symlink(outside.name, self.root / "src" / "Out")
+        self.assertEqual(ratchet.key(self.root, "src/Out/o.py", "f"), "src/Out/o.py::f")
+
+    def test_an_ordinary_files_key_is_its_path_from_the_root(self):
+        self.assertEqual(ratchet.key(self.root, "src/mod.py", "f"), "src/mod.py::f")
+
+    def test_an_ordinary_absolute_files_key_is_its_path_from_the_root(self):
+        self.assertEqual(ratchet.key(self.root, str(self.root / "src" / "mod.py"), "f"), "src/mod.py::f")
+
+    def test_a_relative_file_with_dot_segments_is_keyed_without_them(self):
+        self.assertEqual(ratchet.key(self.root, "./src/../src/mod.py", "f"), "src/mod.py::f")
+
+    def test_a_scanned_path_that_is_itself_a_link_is_keyed_by_the_link_path(self):
+        os.symlink(self.root / "shared", self.root / "alias")
+        self.assertEqual(ratchet.key(self.root, "alias/Shop/shop.py", "f"), "alias/Shop/shop.py::f")
 
 
 class CcCheckRatchetTest(unittest.TestCase):

@@ -328,10 +328,10 @@ class SymlinkedFolderTest(InTempDir):
         found = complexity_scan.scan(["src"], "python")
         self.assertEqual([fn.file for fn in found.functions], ["src/mod.py"])
 
-    def test_the_folder_a_loop_link_repeats_is_named_as_skipped(self):
+    def test_the_folder_a_loop_link_repeats_is_named_as_already_scanned(self):
         self.write("src/mod.py")
         self.link("src", "src/up")
-        self.assertEqual(complexity_scan.scan(["src"], "python").skipped, ["src/up"])
+        self.assertEqual(complexity_scan.scan(["src"], "python").skipped, ["src/up (already scanned)"])
 
     def test_a_link_to_the_scanned_path_itself_is_not_walked_again(self):
         self.write("proj/a/mod.py")
@@ -343,25 +343,39 @@ class SymlinkedFolderTest(InTempDir):
         self.link("shared/Shop", "src/ShopA")
         self.link("shared/Shop", "src/ShopB")
         found = complexity_scan.scan(["src"], "python")
-        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/ShopA/shop.py"], ["src/ShopB"]))
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/ShopA/shop.py"], ["src/ShopB (already scanned)"]))
 
-    def test_a_real_folder_is_walked_before_a_link_to_it_whatever_their_names(self):
+    def test_among_siblings_a_real_folder_is_walked_before_a_link_to_it_whatever_their_names(self):
         self.write("src/Zeta/z.py")
         self.link("src/Zeta", "src/Alpha")
         found = complexity_scan.scan(["src"], "python")
-        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/Zeta/z.py"], ["src/Alpha"]))
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/Zeta/z.py"], ["src/Alpha (already scanned)"]))
+
+    def test_a_real_folder_in_a_later_subtree_is_marked_already_scanned_when_a_link_reached_it_first(self):
+        self.write("src/Z/real/m.py")
+        self.link("src/Z/real", "src/A/link")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual(
+            ([fn.file for fn in found.functions], found.skipped),
+            (["src/A/link/m.py"], ["src/Z/real (already scanned)"]),
+        )
+
+    def test_a_skip_list_folder_is_not_marked_already_scanned(self):
+        self.write("src/x.py")
+        self.write("src/dist/y.py")
+        self.assertEqual(complexity_scan.scan(["src"], "python").skipped, ["src/dist"])
 
     def test_a_folder_reached_through_two_scanned_paths_is_scanned_once(self):
         self.write("shared/Shop/shop.py")
         self.link("shared/Shop", "one/Shop")
         self.link("shared/Shop", "two/Shop")
         found = complexity_scan.scan(["one", "two"], "python")
-        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["one/Shop/shop.py"], ["two/Shop"]))
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["one/Shop/shop.py"], ["two/Shop (already scanned)"]))
 
     def test_a_scanned_path_inside_another_scanned_path_is_not_scanned_twice(self):
         self.write("src/pkg/a.py")
         found = complexity_scan.scan(["src", "src/pkg"], "python")
-        self.assertEqual(([fn.name for fn in found.functions], found.skipped), (["f"], ["src/pkg"]))
+        self.assertEqual(([fn.name for fn in found.functions], found.skipped), (["f"], ["src/pkg (already scanned)"]))
 
     def test_a_symlink_named_on_the_skip_list_is_skipped_and_named(self):
         self.write("elsewhere/x.py")

@@ -28,6 +28,7 @@ SKIPPED_FOLDERS = (
 )
 SKIPPED_PARTS = [tuple(folder.split("/")) for folder in SKIPPED_FOLDERS]
 ORDINAL_MARK = "#"
+ALREADY_SCANNED = " (already scanned)"
 NAME_SEPARATOR = "."
 FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef)
 LIZARD_MISSING = "lizard is missing, though quality-gates depends on it.\n  Reinstall quality-gates in this environment."
@@ -77,10 +78,12 @@ def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
     kept, skipped = [], []
     for name in sorted(dirnames, key=lambda d: (_is_link(here, d), d)):
         child = here / name
-        if is_skipped(child) or not _enter(child, seen):
+        if is_skipped(child):
             skipped.append(os.path.relpath(child))
-        else:
+        elif _enter(child, seen):
             kept.append(name)
+        else:
+            skipped.append(os.path.relpath(child) + ALREADY_SCANNED)
     return kept, skipped
 
 
@@ -88,7 +91,7 @@ def _walk(root: Path, seen: set) -> tuple:
     if not root.is_dir():
         return [root], []
     if not _enter(root, seen):
-        return [], [os.path.relpath(root)]
+        return [], [os.path.relpath(root) + ALREADY_SCANNED]
     files, skipped = [], []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         here = Path(dirpath)
@@ -182,8 +185,7 @@ def _classes_defined_in(block, nodes: dict, visitors) -> list:
 
 
 def _end_line(block, nodes: dict) -> int:
-    node = nodes.get((block.name, block.lineno, block.col_offset))
-    return getattr(node, "end_lineno", block.endline)
+    return nodes[(block.name, block.lineno, block.col_offset)].end_lineno
 
 
 def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:

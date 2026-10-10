@@ -16,9 +16,23 @@ def repo_root():
     return Path.cwd()
 
 
+def _under(path: str, base: Path):
+    relative = os.path.relpath(path, base)
+    outside = relative == os.pardir or relative.startswith(os.pardir + os.sep)
+    return None if outside else relative
+
+
+def _relative_to_root(file, root) -> str:
+    typed = os.path.normpath(Path.cwd().resolve() / file)
+    for base in (Path(root), Path(root).resolve()):
+        relative = _under(typed, base)
+        if relative is not None:
+            return relative
+    return os.path.relpath(Path(file).resolve(), Path(root).resolve())
+
+
 def key(root, file, name):
-    relative = os.path.relpath(Path(file).resolve(), Path(root).resolve())
-    return Path(relative).as_posix() + KEY_SEPARATOR + name
+    return Path(_relative_to_root(file, root)).as_posix() + KEY_SEPARATOR + name
 
 
 def record(scores, name, score):

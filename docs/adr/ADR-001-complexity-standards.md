@@ -566,11 +566,17 @@ list, and never walks the same real folder twice in one scan:
   was already entered is not walked again, which covers a link to an ancestor
   (a loop), two links to one folder, a link beside the real folder, and a folder
   reached from two scanned paths. The second visit is named on the *Skipped N
-  folder(s)* line, like a skip-list folder.
+  folder(s)* line, like a skip-list folder, but marked: `src/Shop (already
+  scanned)`. The mark says the folder's files were scanned once, through the
+  first visit, so it is not lost source; a skip-list folder carries no mark and
+  was not scanned.
 - **Which visit wins is fixed.** Among the folders under one parent, real
   folders are entered before links, then by name; the walk is depth first in
   that order. The first visit is scanned, so the same checkout always yields the
-  same file names.
+  same file names. The order holds among siblings only: a link in an earlier
+  subtree (`src/A/link`) reaches a real folder in a later one (`src/Z/real`)
+  first, so the files are named by the link path and the real folder is the one
+  marked already scanned.
 - **File names keep the link path as scanned.** A file reached through a link is
   reported as `Sources/Shop/Shop.swift`, not its real path, so a baseline key
   follows what the builder typed, and the coverage readers (which already resolve
@@ -578,13 +584,18 @@ list, and never walks the same real folder twice in one scan:
 - **The skip list still applies by name.** A link called `build` is skipped and
   named, as a real folder of that name would be. A link to a folder that does not
   exist is ignored. A scanned path that is itself a link is followed.
+- **The skip list checks a link's own name, not its target.** A link into
+  `node_modules` or `.build`, or to a parent folder, is followed, and so widens
+  the scan. Name such a link on the skip list or remove it.
 
 **Effect on existing scores.** A repo with a symlinked source folder gains the
 functions in it, so a crap or cc baseline recorded before may lack their rows
 and is re-recorded. A repo with no such links scans as before. A scan given
-overlapping paths (`src src/pkg`) used to list the inner folder's functions
-twice, the second copy numbered `#2`; it now lists them once and names the
-repeat as skipped.
+overlapping folders (`src src/pkg`) used to list the inner folder's functions
+twice, the second copy numbered `#2`; it now lists them once and marks the
+repeat as already scanned. Only folders are deduplicated: the same file named
+twice on the command line, or once inside a folder that is also scanned, is
+still listed twice.
 
 ### Rejected
 
@@ -649,15 +660,18 @@ function with an untested branch as fully covered (#59).
 node (Python 3.8 and later, so inside the 3.9 floor). The node is found by the
 same `(name, line, column)` key the scan already uses to index function nodes, so
 methods, closures and functions in nested classes get the rule alike. A node
-that cannot be found falls back to radon's end line. The nested function or class
-is still scored on its own range, inside the holder's.
+is looked up without a fallback, since radon and the scan read the same tree. The
+nested function or class is still scored on its own range, inside the holder's.
 
 **Effect on existing scores.** CC and `cc-check` are unchanged. A Python
 function that ends in a nested `def` or `class` is now measured over its whole
 body, so its coverage can fall and its CRAP score can rise, past the threshold
 for a function with untested code before the nested definition. A crap baseline
 that holds such a function may hold a lower score than it now earns and is
-re-recorded. Functions that do not end in a nested definition keep their range.
+re-recorded. Functions that do not end in a nested definition keep their scores.
+The closing lines of a multi-line last statement (a closing bracket, the tail of
+a multi-line string) now fall inside the range, and coverage.py counts no
+statement there.
 
 ### Rejected
 
