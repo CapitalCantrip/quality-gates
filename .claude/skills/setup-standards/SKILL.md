@@ -14,10 +14,10 @@ engineering knowledge. Run on a set-up project, every step finds its work
 already in place and changes nothing, so this is also the upgrade after a pin
 bump.
 
-The pin this skill belongs to: `v0.8.1`. Install line, used in step 2:
+The pin this skill belongs to: `v0.8.2`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.1"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.2"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`
@@ -113,6 +113,9 @@ from the repo root and commit the file it writes.
   `crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json --update`.
   In an Xcode project with an `.xcresult`, run
   `crap --lang swift <source dirs> --xcresult <bundle> --baseline crap-baseline.json --update`.
+  Run the tests in the same checkout as `crap`: it matches a report file only at
+  its exact path, so a bundle made in another checkout or container gives every
+  function unknown coverage.
 - **TypeScript / JavaScript:**
   `cc-check --lang typescript <source dirs> --baseline cc-baseline.json --update`;
   collect coverage as in step 2 and run

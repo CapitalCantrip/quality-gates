@@ -1,10 +1,10 @@
 from dataclasses import dataclass, field
 from enum import IntEnum
-from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Tuple
 
 from quality_gates.errors import ToolError
 from quality_gates.json_report import load_json
+from quality_gates.real_path import real_path
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
@@ -217,10 +217,7 @@ class _Report:
 
     def real_path(self, filename: str) -> str:
         if filename not in self.real_paths:
-            try:
-                self.real_paths[filename] = str(Path(filename).resolve())
-            except (OSError, RuntimeError, ValueError) as exc:
-                raise ToolError(f"cannot resolve path {filename!r}: {exc}") from None
+            self.real_paths[filename] = real_path(filename)
         return self.real_paths[filename]
 
     def add(self, record: dict) -> None:
