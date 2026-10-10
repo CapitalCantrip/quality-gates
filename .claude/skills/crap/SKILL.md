@@ -25,7 +25,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 1. Detect language from project context (`Cargo.toml` → Rust; `.swift` files → Swift; `package.json` or `.ts`/`.tsx`/`.js`/`.jsx`/`.cjs`/`.mjs` files → TypeScript; else Python).
 2. **Rust** — no coverage file needed; proceed to step 3.
    **Python** — look for `coverage.json` (`coverage run -m pytest && coverage json`).
-   **Swift** — an Xcode project: look for an `.xcresult` bundle (`xcodebuild test -resultBundlePath ...`). A SwiftPM package (`Package.swift`): run `swift test --enable-code-coverage`; the report is at `swift test --show-codecov-path`.
+   **Swift** — an Xcode project: look for an `.xcresult` bundle (`xcodebuild test -resultBundlePath ...`). A SwiftPM package (`Package.swift`): run `swift test --enable-code-coverage`; the report is at `swift test --show-codecov-path`. A SwiftPM package with no test target has no coverage, so CRAP cannot gate it; `--no-coverage` still ranks its functions (step 4), but the gate needs tests.
    **TypeScript** — look for `coverage/coverage-final.json` (Istanbul's `json` reporter, written by Vitest and Jest).
 3. Run the gate:
 
