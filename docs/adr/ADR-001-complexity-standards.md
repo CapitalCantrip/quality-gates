@@ -362,8 +362,8 @@ xccov reports too; the two were not compared function by function.
 
 The limits above are unchanged. Three behaviours of `crap` that let a gate pass
 or fail without saying why now say so. They amend the rule that CRAP is a gate
-only with coverage data: a coverage flag that is present but unusable no longer
-degrades to a worst-case ranking.
+only with coverage data: a coverage flag that is present but empty or
+unreadable no longer degrades to a worst-case ranking.
 
 - **A coverage flag given an empty or whitespace-only path is a tool error
   (exit 2)** naming the flag, such as `--llvm-cov-json was given an empty path`.

@@ -58,7 +58,6 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    ```
    Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a report made in another checkout or container gives every function unknown coverage. A function whose lines hold the opening of another function's body gets unknown coverage: two functions on one line both do, and so does a function that ends on the line where the next one opens, while that next one keeps its own figure. Put each function on its own lines. A closure or autoclosure default argument on the line of the `{` (`= { _ in }`, `= {}`, `= flagA && flagB`, `= x ?? nil`) also gives its function unknown coverage; move it to a line above the `{`. A literal default (`= 0`, `= nil`, `= []`, `= .main`) is fine.
    Failing tests must fail the job at the `swift test --enable-code-coverage` step; `--show-codecov-path` runs no tests. When the path command itself fails (a broken `Package.swift`, or no package in the directory), the flag gets an empty path and `crap` exits 2: fix the package, not the flag.
-   When `crap` prints `no scored function got a figure from the coverage report`, every score above is worst case: measure coverage again in this checkout, for the files you scan, check that the report holds figures for them, and rerun.
 
    **Swift — no tests yet:**
    ```bash
@@ -77,6 +76,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    ```
 
 4. With `--no-coverage`, every function at CC 3 or above scores FAIL. That mode is a risk ranking, not a gate: report the top rows and say no coverage was available, never "the gate failed".
+   When `crap` prints `no scored function got a figure from the coverage report`, every score in this run is worst case, whatever the language: do not report it as a gate result. Measure coverage again in this checkout, check that the report holds figures for the files you scan, and rerun.
    With coverage, report all FAIL rows in full; summarise WARN rows (CRAP 5–8 for Python/Swift/TypeScript; CC 11–15 for Rust).
    `crap` skips the folders ADR-001's 2026-10-09 addendum lists and names each one it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it.
 5. For each FAIL, recommend the cheaper fix first:
