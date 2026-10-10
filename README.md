@@ -1,8 +1,12 @@
 # quality-gates
 
-Engineering standards for software built with AI coding agents, by people who
-are not software engineers. Each project pins a tag, so a fix lands everywhere
-by bumping the pin.
+Automated guardrails for software built with AI coding agents, for people who
+can't review the code themselves. Checks fail the commit or the build when the
+agent's code gets too complex, goes untested or adds comments, so problems are
+caught without anyone reading a diff. Claude Code skills set a project up and
+keep the agent to a working method that fits the size of the job. Each project
+pins a version, so nothing changes until you update, and a fix reaches every
+project when its pin is bumped.
 
 ## Get started
 
@@ -84,6 +88,30 @@ silently swallowed. That leaves four gaps:
 
 Agents follow a failing tool more reliably than a paragraph of guidance, so
 wherever a standard can be a command that exits non-zero, it is one.
+
+## As the quality control of a software factory
+
+In a software factory, agents do most of the building, from plan to release,
+and a person decides what to build and checks that it works. That only holds
+up if the line has a quality control station that needs no one to read the
+code. quality-gates can be that station:
+
+- **It judges by numbers, not opinion.** Each gate is a command with a
+  threshold and an exit code, so an agent running the line can act on the
+  result without a person in the loop.
+- **Every project gets the same standard.** Each one pins a tagged version, so
+  every project on the line is checked the same way. The standard changes only
+  through a written decision and a release, never by drift.
+- **Old code doesn't stop the line, and no run makes it worse.** Existing debt
+  is recorded once and can only shrink, so the factory can take on a project
+  as it is.
+- **It fails safe.** When a check can't tell, for example because it can't
+  match test coverage to a file, it assumes the worst instead of guessing in
+  the code's favour.
+- **The line learns once.** A mistake that keeps coming back becomes a check
+  or a review rule, and it reaches every project at the next release.
+- **People steer without reading code.** When an agent needs a decision, it
+  gives the stakes in plain words, two or three options and a recommendation.
 
 ## Three layers
 
