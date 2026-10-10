@@ -225,6 +225,11 @@ class LizardRunTest(InTempDir):
         complexity_scan.scan(["App.swift"], "swift", runner=lambda cmd, **k: given.append(cmd) or completed(""))
         self.assertEqual(given[0][1:3], ["-m", "quality_gates.lizard_swift_workaround"])
 
+    def test_a_scan_asks_lizard_to_exit_0_on_warnings(self):
+        given = []
+        complexity_scan.scan(["App.swift"], "swift", runner=lambda cmd, **k: given.append(cmd) or completed(""))
+        self.assertIn("-i -1", " ".join(given[0]))
+
     def test_a_typescript_scan_runs_plain_lizard(self):
         self.write("app.ts", "function f() {}\n")
         given = []

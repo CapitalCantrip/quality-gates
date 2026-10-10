@@ -20,8 +20,8 @@ workaround for two lizard Swift bugs (v0.8.3)"). No threshold changes.
   are not covered and still make a `set` Function.
 - A lizard run that fails, such as a crash in the workaround, now stops `crap`
   and `cc-check` with lizard's error output. Before, an exit of 1 was taken as
-  lizard's warning exit and read as a scan that found no functions. The scan
-  passes `-i -1`, so lizard's own warnings never fail it.
+  lizard's warning exit, but lizard's CSV output never gives one, so only a
+  crash exited 1 and it read as a scan that found no functions.
 - The bugs are reported upstream as terryyin/lizard#516. The workaround is
   removed once the lizard floor reaches a release that fixes them (#71).
 

@@ -468,14 +468,16 @@ and coverage matching is unchanged. Source files on disk are never rewritten.
 
 Not covered: `package(set)`, and a comment or line break between the modifier
 and `(set)`. Each still makes a `set` Function that swallows the next
-declaration, and each is filed separately.
+declaration; both are filed as #89.
 
-**A failing lizard stops the gate.** The scan passes `-i -1`, so lizard exits 0
-however many functions exceed its own warning limit (checked on 1.17.10 and
-1.24.1). Any other exit, such as a crash in the workaround when a lizard
+**A failing lizard stops the gate.** lizard's CSV output counts no warnings, so
+the scan's lizard run exits 0 however many functions exceed lizard's own warning
+limit (checked on 1.17.0, 1.17.10 and 1.24.1); the scan also passes `-i -1` in
+case a lizard release starts counting them. Any other exit, such as a crash in the workaround when a lizard
 release renames what it patches, is a tool error that shows lizard's error
-output. Before this, an exit of 1 was taken as lizard's warning exit, so a crash
-read as a scan that found no functions.
+output. Before this, an exit of 1 was taken as lizard's warning exit, which CSV
+output never gives, so the only exit 1 was a crash, and it read as a scan that
+found no functions.
 
 `crap --lang swift` sees the fix with either coverage flag, since it reads the
 shared scan. `cc-check` does not count Swift (SwiftLint does, with its own
@@ -486,7 +488,7 @@ on lizard's master after 1.24.1. The workaround is removed, not kept, once the
 lizard floor in `pyproject.toml` reaches a release with the fix: delete the
 workaround module and its test file, and run Swift scans as `-m lizard` again
 (#71).
-Every release checks #516 (README § Releasing).
+Every release checks terryyin/lizard#516 (README § Releasing).
 
 Rejected:
 - Rewriting source files on disk before scanning. The scan would read copies,
