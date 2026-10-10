@@ -20,7 +20,7 @@ LIZARD_START = 9
 LIZARD_END = 10
 
 SKIPPED_FOLDERS = (
-    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", "dist",
+    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
     ".tox", ".mypy_cache", ".pytest_cache", ".worktrees", ".claude/worktrees",
 )
 SKIPPED_PARTS = [tuple(folder.split("/")) for folder in SKIPPED_FOLDERS]
@@ -46,6 +46,7 @@ class Scan:
     functions: list
     files: list
     skipped: list
+    sources: list
 
 
 def print_skipped(skipped: list, out) -> None:
@@ -57,24 +58,49 @@ def is_skipped(folder: Path) -> bool:
     return any(folder.parts[-len(parts):] == parts for parts in SKIPPED_PARTS)
 
 
-def _walk(root: Path) -> tuple:
+def _enter(folder: Path, seen: set) -> bool:
+    real = os.path.realpath(folder)
+    if real in seen:
+        return False
+    seen.add(real)
+    return True
+
+
+def _is_link(here: Path, name: str) -> bool:
+    return os.path.islink(here / name)
+
+
+def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
+    kept, skipped = [], []
+    for name in sorted(dirnames, key=lambda d: (_is_link(here, d), d)):
+        child = here / name
+        if is_skipped(child) or not _enter(child, seen):
+            skipped.append(os.path.relpath(child))
+        else:
+            kept.append(name)
+    return kept, skipped
+
+
+def _walk(root: Path, seen: set) -> tuple:
     if not root.is_dir():
         return [root], []
+    if not _enter(root, seen):
+        return [], [os.path.relpath(root)]
     files, skipped = [], []
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         here = Path(dirpath)
-        skipped.extend(os.path.relpath(here / d) for d in dirnames if is_skipped(here / d))
-        dirnames[:] = [d for d in dirnames if not is_skipped(here / d)]
+        dirnames[:], left = _subfolders(here, dirnames, seen)
+        skipped.extend(left)
         files.extend(here / name for name in filenames)
     return files, skipped
 
 
 def _walk_all(paths: list) -> tuple:
-    files, skipped = [], set()
+    files, skipped, seen = [], set(), set()
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
-        found, folders = _walk(Path(path))
+        found, folders = _walk(Path(path), seen)
         files.extend(found)
         skipped.update(folders)
     return sorted(files), sorted(skipped)
@@ -151,6 +177,11 @@ def _classes_defined_in(block, nodes: dict, visitors) -> list:
     return classes
 
 
+def _end_line(block, nodes: dict) -> int:
+    node = nodes.get((block.name, block.lineno, block.col_offset))
+    return getattr(node, "end_lineno", block.endline)
+
+
 def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     path = (*outer, block.name)
     if isinstance(block, visitors.Class):
@@ -159,7 +190,7 @@ def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     else:
         inner = block.closures + _classes_defined_in(block, nodes, visitors)
         name = NAME_SEPARATOR.join(path)
-        own = [Function(file, name, block.complexity, block.lineno, block.endline, name)]
+        own = [Function(file, name, block.complexity, block.lineno, _end_line(block, nodes), name)]
     return own + [fn for child in inner for fn in _flatten(child, file, path, visitors, nodes)]
 
 
@@ -201,4 +232,4 @@ def scan(paths: list, lang: str, runner=None) -> Scan:
     language = languages.LANGUAGES[lang]
     sources = [f for f in files if f.suffix in language.suffixes]
     functions, analysed = COUNTING_TOOLS[language.counter](sources, language, runner)
-    return Scan(functions, analysed, skipped)
+    return Scan(functions, analysed, skipped, sources)

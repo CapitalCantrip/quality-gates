@@ -438,3 +438,151 @@ on a name match, or on a bundle made in another checkout, now scores those
 functions worst case. Where two same-named files shared one figure, each file
 now has its own. A crap baseline recorded with `--xcresult` may therefore hold
 stale scores and is re-recorded.
+
+## Addendum 2026-10-11: skip SwiftPM's .build (v0.9.0)
+
+The limits above are unchanged. This adds one folder to the skip list of the
+2026-10-09 addendum. A scan of a SwiftPM package root with `--lang swift`
+returned functions from `.build/debug/test_entry_point.swift`, and would also
+have scored checked-out dependencies under `.build/checkouts`, none of which the
+project wrote (#54).
+
+**The skip list** is now `.git`, `.venv`, `venv`, `.direnv`, `node_modules`,
+`__pycache__`, `backups`, `build`, `.build`, `dist`, `.tox`, `.mypy_cache`,
+`.pytest_cache`, `.worktrees`, `.claude/worktrees`. It stays one list for both
+gates and every language, matches a folder of that name anywhere below the
+scanned path, and `.build` is named on the *Skipped N folder(s)* line like the
+others. A project checked out under a `.build` folder is still scanned in full,
+since only folders below the scanned path count.
+
+**Effect on existing scores.** A scan that reached `.build` finds fewer
+functions, so its baselines hold rows for files that are no longer scanned.
+`cc-check` and `crap` baselines of a scan that includes a SwiftPM package root
+are re-recorded.
+
+### Rejected
+
+- **Skipping every hidden folder.** Already rejected on 2026-10-09: it hides
+  `.claude/hooks`, which agents write.
+- **A Swift-only skip list.** `.build` is generated output wherever it appears,
+  and the one list is what keeps the two gates and every language counting the
+  same way.
+
+## Addendum 2026-10-11: follow symlinked folders (v0.9.0)
+
+The limits above are unchanged. The shared walk of the 2026-10-09 addendum did
+not follow symlinks, so with `Sources/Shop -> ../shared/Shop` a scan of
+`Sources/` returned functions from `Sources/A` only and left the linked folder
+out of both gates, silently (#58). A symlinked source folder is source the
+project ships, and a gate that covers less than it appears to is the failure
+mode these standards guard against.
+
+**The rule.** The walk follows a symlinked folder unless its name is on the skip
+list, and never walks the same real folder twice in one scan:
+
+- **Once each, across the whole scan.** A folder's real path is recorded when the
+  walk enters it, including each scanned path itself. A folder whose real path
+  was already entered is not walked again, which covers a link to an ancestor
+  (a loop), two links to one folder, a link beside the real folder, and a folder
+  reached from two scanned paths. The second visit is named on the *Skipped N
+  folder(s)* line, like a skip-list folder.
+- **Which visit wins is fixed.** Among the folders under one parent, real
+  folders are entered before links, then by name; the walk is depth first in
+  that order. The first visit is scanned, so the same checkout always yields the
+  same file names.
+- **File names keep the link path as scanned.** A file reached through a link is
+  reported as `Sources/Shop/Shop.swift`, not its real path, so a baseline key
+  follows what the builder typed, and the coverage readers (which already resolve
+  both sides to a real path) still match it.
+- **The skip list still applies by name.** A link called `build` is skipped and
+  named, as a real folder of that name would be. A link to a folder that does not
+  exist is ignored. A scanned path that is itself a link is followed.
+
+**Effect on existing scores.** A repo with a symlinked source folder gains the
+functions in it, so a crap or cc baseline recorded before may lack their rows
+and is re-recorded. A repo with no such links scans as before. A scan given
+overlapping paths (`src src/pkg`) used to list the inner folder's functions
+twice, the second copy numbered `#2`; it now lists them once and names the
+repeat as skipped.
+
+### Rejected
+
+- **Not following links.** It leaves shipped source out of the gates without a
+  word, which is the failure the standards guard against.
+- **Following links with no guard.** A link to a parent never ends, and two
+  links to one folder double its functions.
+- **Reporting the real path of a linked file.** It would rename every
+  function in the folder if the link target moves, and baseline keys would no
+  longer match what the builder passes on the command line.
+- **Counting a repeated visit under its link path as well.** The same function
+  would be scored, and baselined, twice.
+
+## Addendum 2026-10-11: the freshness check reads the scan's files (v0.9.0)
+
+The limits above are unchanged, and so is what each gate scores. `crap` warns
+when the coverage file is older than the newest source file, and
+`--strict-freshness` turns the warning into exit 2. That check walked every file
+with a dot in its name under each scanned path on its own, so it counted the
+folders the scan skips (`node_modules`, `.git`, `.venv`, build output) and the
+files of other languages: in a package whose Swift sources were older than the
+coverage file, one newer file under `node_modules/` raised *coverage file may be
+stale* (#51).
+
+**The rule.** The newest modification time is taken over the source files of the
+scan itself: the shared walk, with its skip list and its symlink rule, filtered
+to the chosen language's suffixes. The scan returns that list as `sources`, and
+`crap` reads it; there is no second walk and no second copy of the skip rules. A
+path given as a single file counts if its suffix is the language's, as it does
+for the scan. A file that cannot be read for its time is ignored, as before.
+
+`crap` now scans before it checks freshness, so a scan error (a missing path, a
+missing tool) is reported ahead of a stale coverage file, and with
+`--strict-freshness` the counting tool runs even when the file turns out stale.
+
+**Effect on existing scores.** None: no function is scored differently. A report
+that was called stale only because of a skipped folder or another language no
+longer is, so any workaround for that false warning can go. A newer source file of the
+chosen language still makes the report stale, with and without the flag. No
+baseline is re-recorded for this change.
+
+### Rejected
+
+- **Keeping a freshness walk with a copy of the skip list.** The two would
+  drift; the first fault was that they already had.
+- **Comparing against only the files that hold scored functions.** A newer file
+  with no function above the minimum CC can still have changed the tests that
+  the report was made from, so the check keeps every source file of the language.
+
+## Addendum 2026-10-11: Python end lines from the AST (v0.9.0)
+
+The limits above are unchanged, and so is the counting tool: a Python function's
+CC is still radon's, and its start line is still radon's. This replaces where
+the end line comes from. Radon's `endline` ignores a trailing nested `def` or
+`class`, so `def h(x)` whose body ends in a nested `def tail()` scanned as a
+range that stopped before `tail`, and method `K.m` ending in a nested `class
+Inner` stopped before `Inner`. `crap` reads Python coverage over a function's
+line range, so it read the `def` line alone, which always runs, and scored a
+function with an untested branch as fully covered (#59).
+
+**The rule.** Every Python Function's end line is the `end_lineno` of its AST
+node (Python 3.8 and later, so inside the 3.9 floor). The node is found by the
+same `(name, line, column)` key the scan already uses to index function nodes, so
+methods, closures and functions in nested classes get the rule alike. A node
+that cannot be found falls back to radon's end line. The nested function or class
+is still scored on its own range, inside the holder's.
+
+**Effect on existing scores.** CC and `cc-check` are unchanged. A Python
+function that ends in a nested `def` or `class` is now measured over its whole
+body, so its coverage can fall and its CRAP score can rise, past the threshold
+for a function with untested code before the nested definition. A crap baseline
+that holds such a function may hold a lower score than it now earns and is
+re-recorded. Functions that do not end in a nested definition keep their range.
+
+### Rejected
+
+- **Patching radon's `endline` with the largest end line among the function's
+  closures and nested classes.** It repeats in a second place what the AST
+  already states, and needs a rule for each kind of statement that can close a
+  body.
+- **Taking the start line from the AST too.** The brief keeps start lines as
+  they are, so baseline keys and the `#N` labels do not move.

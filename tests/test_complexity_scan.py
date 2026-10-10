@@ -68,6 +68,57 @@ class Top:
         return N
 """
 
+ENDS_IN_NESTED_DEF = """\
+def h(x):
+    if x:
+        return 1
+
+    def tail():
+        return 2
+"""
+
+METHOD_ENDS_IN_NESTED_CLASS = """\
+class K:
+    def m(self, x):
+        if x:
+            return 1
+
+        class Inner:
+            def n(self):
+                return 2
+"""
+
+CLOSURE_ENDS_IN_NESTED_DEF = """\
+def h(x):
+    def k(y):
+        if y:
+            return 1
+
+        def tail():
+            return 2
+
+    return k
+"""
+
+ASYNC_ENDS_IN_NESTED_DEF = """\
+async def h(x):
+    if x:
+        return 1
+
+    async def tail():
+        return 2
+"""
+
+DECORATED_ENDS_IN_NESTED_DEF = """\
+@staticmethod
+def h(x):
+    if x:
+        return 1
+
+    def tail():
+        return 2
+"""
+
 
 def completed(stdout, returncode=0, stderr=""):
     return CompletedProcess([], returncode, stdout=stdout, stderr=stderr)
@@ -138,6 +189,36 @@ class PythonScanTest(InTempDir):
         self.write("mod.py", "async def f():\n    class K:\n        def m(self):\n            return 1\n")
         self.assertEqual(set(self.functions()), {"f", "f.K.m"})
 
+    def test_a_function_ending_in_a_nested_def_ends_on_the_nested_defs_last_line(self):
+        self.write("mod.py", ENDS_IN_NESTED_DEF)
+        function = self.functions()["h"]
+        self.assertEqual((function.start, function.end, function.cc), (1, 6, 2))
+
+    def test_a_method_ending_in_a_nested_class_ends_on_the_nested_classs_last_line(self):
+        self.write("mod.py", METHOD_ENDS_IN_NESTED_CLASS)
+        method = self.functions()["K.m"]
+        self.assertEqual((method.start, method.end, method.cc), (2, 8, 2))
+
+    def test_a_closure_ending_in_a_nested_def_ends_on_the_nested_defs_last_line(self):
+        self.write("mod.py", CLOSURE_ENDS_IN_NESTED_DEF)
+        functions = self.functions()
+        self.assertEqual((functions["h.k"].start, functions["h.k"].end), (2, 7))
+        self.assertEqual((functions["h"].start, functions["h"].end), (1, 9))
+
+    def test_an_async_function_ending_in_a_nested_def_ends_on_the_nested_defs_last_line(self):
+        self.write("mod.py", ASYNC_ENDS_IN_NESTED_DEF)
+        self.assertEqual(self.functions()["h"].end, 6)
+
+    def test_a_decorated_function_keeps_its_def_line_as_its_start_and_ends_on_the_nested_defs_last_line(self):
+        self.write("mod.py", DECORATED_ENDS_IN_NESTED_DEF)
+        function = self.functions()["h"]
+        self.assertEqual((function.start, function.end), (2, 7))
+
+    def test_the_nested_def_is_still_scored_on_its_own_line_range(self):
+        self.write("mod.py", ENDS_IN_NESTED_DEF)
+        tail = self.functions()["h.tail"]
+        self.assertEqual((tail.start, tail.end), (5, 6))
+
     def test_a_repeated_name_in_a_file_gets_its_order_as_a_suffix(self):
         self.write("mod.py", "def f():\n    pass\n\n\ndef f():\n    pass\n")
         self.assertEqual(set(self.functions()), {"f", "f#2"})
@@ -187,6 +268,19 @@ class SkipListTest(InTempDir):
         found = complexity_scan.scan(["src"], "python")
         self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/pkg/y.py"], ["src/pkg/dist"]))
 
+    def test_a_swift_file_under_swiftpms_build_folder_is_not_scanned_and_the_folder_is_named(self):
+        self.write(".build/debug/test_entry_point.swift", "func entry(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
+        self.write("Sources/App.swift", "func load(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
+        found = complexity_scan.scan(["."], "swift")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["Sources/App.swift"], [".build"]))
+
+    def test_swiftpms_build_folder_is_skipped_for_every_language(self):
+        self.write(".build/checkouts/dep/x.py")
+        self.write(".build/checkouts/dep/x.ts", "function x(a) { return a ? 1 : 2; }\n")
+        for lang in ("python", "typescript"):
+            found = complexity_scan.scan(["."], lang)
+            self.assertEqual((found.functions, found.skipped), ([], [".build"]))
+
     def test_a_worktrees_folder_outside_claude_is_scanned(self):
         self.write("tools/worktrees/x.py")
         self.assertEqual(len(complexity_scan.scan(["."], "python").functions), 1)
@@ -202,6 +296,88 @@ class SkipListTest(InTempDir):
         found = complexity_scan.scan(["."], "typescript")
         self.assertEqual([fn.file for fn in found.functions], [".claude/hooks/h.ts"])
         self.assertEqual(found.skipped, sorted(complexity_scan.SKIPPED_FOLDERS))
+
+
+class SymlinkedFolderTest(InTempDir):
+    def link(self, target, name):
+        Path(name).parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(os.path.abspath(target), name)
+
+    def files(self, *paths, lang="python"):
+        return sorted(fn.file for fn in complexity_scan.scan(list(paths), lang).functions)
+
+    def test_a_function_in_a_symlinked_source_folder_is_scanned(self):
+        self.write("Sources/A/a.py")
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "Sources/Shop")
+        self.assertEqual(self.files("Sources"), ["Sources/A/a.py", "Sources/Shop/shop.py"])
+
+    def test_a_symlinked_folder_keeps_the_link_path_in_the_file_name(self):
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "Sources/Shop")
+        self.assertEqual(self.files("Sources"), ["Sources/Shop/shop.py"])
+
+    def test_a_symlinked_folder_of_swift_files_is_scanned_by_lizard(self):
+        self.write("shared/Shop/Shop.swift", "func shop(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
+        self.link("shared/Shop", "Sources/Shop")
+        self.assertEqual(self.files("Sources", lang="swift"), ["Sources/Shop/Shop.swift"])
+
+    def test_a_symlink_loop_terminates_and_scans_each_file_once(self):
+        self.write("src/mod.py")
+        self.link("src", "src/up")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual([fn.file for fn in found.functions], ["src/mod.py"])
+
+    def test_the_folder_a_loop_link_repeats_is_named_as_skipped(self):
+        self.write("src/mod.py")
+        self.link("src", "src/up")
+        self.assertEqual(complexity_scan.scan(["src"], "python").skipped, ["src/up"])
+
+    def test_a_link_to_the_scanned_path_itself_is_not_walked_again(self):
+        self.write("proj/a/mod.py")
+        self.link("proj", "proj/a/back")
+        self.assertEqual(self.files("proj"), ["proj/a/mod.py"])
+
+    def test_two_links_to_the_same_folder_scan_its_files_once(self):
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "src/ShopA")
+        self.link("shared/Shop", "src/ShopB")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/ShopA/shop.py"], ["src/ShopB"]))
+
+    def test_a_real_folder_is_walked_before_a_link_to_it_whatever_their_names(self):
+        self.write("src/Zeta/z.py")
+        self.link("src/Zeta", "src/Alpha")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/Zeta/z.py"], ["src/Alpha"]))
+
+    def test_a_folder_reached_through_two_scanned_paths_is_scanned_once(self):
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "one/Shop")
+        self.link("shared/Shop", "two/Shop")
+        found = complexity_scan.scan(["one", "two"], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["one/Shop/shop.py"], ["two/Shop"]))
+
+    def test_a_scanned_path_inside_another_scanned_path_is_not_scanned_twice(self):
+        self.write("src/pkg/a.py")
+        found = complexity_scan.scan(["src", "src/pkg"], "python")
+        self.assertEqual(([fn.name for fn in found.functions], found.skipped), (["f"], ["src/pkg"]))
+
+    def test_a_symlink_named_on_the_skip_list_is_skipped_and_named(self):
+        self.write("elsewhere/x.py")
+        self.link("elsewhere", "src/build")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual((found.functions, found.skipped), ([], ["src/build"]))
+
+    def test_a_symlink_to_a_folder_that_does_not_exist_is_ignored(self):
+        self.write("src/mod.py")
+        os.symlink(os.path.abspath("gone"), "src/dangling")
+        self.assertEqual(self.files("src"), ["src/mod.py"])
+
+    def test_a_scanned_path_that_is_itself_a_symlink_to_a_folder_is_scanned(self):
+        self.write("real/mod.py")
+        self.link("real", "alias")
+        self.assertEqual(self.files("alias"), ["alias/mod.py"])
 
 
 class LizardRunTest(InTempDir):

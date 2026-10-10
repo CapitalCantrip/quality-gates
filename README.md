@@ -218,18 +218,30 @@ coverage flag given an empty path exits 2, so a path command that fails inside
 When a report is given and none of the scored functions gets a figure from it,
 `crap` prints one line to stderr saying so (ADR-001's addendum "Coverage
 readers fail loudly").
+`crap` warns when the coverage file is older than the newest source file the
+scan read, and `--strict-freshness` makes that exit 2; files under a skipped
+folder and files of another language do not count (ADR-001's 2026-10-11
+addendum on the freshness check).
 
 ### What both gates score
 
 Both gates take their functions from one scan, so they always list the same
 functions under the same names. A function, method, closure or method of a
 nested class is scored on its own; a class is not. Both skip `.git`, `.venv`,
-`venv`, `.direnv`, `node_modules`, `__pycache__`, `backups`, `build`, `dist`,
-`.tox`, `.mypy_cache`, `.pytest_cache`, `.worktrees` and `.claude/worktrees`
+`venv`, `.direnv`, `node_modules`, `__pycache__`, `backups`, `build`, `.build`
+(SwiftPM's), `dist`, `.tox`, `.mypy_cache`, `.pytest_cache`, `.worktrees` and `.claude/worktrees`
 wherever they appear below the scanned path, and scan every other hidden folder.
+Both follow a symlinked folder once: the same real folder is never walked twice in
+one scan, and the second visit is named as skipped like the folders above.
 Each gate ends its report with a line naming the skipped folders it found, so a
 real package called `build` or `dist` is never dropped silently. The reasons are
-in ADR-001's 2026-10-09 addendum.
+in ADR-001's 2026-10-09 addendum, with `.build` and the symlink rule in its
+2026-10-11 ones.
+
+A Python function's line range runs from its `def` line to the end of its last
+statement, taken from the syntax tree, so a function whose body ends in a nested
+`def` or `class` is measured, and `crap` reads its coverage, over the whole body
+(ADR-001's 2026-10-11 addendum on Python end lines). CC is still radon's.
 
 ### How they fit together
 
