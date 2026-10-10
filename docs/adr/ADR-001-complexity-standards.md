@@ -503,3 +503,11 @@ Rejected:
 and fewer `set` ones, and a declaration that was swallowed by a `set` is now
 scored under its own name. A Swift crap baseline may therefore hold stale or
 missing entries and is re-recorded. Python and TypeScript scans are unchanged.
+
+## Addendum 2026-10-11: a review rule covers the closure gap (#70)
+
+Until #53 is built, the CRAP gate does not count a closure's lines against the
+function that holds it, so an untested closure can pass inside a tested
+function. Until then `/cc-swift` carries a review rule, a judgement call and not
+a gate: a new or changed closure with a branch has a test that runs it. No
+threshold, counting tool or gate scope changes.
