@@ -21,10 +21,14 @@ CI_WITHOUT_TEST_TARGET_PHRASES = (
     "A SwiftPM package with no test target gets no CRAP step",
     "report CRAP as **not done**, as step 3 says",
 )
-BASELINES_CAN_FINISH = "or is reported not done with its reason"
+BASELINES_CAN_FINISH = "or, for a SwiftPM package with no test target, its CRAP gate is reported not done with its reason"
 CLOSURE_RULE = (
     "a new or changed closure (including a trailing closure or a nested `func`) "
     "that contains a branch has a test that runs it"
+)
+NESTED_FUNC_REASON = (
+    "A nested `func`: the CRAP gate scores it on its own and fails an untested one with two or more branches. "
+    "A small one (a single branch, CRAP 6) can still pass untested, which is why the rule asks for a test for it too."
 )
 
 
@@ -63,8 +67,11 @@ class SetupStandards(unittest.TestCase):
 
 
 class ClosureReviewRule(unittest.TestCase):
-    def test_the_closure_rule_sits_in_the_architectural_constraints_of_cc_swift(self):
-        self.assertIn(CLOSURE_RULE, section(self, CC_SWIFT, "## Architectural constraints", "## Dependencies"))
+    def test_the_closure_rule_sits_under_its_own_review_rule_heading_in_cc_swift(self):
+        self.assertIn(CLOSURE_RULE, section(self, CC_SWIFT, "## Review rule", "## Dependencies"))
+
+    def test_a_small_nested_func_the_gate_passes_untested_still_needs_a_test_in_the_review_rule(self):
+        self.assertIn(NESTED_FUNC_REASON, section(self, CC_SWIFT, "## Review rule", "## Dependencies"))
 
     def test_the_closure_rule_appears_once_across_the_shipped_skills(self):
         occurrences = sum(flat(path.read_text(encoding="utf-8")).count(CLOSURE_RULE) for path in SKILLS.rglob("*.md"))

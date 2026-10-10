@@ -94,8 +94,9 @@ Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
   project on `node --test` cannot yet (it writes lcov), so report CRAP as not
   done with that reason.
 
-Done when every detected language has its gates configured, or its CRAP gate is
-reported not done as step 3 says, and `qg-skills` has run.
+Done when every detected language has its gates configured, or, for a SwiftPM
+package with no test target, its CRAP gate is reported not done as step 3 says,
+and `qg-skills` has run.
 
 ## 3. Baselines
 
@@ -133,8 +134,9 @@ from the repo root and commit the file it writes.
   that attribute is its baseline entry.
 
 Report each baseline with its count: "12 functions over the complexity limit,
-recorded; new ones will fail". Done when each gate passes on today's tree, or is
-reported not done with its reason.
+recorded; new ones will fail". Done when each gate passes on today's tree, or,
+for a SwiftPM package with no test target, its CRAP gate is reported not done
+with its reason.
 
 On an upgrade, a baseline that fails after the bump is re-recorded as the
 release's CHANGELOG entry says under *When you bump the pin*.
