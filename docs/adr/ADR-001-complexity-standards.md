@@ -358,7 +358,7 @@ xccov reports too; the two were not compared function by function.
   test binary's path and the toolchain on the machine; `swift test` already
   writes the JSON.
 
-## Addendum 2026-10-11: coverage readers fail loudly
+## Addendum 2026-10-11: coverage readers fail loudly (v0.8.1)
 
 The limits above are unchanged. Three behaviours of `crap` that let a gate pass
 or fail without saying why now say so. They amend the rule that CRAP is a gate
