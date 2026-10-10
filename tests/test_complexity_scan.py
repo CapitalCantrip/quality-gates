@@ -217,6 +217,88 @@ class SkipListTest(InTempDir):
         self.assertEqual(found.skipped, sorted(complexity_scan.SKIPPED_FOLDERS))
 
 
+class SymlinkedFolderTest(InTempDir):
+    def link(self, target, name):
+        Path(name).parent.mkdir(parents=True, exist_ok=True)
+        os.symlink(os.path.abspath(target), name)
+
+    def files(self, *paths, lang="python"):
+        return sorted(fn.file for fn in complexity_scan.scan(list(paths), lang).functions)
+
+    def test_a_function_in_a_symlinked_source_folder_is_scanned(self):
+        self.write("Sources/A/a.py")
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "Sources/Shop")
+        self.assertEqual(self.files("Sources"), ["Sources/A/a.py", "Sources/Shop/shop.py"])
+
+    def test_a_symlinked_folder_keeps_the_link_path_in_the_file_name(self):
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "Sources/Shop")
+        self.assertEqual(self.files("Sources"), ["Sources/Shop/shop.py"])
+
+    def test_a_symlinked_folder_of_swift_files_is_scanned_by_lizard(self):
+        self.write("shared/Shop/Shop.swift", "func shop(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
+        self.link("shared/Shop", "Sources/Shop")
+        self.assertEqual(self.files("Sources", lang="swift"), ["Sources/Shop/Shop.swift"])
+
+    def test_a_symlink_loop_terminates_and_scans_each_file_once(self):
+        self.write("src/mod.py")
+        self.link("src", "src/up")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual([fn.file for fn in found.functions], ["src/mod.py"])
+
+    def test_the_folder_a_loop_link_repeats_is_named_as_skipped(self):
+        self.write("src/mod.py")
+        self.link("src", "src/up")
+        self.assertEqual(complexity_scan.scan(["src"], "python").skipped, ["src/up"])
+
+    def test_a_link_to_the_scanned_path_itself_is_not_walked_again(self):
+        self.write("proj/a/mod.py")
+        self.link("proj", "proj/a/back")
+        self.assertEqual(self.files("proj"), ["proj/a/mod.py"])
+
+    def test_two_links_to_the_same_folder_scan_its_files_once(self):
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "src/ShopA")
+        self.link("shared/Shop", "src/ShopB")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/ShopA/shop.py"], ["src/ShopB"]))
+
+    def test_a_real_folder_is_walked_before_a_link_to_it_whatever_their_names(self):
+        self.write("src/Zeta/z.py")
+        self.link("src/Zeta", "src/Alpha")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/Zeta/z.py"], ["src/Alpha"]))
+
+    def test_a_folder_reached_through_two_scanned_paths_is_scanned_once(self):
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "one/Shop")
+        self.link("shared/Shop", "two/Shop")
+        found = complexity_scan.scan(["one", "two"], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["one/Shop/shop.py"], ["two/Shop"]))
+
+    def test_a_scanned_path_inside_another_scanned_path_is_not_scanned_twice(self):
+        self.write("src/pkg/a.py")
+        found = complexity_scan.scan(["src", "src/pkg"], "python")
+        self.assertEqual(([fn.name for fn in found.functions], found.skipped), (["f"], ["src/pkg"]))
+
+    def test_a_symlink_named_on_the_skip_list_is_skipped_and_named(self):
+        self.write("elsewhere/x.py")
+        self.link("elsewhere", "src/build")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual((found.functions, found.skipped), ([], ["src/build"]))
+
+    def test_a_symlink_to_a_folder_that_does_not_exist_is_ignored(self):
+        self.write("src/mod.py")
+        os.symlink(os.path.abspath("gone"), "src/dangling")
+        self.assertEqual(self.files("src"), ["src/mod.py"])
+
+    def test_a_scanned_path_that_is_itself_a_symlink_to_a_folder_is_scanned(self):
+        self.write("real/mod.py")
+        self.link("real", "alias")
+        self.assertEqual(self.files("alias"), ["alias/mod.py"])
+
+
 class LizardRunTest(InTempDir):
     def setUp(self):
         super().setUp()
