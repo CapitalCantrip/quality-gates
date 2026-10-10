@@ -1,5 +1,32 @@
 # Changelog
 
+## [Unreleased]
+
+The Swift scan works around two lizard Swift bugs (#69; ADR-001 addendum "a
+workaround for two lizard Swift bugs (v0.8.3)"). No threshold changes.
+
+- A failable initialiser, `init?(...)` or `init!(...)`, is now scored as a
+  Function named `init` with its own CC and lines. lizard 1.24.1 did not report
+  it, so it was never scored.
+- `private(set)`, `fileprivate(set)`, `internal(set)` and `public(set)` no
+  longer create a Function named `set` that takes the next declaration's body.
+  That declaration, such as `init() {}`, is scored under its own name.
+- A property's own `get`, `set`, `willSet` and `didSet` blocks are scored as
+  before, and line numbers and file paths are unchanged.
+- Swift projects may see new `init` Functions and fewer `set` ones in `crap
+  --lang swift`, with either coverage flag. `cc-check` does not count Swift, so
+  it is unaffected; Python and TypeScript scores are unchanged.
+- The bugs are reported upstream as terryyin/lizard#516. The workaround is
+  removed once the lizard floor reaches a release that fixes them (#71).
+
+**When you bump the pin:** run `qg-skills`. Re-record the crap baseline of
+every Swift project: delete `crap-baseline.json`, then run `crap --lang swift
+<source dirs> <coverage flag> --baseline crap-baseline.json --update`. Before
+you commit it, explain or fix every row that shows `?` in the coverage column:
+each is a worst-case score the baseline will exempt (#81). There is no Swift
+`cc-check` baseline to re-record, since `cc-check` does not count Swift; cc and
+crap baselines of Python and TypeScript projects are unaffected.
+
 ## 0.8.2 — 2026-10-11
 
 `--xcresult` matches exact paths (#49; ADR-001 addendum "xccov matches exact

@@ -438,3 +438,53 @@ on a name match, or on a bundle made in another checkout, now scores those
 functions worst case. Where two same-named files shared one figure, each file
 now has its own. A crap baseline recorded with `--xcresult` may therefore hold
 stale scores and is re-recorded.
+
+## Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)
+
+The limits and the counting tool are unchanged: lizard still counts Swift.
+lizard 1.24.1, the latest release, misreads two Swift constructs (#69), and the
+scan now corrects both before lizard's state machine sees them.
+
+- **A failable initialiser was not scored.** lizard's tokenizer makes `init?`
+  and `init!` single tokens, so they never match `init`. A failable `init?` with
+  two `if`s (CC 3) was not reported, and so was never scored.
+- **`private(set)` made a Function named `set`.** The `set` inside an access
+  modifier (`private(set)`, `fileprivate(set)`, `internal(set)`,
+  `public(set)`) opened a setter accessor, which took the next `{...}` as its
+  body. The declaration after it, such as `init() {}`, was swallowed into a
+  `set` Function and not scored under its own name.
+
+**The workaround.** The scan runs lizard through
+`quality_gates.lizard_swift_workaround`, which puts a subclass of lizard's Swift
+reader in place and then calls lizard as before. The subclass rewrites the
+token stream in lizard's preprocessing step: `init?` and `init!` become `init`,
+and the `(set)` after one of those four modifiers is dropped. A failable
+initialiser is then a Function named `init` with its own CC and lines; its `?`
+or `!` is not counted as a condition. A property's own `get`, `set`, `willSet`
+and `didSet` blocks are still Functions, as before. No token that holds a line
+break is touched, so line numbers and file paths are those of the source file
+and coverage matching is unchanged. Source files on disk are never rewritten.
+
+`crap --lang swift` sees the fix with either coverage flag, since it reads the
+shared scan. `cc-check` does not count Swift (SwiftLint does, with its own
+parser), so it is unaffected. Running `lizard` directly still shows both bugs.
+
+**Upstream and removal.** Both bugs are reported as terryyin/lizard#516, fixed
+on lizard's master after 1.24.1. The workaround is removed, not kept, once the
+lizard floor in `pyproject.toml` reaches a release with the fix: delete the
+workaround module and its test file, and run lizard as `-m lizard` again (#71).
+Every release checks #516 (README § Releasing).
+
+Rejected:
+- Rewriting source files on disk before scanning. The scan would read copies,
+  so file paths would no longer match the coverage report.
+- Running lizard in-process in the gates. It would change how the scan calls
+  lizard for every language to fix one; the subprocess keeps the patch inside
+  lizard's own process.
+- Waiting for a lizard release. Until then a failable initialiser of any CC
+  passes the gate unscored.
+
+**Effect on existing scores.** A Swift project may see new `init` Functions
+and fewer `set` ones, and a declaration that was swallowed by a `set` is now
+scored under its own name. A Swift crap baseline may therefore hold stale or
+missing entries and is re-recorded. Python and TypeScript scans are unchanged.

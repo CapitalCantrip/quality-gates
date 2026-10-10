@@ -30,6 +30,7 @@ Swift source files and reports functions above the complexity threshold.
    ```
    With tests, swap `--no-coverage` for coverage so the CRAP column is a gate: `--xcresult <path>` for an Xcode project's `.xcresult` bundle, or, in a SwiftPM package, run `swift test --enable-code-coverage` and pass `--llvm-cov-json "$(swift test --show-codecov-path)"`; for either, measure coverage in the checkout where `crap` runs, since a report file counts only at the exact path `crap` scans
 4. Report SwiftLint warnings (CC > 6) and errors (CC > 8). With `--no-coverage`, lizard's CRAP column is a worst-case ranking, not a gate: every function at CC 3 or above "fails" it
+   In Swift a failable `init?` or `init!` is scored as `init`, and `private(set)` and the other `(set)` modifiers make no `set` Function; a property's own `get`, `set`, `willSet` and `didSet` blocks are Functions (ADR-001 addendum "a workaround for two lizard Swift bugs (v0.8.3)").
 5. For each violation propose: extract helper functions, break up long `switch` bodies, split large `body` computed properties into `@ViewBuilder` helpers
 
 ## Thresholds
