@@ -227,6 +227,34 @@ class CoverageSourceTest(unittest.TestCase):
         self.assertEqual({f["coverage_source"] for f in payload["functions"]}, {"assumed-zero"})
 
 
+class EmptyCoverageFlagTest(unittest.TestCase):
+    LANGUAGE_OF = {"--coverage-json": "python", "--xcresult": "swift", "--llvm-cov-json": "swift", "--istanbul-json": "typescript"}
+
+    def test_every_coverage_flag_is_covered_by_these_tests(self):
+        self.assertEqual({coverage.flag for coverage in languages.COVERAGE_FORMATS}, set(self.LANGUAGE_OF))
+
+    def test_an_empty_value_for_each_coverage_flag_is_a_tool_error_naming_the_flag(self):
+        for flag, lang in self.LANGUAGE_OF.items():
+            with self.subTest(flag):
+                code, out, err = call(["--lang", lang, ".", flag, ""])
+                self.assertEqual(code, 2)
+                self.assertEqual(err, f"[crap] {flag} was given an empty path\n")
+                self.assertNotIn("worst-case", err)
+                self.assertEqual(out, "")
+
+    def test_a_whitespace_only_value_is_as_empty_as_an_empty_one(self):
+        for flag, lang in self.LANGUAGE_OF.items():
+            with self.subTest(flag):
+                code, _, err = call(["--lang", lang, ".", flag, "  \t"])
+                self.assertEqual(code, 2)
+                self.assertEqual(err, f"[crap] {flag} was given an empty path\n")
+
+    def test_an_empty_value_is_refused_whichever_language_the_flag_belongs_to(self):
+        code, _, err = call(["--lang", "python", ".", "--xcresult", ""])
+        self.assertEqual(code, 2)
+        self.assertTrue(err.startswith("[crap] --xcresult"))
+
+
 class ArgumentTest(unittest.TestCase):
     def test_warn_must_be_below_the_threshold(self):
         code, _, err = call(["--lang", "python", ".", "--warn", "8"])

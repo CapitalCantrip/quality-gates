@@ -127,8 +127,11 @@ class CoverageReport:
 def _given_report(args) -> Optional[CoverageReport]:
     for coverage in COVERAGE_FORMATS:
         path = getattr(args, coverage.dest)
-        if path:
-            return CoverageReport(coverage, path)
+        if path is None:
+            continue
+        if not path.strip():
+            raise ToolError(f"{coverage.flag} was given an empty path")
+        return CoverageReport(coverage, path)
     return None
 
 
