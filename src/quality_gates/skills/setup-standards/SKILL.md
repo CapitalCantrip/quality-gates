@@ -94,9 +94,8 @@ Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
   project on `node --test` cannot yet (it writes lcov), so report CRAP as not
   done with that reason.
 
-Done when every detected language has its gates configured, or, where this
-step says to report CRAP as not done (a SwiftPM package with no test target, a
-project on `node --test`), it is reported not done with its reason, and
+Done when every detected language's gates are configured, each CRAP gate this
+step says to report as not done is reported not done with its reason, and
 `qg-skills` has run.
 
 ## 3. Baselines
@@ -191,10 +190,12 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   **not done**, as step 3 says.
 - If the project has no CI workflow, add `.github/workflows/tests.yml` that
   installs the project, runs the tests and the steps above, on pull requests
-  and pushes to the default branch.
+  and pushes to the default branch. A SwiftPM package with no test target has
+  no tests to run (`swift test` exits 1 there), so its workflow runs SwiftLint
+  only.
 
-Done when the test suite passes locally with the new tests, and every gate the
-hooks run also runs in CI.
+Done when the test suite, where the project has one, passes locally with the
+new tests, and every gate the hooks run also runs in CI.
 
 ## 6. The asking rule
 

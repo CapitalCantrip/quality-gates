@@ -17,6 +17,9 @@ quality-gates is a Python package, so the job needs Python as well as Node.
 Coverage needs `@vitest/coverage-v8` in the dev dependencies. Under Jest, run
 `npx jest --coverage --coverageReporters=json` instead; it writes the same
 `coverage/coverage-final.json`. A project already writing coverage in its test
-step reuses that file rather than running the tests twice.
+step reuses that file rather than running the tests twice. A project on
+`node --test` leaves out the last two steps and reports CRAP as not done, as
+step 2 of the skill says.
 
-Done when the workflow runs both gates and passes on today's tree.
+Done when the workflow runs both gates, or `cc-check` alone on `node --test`,
+and passes on today's tree.
