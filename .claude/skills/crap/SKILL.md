@@ -50,13 +50,14 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    ```bash
    crap --lang swift Sources/ --xcresult /tmp/out.xcresult
    ```
+   Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a bundle made in another checkout or container gives every function unknown coverage, and a file name shared with another folder's file is never borrowed.
 
    **Swift — with coverage, SwiftPM package:**
    ```bash
    swift test --enable-code-coverage
    crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
    ```
-   Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a report made in another checkout or container gives every function unknown coverage. A function whose lines hold the opening of another function's body gets unknown coverage: two functions on one line both do, and so does a function that ends on the line where the next one opens, while that next one keeps its own figure. Put each function on its own lines. A closure or autoclosure default argument on the line of the `{` (`= { _ in }`, `= {}`, `= flagA && flagB`, `= x ?? nil`) also gives its function unknown coverage; move it to a line above the `{`. A literal default (`= 0`, `= nil`, `= []`, `= .main`) is fine.
+   Run both in the same checkout, as for an Xcode project. A function whose lines hold the opening of another function's body gets unknown coverage: two functions on one line both do, and so does a function that ends on the line where the next one opens, while that next one keeps its own figure. Put each function on its own lines. A closure or autoclosure default argument on the line of the `{` (`= { _ in }`, `= {}`, `= flagA && flagB`, `= x ?? nil`) also gives its function unknown coverage; move it to a line above the `{`. A literal default (`= 0`, `= nil`, `= []`, `= .main`) is fine.
    Failing tests must fail the job at the `swift test --enable-code-coverage` step; `--show-codecov-path` runs no tests. When the path command itself fails (a broken `Package.swift`, or no package in the directory), the flag gets an empty path and `crap` exits 2: fix the package, not the flag.
 
    **Swift — no tests yet:**

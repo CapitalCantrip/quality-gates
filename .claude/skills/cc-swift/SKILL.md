@@ -28,7 +28,7 @@ Swift source files and reports functions above the complexity threshold.
    ```bash
    crap --lang swift <Sources dir> --no-coverage
    ```
-   With tests, swap `--no-coverage` for coverage so the CRAP column is a gate: `--xcresult <path>` for an Xcode project's `.xcresult` bundle, or, in a SwiftPM package, run `swift test --enable-code-coverage` and pass `--llvm-cov-json "$(swift test --show-codecov-path)"` from the same checkout, since a report file counts only at the exact path `crap` scans
+   With tests, swap `--no-coverage` for coverage so the CRAP column is a gate: `--xcresult <path>` for an Xcode project's `.xcresult` bundle, or, in a SwiftPM package, run `swift test --enable-code-coverage` and pass `--llvm-cov-json "$(swift test --show-codecov-path)"`; for either, measure coverage in the checkout where `crap` runs, since a report file counts only at the exact path `crap` scans
 4. Report SwiftLint warnings (CC > 6) and errors (CC > 8). With `--no-coverage`, lizard's CRAP column is a worst-case ranking, not a gate: every function at CC 3 or above "fails" it
 5. For each violation propose: extract helper functions, break up long `switch` bodies, split large `body` computed properties into `@ViewBuilder` helpers
 

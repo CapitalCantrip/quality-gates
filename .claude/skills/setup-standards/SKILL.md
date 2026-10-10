@@ -113,6 +113,9 @@ from the repo root and commit the file it writes.
   `crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json --update`.
   In an Xcode project with an `.xcresult`, run
   `crap --lang swift <source dirs> --xcresult <bundle> --baseline crap-baseline.json --update`.
+  Run the tests in the same checkout as `crap`: it matches a report file only at
+  its exact path, so a bundle made in another checkout or container gives every
+  function unknown coverage.
 - **TypeScript / JavaScript:**
   `cc-check --lang typescript <source dirs> --baseline cc-baseline.json --update`;
   collect coverage as in step 2 and run

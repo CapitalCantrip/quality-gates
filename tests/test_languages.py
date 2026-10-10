@@ -109,7 +109,7 @@ class CoverageReaderTest(unittest.TestCase):
     def test_swift_coverage_is_matched_by_the_name_before_its_label_and_the_start_line(self):
         with self.xccov():
             coverage_of = reader("--xcresult")("App.xcresult")
-        self.assertEqual(coverage_of(Function("Sources/Store.swift", "load#2", 3, 20, 30, "load")), 0.25)
+        self.assertEqual(coverage_of(Function("/build/Sources/Store.swift", "load#2", 3, 20, 30, "load")), 0.25)
 
     def test_swiftpm_coverage_is_the_line_coverage_of_the_llvm_cov_body_that_opens_inside_the_function(self):
         coverage_of = reader("--llvm-cov-json")(swiftpm_report_measured_in_this_checkout(self))

@@ -1,5 +1,30 @@
 # Changelog
 
+## [Unreleased]
+
+`--xcresult` matches exact paths (#49; ADR-001 addendum "xccov matches exact
+paths (#49)"). No threshold changes.
+
+- The xccov reader matches a scanned file to a report file only when both
+  resolve to the same real path, as `--llvm-cov-json` has since 0.8.0. It no
+  longer falls back to the file name or stem, which let two files with the same
+  name in different folders share the first one's coverage and let an untested
+  function pass. Swift `--xcresult` scores can change: a function that took
+  another file's figure by name now gets its own, or scores worst case.
+- A `.xcresult` bundle made in another checkout or container now gives every
+  function unknown coverage (`?`, `null` in JSON), scored worst case, and
+  `crap` prints the line about no scored function getting a figure. A report
+  file with no `path` is not matched.
+- Matching within one file (`(name, line)`, then the bare name) is unchanged.
+- Internal: the llvm-cov and xccov readers share one path resolver.
+
+**When you bump the pin:** run `qg-skills`. In a Swift project that uses
+`--xcresult`, run the tests in the checkout where `crap` runs. Re-record the
+crap baseline of every such project: delete `crap-baseline.json`, then run
+`crap --lang swift <source dirs> --xcresult <bundle> --baseline
+crap-baseline.json --update`. Baselines of Python, TypeScript and SwiftPM
+(`--llvm-cov-json`) projects are unaffected.
+
 ## 0.8.1 — 2026-10-11
 
 Coverage readers fail loudly (#50, #55, #56, #65, #66; ADR-001 addendum

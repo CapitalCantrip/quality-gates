@@ -1,10 +1,10 @@
 import json
 import math
-from pathlib import Path
 from subprocess import PIPE, run
 from typing import TYPE_CHECKING, Optional
 
 from quality_gates.errors import ToolError
+from quality_gates.real_path import real_path
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
@@ -36,9 +36,9 @@ def _extract_file_funcs(file_data: dict) -> dict:
     return file_funcs
 
 
-def _register_file_coverage(cov_map: dict, filepath: str, file_funcs: dict) -> None:
-    for key in (filepath, Path(filepath).name, Path(filepath).stem):
-        cov_map.setdefault(key, file_funcs)
+def _register_file_coverage(cov_map: dict, filepath: object, file_funcs: dict) -> None:
+    if isinstance(filepath, str) and filepath:
+        cov_map.setdefault(real_path(filepath), file_funcs)
 
 
 def load(xcresult_path: str) -> dict:
@@ -56,8 +56,7 @@ def load(xcresult_path: str) -> dict:
     cov_map: dict = {}
     for target in data.get("targets", []):
         for file_data in target.get("files", []):
-            filepath = file_data.get("path") or file_data.get("name", "")
-            _register_file_coverage(cov_map, filepath, _extract_file_funcs(file_data))
+            _register_file_coverage(cov_map, file_data.get("path"), _extract_file_funcs(file_data))
     return cov_map
 
 
@@ -67,13 +66,10 @@ def function_coverage(
     name: str,
     start_line: int,
 ) -> Optional[float]:
-    for key in (filepath, Path(filepath).name, Path(filepath).stem):
-        file_funcs = cov_map.get(key)
-        if file_funcs is None:
-            continue
-        for figure_key in ((name, start_line), name):
-            if figure_key in file_funcs:
-                return file_funcs[figure_key]
+    file_funcs = cov_map.get(real_path(filepath), {})
+    for figure_key in ((name, start_line), name):
+        if figure_key in file_funcs:
+            return file_funcs[figure_key]
     return None
 
 

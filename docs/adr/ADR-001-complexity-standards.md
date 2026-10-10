@@ -396,3 +396,36 @@ figures for the scanned files`, for every coverage flag and in `--json` mode
 too. The report may have been made in another checkout, may hold no figure for
 the scanned files, or may carry no usable figures at all. Scores and the exit
 code are unchanged.
+
+## Addendum 2026-10-11: xccov matches exact paths (#49)
+
+The limits above are unchanged. The rule from the *SwiftPM coverage (v0.8.0)*
+addendum, that a Function's file is the report file at lizard's exact resolved
+path and any other file has unknown coverage, now holds for both Swift flags.
+Before this, the `--xcresult` reader indexed each report file under its path,
+its file name and its stem, and looked a Function up in that order. Two files
+with the same name in different folders shared whichever the report listed
+first, so an untested function passed on a tested one's coverage: the bug #49
+records.
+
+- **A Function's file matches an xccov file only when both paths resolve to the
+  same real path,** symlinks resolved on both sides, so a relative path from
+  lizard still matches the absolute path xccov records. There is no file-name or
+  stem fallback, and a report file with no `path` cannot be matched. A file
+  that is not in the report has unknown coverage and scores worst case.
+- **`--xcresult` coverage, like `--llvm-cov-json`, must be measured in the
+  checkout where `crap` runs.** xccov records absolute paths, so a bundle made
+  in another checkout or container gives every function unknown coverage, and
+  `crap` prints the line about no scored function getting a figure.
+- **Matching within one file is unchanged:** the Function's `(name, line)`
+  entry, then its bare name. That fallback can still lend a same-named
+  overload's figure and is tracked apart from this addendum.
+
+Rejected, as in the SwiftPM addendum: matching by file name or trailing folders,
+which lets a report made elsewhere lend one target's coverage to another.
+
+**Effect on existing scores.** A Swift project whose `--xcresult` scores relied
+on a name match, or on a bundle made in another checkout, now scores those
+functions worst case. Where two same-named files shared one figure, each file
+now has its own. A crap baseline recorded with `--xcresult` may therefore hold
+stale scores and is re-recorded.
