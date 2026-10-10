@@ -177,6 +177,11 @@ def _classes_defined_in(block, nodes: dict, visitors) -> list:
     return classes
 
 
+def _end_line(block, nodes: dict) -> int:
+    node = nodes.get((block.name, block.lineno, block.col_offset))
+    return getattr(node, "end_lineno", block.endline)
+
+
 def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     path = (*outer, block.name)
     if isinstance(block, visitors.Class):
@@ -185,7 +190,7 @@ def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     else:
         inner = block.closures + _classes_defined_in(block, nodes, visitors)
         name = NAME_SEPARATOR.join(path)
-        own = [Function(file, name, block.complexity, block.lineno, block.endline, name)]
+        own = [Function(file, name, block.complexity, block.lineno, _end_line(block, nodes), name)]
     return own + [fn for child in inner for fn in _flatten(child, file, path, visitors, nodes)]
 
 

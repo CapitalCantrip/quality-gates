@@ -3,9 +3,9 @@
 ## [Unreleased]
 
 What the scan covers (#54, #58, #51, #59; ADR-001 addenda "skip SwiftPM's
-.build", "follow symlinked folders", "the freshness check reads the scan's
-files" and "Python end lines from the AST", all (v0.9.0)). No threshold
-changes.
+.build (v0.9.0)", "follow symlinked folders (v0.9.0)", "the freshness check
+reads the scan's files (v0.9.0)" and "Python end lines from the AST (v0.9.0)").
+No threshold changes.
 
 - `.build`, SwiftPM's build folder, joins the skip list of both gates in every
   language and is named on the *Skipped N folder(s)* line (#54). A scan of a
@@ -27,6 +27,35 @@ changes.
   does. The check uses the scan's own file list, so a symlinked folder counts. It
   runs after the scan, so a missing path or tool is reported first. No score
   changes.
+- A Python function's end line comes from the AST (#59). A function ending in a
+  nested `def`, a method ending in a nested `class`, or a closure ending in a
+  nested `def` is now measured over its whole body; before, the range stopped
+  before the nested definition and `crap` read coverage from the `def` line
+  alone, which always runs. Python `crap` scores can rise for these functions
+  and a new failure can appear. Start lines, CC and `cc-check` are unchanged.
+- Internal: the scan returns the source files it walked as `Scan.sources`.
+
+**When you bump the pin:** run `qg-skills`. Re-record the baselines whose scan
+changed, once: delete the baseline file, then run the gate with `--update`.
+
+- `cc-check` baseline (`cc-check <dirs> --baseline cc-baseline.json --update`),
+  for Python and TypeScript, if you scan a SwiftPM package root or a folder that
+  contains a symlinked source folder: functions under `.build` drop out, and
+  functions behind a link come in. Swift is not a `cc-check` language, so a
+  SwiftPM-only project has no `cc-check` baseline to re-record.
+- `crap` baseline (`crap --lang <lang> <dirs> <coverage flag> --baseline
+  crap-baseline.json --update`), for every language, under the same conditions
+  (a SwiftPM package root, a symlinked source folder, or overlapping paths).
+  A Python project also re-records it when a function ends in a nested `def` or
+  `class`: its CRAP score can rise.
+- A project with none of these has nothing to re-record.
+
+Before you commit a re-recorded baseline, explain or fix every row that shows `?`
+in the coverage column: each is a worst-case score the baseline will exempt
+(#81); a function that now comes in through a symlinked folder shows `?` when
+the coverage report has no figure for it. If you passed
+`--strict-freshness` to work around a false stale warning, you can drop the
+workaround.
 
 ## 0.8.2 — 2026-10-11
 

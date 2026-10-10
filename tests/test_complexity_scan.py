@@ -68,6 +68,57 @@ class Top:
         return N
 """
 
+ENDS_IN_NESTED_DEF = """\
+def h(x):
+    if x:
+        return 1
+
+    def tail():
+        return 2
+"""
+
+METHOD_ENDS_IN_NESTED_CLASS = """\
+class K:
+    def m(self, x):
+        if x:
+            return 1
+
+        class Inner:
+            def n(self):
+                return 2
+"""
+
+CLOSURE_ENDS_IN_NESTED_DEF = """\
+def h(x):
+    def k(y):
+        if y:
+            return 1
+
+        def tail():
+            return 2
+
+    return k
+"""
+
+ASYNC_ENDS_IN_NESTED_DEF = """\
+async def h(x):
+    if x:
+        return 1
+
+    async def tail():
+        return 2
+"""
+
+DECORATED_ENDS_IN_NESTED_DEF = """\
+@staticmethod
+def h(x):
+    if x:
+        return 1
+
+    def tail():
+        return 2
+"""
+
 
 def completed(stdout, returncode=0, stderr=""):
     return CompletedProcess([], returncode, stdout=stdout, stderr=stderr)
@@ -137,6 +188,36 @@ class PythonScanTest(InTempDir):
     def test_a_class_defined_in_an_async_function_is_scored(self):
         self.write("mod.py", "async def f():\n    class K:\n        def m(self):\n            return 1\n")
         self.assertEqual(set(self.functions()), {"f", "f.K.m"})
+
+    def test_a_function_ending_in_a_nested_def_ends_on_the_nested_defs_last_line(self):
+        self.write("mod.py", ENDS_IN_NESTED_DEF)
+        function = self.functions()["h"]
+        self.assertEqual((function.start, function.end, function.cc), (1, 6, 2))
+
+    def test_a_method_ending_in_a_nested_class_ends_on_the_nested_classs_last_line(self):
+        self.write("mod.py", METHOD_ENDS_IN_NESTED_CLASS)
+        method = self.functions()["K.m"]
+        self.assertEqual((method.start, method.end, method.cc), (2, 8, 2))
+
+    def test_a_closure_ending_in_a_nested_def_ends_on_the_nested_defs_last_line(self):
+        self.write("mod.py", CLOSURE_ENDS_IN_NESTED_DEF)
+        functions = self.functions()
+        self.assertEqual((functions["h.k"].start, functions["h.k"].end), (2, 7))
+        self.assertEqual((functions["h"].start, functions["h"].end), (1, 9))
+
+    def test_an_async_function_ending_in_a_nested_def_ends_on_the_nested_defs_last_line(self):
+        self.write("mod.py", ASYNC_ENDS_IN_NESTED_DEF)
+        self.assertEqual(self.functions()["h"].end, 6)
+
+    def test_a_decorated_function_keeps_its_def_line_as_its_start_and_ends_on_the_nested_defs_last_line(self):
+        self.write("mod.py", DECORATED_ENDS_IN_NESTED_DEF)
+        function = self.functions()["h"]
+        self.assertEqual((function.start, function.end), (2, 7))
+
+    def test_the_nested_def_is_still_scored_on_its_own_line_range(self):
+        self.write("mod.py", ENDS_IN_NESTED_DEF)
+        tail = self.functions()["h.tail"]
+        self.assertEqual((tail.start, tail.end), (5, 6))
 
     def test_a_repeated_name_in_a_file_gets_its_order_as_a_suffix(self):
         self.write("mod.py", "def f():\n    pass\n\n\ndef f():\n    pass\n")

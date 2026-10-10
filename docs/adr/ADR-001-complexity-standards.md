@@ -552,3 +552,37 @@ baseline is re-recorded for this change.
 - **Comparing against only the files that hold scored functions.** A newer file
   with no function above the minimum CC can still have changed the tests that
   the report was made from, so the check keeps every source file of the language.
+
+## Addendum 2026-10-11: Python end lines from the AST (v0.9.0)
+
+The limits above are unchanged, and so is the counting tool: a Python function's
+CC is still radon's, and its start line is still radon's. This replaces where
+the end line comes from. Radon's `endline` ignores a trailing nested `def` or
+`class`, so `def h(x)` whose body ends in a nested `def tail()` scanned as a
+range that stopped before `tail`, and method `K.m` ending in a nested `class
+Inner` stopped before `Inner`. `crap` reads Python coverage over a function's
+line range, so it read the `def` line alone, which always runs, and scored a
+function with an untested branch as fully covered (#59).
+
+**The rule.** Every Python Function's end line is the `end_lineno` of its AST
+node (Python 3.8 and later, so inside the 3.9 floor). The node is found by the
+same `(name, line, column)` key the scan already uses to index function nodes, so
+methods, closures and functions in nested classes get the rule alike. A node
+that cannot be found falls back to radon's end line. The nested function or class
+is still scored on its own range, inside the holder's.
+
+**Effect on existing scores.** CC and `cc-check` are unchanged. A Python
+function that ends in a nested `def` or `class` is now measured over its whole
+body, so its coverage can fall and its CRAP score can rise, past the threshold
+for a function with untested code before the nested definition. A crap baseline
+that holds such a function may hold a lower score than it now earns and is
+re-recorded. Functions that do not end in a nested definition keep their range.
+
+### Rejected
+
+- **Patching radon's `endline` with the largest end line among the function's
+  closures and nested classes.** It repeats in a second place what the AST
+  already states, and needs a rule for each kind of statement that can close a
+  body.
+- **Taking the start line from the AST too.** The brief keeps start lines as
+  they are, so baseline keys and the `#N` labels do not move.

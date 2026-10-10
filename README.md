@@ -238,6 +238,11 @@ real package called `build` or `dist` is never dropped silently. The reasons are
 in ADR-001's 2026-10-09 addendum, with `.build` and the symlink rule in its
 2026-10-11 ones.
 
+A Python function's line range runs from its `def` line to the end of its last
+statement, taken from the syntax tree, so a function whose body ends in a nested
+`def` or `class` is measured, and `crap` reads its coverage, over the whole body
+(ADR-001's 2026-10-11 addendum on Python end lines). CC is still radon's.
+
 ### How they fit together
 
 CC is the hard ceiling, checked function by function. CRAP is the sliding scale
