@@ -36,6 +36,9 @@ def completed(stdout, returncode=0):
     return CompletedProcess([], returncode, stdout=stdout, stderr="")
 
 
+UNMATCHED_REPORT = "[crap] no scored function got a figure from the coverage report; it may have been made elsewhere or hold no figures for the scanned files"
+
+
 def tagged(err):
     return [line for line in err.splitlines() if line.startswith("[crap] ")]
 
@@ -130,6 +133,44 @@ class PythonGateTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("worst-case", err)
 
+    def test_a_report_matching_no_scanned_function_says_where_to_measure_coverage(self):
+        self.coverage.write_text(json.dumps({"files": {}}))
+        code, _, err = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn(UNMATCHED_REPORT + "\n", err)
+
+    def test_the_unmatched_report_line_goes_to_stderr_in_json_mode_too(self):
+        self.coverage.write_text(json.dumps({"files": {}}))
+        _, out, err = self.gate("--json")
+        self.assertIn(UNMATCHED_REPORT, err)
+        self.assertNotIn(UNMATCHED_REPORT, out)
+        json.loads(out)
+
+    def test_a_report_matching_a_scanned_function_does_not_say_it_matched_none(self):
+        self.write_coverage(list(range(1, 16)), [])
+        _, _, err = self.gate()
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
+    def test_a_report_matching_only_one_scanned_function_does_not_say_it_matched_none(self):
+        self.write_coverage(list(range(1, 7)), [])
+        _, out, err = self.gate("--json")
+        coverage = {f["name"]: f["coverage"] for f in json.loads(out)["functions"]}
+        self.assertEqual(coverage, {"f": 1.0, "K.m": None})
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
+    def test_no_coverage_does_not_say_a_report_matched_none(self):
+        _, _, err = call(["--lang", "python", str(self.module), "--no-coverage"])
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
+    def test_no_coverage_flag_does_not_say_a_report_matched_none(self):
+        _, _, err = call(["--lang", "python", str(self.module)])
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
+    def test_a_report_given_when_nothing_is_scored_does_not_say_it_matched_none(self):
+        self.coverage.write_text(json.dumps({"files": {}}))
+        _, _, err = self.gate("--min-cc", "4", "--allow-empty")
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
     def test_min_cc_skips_simpler_functions(self):
         self.write_coverage([], list(range(1, 16)))
         code, _, err = self.gate("--min-cc", "4")
@@ -162,6 +203,21 @@ class PythonGateTest(unittest.TestCase):
         code, _, err = self.gate()
         self.assertEqual(code, 2)
         self.assertTrue(err.startswith("[crap] bad coverage JSON: Expecting property name"))
+
+    def test_a_coverage_file_that_is_not_utf8_is_a_tool_error_with_the_crap_tag(self):
+        self.coverage.write_bytes(b"\xff\xfe\x00binary")
+        code, _, err = self.gate()
+        self.assertEqual(code, 2)
+        self.assertTrue(err.startswith("[crap] bad coverage JSON: "))
+        self.assertNotIn("Traceback", err)
+
+    def test_a_binary_coverage_file_older_than_the_source_is_a_bad_file_not_a_stale_one(self):
+        self.coverage.write_bytes(b"\xff\xfe\x00binary")
+        past = self.module.stat().st_mtime - 10
+        os.utime(self.coverage, (past, past))
+        code, _, err = self.gate()
+        self.assertEqual(code, 2)
+        self.assertNotIn("stale", err)
 
     def test_coverage_older_than_the_source_warns(self):
         self.write_coverage(list(range(1, 16)), [])
@@ -218,6 +274,34 @@ class CoverageSourceTest(unittest.TestCase):
         payload = json.loads(out)
         self.assertEqual(payload["coverage_source"], "assumed-zero")
         self.assertEqual({f["coverage_source"] for f in payload["functions"]}, {"assumed-zero"})
+
+
+class EmptyCoverageFlagTest(unittest.TestCase):
+    LANGUAGE_OF = {"--coverage-json": "python", "--xcresult": "swift", "--llvm-cov-json": "swift", "--istanbul-json": "typescript"}
+
+    def test_every_coverage_flag_is_covered_by_these_tests(self):
+        self.assertEqual({coverage.flag for coverage in languages.COVERAGE_FORMATS}, set(self.LANGUAGE_OF))
+
+    def test_an_empty_value_for_each_coverage_flag_is_a_tool_error_naming_the_flag(self):
+        for flag, lang in self.LANGUAGE_OF.items():
+            with self.subTest(flag):
+                code, out, err = call(["--lang", lang, ".", flag, ""])
+                self.assertEqual(code, 2)
+                self.assertEqual(err, f"[crap] {flag} was given an empty path\n")
+                self.assertNotIn("worst-case", err)
+                self.assertEqual(out, "")
+
+    def test_a_whitespace_only_value_is_as_empty_as_an_empty_one(self):
+        for flag, lang in self.LANGUAGE_OF.items():
+            with self.subTest(flag):
+                code, _, err = call(["--lang", lang, ".", flag, "  \t"])
+                self.assertEqual(code, 2)
+                self.assertEqual(err, f"[crap] {flag} was given an empty path\n")
+
+    def test_an_empty_value_for_another_languages_flag_is_refused_as_that_languages_flag(self):
+        code, _, err = call(["--lang", "python", ".", "--llvm-cov-json", ""])
+        self.assertEqual(code, 2)
+        self.assertIn("--llvm-cov-json is Swift-only", err)
 
 
 class ArgumentTest(unittest.TestCase):
@@ -293,7 +377,7 @@ class SwiftGateTest(unittest.TestCase):
         lizard = patch.object(complexity_scan, "run", return_value=completed("\n".join(rows)))
         xcrun = patch.object(xccov_reader, "run", return_value=completed(json.dumps(xccov or {})))
         with lizard, xcrun:
-            code, out, _ = call(["--lang", "swift", self.sources, "--json", *extra])
+            code, out, self.err = call(["--lang", "swift", self.sources, "--json", *extra])
         return code, json.loads(out)["functions"]
 
     def test_swift_scores_join_lizard_complexity_with_xccov_coverage(self):
@@ -311,6 +395,23 @@ class SwiftGateTest(unittest.TestCase):
         rows = [lizard_row("load", 4, 10, 30), lizard_row("load", 4, 40, 50)]
         _, functions = self.gate(rows, "--xcresult", "r.xcresult", xccov=report)
         self.assertEqual({f["name"]: f["coverage"] for f in functions}, {"load": 1.0, "load#2": 0.5})
+
+    def test_a_null_line_coverage_in_an_xcresult_report_scores_that_function_worst_case_without_a_traceback(self):
+        report = {"targets": [{"files": [{"path": "Sources/App.swift", "functions": [
+            {"name": "load()", "lineNumber": 10, "lineCoverage": None},
+            {"name": "save()", "lineNumber": 40, "lineCoverage": 1.0},
+        ]}]}]}
+        rows = [lizard_row("load", 4, 10, 30), lizard_row("save", 4, 40, 50)]
+        code, functions = self.gate(rows, "--xcresult", "r.xcresult", xccov=report)
+        self.assertEqual(code, 1)
+        self.assertEqual({f["name"]: (f["coverage"], f["crap"]) for f in functions}, {"load": (None, 20), "save": (1.0, 4)})
+
+    def test_an_xcresult_report_with_no_figure_for_any_scanned_function_says_so(self):
+        report = {"targets": [{"files": [{"path": "Sources/App.swift", "functions": [
+            {"name": "load()", "lineNumber": 10},
+        ]}]}]}
+        self.gate([lizard_row("load", 4, 10, 30)], "--xcresult", "r.xcresult", xccov=report)
+        self.assertIn(UNMATCHED_REPORT, self.err)
 
     def test_swift_functions_below_min_cc_are_skipped(self):
         _, functions = self.gate([lizard_row("load", 4, 10, 30), lizard_row("tiny", 1, 40, 41)], "--no-coverage")

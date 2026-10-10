@@ -1,4 +1,5 @@
 import json
+import math
 from pathlib import Path
 from subprocess import PIPE, run
 from typing import TYPE_CHECKING, Optional
@@ -9,13 +10,23 @@ if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
 
 
+def _line_coverage(figure: object) -> Optional[float]:
+    if isinstance(figure, bool) or not isinstance(figure, (int, float)):
+        return None
+    try:
+        number = float(figure)
+    except OverflowError:
+        return None
+    return min(1.0, max(0.0, number)) if math.isfinite(number) else None
+
+
 def _extract_file_funcs(file_data: dict) -> dict:
     file_funcs: dict = {}
     for fn in file_data.get("functions", []):
         raw_name  = fn.get("name", "")
         base_name = raw_name.split("(")[0].strip()
         line_num  = fn.get("lineNumber", 0)
-        cov_frac  = min(1.0, max(0.0, float(fn.get("lineCoverage", 0.0))))
+        cov_frac  = _line_coverage(fn.get("lineCoverage"))
         file_funcs[(base_name, line_num)] = cov_frac
         file_funcs.setdefault(base_name, cov_frac)
         short_name = base_name.rsplit(".", 1)[-1]
@@ -39,7 +50,7 @@ def load(xcresult_path: str) -> dict:
         raise ToolError(f"xcrun xccov failed:\n{result.stderr.strip()}")
     try:
         data = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
+    except (ValueError, RecursionError) as exc:
         raise ToolError(f"could not parse xccov output: {exc}") from None
 
     cov_map: dict = {}
@@ -60,9 +71,9 @@ def function_coverage(
         file_funcs = cov_map.get(key)
         if file_funcs is None:
             continue
-        val = file_funcs.get((name, start_line), file_funcs.get(name))
-        if val is not None:
-            return float(val)
+        for figure_key in ((name, start_line), name):
+            if figure_key in file_funcs:
+                return file_funcs[figure_key]
     return None
 
 

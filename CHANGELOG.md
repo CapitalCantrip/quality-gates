@@ -1,5 +1,43 @@
 # Changelog
 
+## 0.8.1 — 2026-10-11
+
+Coverage readers fail loudly (#50, #55, #56, #65, #66; ADR-001 addendum
+"Coverage readers fail loudly (v0.8.1)"). No threshold changes, and a report
+that works scores as before.
+
+- A coverage flag given an empty or whitespace-only path, such as
+  `--llvm-cov-json "$(swift test --show-codecov-path)"` when the path command
+  fails (a broken `Package.swift`, or no package in the directory), now exits 2
+  with `[crap] --llvm-cov-json was given an empty path`. Before, it printed the
+  worst-case note and exited 0 or 1 by score, so a CI step could pass without
+  coverage. Failing tests do not empty the path, since `--show-codecov-path`
+  runs no tests; the `swift test --enable-code-coverage` step must fail the
+  job.
+- A coverage file that is not UTF-8 now exits 2 with the reader's "bad ...
+  JSON" message, in the coverage.py and Istanbul readers as in the llvm-cov
+  one. Before, they crashed with a traceback and exit 1. The coverage.py reader
+  opens its file as UTF-8 whatever the locale.
+- An xccov function with a null, missing or non-numeric `lineCoverage` has
+  unknown coverage (`?`, `null` in JSON) and scores worst case. Before, null
+  crashed the run and a missing figure counted as 0% covered. A same-named
+  entry is no longer borrowed for it.
+- When a coverage report was given and no scored function got a figure from
+  it, `crap` prints `[crap] no scored function got a figure from the coverage
+  report; it may have been made elsewhere or hold no figures for the scanned
+  files` to stderr, in `--json` mode too. Scores and exit codes are unchanged.
+- Internal: the three JSON coverage readers share one loader, and the llvm-cov
+  reader names its region fields.
+
+**When you bump the pin:** run `qg-skills`. A CI step that builds a coverage
+flag with `$(...)` now fails the build when the path command inside `$(...)`
+fails or prints nothing, where it used to pass as a worst-case ranking; fix
+that path command, not the flag, and make sure the step that runs the tests
+fails the job. If the new stderr line appears, the report was made somewhere
+else (another checkout or a container), or holds no figures for the scanned
+files: measure coverage in the checkout where `crap` runs, for the files it
+scans. No baseline needs re-recording.
+
 ## 0.8.0 — 2026-10-10
 
 `crap --lang swift` reads SwiftPM coverage (#6, ADR-001 addendum "SwiftPM

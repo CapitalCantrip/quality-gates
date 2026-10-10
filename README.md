@@ -23,7 +23,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.0"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.1"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -211,7 +211,12 @@ write. Functions that share a start line are matched to their Istanbul entries
 by the rule in ADR-001's 2026-10-10 addendum on shared start lines. Without
 coverage (`--no-coverage`) every function at CC 3 or above fails, so that mode
 ranks functions by risk and is never read as pass/fail. `crap` takes
-`--baseline FILE` too, and refuses it without coverage (exit 2).
+`--baseline FILE` too, and refuses it without coverage (exit 2). A
+coverage flag given an empty path exits 2, so a path command that fails inside
+`$(...)` fails the build instead of passing as a worst-case ranking.
+When a report is given and none of the scored functions gets a figure from it,
+`crap` prints one line to stderr saying so (ADR-001's addendum "Coverage
+readers fail loudly").
 
 ### What both gates score
 

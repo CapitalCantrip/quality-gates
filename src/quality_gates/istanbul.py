@@ -1,21 +1,14 @@
-import json
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from quality_gates.errors import ToolError
+from quality_gates.json_report import load_json
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
 
 
 def load(report_path: str) -> dict:
-    try:
-        with open(report_path, encoding="utf-8") as fh:
-            data = json.load(fh)
-    except OSError as exc:
-        raise ToolError(f"cannot open Istanbul coverage file: {exc}") from None
-    except json.JSONDecodeError as exc:
-        raise ToolError(f"bad Istanbul coverage JSON: {exc}") from None
+    data = load_json(report_path, "Istanbul coverage file", "Istanbul coverage JSON")
     return {str(Path(path).resolve()): entry for path, entry in data.items()}
 
 

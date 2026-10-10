@@ -1,3 +1,4 @@
+import ast
 import io
 import json
 import os
@@ -6,7 +7,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from quality_gates import crap, languages
+from quality_gates import crap, languages, llvm_cov
 from quality_gates.complexity_scan import Function
 from quality_gates.errors import ToolError
 
@@ -345,6 +346,18 @@ class ExportCoverageTest(unittest.TestCase):
                 self.assertTrue(str(raised.exception).startswith("not an llvm-cov export: "))
 
 
+class RegionFieldsTest(unittest.TestCase):
+    def test_no_region_field_is_read_by_a_bare_index(self):
+        tree = ast.parse(Path(llvm_cov.__file__).read_text(encoding="utf-8"))
+        bare = [
+            node.lineno for node in ast.walk(tree)
+            if isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name) and node.value.id == "raw"
+            and isinstance(node.slice, ast.Constant)
+        ]
+        self.assertEqual(bare, [])
+
+
 def run_crap(argv):
     out, err = io.StringIO(), io.StringIO()
     with redirect_stdout(out), redirect_stderr(err):
@@ -368,6 +381,15 @@ class CrapSwiftPMTest(InRepoRoot):
         self.assertEqual({f["coverage_source"] for f in payload["functions"]}, {"llvm-cov-json"})
         self.assertFalse(payload["pass"])
         self.assertEqual(code, 1)
+
+    def test_crap_says_to_measure_coverage_here_when_the_export_was_made_in_another_checkout(self):
+        code, _, err = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", str(EXPORT_AS_BUILT), "--json"])
+        self.assertEqual(code, 1)
+        self.assertIn(crap.UNMATCHED_REPORT, err)
+
+    def test_crap_stays_quiet_about_a_matching_export(self):
+        _, _, err = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", self.export, "--json"])
+        self.assertNotIn(crap.UNMATCHED_REPORT, err)
 
     def test_crap_exits_2_on_json_that_is_not_an_llvm_cov_export(self):
         with tempfile.TemporaryDirectory() as tmp:

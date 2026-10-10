@@ -1,6 +1,15 @@
+import json
+import os
+import subprocess
+import sys
+import tempfile
 import unittest
+from pathlib import Path
 
 from quality_gates import coverage_json
+
+ASCII_LOCALE = {"LC_ALL": "C", "PYTHONUTF8": "0", "PYTHONCOERCECLOCALE": "0", "PYTHONIOENCODING": "utf-8"}
+LOAD_REPORT = "from quality_gates import coverage_json; print(sorted(coverage_json.load(%r)))"
 
 
 class PythonCoverageTest(unittest.TestCase):
@@ -32,6 +41,17 @@ class PythonCoverageTest(unittest.TestCase):
     def test_a_function_with_no_tracked_lines_has_no_coverage(self):
         entry = coverage_json._parse_file_coverage({"executed_lines": [20], "missing_lines": []})
         self.assertIsNone(coverage_json.function_coverage({"m.py": entry}, "m.py", 1, 4))
+
+    def test_a_report_with_non_ascii_content_loads_whatever_the_machines_locale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "coverage.json"
+            report.write_text(json.dumps({"files": {"mod.py": {"note": "caf\u00e9"}}, "note": "caf\u00e9"}, ensure_ascii=False), encoding="utf-8")
+            done = subprocess.run(
+                [sys.executable, "-c", LOAD_REPORT % str(report)],
+                env={**os.environ, **ASCII_LOCALE}, capture_output=True, text=True, encoding="utf-8",
+            )
+        self.assertEqual(done.returncode, 0, done.stderr)
+        self.assertIn("mod.py", done.stdout)
 
 
 if __name__ == "__main__":
