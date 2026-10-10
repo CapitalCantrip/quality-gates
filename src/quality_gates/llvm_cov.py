@@ -22,7 +22,6 @@ REGION_KIND = 7
 MALFORMED_RECORD = (AttributeError, IndexError, KeyError, TypeError, ValueError)
 
 
-
 class RegionKind(IntEnum):
     CODE = 0
     EXPANSION = 1

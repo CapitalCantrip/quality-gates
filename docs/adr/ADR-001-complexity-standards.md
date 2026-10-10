@@ -367,10 +367,14 @@ degrades to a worst-case ranking.
 
 - **A coverage flag given an empty or whitespace-only path is a tool error
   (exit 2)** naming the flag, such as `--llvm-cov-json was given an empty path`.
-  Only an absent flag means no report. Before this, `--llvm-cov-json
-  "$(swift test --show-codecov-path)"` with a failing `swift test` printed the
-  worst-case note and exited 0, so a CI step whose coverage command failed
-  passed. It now fails the build.
+  Only an absent flag means no report. Before this, a flag whose
+  value came from a command that printed nothing, such as `--llvm-cov-json
+  "$(swift test --show-codecov-path)"` with a broken `Package.swift` or no
+  package in the directory, printed the worst-case note and exited 0 or 1 by
+  score, so a CI step whose path command failed could pass. It now fails the
+  build. `--show-codecov-path` runs no tests and prints a path even after
+  failing tests, so failing tests are caught at the `swift test
+  --enable-code-coverage` step, which must fail the job.
 - **A file that is not UTF-8 is a tool error (exit 2)** in every coverage
   reader that reads a JSON file, not a traceback with exit 1. The coverage.py
   reader opens its file as UTF-8 explicitly, so the result does not depend on
@@ -386,6 +390,8 @@ degrades to a worst-case ranking.
   clamped to 0 through 1.
 
 When a coverage report was given, at least one function was scored and none got
-a figure, `crap` also prints one line to stderr, `[crap] no scanned function was
-found in the coverage report; measure coverage in this checkout`, for every
-coverage flag and in `--json` mode too. Scores and the exit code are unchanged.
+a figure, `crap` also prints one line to stderr, `[crap] no scanned function got
+a figure from the coverage report; measure coverage in this checkout, for these
+files`, for every coverage flag and in `--json` mode too. The report may have
+been made elsewhere, may hold no figure for the scanned files, or may carry no
+usable figures at all. Scores and the exit code are unchanged.

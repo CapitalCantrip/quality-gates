@@ -67,6 +67,12 @@ class SwiftCoverageTest(unittest.TestCase):
                 funcs = xccov._extract_file_funcs({"functions": [{"name": "f()", "lineNumber": 1, "lineCoverage": figure}]})
                 self.assertIsNone(xccov.function_coverage({"App.swift": funcs}, "App.swift", "f", 1))
 
+    def test_a_line_coverage_too_large_for_a_float_gives_unknown_coverage(self):
+        for name, figure in {"huge integer": 10 ** 400, "huge negative integer": -10 ** 400, "infinity": float("inf")}.items():
+            with self.subTest(name):
+                funcs = xccov._extract_file_funcs({"functions": [{"name": "f()", "lineNumber": 1, "lineCoverage": figure}]})
+                self.assertIsNone(xccov.function_coverage({"App.swift": funcs}, "App.swift", "f", 1))
+
     def test_an_overload_with_unknown_coverage_does_not_borrow_its_sibling_by_name(self):
         funcs = xccov._extract_file_funcs({"functions": [
             {"name": "load(_:)", "lineNumber": 10, "lineCoverage": 1.0},

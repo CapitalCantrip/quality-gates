@@ -7,10 +7,13 @@ Coverage readers fail loudly (#50, #55, #56, #65, #66; ADR-001 addendum
 that works scores as before.
 
 - A coverage flag given an empty or whitespace-only path, such as
-  `--llvm-cov-json "$(swift test --show-codecov-path)"` after a failed
-  `swift test`, now exits 2 with `[crap] --llvm-cov-json was given an empty
-  path`. Before, it printed the worst-case note and exited 0 or 1 by score, so
-  a CI step whose coverage command failed passed.
+  `--llvm-cov-json "$(swift test --show-codecov-path)"` when the path command
+  fails (a broken `Package.swift`, or no package in the directory), now exits 2
+  with `[crap] --llvm-cov-json was given an empty path`. Before, it printed the
+  worst-case note and exited 0 or 1 by score, so a CI step could pass without
+  coverage. Failing tests do not empty the path, since `--show-codecov-path`
+  runs no tests; the `swift test --enable-code-coverage` step must fail the
+  job.
 - A coverage file that is not UTF-8 now exits 2 with the reader's "bad ...
   JSON" message, in the coverage.py and Istanbul readers as in the llvm-cov
   one. Before, they crashed with a traceback and exit 1. The coverage.py reader
@@ -19,19 +22,20 @@ that works scores as before.
   unknown coverage (`?`, `null` in JSON) and scores worst case. Before, null
   crashed the run and a missing figure counted as 0% covered. A same-named
   entry is no longer borrowed for it.
-- When a coverage report was given and no scored function found a figure in
-  it, `crap` prints `[crap] no scanned function was found in the coverage
-  report; measure coverage in this checkout` to stderr, in `--json` mode too.
-  Scores and exit codes are unchanged.
+- When a coverage report was given and no scored function got a figure from
+  it, `crap` prints `[crap] no scanned function got a figure from the coverage
+  report; measure coverage in this checkout, for these files` to stderr, in
+  `--json` mode too. Scores and exit codes are unchanged.
 - Internal: the three JSON coverage readers share one loader, and the llvm-cov
   reader names its region fields.
 
 **When you bump the pin:** run `qg-skills`. A CI step that builds a coverage
 flag with `$(...)` now fails the build when the coverage command fails or
 prints nothing, where it used to pass as a worst-case ranking; fix the coverage
-command, not the flag. If the new stderr line appears, the report was made
-somewhere else (another checkout or a container): measure coverage in the
-checkout where `crap` runs. No baseline needs re-recording.
+command, not the flag, and make sure the step that runs the tests fails the job.
+If the new stderr line appears, the report was made somewhere else (another
+checkout or a container), or holds no figures for the scanned files: measure
+coverage in the checkout where `crap` runs, for the files it scans. No baseline needs re-recording.
 
 ## 0.8.0 — 2026-10-10
 

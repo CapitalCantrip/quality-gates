@@ -16,7 +16,7 @@ WARN_THRESHOLD = 5.0
 LABEL_WIDTH = 50
 TAG = "[crap] "
 ASSUMED_ZERO = "assumed-zero"
-UNMATCHED_REPORT = "no scanned function was found in the coverage report; measure coverage in this checkout"
+UNMATCHED_REPORT = "no scanned function got a figure from the coverage report; measure coverage in this checkout, for these files"
 
 USAGE_WIDTH = 79
 USAGE_INDENT = "  "
@@ -240,7 +240,7 @@ def _check_coverage_flag(args) -> None:
     own = " or ".join(coverage.flag for coverage in LANGUAGES[args.lang].coverage)
     for lang, language in LANGUAGES.items():
         for coverage in language.coverage:
-            if lang != args.lang and getattr(args, coverage.dest):
+            if lang != args.lang and getattr(args, coverage.dest) is not None:
                 raise ToolError(f"{coverage.flag} is {language.scope}; use {own} for {args.lang}")
 
 
@@ -379,9 +379,10 @@ def gate(argv, root) -> int:
     report = _given_report(args)
     _check_coverage_source(args, report)
     _check_baseline_args(args, report)
+    coverage_of = _coverage_of(report)
     _maybe_check_staleness(args, report)
     found = complexity_scan.scan(args.paths, args.lang)
-    results = score(found.functions, _coverage_of(report), Limits(args.min_cc, args.warn, args.threshold))
+    results = score(found.functions, coverage_of, Limits(args.min_cc, args.warn, args.threshold))
     _check_results_empty(results, args, found.skipped)
     _check_report_matched(report, results)
     n_fail = sum(1 for r in results if r.grade == "FAIL")

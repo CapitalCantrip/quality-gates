@@ -11,9 +11,13 @@ if TYPE_CHECKING:
 
 
 def _line_coverage(figure: object) -> Optional[float]:
-    if isinstance(figure, bool) or not isinstance(figure, (int, float)) or not math.isfinite(figure):
+    if isinstance(figure, bool) or not isinstance(figure, (int, float)):
         return None
-    return min(1.0, max(0.0, float(figure)))
+    try:
+        number = float(figure)
+    except OverflowError:
+        return None
+    return min(1.0, max(0.0, number)) if math.isfinite(number) else None
 
 
 def _extract_file_funcs(file_data: dict) -> dict:

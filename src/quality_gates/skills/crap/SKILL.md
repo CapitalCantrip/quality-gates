@@ -57,8 +57,8 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
    ```
    Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a report made in another checkout or container gives every function unknown coverage. A function whose lines hold the opening of another function's body gets unknown coverage: two functions on one line both do, and so does a function that ends on the line where the next one opens, while that next one keeps its own figure. Put each function on its own lines. A closure or autoclosure default argument on the line of the `{` (`= { _ in }`, `= {}`, `= flagA && flagB`, `= x ?? nil`) also gives its function unknown coverage; move it to a line above the `{`. A literal default (`= 0`, `= nil`, `= []`, `= .main`) is fine.
-   When `swift test` fails inside `$(...)` the flag gets an empty path and `crap` exits 2; fix the test run, not the flag.
-   When `crap` prints `no scanned function was found in the coverage report`, every score above is worst case: measure coverage again in this checkout and rerun.
+   Failing tests must fail the job at the `swift test --enable-code-coverage` step; `--show-codecov-path` runs no tests. When the path command itself fails (a broken `Package.swift`, or no package in the directory), the flag gets an empty path and `crap` exits 2: fix the package, not the flag.
+   When `crap` prints `no scanned function got a figure from the coverage report`, every score above is worst case: measure coverage again in this checkout, for the files you scan, and rerun.
 
    **Swift — no tests yet:**
    ```bash
