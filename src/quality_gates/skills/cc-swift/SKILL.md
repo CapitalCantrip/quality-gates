@@ -58,7 +58,7 @@ counting one per case (ADR-001). If a project's file disagrees, report it.
 - Deconstruct before implementing: break multi-step logic into private helpers before writing the main function body
 - Flatten control flow: guard/early return over nested `if` branches
 - SwiftUI views: split large `body` computed properties into focused `@ViewBuilder` helpers; break long `switch` arms into named view functions
-- In Swift, a new or changed closure (including a trailing closure or a nested `func`) that contains a branch has a test that runs it. Until #53 is built, the CRAP gate cannot catch an untested one; ADR-001's 2026-10-10 addendum on SwiftPM coverage has the reason.
+- In Swift, a new or changed closure (including a trailing closure or a nested `func`) that contains a branch has a test that runs it. Until #53 is built, the CRAP gate cannot catch an untested one; ADR-001's 2026-10-10 addendum on SwiftPM coverage has the reason. It is a judgement call in review, not a gate.
 
 ## Dependencies
 
