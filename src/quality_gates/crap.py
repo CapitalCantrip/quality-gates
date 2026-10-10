@@ -16,6 +16,7 @@ WARN_THRESHOLD = 5.0
 LABEL_WIDTH = 50
 TAG = "[crap] "
 ASSUMED_ZERO = "assumed-zero"
+UNMATCHED_REPORT = "no scanned function was found in the coverage report; measure coverage in this checkout"
 
 USAGE_WIDTH = 79
 USAGE_INDENT = "  "
@@ -260,6 +261,11 @@ def _check_coverage_source(args, report: Optional[CoverageReport]) -> None:
         )
 
 
+def _check_report_matched(report: Optional[CoverageReport], results: list) -> None:
+    if report and results and all(r.coverage is None for r in results):
+        print(f"{TAG}{UNMATCHED_REPORT}", file=sys.stderr)
+
+
 def _newest_source_mtime(source_paths: list) -> Optional[float]:
     newest = 0.0
     for root in source_paths:
@@ -377,6 +383,7 @@ def gate(argv, root) -> int:
     found = complexity_scan.scan(args.paths, args.lang)
     results = score(found.functions, _coverage_of(report), Limits(args.min_cc, args.warn, args.threshold))
     _check_results_empty(results, args, found.skipped)
+    _check_report_matched(report, results)
     n_fail = sum(1 for r in results if r.grade == "FAIL")
     _emit_output(results, args, n_fail, found.skipped, _coverage_source(report))
     if args.baseline:

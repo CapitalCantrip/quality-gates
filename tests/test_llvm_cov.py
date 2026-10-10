@@ -382,6 +382,15 @@ class CrapSwiftPMTest(InRepoRoot):
         self.assertFalse(payload["pass"])
         self.assertEqual(code, 1)
 
+    def test_crap_says_to_measure_coverage_here_when_the_export_was_made_in_another_checkout(self):
+        code, _, err = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", str(EXPORT_AS_BUILT), "--json"])
+        self.assertEqual(code, 1)
+        self.assertIn(crap.UNMATCHED_REPORT, err)
+
+    def test_crap_stays_quiet_about_a_matching_export(self):
+        _, _, err = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", self.export, "--json"])
+        self.assertNotIn(crap.UNMATCHED_REPORT, err)
+
     def test_crap_exits_2_on_json_that_is_not_an_llvm_cov_export(self):
         with tempfile.TemporaryDirectory() as tmp:
             code, _, err = run_crap(["--lang", "swift", SOURCES, "--llvm-cov-json", write_json(tmp, [])])

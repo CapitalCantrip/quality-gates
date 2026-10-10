@@ -36,6 +36,9 @@ def completed(stdout, returncode=0):
     return CompletedProcess([], returncode, stdout=stdout, stderr="")
 
 
+UNMATCHED_REPORT = "[crap] no scanned function was found in the coverage report; measure coverage in this checkout"
+
+
 def tagged(err):
     return [line for line in err.splitlines() if line.startswith("[crap] ")]
 
@@ -129,6 +132,44 @@ class PythonGateTest(unittest.TestCase):
         code, _, err = call(["--lang", "python", str(self.module)])
         self.assertEqual(code, 1)
         self.assertIn("worst-case", err)
+
+    def test_a_report_matching_no_scanned_function_says_where_to_measure_coverage(self):
+        self.coverage.write_text(json.dumps({"files": {}}))
+        code, _, err = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn(UNMATCHED_REPORT + "\n", err)
+
+    def test_the_unmatched_report_line_goes_to_stderr_in_json_mode_too(self):
+        self.coverage.write_text(json.dumps({"files": {}}))
+        _, out, err = self.gate("--json")
+        self.assertIn(UNMATCHED_REPORT, err)
+        self.assertNotIn(UNMATCHED_REPORT, out)
+        json.loads(out)
+
+    def test_a_report_matching_a_scanned_function_does_not_say_it_matched_none(self):
+        self.write_coverage(list(range(1, 16)), [])
+        _, _, err = self.gate()
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
+    def test_a_report_matching_only_one_scanned_function_does_not_say_it_matched_none(self):
+        self.write_coverage(list(range(1, 7)), [])
+        _, out, err = self.gate("--json")
+        coverage = {f["name"]: f["coverage"] for f in json.loads(out)["functions"]}
+        self.assertEqual(coverage, {"f": 1.0, "K.m": None})
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
+    def test_no_coverage_does_not_say_a_report_matched_none(self):
+        _, _, err = call(["--lang", "python", str(self.module), "--no-coverage"])
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
+    def test_no_coverage_flag_does_not_say_a_report_matched_none(self):
+        _, _, err = call(["--lang", "python", str(self.module)])
+        self.assertNotIn(UNMATCHED_REPORT, err)
+
+    def test_a_report_given_when_nothing_is_scored_does_not_say_it_matched_none(self):
+        self.coverage.write_text(json.dumps({"files": {}}))
+        _, _, err = self.gate("--min-cc", "4", "--allow-empty")
+        self.assertNotIn(UNMATCHED_REPORT, err)
 
     def test_min_cc_skips_simpler_functions(self):
         self.write_coverage([], list(range(1, 16)))
