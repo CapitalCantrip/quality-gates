@@ -1,10 +1,9 @@
-import json
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
-from quality_gates.errors import ToolError
+from quality_gates.json_report import load_json
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
@@ -61,14 +60,7 @@ def _line_coverage_for_range(lines: dict, start: int, end: int) -> Optional[floa
 
 
 def load(coverage_json_path: str) -> dict:
-    try:
-        with open(coverage_json_path) as fh:
-            data = json.load(fh)
-    except OSError as exc:
-        raise ToolError(f"cannot open coverage file: {exc}") from None
-    except json.JSONDecodeError as exc:
-        raise ToolError(f"bad coverage JSON: {exc}") from None
-
+    data = load_json(coverage_json_path, "coverage file", "coverage JSON")
     out: dict = {}
     any_branches = False
     for relpath, fd in data.get("files", {}).items():

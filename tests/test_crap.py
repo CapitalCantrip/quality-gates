@@ -163,6 +163,13 @@ class PythonGateTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertTrue(err.startswith("[crap] bad coverage JSON: Expecting property name"))
 
+    def test_a_coverage_file_that_is_not_utf8_is_a_tool_error_with_the_crap_tag(self):
+        self.coverage.write_bytes(b"\xff\xfe\x00binary")
+        code, _, err = self.gate()
+        self.assertEqual(code, 2)
+        self.assertTrue(err.startswith("[crap] bad coverage JSON: "))
+        self.assertNotIn("Traceback", err)
+
     def test_coverage_older_than_the_source_warns(self):
         self.write_coverage(list(range(1, 16)), [])
         past = self.module.stat().st_mtime - 10

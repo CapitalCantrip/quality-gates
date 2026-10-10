@@ -1,3 +1,4 @@
+import ast
 import io
 import json
 import os
@@ -6,7 +7,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from quality_gates import crap, languages
+from quality_gates import crap, languages, llvm_cov
 from quality_gates.complexity_scan import Function
 from quality_gates.errors import ToolError
 
@@ -343,6 +344,18 @@ class ExportCoverageTest(unittest.TestCase):
                 with self.assertRaises(ToolError) as raised:
                     llvm_cov_reader()(write_json(tmp, document))
                 self.assertTrue(str(raised.exception).startswith("not an llvm-cov export: "))
+
+
+class RegionFieldsTest(unittest.TestCase):
+    def test_no_region_field_is_read_by_a_bare_index(self):
+        tree = ast.parse(Path(llvm_cov.__file__).read_text(encoding="utf-8"))
+        bare = [
+            node.lineno for node in ast.walk(tree)
+            if isinstance(node, ast.Subscript)
+            and isinstance(node.value, ast.Name) and node.value.id == "raw"
+            and isinstance(node.slice, ast.Constant)
+        ]
+        self.assertEqual(bare, [])
 
 
 def run_crap(argv):

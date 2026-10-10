@@ -1,20 +1,34 @@
-import json
 from dataclasses import dataclass, field
+from enum import IntEnum
 from pathlib import Path
 from typing import TYPE_CHECKING, Dict, List, NamedTuple, Optional, Tuple
 
 from quality_gates.errors import ToolError
+from quality_gates.json_report import load_json
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
 
 EXPORT_TYPE = "llvm.coverage.json.export"
-EXPANSION, SKIPPED, GAP = 1, 2, 3
 REGION_FIELDS = 8
+REGION_START_LINE = 0
+REGION_START_COLUMN = 1
+REGION_END_LINE = 2
+REGION_END_COLUMN = 3
+REGION_COUNT = 4
 REGION_FILE_ID = 5
 REGION_EXPANDED_FILE_ID = 6
 REGION_KIND = 7
 MALFORMED_RECORD = (AttributeError, IndexError, KeyError, TypeError, ValueError)
+
+
+
+class RegionKind(IntEnum):
+    CODE = 0
+    EXPANSION = 1
+    SKIPPED = 2
+    GAP = 3
+
 
 Location = Tuple[int, int]
 LineCounts = Dict[int, int]
@@ -44,7 +58,12 @@ def _region(raw: list) -> _Region:
     fields = raw[:REGION_FIELDS]
     if len(fields) < REGION_FIELDS or not all(type(value) is int for value in fields):
         raise ValueError(f"a region needs {REGION_FIELDS} whole numbers, got {raw!r}")
-    return _Region((raw[0], raw[1]), (raw[2], raw[3]), raw[4], raw[REGION_KIND])
+    return _Region(
+        (raw[REGION_START_LINE], raw[REGION_START_COLUMN]),
+        (raw[REGION_END_LINE], raw[REGION_END_COLUMN]),
+        raw[REGION_COUNT],
+        raw[REGION_KIND],
+    )
 
 
 def _nesting_order(region: _Region) -> tuple:
@@ -63,8 +82,8 @@ def _combined(regions: List[_Region]) -> List[_Region]:
 
 
 def _segment_for(region: _Region, line: int, is_entry: bool, skipped: bool) -> _Segment:
-    has_count = not skipped and region.kind != SKIPPED
-    return _Segment(line, region.count if has_count else 0, has_count, is_entry, has_count and region.kind == GAP)
+    has_count = not skipped and region.kind != RegionKind.SKIPPED
+    return _Segment(line, region.count if has_count else 0, has_count, is_entry, has_count and region.kind == RegionKind.GAP)
 
 
 class _SegmentBuilder:
@@ -106,8 +125,8 @@ class _SegmentBuilder:
             self._complete_until(loc, len(open_regions))
 
     def _start_empty(self, region: _Region, is_last: bool) -> None:
-        skipped = is_last or region.kind == SKIPPED
-        self._start(self.active[-1] if self.active else region, region.start, region.kind != GAP, skipped)
+        skipped = is_last or region.kind == RegionKind.SKIPPED
+        self._start(self.active[-1] if self.active else region, region.start, region.kind != RegionKind.GAP, skipped)
         if skipped and self.active:
             self._start(self.active[-1], region.start, False)
 
@@ -119,7 +138,7 @@ class _SegmentBuilder:
                 self._start_empty(region, following is None)
                 continue
             if following != region.start:
-                self._start(region, region.start, region.kind != GAP)
+                self._start(region, region.start, region.kind != RegionKind.GAP)
             self.active.append(region)
         if self.active:
             self._complete_until(None, 0)
@@ -168,7 +187,7 @@ def _line_counts(segments: List[_Segment]) -> LineCounts:
 
 
 def _main_file_id(record: dict) -> Optional[int]:
-    expanded = {raw[REGION_EXPANDED_FILE_ID] for raw in record["regions"] if raw[REGION_KIND] == EXPANSION}
+    expanded = {raw[REGION_EXPANDED_FILE_ID] for raw in record["regions"] if raw[REGION_KIND] == RegionKind.EXPANSION}
     return next((file_id for file_id in range(len(record["filenames"])) if file_id not in expanded), None)
 
 
@@ -251,18 +270,8 @@ def _function_coverage(report: _Report, filepath: str, start: int, end: int) -> 
     return _coverage(bodies[body]) if body is not None else None
 
 
-def _read_export(export_path: str) -> object:
-    try:
-        with open(export_path, encoding="utf-8") as fh:
-            return json.load(fh)
-    except OSError as exc:
-        raise ToolError(f"cannot open llvm-cov export: {exc}") from None
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise ToolError(f"bad llvm-cov export JSON: {exc}") from None
-
-
 def _exports(export_path: str) -> list:
-    document = _read_export(export_path)
+    document = load_json(export_path, "llvm-cov export", "llvm-cov export JSON")
     if not isinstance(document, dict) or document.get("type") != EXPORT_TYPE or not isinstance(document.get("data"), list):
         raise ToolError(f"not an llvm-cov export: {export_path} needs \"type\": \"{EXPORT_TYPE}\" and a \"data\" list")
     return document["data"]
