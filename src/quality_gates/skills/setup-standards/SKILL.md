@@ -81,8 +81,10 @@ Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
 - **Swift:** the complexity gate is SwiftLint's `cyclomatic_complexity` block,
   exactly as `/cc-swift` gives it, in `.swiftlint.yml`. The CRAP gate is
   `crap --lang swift`, reading coverage as `/crap` describes: an Xcode project
-  from its `.xcresult` bundle (`--xcresult`), a SwiftPM package from the
-  llvm-cov export JSON its tests write (`--llvm-cov-json`).
+  from its `.xcresult` bundle (`--xcresult`), or a SwiftPM package with a test
+  target from the llvm-cov export JSON its tests write (`--llvm-cov-json`). A
+  SwiftPM package with no test target has no CRAP gate; step 3 says how to
+  report that.
 - **Rust:** run the setup steps of `/cc-rust`: `clippy.toml` and the deny
   attributes.
 - **TypeScript / JavaScript:** `cc-check --lang typescript` and
@@ -92,8 +94,8 @@ Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
   project on `node --test` cannot yet (it writes lcov), so report CRAP as not
   done with that reason.
 
-Done when every detected language has its gates configured and `qg-skills`
-has run.
+Done when every detected language has its gates configured, or its CRAP gate is
+reported not done as step 3 says, and `qg-skills` has run.
 
 ## 3. Baselines
 
@@ -179,8 +181,8 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   checkout or container gives every function unknown coverage, because `crap`
   matches a report file only at its exact path.
 
-  A SwiftPM package with no test target gets no CRAP step; step 3 says how to
-  report it.
+  A SwiftPM package with no test target gets no CRAP step: report CRAP as
+  **not done**, as step 3 says.
 - If the project has no CI workflow, add `.github/workflows/tests.yml` that
   installs the project, runs the tests and the steps above, on pull requests
   and pushes to the default branch.
