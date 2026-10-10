@@ -319,6 +319,16 @@ class SwiftGateTest(unittest.TestCase):
         _, functions = self.gate(rows, "--xcresult", "r.xcresult", xccov=report)
         self.assertEqual({f["name"]: f["coverage"] for f in functions}, {"load": 1.0, "load#2": 0.5})
 
+    def test_a_null_line_coverage_in_an_xcresult_report_scores_that_function_worst_case_without_a_traceback(self):
+        report = {"targets": [{"files": [{"path": "Sources/App.swift", "functions": [
+            {"name": "load()", "lineNumber": 10, "lineCoverage": None},
+            {"name": "save()", "lineNumber": 40, "lineCoverage": 1.0},
+        ]}]}]}
+        rows = [lizard_row("load", 4, 10, 30), lizard_row("save", 4, 40, 50)]
+        code, functions = self.gate(rows, "--xcresult", "r.xcresult", xccov=report)
+        self.assertEqual(code, 1)
+        self.assertEqual({f["name"]: (f["coverage"], f["crap"]) for f in functions}, {"load": (None, 20), "save": (1.0, 4)})
+
     def test_swift_functions_below_min_cc_are_skipped(self):
         _, functions = self.gate([lizard_row("load", 4, 10, 30), lizard_row("tiny", 1, 40, 41)], "--no-coverage")
         self.assertEqual([f["name"] for f in functions], ["load"])
