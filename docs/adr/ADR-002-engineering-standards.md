@@ -278,3 +278,13 @@ there. The step measures coverage and runs `crap` in the same checkout, since
 a report file counts only at `crap`'s exact path. ADR-001's "Addendum
 2026-10-10: SwiftPM coverage (v0.8.0)" records how a Function's figure is
 worked out and matched.
+
+## Addendum 2026-10-11: a SwiftPM package with no test target (#67)
+
+The addendum above holds for a SwiftPM package with a test target. A package
+with no test target has no coverage to measure: `swift test
+--enable-code-coverage` reports no tests found and `crap` exits 2. For such a
+package `/setup-standards` sets up no CRAP baseline or CI step, still sets up
+SwiftLint, Swift's complexity gate, and reports CRAP as not done, with the
+reason and what it takes: add a test target with tests, then rerun the skill.
+No threshold, counting tool or gate scope changes.

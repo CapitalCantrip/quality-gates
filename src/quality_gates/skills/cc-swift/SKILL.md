@@ -58,6 +58,7 @@ counting one per case (ADR-001). If a project's file disagrees, report it.
 - Deconstruct before implementing: break multi-step logic into private helpers before writing the main function body
 - Flatten control flow: guard/early return over nested `if` branches
 - SwiftUI views: split large `body` computed properties into focused `@ViewBuilder` helpers; break long `switch` arms into named view functions
+- In Swift, a new or changed closure (including a trailing closure or a nested `func`) that contains a branch has a test that runs it. The CRAP gate does not count a closure's lines against the function that holds it (quality-gates issue #53), so an untested closure can pass inside a tested function. quality-gates ADR-001's 2026-10-10 addendum on SwiftPM coverage says how a closure is scored. It is a judgement call in review, not a gate.
 
 ## Dependencies
 
@@ -71,7 +72,7 @@ xcode-select --install          # xcrun xccov for --xcresult coverage (optional)
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.1"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.1"
 ```
