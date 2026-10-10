@@ -187,6 +187,19 @@ class SkipListTest(InTempDir):
         found = complexity_scan.scan(["src"], "python")
         self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/pkg/y.py"], ["src/pkg/dist"]))
 
+    def test_a_swift_file_under_swiftpms_build_folder_is_not_scanned_and_the_folder_is_named(self):
+        self.write(".build/debug/test_entry_point.swift", "func entry(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
+        self.write("Sources/App.swift", "func load(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
+        found = complexity_scan.scan(["."], "swift")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["Sources/App.swift"], [".build"]))
+
+    def test_swiftpms_build_folder_is_skipped_for_every_language(self):
+        self.write(".build/checkouts/dep/x.py")
+        self.write(".build/checkouts/dep/x.ts", "function x(a) { return a ? 1 : 2; }\n")
+        for lang in ("python", "typescript"):
+            found = complexity_scan.scan(["."], lang)
+            self.assertEqual((found.functions, found.skipped), ([], [".build"]))
+
     def test_a_worktrees_folder_outside_claude_is_scanned(self):
         self.write("tools/worktrees/x.py")
         self.assertEqual(len(complexity_scan.scan(["."], "python").functions), 1)

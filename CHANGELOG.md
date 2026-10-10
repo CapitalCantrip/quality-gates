@@ -1,5 +1,17 @@
 # Changelog
 
+## [Unreleased]
+
+What the scan covers (#54, #58, #51, #59; ADR-001 addenda "skip SwiftPM's
+.build", "follow symlinked folders", "the freshness check reads the scan's
+files" and "Python end lines from the AST", all (v0.9.0)). No threshold
+changes.
+
+- `.build`, SwiftPM's build folder, joins the skip list of both gates in every
+  language and is named on the *Skipped N folder(s)* line (#54). A scan of a
+  package root no longer returns functions from `.build/debug` or from
+  checked-out dependencies under `.build/checkouts`.
+
 ## 0.8.2 — 2026-10-11
 
 `--xcresult` matches exact paths (#49; ADR-001 addendum "xccov matches exact

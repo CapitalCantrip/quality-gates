@@ -20,7 +20,7 @@ LIZARD_START = 9
 LIZARD_END = 10
 
 SKIPPED_FOLDERS = (
-    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", "dist",
+    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
     ".tox", ".mypy_cache", ".pytest_cache", ".worktrees", ".claude/worktrees",
 )
 SKIPPED_PARTS = [tuple(folder.split("/")) for folder in SKIPPED_FOLDERS]

@@ -224,12 +224,12 @@ readers fail loudly").
 Both gates take their functions from one scan, so they always list the same
 functions under the same names. A function, method, closure or method of a
 nested class is scored on its own; a class is not. Both skip `.git`, `.venv`,
-`venv`, `.direnv`, `node_modules`, `__pycache__`, `backups`, `build`, `dist`,
-`.tox`, `.mypy_cache`, `.pytest_cache`, `.worktrees` and `.claude/worktrees`
+`venv`, `.direnv`, `node_modules`, `__pycache__`, `backups`, `build`, `.build`
+(SwiftPM's), `dist`, `.tox`, `.mypy_cache`, `.pytest_cache`, `.worktrees` and `.claude/worktrees`
 wherever they appear below the scanned path, and scan every other hidden folder.
 Each gate ends its report with a line naming the skipped folders it found, so a
 real package called `build` or `dist` is never dropped silently. The reasons are
-in ADR-001's 2026-10-09 addendum.
+in ADR-001's 2026-10-09 addendum, and `.build` in its 2026-10-11 one.
 
 ### How they fit together
 

@@ -438,3 +438,32 @@ on a name match, or on a bundle made in another checkout, now scores those
 functions worst case. Where two same-named files shared one figure, each file
 now has its own. A crap baseline recorded with `--xcresult` may therefore hold
 stale scores and is re-recorded.
+
+## Addendum 2026-10-11: skip SwiftPM's .build (v0.9.0)
+
+The limits above are unchanged. This adds one folder to the skip list of the
+2026-10-09 addendum. A scan of a SwiftPM package root with `--lang swift`
+returned functions from `.build/debug/test_entry_point.swift`, and would also
+have scored checked-out dependencies under `.build/checkouts`, none of which the
+project wrote (#54).
+
+**The skip list** is now `.git`, `.venv`, `venv`, `.direnv`, `node_modules`,
+`__pycache__`, `backups`, `build`, `.build`, `dist`, `.tox`, `.mypy_cache`,
+`.pytest_cache`, `.worktrees`, `.claude/worktrees`. It stays one list for both
+gates and every language, matches a folder of that name anywhere below the
+scanned path, and `.build` is named on the *Skipped N folder(s)* line like the
+others. A project checked out under a `.build` folder is still scanned in full,
+since only folders below the scanned path count.
+
+**Effect on existing scores.** A scan that reached `.build` finds fewer
+functions, so its baselines hold rows for files that are no longer scanned.
+`cc-check` and `crap` baselines of a scan that includes a SwiftPM package root
+are re-recorded.
+
+### Rejected
+
+- **Skipping every hidden folder.** Already rejected on 2026-10-09: it hides
+  `.claude/hooks`, which agents write.
+- **A Swift-only skip list.** `.build` is generated output wherever it appears,
+  and the one list is what keeps the two gates and every language counting the
+  same way.

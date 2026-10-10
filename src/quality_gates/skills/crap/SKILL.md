@@ -79,7 +79,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 4. With `--no-coverage`, every function at CC 3 or above scores FAIL. That mode is a risk ranking, not a gate: report the top rows and say no coverage was available, never "the gate failed".
    When `crap` prints `no scored function got a figure from the coverage report`, every score in this run is worst case, whatever the language: do not report it as a gate result. Measure coverage again in this checkout, check that the report holds figures for the files you scan, and rerun.
    With coverage, report all FAIL rows in full; summarise WARN rows (CRAP 5–8 for Python/Swift/TypeScript; CC 11–15 for Rust).
-   `crap` skips the folders ADR-001's 2026-10-09 addendum lists and names each one it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it.
+   `crap` skips the folders ADR-001's 2026-10-09 addendum lists, and `.build` from its 2026-10-11 one, and names each one it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it.
 5. For each FAIL, recommend the cheaper fix first:
    - CC is the driver (high CC, low coverage): reduce CC — extract sub-functions
    - Coverage is the driver (low coverage, moderate CC): add tests
