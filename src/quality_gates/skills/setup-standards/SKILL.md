@@ -14,10 +14,10 @@ engineering knowledge. Run on a set-up project, every step finds its work
 already in place and changes nothing, so this is also the upgrade after a pin
 bump.
 
-The pin this skill belongs to: `v0.8.1`. Install line, used in step 2:
+The pin this skill belongs to: `v0.8.2`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.1"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.2"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`

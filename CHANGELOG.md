@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## 0.8.2 — 2026-10-11
 
 `--xcresult` matches exact paths (#49; ADR-001 addendum "xccov matches exact
 paths (v0.8.2)"). No threshold changes.
