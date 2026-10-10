@@ -516,3 +516,39 @@ repeat as skipped.
   longer match what the builder passes on the command line.
 - **Counting a repeated visit under its link path as well.** The same function
   would be scored, and baselined, twice.
+
+## Addendum 2026-10-11: the freshness check reads the scan's files (v0.9.0)
+
+The limits above are unchanged, and so is what each gate scores. `crap` warns
+when the coverage file is older than the newest source file, and
+`--strict-freshness` turns the warning into exit 2. That check walked every file
+with a dot in its name under each scanned path on its own, so it counted the
+folders the scan skips (`node_modules`, `.git`, `.venv`, build output) and the
+files of other languages: in a package whose Swift sources were older than the
+coverage file, one newer file under `node_modules/` raised *coverage file may be
+stale* (#51).
+
+**The rule.** The newest modification time is taken over the source files of the
+scan itself: the shared walk, with its skip list and its symlink rule, filtered
+to the chosen language's suffixes. The scan returns that list as `sources`, and
+`crap` reads it; there is no second walk and no second copy of the skip rules. A
+path given as a single file counts if its suffix is the language's, as it does
+for the scan. A file that cannot be read for its time is ignored, as before.
+
+`crap` now scans before it checks freshness, so a scan error (a missing path, a
+missing tool) is reported ahead of a stale coverage file, and with
+`--strict-freshness` the counting tool runs even when the file turns out stale.
+
+**Effect on existing scores.** None: no function is scored differently. A report
+that was called stale only because of a skipped folder or another language no
+longer is, so any workaround for that false warning can go. A newer source file of the
+chosen language still makes the report stale, with and without the flag. No
+baseline is re-recorded for this change.
+
+### Rejected
+
+- **Keeping a freshness walk with a copy of the skip list.** The two would
+  drift; the first fault was that they already had.
+- **Comparing against only the files that hold scored functions.** A newer file
+  with no function above the minimum CC can still have changed the tests that
+  the report was made from, so the check keeps every source file of the language.

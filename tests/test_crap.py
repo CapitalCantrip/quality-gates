@@ -249,6 +249,70 @@ class PythonGateTest(unittest.TestCase):
         self.assertTrue(any("coverage file may be stale: coverage.json" in line for line in tagged(err)))
 
 
+class FreshnessScopeTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        before = os.getcwd()
+        os.chdir(tmp.name)
+        self.addCleanup(os.chdir, before)
+        self.touch("src/mod.py", 1000, "def f(x):\n    return x\n")
+        Path("coverage.json").write_text(json.dumps({"files": {"src/mod.py": {
+            "executed_lines": [1, 2], "missing_lines": []}}}))
+        os.utime("coverage.json", (1010, 1010))
+
+    def touch(self, path, mtime, text="x\n"):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        Path(path).write_text(text)
+        os.utime(path, (mtime, mtime))
+
+    def gate(self, *extra):
+        return call(["--lang", "python", "src", "--coverage-json", "coverage.json", "--allow-empty", *extra])
+
+    def test_a_newer_file_under_a_skipped_folder_does_not_make_the_report_stale(self):
+        self.touch("src/node_modules/dep/index.py", 1020)
+        code, _, err = self.gate("--strict-freshness")
+        self.assertEqual((code, "stale" in err), (0, False))
+
+    def test_a_newer_file_under_every_skip_list_folder_does_not_make_the_report_stale(self):
+        for folder in complexity_scan.SKIPPED_FOLDERS:
+            self.touch(f"src/{folder}/x.py", 1020)
+        code, _, err = self.gate("--strict-freshness")
+        self.assertEqual((code, "stale" in err), (0, False))
+
+    def test_a_newer_file_of_another_language_does_not_make_the_report_stale(self):
+        self.touch("src/Other.swift", 1020)
+        self.touch("src/notes.md", 1020)
+        code, _, err = self.gate("--strict-freshness")
+        self.assertEqual((code, "stale" in err), (0, False))
+
+    def test_a_newer_source_file_of_the_chosen_language_warns_without_strict_freshness(self):
+        self.touch("src/newer.py", 1020)
+        code, _, err = self.gate()
+        self.assertEqual((code, "coverage file may be stale" in err), (0, True))
+
+    def test_a_newer_source_file_of_the_chosen_language_is_a_tool_error_with_strict_freshness(self):
+        self.touch("src/newer.py", 1020)
+        code, _, err = self.gate("--strict-freshness")
+        self.assertEqual((code, "coverage file may be stale" in err), (2, True))
+
+    def test_a_newer_source_file_in_a_symlinked_folder_makes_the_report_stale(self):
+        self.touch("shared/linked.py", 1020)
+        os.symlink(os.path.abspath("shared"), "src/shared")
+        code, _, err = self.gate("--strict-freshness")
+        self.assertEqual((code, "coverage file may be stale" in err), (2, True))
+
+    def test_a_newer_file_of_the_chosen_language_given_as_the_path_makes_the_report_stale(self):
+        self.touch("src/mod.py", 1020)
+        code, _, err = call(["--lang", "python", "src/mod.py", "--coverage-json", "coverage.json", "--allow-empty", "--strict-freshness"])
+        self.assertEqual((code, "coverage file may be stale" in err), (2, True))
+
+    def test_the_freshness_check_reads_the_files_the_scan_read(self):
+        self.touch("src/newer.py", 1020)
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual(sorted(map(str, found.sources)), ["src/mod.py", "src/newer.py"])
+
+
 class CoverageSourceTest(unittest.TestCase):
     def source(self, coverage_json=None, xcresult=None, llvm_cov_json=None, istanbul_json=None, no_coverage=False):
         return crap._coverage_source(crap._given_report(Namespace(

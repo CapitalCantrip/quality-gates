@@ -20,6 +20,13 @@ changes.
   what you typed. A link named on the skip list is still skipped, a dangling
   link is ignored. Scanned paths that overlap (`src src/pkg`) now list the inner
   folder's functions once, where they were listed twice, the second numbered `#2`.
+- `crap`'s coverage freshness check reads the files the scan reads (#51). A
+  newer file under a skipped folder (`node_modules`, `.git`, `.venv`, build
+  output) or of another language no longer makes the report stale, with or
+  without `--strict-freshness`; a newer source file of the chosen language still
+  does. The check uses the scan's own file list, so a symlinked folder counts. It
+  runs after the scan, so a missing path or tool is reported first. No score
+  changes.
 
 ## 0.8.2 — 2026-10-11
 

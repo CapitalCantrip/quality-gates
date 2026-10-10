@@ -218,6 +218,10 @@ coverage flag given an empty path exits 2, so a path command that fails inside
 When a report is given and none of the scored functions gets a figure from it,
 `crap` prints one line to stderr saying so (ADR-001's addendum "Coverage
 readers fail loudly").
+`crap` warns when the coverage file is older than the newest source file the
+scan read, and `--strict-freshness` makes that exit 2; files under a skipped
+folder and files of another language do not count (ADR-001's 2026-10-11
+addendum on the freshness check).
 
 ### What both gates score
 
