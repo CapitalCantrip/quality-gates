@@ -285,6 +285,6 @@ The addendum above holds for a SwiftPM package with a test target. A package
 with no test target has no coverage to measure: `swift test
 --enable-code-coverage` reports no tests found and `crap` exits 2. For such a
 package `/setup-standards` sets up no CRAP baseline or CI step, still sets up
-`cc-check` and SwiftLint, and reports CRAP as not done, with the reason and
-what it takes: add a test target with tests, then rerun the skill. No
-threshold, counting tool or gate scope changes.
+SwiftLint, Swift's complexity gate, and reports CRAP as not done, with the
+reason and what it takes: add a test target with tests, then rerun the skill.
+No threshold, counting tool or gate scope changes.
