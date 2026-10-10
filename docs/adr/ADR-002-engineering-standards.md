@@ -279,7 +279,7 @@ a report file counts only at `crap`'s exact path. ADR-001's "Addendum
 2026-10-10: SwiftPM coverage (v0.8.0)" records how a Function's figure is
 worked out and matched.
 
-## Addendum 2026-10-11: a SwiftPM package with no test target (#67)
+## Addendum 2026-10-11: a SwiftPM package with no test target (v0.8.4)
 
 The addendum above holds for a SwiftPM package with a test target. A package
 with no test target has no coverage to measure: `swift test

@@ -504,7 +504,7 @@ and fewer `set` ones, and a declaration that was swallowed by a `set` is now
 scored under its own name. A Swift crap baseline may therefore hold stale or
 missing entries and is re-recorded. Python and TypeScript scans are unchanged.
 
-## Addendum 2026-10-11: a review rule covers the closure gap (#70)
+## Addendum 2026-10-11: a review rule covers the closure gap (v0.8.4)
 
 `/cc-swift` carries a review rule. In Swift, a new or changed closure (including
 a trailing closure or a nested `func`) that contains a branch has a test that

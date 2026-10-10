@@ -23,7 +23,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.3"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.4"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -259,8 +259,8 @@ every machine and in CI. Python names are dotted from the outside in:
 `private(set)`, `fileprivate(set)`, `internal(set)` and `public(set)` written
 on one line make no `set` Function: the scan works around two lizard bugs until
 a lizard release fixes them (ADR-001 addendum "a workaround for two lizard
-Swift bugs (v0.8.3)", which lists what is not covered). In every language a name that repeats in a file gets its order as a
-suffix: `path::(anonymous)#2`.
+Swift bugs (v0.8.3)", which lists what is not covered). In every language a
+name that repeats in a file gets its order as a suffix: `path::(anonymous)#2`.
 
 - A function over the threshold that is not in the baseline fails. A renamed or
   moved function counts as new. So does a `name#2` entry whose number shifted because

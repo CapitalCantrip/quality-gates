@@ -67,7 +67,7 @@ In Swift, a new or changed closure (including a trailing closure or a nested `fu
 - A closure: the CRAP gate does not count a closure's lines against the function that holds it, so an untested closure passes inside a tested holder (until quality-gates issue #53).
 - A nested `func`: the CRAP gate scores it on its own and fails an untested one with two or more branches. A small one (a single branch, CRAP 6) can still pass untested, which is why the rule asks for a test for it too.
 
-quality-gates ADR-001, addendum "a review rule covers the closure gap", records the decision.
+quality-gates ADR-001, addendum "a review rule covers the closure gap (v0.8.4)", records the decision.
 
 ## Dependencies
 
@@ -81,7 +81,7 @@ xcode-select --install          # xcrun xccov for --xcresult coverage (optional)
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.3"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.4"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.3"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.4"
 ```
