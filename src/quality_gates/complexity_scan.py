@@ -49,6 +49,7 @@ class Scan:
     functions: list
     files: list
     skipped: list
+    sources: list
 
 
 def print_skipped(skipped: list, out) -> None:
@@ -230,4 +231,4 @@ def scan(paths: list, lang: str, runner=None) -> Scan:
     language = languages.LANGUAGES[lang]
     sources = [f for f in files if f.suffix in language.suffixes]
     functions, analysed = COUNTING_TOOLS[language.counter](sources, language, runner)
-    return Scan(functions, analysed, skipped)
+    return Scan(functions, analysed, skipped, sources)

@@ -228,7 +228,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--allow-empty", action="store_true",
                    help="Exit 0 when no functions are found (suppresses the empty-scan error)")
     p.add_argument("--strict-freshness", action="store_true",
-                   help="Exit 2 (tool error) when coverage file is older than the newest source file")
+                   help="Exit 2 (tool error) when coverage file is older than the newest source file scanned")
     p.add_argument("--baseline", metavar="FILE",
                    help="Fail only on functions that are new or worse than this file; needs coverage")
     p.add_argument("--update", action="store_true",
@@ -266,18 +266,15 @@ def _check_report_matched(report: Optional[CoverageReport], results: list) -> No
         print(f"{TAG}{UNMATCHED_REPORT}", file=sys.stderr)
 
 
-def _newest_source_mtime(source_paths: list) -> Optional[float]:
-    newest = 0.0
-    for root in source_paths:
-        p = Path(root)
-        files = p.rglob("*.*") if p.is_dir() else [p]
-        for f in files:
-            try:
-                mt = f.stat().st_mtime
-                if mt > newest:
-                    newest = mt
-            except OSError:
-                continue
+def _mtime(file: Path) -> float:
+    try:
+        return file.stat().st_mtime
+    except OSError:
+        return 0.0
+
+
+def _newest_source_mtime(sources: list) -> Optional[float]:
+    newest = max(map(_mtime, sources), default=0.0)
     return newest if newest > 0 else None
 
 
@@ -287,12 +284,12 @@ def _fail_or_warn(message: str, strict: bool) -> None:
     print(f"{TAG}{message}", file=sys.stderr)
 
 
-def _check_staleness(coverage_path: str, source_paths: list, strict: bool) -> None:
+def _check_staleness(coverage_path: str, sources: list, strict: bool) -> None:
     try:
         cov_mtime = Path(coverage_path).stat().st_mtime
     except OSError:
         return
-    newest = _newest_source_mtime(source_paths)
+    newest = _newest_source_mtime(sources)
     if newest is None or newest <= cov_mtime:
         return
     _fail_or_warn(
@@ -301,9 +298,9 @@ def _check_staleness(coverage_path: str, source_paths: list, strict: bool) -> No
     )
 
 
-def _maybe_check_staleness(args, report: Optional[CoverageReport]) -> None:
+def _maybe_check_staleness(args, report: Optional[CoverageReport], sources: list) -> None:
     if report:
-        _check_staleness(report.path, args.paths, args.strict_freshness)
+        _check_staleness(report.path, sources, args.strict_freshness)
 
 
 def _check_results_empty(results: list, args, skipped: list) -> None:
@@ -380,8 +377,8 @@ def gate(argv, root) -> int:
     _check_coverage_source(args, report)
     _check_baseline_args(args, report)
     coverage_of = _coverage_of(report)
-    _maybe_check_staleness(args, report)
     found = complexity_scan.scan(args.paths, args.lang)
+    _maybe_check_staleness(args, report, found.sources)
     results = score(found.functions, coverage_of, Limits(args.min_cc, args.warn, args.threshold))
     _check_results_empty(results, args, found.skipped)
     _check_report_matched(report, results)
