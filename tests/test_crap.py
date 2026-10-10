@@ -249,6 +249,26 @@ class PythonGateTest(unittest.TestCase):
         self.assertTrue(any("coverage file may be stale: coverage.json" in line for line in tagged(err)))
 
 
+class NestedDefEndLineTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+        self.module = self.dir / "mod.py"
+        self.module.write_text("def f(x):\n    if x:\n        return 1\n    def tail():\n        return 2\n")
+        self.coverage = self.dir / "coverage.json"
+        self.coverage.write_text(json.dumps({"files": {str(self.module): {
+            "executed_lines": [1, 2, 4], "missing_lines": [3, 5]}}}))
+        future = self.module.stat().st_mtime + 10
+        os.utime(self.coverage, (future, future))
+
+    def test_a_function_ending_in_a_nested_def_with_an_uncovered_branch_before_it_scores_below_full_coverage(self):
+        _, out, _ = call(["--lang", "python", str(self.module), "--coverage-json", str(self.coverage),
+                          "--min-cc", "1", "--json"])
+        coverage = {fn["name"]: fn["coverage"] for fn in json.loads(out)["functions"]}
+        self.assertEqual(coverage["f"], 0.6)
+
+
 class FreshnessScopeTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
