@@ -86,6 +86,14 @@ class IstanbulCoverageTest(InRepoRoot):
         with self.assertRaises(ToolError):
             istanbul.load("no/such/coverage.json")
 
+    def test_crap_says_when_an_istanbul_report_gives_no_scored_function_a_figure(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            report = Path(tmp) / "coverage-final.json"
+            report.write_text("{}", encoding="utf-8")
+            code, _, err = run_main(crap.main, ["--lang", "typescript", SAMPLE, "--istanbul-json", str(report), "--json"])
+        self.assertEqual(code, 1)
+        self.assertIn(crap.UNMATCHED_REPORT, err)
+
     def test_crap_names_a_report_that_is_not_utf8_under_its_own_tag(self):
         with tempfile.TemporaryDirectory() as tmp:
             report = Path(tmp) / "coverage-final.json"

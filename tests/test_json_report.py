@@ -1,6 +1,7 @@
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from quality_gates.errors import ToolError
 from quality_gates.json_report import load_json
@@ -31,6 +32,17 @@ class LoadJsonTest(unittest.TestCase):
         with self.assertRaises(ToolError) as raised:
             self.load(b"{not json")
         self.assertTrue(str(raised.exception).startswith("bad widget JSON: Expecting property name"))
+
+    def test_json_nested_too_deeply_to_parse_is_a_tool_error_naming_the_reader(self):
+        with self.assertRaises(ToolError) as raised:
+            self.load(b"[" * 200000)
+        self.assertTrue(str(raised.exception).startswith("bad widget JSON: "))
+
+    def test_a_number_the_parser_refuses_is_a_tool_error_naming_the_reader(self):
+        with patch("quality_gates.json_report.json.load", side_effect=ValueError("Exceeds the limit")):
+            with self.assertRaises(ToolError) as raised:
+                self.load(b"1")
+        self.assertEqual(str(raised.exception), "bad widget JSON: Exceeds the limit")
 
 
 if __name__ == "__main__":

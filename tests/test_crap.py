@@ -36,7 +36,7 @@ def completed(stdout, returncode=0):
     return CompletedProcess([], returncode, stdout=stdout, stderr="")
 
 
-UNMATCHED_REPORT = "[crap] no scanned function got a figure from the coverage report; measure coverage in this checkout, for these files"
+UNMATCHED_REPORT = "[crap] no scored function got a figure from the coverage report; it may have been made elsewhere or hold no figures for the scanned files"
 
 
 def tagged(err):

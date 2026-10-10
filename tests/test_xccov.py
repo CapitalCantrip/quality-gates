@@ -17,6 +17,19 @@ class SwiftCoverageTest(unittest.TestCase):
             with self.assertRaises(ToolError):
                 xccov.load("r.xcresult")
 
+    def test_xccov_output_nested_too_deeply_to_parse_is_a_tool_error(self):
+        with patch.object(xccov, "run", return_value=completed("[" * 200000)):
+            with self.assertRaises(ToolError) as raised:
+                xccov.load("r.xcresult")
+        self.assertTrue(str(raised.exception).startswith("could not parse xccov output: "))
+
+    def test_xccov_output_with_a_number_the_parser_refuses_is_a_tool_error(self):
+        with patch.object(xccov, "run", return_value=completed("1")):
+            with patch("quality_gates.xccov.json.loads", side_effect=ValueError("Exceeds the limit")):
+                with self.assertRaises(ToolError) as raised:
+                    xccov.load("r.xcresult")
+        self.assertEqual(str(raised.exception), "could not parse xccov output: Exceeds the limit")
+
     def test_a_failed_xccov_is_a_tool_error(self):
         with patch.object(xccov, "run", return_value=CompletedProcess([], 1, stdout="", stderr="no bundle")):
             with self.assertRaises(ToolError) as raised:

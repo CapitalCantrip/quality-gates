@@ -50,7 +50,7 @@ def load(xcresult_path: str) -> dict:
         raise ToolError(f"xcrun xccov failed:\n{result.stderr.strip()}")
     try:
         data = json.loads(result.stdout)
-    except json.JSONDecodeError as exc:
+    except (ValueError, RecursionError) as exc:
         raise ToolError(f"could not parse xccov output: {exc}") from None
 
     cov_map: dict = {}

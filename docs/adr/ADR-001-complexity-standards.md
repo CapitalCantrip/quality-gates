@@ -390,8 +390,9 @@ degrades to a worst-case ranking.
   clamped to 0 through 1.
 
 When a coverage report was given, at least one function was scored and none got
-a figure, `crap` also prints one line to stderr, `[crap] no scanned function got
-a figure from the coverage report; measure coverage in this checkout, for these
-files`, for every coverage flag and in `--json` mode too. The report may have
-been made elsewhere, may hold no figure for the scanned files, or may carry no
-usable figures at all. Scores and the exit code are unchanged.
+a figure, `crap` also prints one line to stderr, `[crap] no scored function got
+a figure from the coverage report; it may have been made elsewhere or hold no
+figures for the scanned files`, for every coverage flag and in `--json` mode
+too. The report may have been made in another checkout, may hold no figure for
+the scanned files, or may carry no usable figures at all. Scores and the exit
+code are unchanged.

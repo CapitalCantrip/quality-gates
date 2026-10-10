@@ -16,7 +16,7 @@ WARN_THRESHOLD = 5.0
 LABEL_WIDTH = 50
 TAG = "[crap] "
 ASSUMED_ZERO = "assumed-zero"
-UNMATCHED_REPORT = "no scanned function got a figure from the coverage report; measure coverage in this checkout, for these files"
+UNMATCHED_REPORT = "no scored function got a figure from the coverage report; it may have been made elsewhere or hold no figures for the scanned files"
 
 USAGE_WIDTH = 79
 USAGE_INDENT = "  "

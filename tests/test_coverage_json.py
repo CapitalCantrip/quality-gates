@@ -42,16 +42,16 @@ class PythonCoverageTest(unittest.TestCase):
         entry = coverage_json._parse_file_coverage({"executed_lines": [20], "missing_lines": []})
         self.assertIsNone(coverage_json.function_coverage({"m.py": entry}, "m.py", 1, 4))
 
-    def test_a_report_with_a_non_ascii_path_loads_whatever_the_machines_locale(self):
+    def test_a_report_with_non_ascii_content_loads_whatever_the_machines_locale(self):
         with tempfile.TemporaryDirectory() as tmp:
             report = Path(tmp) / "coverage.json"
-            report.write_text(json.dumps({"files": {"caf\u00e9.py": {}}}, ensure_ascii=False), encoding="utf-8")
+            report.write_text(json.dumps({"files": {"mod.py": {"note": "caf\u00e9"}}, "note": "caf\u00e9"}, ensure_ascii=False), encoding="utf-8")
             done = subprocess.run(
                 [sys.executable, "-c", LOAD_REPORT % str(report)],
                 env={**os.environ, **ASCII_LOCALE}, capture_output=True, text=True, encoding="utf-8",
             )
         self.assertEqual(done.returncode, 0, done.stderr)
-        self.assertIn("caf\u00e9.py", done.stdout)
+        self.assertIn("mod.py", done.stdout)
 
 
 if __name__ == "__main__":

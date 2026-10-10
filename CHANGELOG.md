@@ -23,19 +23,20 @@ that works scores as before.
   crashed the run and a missing figure counted as 0% covered. A same-named
   entry is no longer borrowed for it.
 - When a coverage report was given and no scored function got a figure from
-  it, `crap` prints `[crap] no scanned function got a figure from the coverage
-  report; measure coverage in this checkout, for these files` to stderr, in
-  `--json` mode too. Scores and exit codes are unchanged.
+  it, `crap` prints `[crap] no scored function got a figure from the coverage
+  report; it may have been made elsewhere or hold no figures for the scanned
+  files` to stderr, in `--json` mode too. Scores and exit codes are unchanged.
 - Internal: the three JSON coverage readers share one loader, and the llvm-cov
   reader names its region fields.
 
 **When you bump the pin:** run `qg-skills`. A CI step that builds a coverage
-flag with `$(...)` now fails the build when the coverage command fails or
-prints nothing, where it used to pass as a worst-case ranking; fix the coverage
-command, not the flag, and make sure the step that runs the tests fails the job.
-If the new stderr line appears, the report was made somewhere else (another
-checkout or a container), or holds no figures for the scanned files: measure
-coverage in the checkout where `crap` runs, for the files it scans. No baseline needs re-recording.
+flag with `$(...)` now fails the build when the path command inside `$(...)`
+fails or prints nothing, where it used to pass as a worst-case ranking; fix
+that path command, not the flag, and make sure the step that runs the tests
+fails the job. If the new stderr line appears, the report was made somewhere
+else (another checkout or a container), or holds no figures for the scanned
+files: measure coverage in the checkout where `crap` runs, for the files it
+scans. No baseline needs re-recording.
 
 ## 0.8.0 — 2026-10-10
 
