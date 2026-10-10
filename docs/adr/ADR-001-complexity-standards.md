@@ -397,7 +397,7 @@ too. The report may have been made in another checkout, may hold no figure for
 the scanned files, or may carry no usable figures at all. Scores and the exit
 code are unchanged.
 
-## Addendum 2026-10-11: xccov matches exact paths (#49)
+## Addendum 2026-10-11: xccov matches exact paths (v0.8.2)
 
 The limits above are unchanged. The rule from the *SwiftPM coverage (v0.8.0)*
 addendum, that a Function's file is the report file at lizard's exact resolved
@@ -419,7 +419,12 @@ records.
   `crap` prints the line about no scored function getting a figure.
 - **Matching within one file is unchanged:** the Function's `(name, line)`
   entry, then its bare name. That fallback can still lend a same-named
-  overload's figure and is tracked apart from this addendum.
+  overload's figure; that is #83.
+- **Paths compare as text after resolving,** as for `--llvm-cov-json`. On a
+  macOS volume that ignores case, a scan path typed in the wrong case
+  (`twinapp/sources` for `TwinApp/Sources`) matches nothing and gives unknown
+  coverage. That fails safe, since the function scores worst case and the hint
+  line appears, so it is accepted rather than matched by file identity.
 
 Rejected, as in the SwiftPM addendum: matching by file name or trailing folders,
 which lets a report made elsewhere lend one target's coverage to another.

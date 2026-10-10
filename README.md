@@ -206,7 +206,7 @@ export JSON that `swift test --enable-code-coverage` writes, passed as
 runs on Linux. Both Swift reports record absolute paths and only an exact
 resolved path matches, so measure coverage and run `crap` in the same checkout
 (ADR-001's addenda "SwiftPM coverage (v0.8.0)" and "xccov matches exact paths
-(#49)"). TypeScript and JavaScript coverage comes
+(v0.8.2)"). TypeScript and JavaScript coverage comes
 from Istanbul's `coverage-final.json` (`--istanbul-json`), which Vitest and Jest
 write. Functions that share a start line are matched to their Istanbul entries
 by the rule in ADR-001's 2026-10-10 addendum on shared start lines. Without
