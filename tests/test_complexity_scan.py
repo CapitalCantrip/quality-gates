@@ -209,10 +209,32 @@ class LizardRunTest(InTempDir):
         super().setUp()
         self.write("App.swift", "func load() {}\n")
 
-    def test_lizard_exit_1_is_not_a_failure(self):
+    def test_a_lizard_row_gives_its_name_cc_and_line_range(self):
         row = '5,4,30,1,10,"load@10-30@App.swift","App.swift","load","load()",10,30'
-        found = complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed(row, 1))
+        found = complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed(row))
         self.assertEqual([(fn.name, fn.cc, fn.start, fn.end) for fn in found.functions], [("load", 4, 10, 30)])
+
+    def test_a_failing_wrapper_is_a_tool_error_that_shows_its_stderr(self):
+        crash = "Traceback (most recent call last):\nAttributeError: SwiftReader"
+        with self.assertRaises(ToolError) as raised:
+            complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed("", 1, crash))
+        self.assertEqual(str(raised.exception), f"lizard failed:\n{crash}")
+
+    def test_a_swift_scan_runs_lizard_through_the_workaround(self):
+        given = []
+        complexity_scan.scan(["App.swift"], "swift", runner=lambda cmd, **k: given.append(cmd) or completed(""))
+        self.assertEqual(given[0][1:3], ["-m", "quality_gates.lizard_swift_workaround"])
+
+    def test_a_scan_asks_lizard_to_exit_0_on_warnings(self):
+        given = []
+        complexity_scan.scan(["App.swift"], "swift", runner=lambda cmd, **k: given.append(cmd) or completed(""))
+        self.assertIn("-i -1", " ".join(given[0]))
+
+    def test_a_typescript_scan_runs_plain_lizard(self):
+        self.write("app.ts", "function f() {}\n")
+        given = []
+        complexity_scan.scan(["app.ts"], "typescript", runner=lambda cmd, **k: given.append(cmd) or completed(""))
+        self.assertEqual(given[0][1:3], ["-m", "lizard"])
 
     def test_malformed_lizard_rows_are_dropped(self):
         rows = "too,short\n" + '5,x,30,1,10,"bad@1-2@A.swift","A.swift","bad","bad()",1,2'
@@ -272,6 +294,68 @@ class LizardScanTest(unittest.TestCase):
         with self.assertRaises(ToolError) as raised:
             complexity_scan.scan(["no/such/path"], "python")
         self.assertEqual(str(raised.exception), "path not found: no/such/path")
+
+
+FAILABLE_INIT = """\
+struct S {
+    init?(text: String) {
+        if text.isEmpty { return nil }
+        if text == "a" { return nil }
+    }
+}
+"""
+
+SET_MODIFIER_THEN_INIT = """\
+struct T {
+    private(set) var x = 0
+    init() {}
+    func f(y: Int) -> Int {
+        if y > 0 { return 1 }
+        return 0
+    }
+}
+"""
+
+COMPUTED_PROPERTY = """\
+struct U {
+    private var stored = 0
+    var value: Int {
+        get {
+            if stored > 0 { return stored }
+            return 0
+        }
+        set(newValue) {
+            if newValue > 0 && newValue < 9 { stored = newValue }
+        }
+    }
+    var watched = 0 {
+        willSet { print(newValue) }
+        didSet { if watched > 1 { print(oldValue) } }
+    }
+}
+"""
+
+
+class SwiftScanTest(InTempDir):
+    def functions(self, text):
+        self.write("App.swift", text)
+        return [(fn.name, fn.cc, fn.start, fn.end) for fn in complexity_scan.scan(["App.swift"], "swift").functions]
+
+    def test_a_failable_init_with_two_ifs_is_reported_with_cc_3_at_its_own_lines(self):
+        self.assertEqual(self.functions(FAILABLE_INIT), [("init", 3, 2, 5)])
+
+    def test_a_private_set_var_followed_by_an_init_reports_the_init_and_no_set(self):
+        self.assertEqual(self.functions(SET_MODIFIER_THEN_INIT), [("init", 1, 3, 3), ("f", 2, 4, 7)])
+
+    def test_a_function_over_lizard_warning_limit_is_scanned_without_a_tool_error(self):
+        branches = "".join(f"    if x == {i} {{ return {i} }}\n" for i in range(20))
+        self.assertEqual(self.functions(f"func big(x: Int) -> Int {{\n{branches}    return 0\n}}\n"),
+                         [("big", 21, 1, 23)])
+
+    def test_the_get_set_will_set_and_did_set_blocks_of_a_property_are_reported_as_before(self):
+        self.assertEqual(self.functions(COMPUTED_PROPERTY), [
+            ("get", 2, 4, 7), ("set", 3, 8, 10), ("willSet", 1, 13, 13), ("didSet", 2, 14, 14),
+        ])
 
 
 if __name__ == "__main__":

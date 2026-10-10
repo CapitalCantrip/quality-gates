@@ -23,7 +23,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.2"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.3"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -255,8 +255,12 @@ the threshold. Paths are relative to the git root, so the file is the same on
 every machine and in CI. Python names are dotted from the outside in:
 `path::Class.method`, `path::outer.inner`, `path::K.Inner.deep`. lizard
 (Swift, TypeScript) names a method without its class and an unnamed callback
-`(anonymous)`. In every language a name that repeats in a file gets its order
-as a suffix: `path::(anonymous)#2`.
+`(anonymous)`. In Swift a failable `init?` or `init!` is named `init`, and
+`private(set)`, `fileprivate(set)`, `internal(set)` and `public(set)` written
+on one line make no `set` Function: the scan works around two lizard bugs until
+a lizard release fixes them (ADR-001 addendum "a workaround for two lizard
+Swift bugs (v0.8.3)", which lists what is not covered). In every language a name that repeats in a file gets its order as a
+suffix: `path::(anonymous)#2`.
 
 - A function over the threshold that is not in the baseline fails. A renamed or
   moved function counts as new. So does a `name#2` entry whose number shifted because
@@ -398,6 +402,9 @@ Push the tag from a local session: a Claude Code cloud session's GitHub proxy
 refuses tag pushes and the API call that creates a tag.
 
 A change that alters no behaviour, such as a README fix, is still released.
+
+At every release, check terryyin/lizard#516; if a release fixes it, raise the
+lizard floor and remove the workaround (#71).
 
 ## Keeping the copied skills current
 
