@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## 0.8.3 — 2026-10-11
 
 The Swift scan works around two lizard Swift bugs (#69; ADR-001 addendum "a
 workaround for two lizard Swift bugs (v0.8.3)"). No threshold changes.
