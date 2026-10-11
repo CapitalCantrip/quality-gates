@@ -5,20 +5,38 @@ import lizard_languages
 from lizard_languages.swift import SwiftReader as LizardSwiftReader
 
 FAILABLE_INITS = {"init?": "init", "init!": "init"}
-SETTER_ACCESS_MODIFIERS = ("private", "fileprivate", "internal", "public")
 SETTER_SCOPE = ["(", "set", ")"]
+COMMENT_STARTS = ("//", "/*")
 
 
-def _ends_in_setter_access(tokens: list) -> bool:
-    return tokens[-3:] == SETTER_SCOPE and len(tokens) > 3 and tokens[-4] in SETTER_ACCESS_MODIFIERS
+def _is_significant(token: str) -> bool:
+    return bool(token.strip()) and not token.startswith(COMMENT_STARTS)
+
+
+def _last_significant(tokens: list, count: int) -> list:
+    found = []
+    for index in range(len(tokens) - 1, -1, -1):
+        if _is_significant(tokens[index]):
+            found.append(index)
+            if len(found) == count:
+                break
+    return found[::-1]
+
+
+def _setter_scope_indexes(tokens: list) -> list:
+    indexes = _last_significant(tokens, len(SETTER_SCOPE))
+    if [tokens[index] for index in indexes] == SETTER_SCOPE:
+        return indexes
+    return []
 
 
 def rewritten(tokens) -> list:
     out = []
     for token in tokens:
         out.append(FAILABLE_INITS.get(token, token))
-        if _ends_in_setter_access(out):
-            del out[-3:]
+        if token == ")":
+            for index in reversed(_setter_scope_indexes(out)):
+                del out[index]
     return out
 
 

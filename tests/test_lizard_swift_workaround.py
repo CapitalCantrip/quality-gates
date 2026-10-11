@@ -34,6 +34,33 @@ class C {
 }
 """
 
+PACKAGE_SETTER = """\
+class C {
+    package(set) var x = 0
+    init() {}
+    func g() {}
+}
+"""
+
+COMMENT_BEFORE_SETTER = """\
+class C {
+    private /* why */ (set) var z = 0
+    init() {}
+    func g() {}
+}
+"""
+
+WRAPPED_SETTER = """\
+class C {
+    private(
+        set) var q = 0
+    init() {}
+    func g(_ a: Int) {
+        if a > 1 { return }
+    }
+}
+"""
+
 
 def lizard_rows(text: str) -> list:
     with tempfile.TemporaryDirectory() as folder:
@@ -53,6 +80,19 @@ class LizardSwiftWorkaroundTest(unittest.TestCase):
 
     def test_lizard_bug_516_set_inside_an_access_modifier_opens_no_setter_and_swallows_nothing(self):
         self.assertEqual(lizard_rows(SETTER_ACCESS), [("init", 1, 7, 7), ("g", 1, 8, 8)])
+
+    def test_package_set_opens_no_setter_and_swallows_nothing(self):
+        self.assertEqual(lizard_rows(PACKAGE_SETTER), [("init", 1, 3, 3), ("g", 1, 4, 4)])
+
+    def test_a_comment_between_the_modifier_and_set_opens_no_setter_and_swallows_nothing(self):
+        self.assertEqual(lizard_rows(COMMENT_BEFORE_SETTER), [("init", 1, 3, 3), ("g", 1, 4, 4)])
+
+    def test_a_line_break_inside_the_parens_opens_no_setter_and_swallows_nothing(self):
+        rows = lizard_rows(WRAPPED_SETTER)
+        self.assertEqual([name for name, _, _, _ in rows], ["init", "g"])
+
+    def test_line_numbers_after_a_wrapped_setter_access_match_lizard_master(self):
+        self.assertEqual(lizard_rows(WRAPPED_SETTER), [("init", 1, 4, 4), ("g", 2, 5, 7)])
 
 
 if __name__ == "__main__":
