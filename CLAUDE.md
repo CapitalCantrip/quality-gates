@@ -31,6 +31,9 @@ uv venv && uv pip install -e .
 .venv/bin/comment-debt
 ```
 
+Shell is zsh: an unquoted `$VAR` stays one word, so pass file lists with
+`xargs -0`. Stage files by name; the guard blocks `-a`, `-u` and `-A`.
+
 ## Issues
 
 The tracker and the five triage labels: see Agent skills below.
