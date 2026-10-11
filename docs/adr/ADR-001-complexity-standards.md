@@ -1065,10 +1065,10 @@ Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#
 lizard 1.24.1, the latest release, misreads two Swift constructs, and the scan
 corrects both before lizard's state machine sees them.
 
-- **A failable initialiser is not scored.** lizard's tokenizer makes `init?`
+- **lizard does not score a failable initialiser.** lizard's tokenizer makes `init?`
   and `init!` single tokens, so they never match `init`. A failable `init?` with
   two `if`s (CC 3) is not reported, and so is never scored.
-- **`(set)` makes a Function named `set`.** The `set` in an access modifier
+- **lizard reads `(set)` as a Function named `set`.** The `set` in an access modifier
   (`private(set)`, `package(set)`) or in a call passing a local named `set`
   (`foo(set)`) opens a setter accessor, which takes the next `{...}` as its
   body. The declaration after it, such as `init() {}`, is swallowed into a
