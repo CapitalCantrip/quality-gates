@@ -20,6 +20,8 @@ cloud session from the iOS app had none of Pocock's skills.
 
 ## Decision
 
+Amended by: [Current rule, restated 2026-10-12: the vendored skills](#current-rule-restated-2026-10-12-the-vendored-skills)
+
 `qg-skills` ships 17 of Pocock's skills beside the standards skills, copied from
 `mattpocock/skills` at the commit `upstream.json` records:
 
@@ -84,3 +86,30 @@ bumping their pin; their `qg-skills --check` test fails until they rerun
   the change against the spec or the project's standards.
 - **Editing the six skills that name his setup.** Six changes to redo on every
   update, where one pointer skill needs none.
+
+## Current rule, restated 2026-10-12: the vendored skills
+
+Amends: [Decision](#decision)
+
+<!-- rule:vendored-skills -->
+`qg-skills` ships 17 of Matt Pocock's skills beside the standards skills, copied
+from `mattpocock/skills` at one pinned commit:
+
+- every step the size rule names: `wayfinder`, `grill-with-docs`, `to-spec`,
+  `to-tickets`, `implement`, `implement-spec`, `tdd`, `diagnosing-bugs`,
+  `improve-codebase-architecture`, and his `code-review` as
+  `review-against-spec`;
+- what those steps call or the builder uses beside them: `codebase-design`,
+  `domain-modeling`, `pr`, `triage`, `retro`, `writing-for-agents`, `handoff`.
+
+Each copied skill carries his MIT notice as `LICENSE-mattpocock`.
+
+**Copied word for word, except for a listed set of changes.** Each change is
+recorded with what changed, why, and how to redo it on a newer upstream file.
+
+**`code-review` ships as `review-against-spec`.** As a project skill named
+`code-review` it would hide Claude Code's own `/code-review`, which does a
+different job: it hunts for bugs, where Pocock's checks the change against the
+project's written standards and the issue or spec it came from. The builder
+wants both. The three skills that call it by name are changed to match.
+<!-- /rule:vendored-skills -->

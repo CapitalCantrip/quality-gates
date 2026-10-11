@@ -209,8 +209,7 @@ resolved path matches, so measure coverage and run `crap` in the same checkout
 (v0.8.2)"). TypeScript and JavaScript coverage comes
 from Istanbul's `coverage-final.json` (`--istanbul-json`), which Vitest and Jest
 write. Functions that share a start line are matched to their Istanbul entries
-by the rule in ADR-001's addendum "functions that share a start line
-(v0.7.3)". Without
+by the [shared start line rule](src/quality_gates/skills/crap/references/shared-start-line.md). Without
 coverage (`--no-coverage`) every function at CC 3 or above fails, so that mode
 ranks functions by risk and is never read as pass/fail. `crap` takes
 `--baseline FILE` too, and refuses it without coverage (exit 2). A
@@ -230,23 +229,12 @@ Both gates take their functions from one scan, so they always list the same
 functions under the same names. A function, method, closure or method of a
 nested class is scored on its own; a class is not. A Swift closure is the
 exception: its branches count in the function that holds it, and its untested
-lines do not lower that function's coverage (#53). Both skip `.git`, `.venv`,
-`venv`, `.direnv`, `node_modules`, `__pycache__`, `backups`, `build`, `.build`
-(SwiftPM's), `dist`, `.tox`, `.mypy_cache`, `.pytest_cache`, `.worktrees` and
-`.claude/worktrees` wherever they appear below the scanned path, and scan every
-other hidden folder. Both follow a symlinked folder once: the same real folder is
-never walked twice in one scan, and the repeat is named as skipped with the mark
-`(already scanned)`, since its files were scanned and are not lost.
-Each gate ends its report with a line naming the skipped folders it found, so a
-real package called `build` or `dist` is never dropped silently. The reasons are
-in ADR-001's addenda "one complexity scan for both gates", "skip SwiftPM's
-.build" and "follow symlinked folders".
-
-File names in the report keep the link path as scanned, but a baseline key is
-the file's real path, so one file has one key whatever spelling or argument
-order reached it. A link to a folder outside the repo gives a `../` key that
-depends on where that folder sits on each machine (ADR-001's addendum "baseline
-keys use the real path (v0.9.0)").
+lines do not lower that function's coverage (#53). Both leave out generated
+and installed folders such as `node_modules` and `build`, by one
+[skip list](src/quality_gates/skills/crap/references/skip-list.md), and scan a symlinked folder once, by the
+[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). Each gate ends its report with a line
+naming the skipped folders it found, so no source folder is dropped without a
+word.
 
 A Python function's line range runs from its `def` line to the end of its last
 statement, taken from the syntax tree, so a function whose body ends in a nested
@@ -272,20 +260,13 @@ cc-check src --baseline cc-baseline.json --update      # record today's debt onc
 cc-check src --baseline cc-baseline.json               # the check CI runs
 ```
 
-The baseline maps `path::function` to its score, and holds only functions over
-the threshold. Paths are real paths relative to the git root, so the file is the same on
-every machine and in CI. Python names are dotted from the outside in:
-`path::Class.method`, `path::outer.inner`, `path::K.Inner.deep`. lizard
-(Swift, TypeScript) names a method without its class and an unnamed callback
-`(anonymous)`. In Swift a failable `init?` or `init!` is named `init`, and
-`private(set)`, `fileprivate(set)`, `internal(set)`, `public(set)` and
-`package(set)`, with a comment or line break before or inside `(set)`, make no
-`set` Function, and neither does a `(set)` after any word but `init`: the scan
-works around two lizard bugs until a lizard release fixes them (ADR-001 addenda
-"a workaround for two lizard Swift bugs (v0.8.3)" and "the `(set)` rule no
-longer depends on the word before it, except `init` (v0.9.1)", which list what
-is not covered). In every language a
-name that repeats in a file gets its order as a suffix: `path::(anonymous)#2`.
+The baseline maps each function to its score, and holds only functions over
+the threshold. Each function is named so a baseline can tell it apart from every
+other, the same on every machine and in CI. The details are in the
+[naming rule](src/quality_gates/skills/crap/references/function-names.md), the
+[repeated-names rule](src/quality_gates/skills/crap/references/repeated-names.md), the
+[baseline key rule](src/quality_gates/skills/crap/references/baseline-keys.md) and, for Swift initialisers and
+`private(set)`, the [lizard Swift workaround](src/quality_gates/skills/crap/references/swift-lizard-workaround.md).
 
 - A function over the threshold that is not in the baseline fails. A renamed or
   moved function counts as new. So does a `name#2` entry whose number shifted because
@@ -369,7 +350,7 @@ with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 | `writing-for-agents` | Pocock | How to write skills, `CLAUDE.md` and other text an agent reads |
 | `/handoff` | Pocock | Writes a summary so another session can pick up the work; it is saved in a temporary folder, which a cloud session loses when it ends |
 
-Two more commands support them:
+Three more commands support them:
 
 - `qg-agent-docs --tracker github|gitlab|local` writes `docs/agents/` from
   Matt Pocock's setup templates, and `.github/pull_request_template.md` from
@@ -378,6 +359,12 @@ Two more commands support them:
 - `qg-upstream` reports what changed upstream in the files this repo copies
   from Pocock and pstack; see
   [Keeping the copied skills current](#keeping-the-copied-skills-current).
+- `qg-references` writes the rules the skills cite into each skill's
+  `references/` folder, from the restated rules tagged in the ADRs
+  ([ADR-004](docs/adr/ADR-004-reference-files.md)). `qg-references --check` also
+  fails when an ADR amendment and the text it amends do not link to each other.
+  It runs in this repo at each release; a consumer gets the files through
+  `qg-skills`.
 
 ## Setup details
 
@@ -394,6 +381,7 @@ Two more commands support them:
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
   | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |
+  | `qg-references` | [src/quality_gates/references.py](src/quality_gates/references.py) |
   | `comment-debt` | [src/quality_gates/comment_debt.py](src/quality_gates/comment_debt.py) |
   | `cc-check` | [src/quality_gates/quality_check.py](src/quality_gates/quality_check.py) |
   | `crap` | [src/quality_gates/crap.py](src/quality_gates/crap.py) |
@@ -420,8 +408,9 @@ Two more commands support them:
 
 Bump `version` in `pyproject.toml`, `.claude-plugin/plugin.json` and
 `.claude-plugin/marketplace.json` together, add a `CHANGELOG.md` entry, update
-the pinned tag in the skills' install lines, tag `vX.Y.Z`, then bump the pin in
-each consuming project.
+the pinned tag in the skills' install lines, run the reference generator
+(`.venv/bin/qg-references`, then `.venv/bin/qg-skills` to refresh
+`.claude/skills`), tag `vX.Y.Z`, then bump the pin in each consuming project.
 
 Push the tag from a local session: a Claude Code cloud session's GitHub proxy
 refuses tag pushes and the API call that creates a tag.

@@ -56,6 +56,19 @@ class SkillsSync(unittest.TestCase):
         self.assertEqual((self.dest / "crap" / "reference.md").read_text(), "crap ref")
         self.assertEqual((self.dest / "cc-python" / "SKILL.md").read_text(), "cc python v1")
 
+    def test_sync_copies_the_reference_files_in_a_skills_subfolder(self):
+        self.write(self.source / "crap" / "references" / "skip-list.md", "skip list rule")
+        self.sync()
+        self.assertEqual((self.dest / "crap" / "references" / "skip-list.md").read_text(), "skip list rule")
+
+    def test_check_fails_when_a_reference_file_is_missing_from_the_copy(self):
+        self.write(self.source / "crap" / "references" / "skip-list.md", "skip list rule")
+        self.sync()
+        (self.dest / "crap" / "references" / "skip-list.md").unlink()
+        code, out = self.check()
+        self.assertEqual(code, 1)
+        self.assertIn("crap/references/skip-list.md: missing", out)
+
     def test_check_passes_right_after_a_sync(self):
         self.sync()
         self.assertEqual(self.check()[0], 0)

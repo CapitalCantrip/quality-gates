@@ -1,9 +1,11 @@
+import contextlib
+import io
 import re
 import tempfile
 import unittest
 from pathlib import Path
 
-from quality_gates import skills_sync
+from quality_gates import amendments, references, skills_sync
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "src/quality_gates/skills"
@@ -47,10 +49,13 @@ def section(case, text, heading, next_heading):
 SCAN_SKILLS = ("cc-python", "cc-swift", "cc-typescript", "crap")
 KEY_RULE_SKILLS = ("cc-python", "cc-typescript", "crap")
 SKIP_LIST_SENTENCE = (
-    'skips the folders listed in ADR-001\'s addenda "one complexity scan for both gates" and "skip SwiftPM\'s .build". '
-    'It follows symlinked folders by the rule in the addendum "follow symlinked folders".'
+    "skips the folders on the [skip list](references/skip-list.md) "
+    "and follows symlinked folders by the [symlink rule](references/symlinked-folders.md)."
 )
-REAL_PATH_ADDENDUM = '"baseline keys use the real path (v0.9.0)"'
+REAL_PATH_REFERENCE = "](references/baseline-keys.md)"
+ADR_DIR = ROOT / "docs/adr"
+ADR_MENTION = re.compile(r"\bADR-\d{3}\b")
+ADR_FILE = re.compile(r"ADR-\d{3}-[a-z]")
 CITED_BY_DATE = re.compile(r"ADR-001's 20\d\d-\d\d-\d\d addendum")
 
 
@@ -58,14 +63,27 @@ def skill_text(name):
     return flat((SKILLS / name / "SKILL.md").read_text(encoding="utf-8"))
 
 
-class ScanSkillsCiteAddendaByTitle(unittest.TestCase):
-    def test_each_scan_skill_names_the_skip_list_and_symlink_addenda_in_whole_sentences(self):
+def hand_written_skill_files():
+    return [path for path in SKILLS.rglob("*.md") if "references" not in path.relative_to(SKILLS).parts]
+
+
+def paragraphs(path):
+    return [flat(block) for block in path.read_text(encoding="utf-8").split("\n\n")]
+
+
+def reference_links(path):
+    found = [references.link_target(match.group(1)) for match in references.LINK.finditer(path.read_text(encoding="utf-8"))]
+    return [target for target in found if target is not None]
+
+
+class ScanSkillsLinkTheirRules(unittest.TestCase):
+    def test_each_scan_skill_links_the_skip_list_and_symlink_rule_in_one_sentence(self):
         for name in SCAN_SKILLS:
             self.assertIn(SKIP_LIST_SENTENCE, skill_text(name), name)
 
-    def test_each_skill_that_gives_baseline_keys_cites_the_real_path_addendum(self):
+    def test_each_skill_that_gives_baseline_keys_links_the_real_path_key_rule(self):
         for name in KEY_RULE_SKILLS:
-            self.assertIn(REAL_PATH_ADDENDUM, skill_text(name), name)
+            self.assertIn(REAL_PATH_REFERENCE, skill_text(name), name)
 
     def test_no_shipped_skill_cites_an_adr_addendum_by_its_date(self):
         for path in SKILLS.glob("*/SKILL.md"):
@@ -73,6 +91,79 @@ class ScanSkillsCiteAddendaByTitle(unittest.TestCase):
 
     def test_the_readme_cites_no_adr_addendum_by_its_date(self):
         self.assertIsNone(CITED_BY_DATE.search(flat((ROOT / "README.md").read_text(encoding="utf-8"))))
+
+
+class ReferenceFiles(unittest.TestCase):
+    def test_every_shipped_reference_file_matches_its_tagged_adr_section(self):
+        self.assertEqual(references.check(ADR_DIR, SKILLS), [])
+
+    def test_every_tagged_rule_stands_alone_in_a_consumer_repo(self):
+        rules, _ = references.read_rules(ADR_DIR)
+        self.assertEqual([pointer for rule in rules.values() for pointer in references.outside_pointers(rule)], [])
+
+    def test_every_adr_links_each_amendment_and_the_text_it_amends_both_ways(self):
+        self.assertEqual([problem for path in sorted(ADR_DIR.glob("ADR-*.md")) for problem in amendments.problems(path)], [])
+
+    def test_no_shipped_skill_names_an_adr_file_by_path(self):
+        for path in SKILLS.rglob("*.md"):
+            self.assertIsNone(ADR_FILE.search(path.read_text(encoding="utf-8")), path.relative_to(SKILLS))
+
+    def test_every_adr_mention_in_a_shipped_skill_links_the_reference_file_beside_it(self):
+        for path in hand_written_skill_files():
+            for paragraph in paragraphs(path):
+                if ADR_MENTION.search(paragraph):
+                    self.assertRegex(paragraph, references.LINK, f"{path.relative_to(SKILLS)}: {paragraph[:80]}")
+
+    def test_after_qg_skills_every_skill_link_to_a_reference_file_resolves_in_a_consumer_repo(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp)
+            (repo / "CLAUDE.md").write_text("# Consumer\n", encoding="utf-8")
+            with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as stop:
+                skills_sync.main(["--dest", str(repo / ".claude" / "skills")])
+            self.assertEqual(stop.exception.code, 0)
+            checked = 0
+            for path in (repo / ".claude" / "skills").rglob("*.md"):
+                for link in reference_links(path):
+                    self.assertTrue((path.parent / link).is_file(), f"{path.relative_to(repo)} -> {link}")
+                    checked += 1
+        self.assertGreater(checked, 20)
+
+
+README = ROOT / "README.md"
+README_REFERENCE_LINK = re.compile(r"\]\((src/quality_gates/skills/[a-z-]+/references/[a-z0-9-]+\.md)\)")
+SHARED_RUN = 8
+
+
+def word_runs(text):
+    words = text.replace("`", "").replace("*", "").split()
+    return {tuple(words[start:start + SHARED_RUN]) for start in range(len(words) - SHARED_RUN + 1)}
+
+
+def readme_prose():
+    lines = README.read_text(encoding="utf-8").splitlines()
+    return "\n".join(line for line in lines if not line.lstrip().startswith("|")).split("\n\n")
+
+
+class ReadmeLinksRules(unittest.TestCase):
+    def test_no_readme_paragraph_repeats_eight_words_of_a_tagged_adr_rule(self):
+        rules, problems = references.read_rules(ADR_DIR)
+        self.assertEqual(problems, [])
+        for paragraph in readme_prose():
+            for name, rule in rules.items():
+                shared = word_runs(paragraph) & word_runs(rule.text)
+                self.assertFalse(shared, f"README repeats rule:{name}: {' '.join(sorted(shared)[0]) if shared else ''}")
+
+    def test_every_readme_link_to_a_reference_file_reaches_a_shipped_file(self):
+        found = README_REFERENCE_LINK.findall(README.read_text(encoding="utf-8"))
+        self.assertGreaterEqual(len(found), 7)
+        for link in found:
+            self.assertTrue((ROOT / link).is_file(), link)
+
+    def test_the_readme_links_the_naming_rules_instead_of_restating_them(self):
+        text = README.read_text(encoding="utf-8")
+        self.assertIn("references/function-names.md)", text)
+        for example in ("path::outer.inner", "path::K.Inner.deep", "path::(anonymous)#2"):
+            self.assertNotIn(example, text)
 
 
 class SetupStandards(unittest.TestCase):
