@@ -26,6 +26,38 @@ class InCaseInsensitiveTree(unittest.TestCase):
         self.true_case = str(self.root / "shared" / "Shop" / "shop.py")
 
 
+class TrueCaseLookupTest(unittest.TestCase):
+    def setUp(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        self.file = Path(folder.name).resolve() / "mod.py"
+        self.file.write_text("x = 1\n")
+
+    def looking_up(self, answer):
+        def lookup(descriptor, command, buffer):
+            if isinstance(answer, Exception):
+                raise answer
+            return answer
+
+        return patch.multiple(
+            "quality_gates.real_path",
+            GET_PATH=1,
+            fcntl=SimpleNamespace(fcntl=lookup),
+        )
+
+    def test_the_path_the_lookup_reports_is_the_real_path(self):
+        with self.looking_up(b"/disk/Stored/Mod.py\0\0\0"):
+            self.assertEqual(real_path(str(self.file)), "/disk/Stored/Mod.py")
+
+    def test_a_lookup_that_fails_keeps_the_resolved_path(self):
+        with self.looking_up(OSError("no")):
+            self.assertEqual(real_path(str(self.file)), str(self.file))
+
+    def test_a_lookup_that_reports_nothing_keeps_the_resolved_path(self):
+        with self.looking_up(b"\0\0"):
+            self.assertEqual(real_path(str(self.file)), str(self.file))
+
+
 class NoTrueCaseLookupTest(InCaseInsensitiveTree):
     def test_a_platform_with_no_true_case_lookup_keeps_the_link_spelling(self):
         with patch("quality_gates.real_path.GET_PATH", None):
