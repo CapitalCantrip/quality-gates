@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.10.0 — 2026-10-12
+
+The rules the skills cite now ship inside the skills, as generated reference
+files (#62; ADR-004), and the README links them instead of restating them
+(#63). No threshold, counting tool or gate coverage changes.
+
+- Each gate skill and the `standards` skill has a `references/` folder holding
+  the rules it cites: the complexity ceiling, the skip list, symlinked folders,
+  baseline keys, the baseline ratchet, how Functions are named, repeated names,
+  TypeScript counting, TypeScript's known miscount, functions that share a
+  start line, the lizard Swift
+  workaround, the three layers, the principles from use, the promotion path,
+  the asking rule and the vendored skills. A skill no longer points at an ADR
+  file a consumer does not have.
+- The ADRs keep their history as accepted. Each cited rule is restated in full
+  in a dated section at the end of its ADR, and every addendum links the text it
+  amends, and back.
+- `qg-references` (this repo only) writes the reference files from those
+  sections, and `qg-references --check` fails on drift, on tagged text that
+  points outside its file, and on an amendment that does not link both ways.
+
+**When you bump the pin:** run `qg-skills` and commit the new `references/`
+folders under `.claude/skills/`. Until you do, `qg-skills --check` fails, so
+CI catches a project that bumped without rerunning it. Nothing else changes.
+
 ## 0.9.1 — 2026-10-12
 
 The Swift scan's `(set)` workaround no longer depends on the word before `(set)`

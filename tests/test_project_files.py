@@ -134,11 +134,11 @@ class DocumentedSuffixes(unittest.TestCase):
         ]
         self.assertEqual(partial, [])
 
-    def test_the_crap_and_cc_python_skills_cite_adr_001_instead_of_restating_its_names(self):
+    def test_the_crap_and_cc_python_skills_link_the_naming_rule_instead_of_restating_its_names(self):
         for skill in ("crap", "cc-python"):
             with self.subTest(skill):
                 text = (SKILLS / skill / "SKILL.md").read_text(encoding="utf-8")
-                self.assertIn("ADR-001", text)
+                self.assertIn("](references/function-names.md)", text)
                 for restated in ("K.Inner.deep", "outer.inner"):
                     self.assertNotIn(restated, text)
 

@@ -51,6 +51,8 @@ review code.
 
 ## Decision
 
+Amended by: [Current rule, restated 2026-10-12: the three layers](#current-rule-restated-2026-10-12-the-three-layers)
+
 **This repo holds engineering standards in three layers.** It keeps the name
 `quality-gates`; see Rejected.
 
@@ -66,6 +68,8 @@ needs the builder to start at the right step. Where a standard can move down
 that table, it does.
 
 ### Workflow: size decides the entry point
+
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040)
 
 | The work... | Starts at | Then |
 |---|---|---|
@@ -85,6 +89,8 @@ does the rest.
 and a rename would change nothing about how they work.
 
 ### Principles: a vocabulary with a promotion path
+
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Current rule, restated 2026-10-12: principles from use](#current-rule-restated-2026-10-12-principles-from-use), [Current rule, restated 2026-10-12: the promotion path](#current-rule-restated-2026-10-12-the-promotion-path)
 
 The principles ship as one skill, `standards`, through `qg-skills` like the
 gates' skills. Its `SKILL.md` is an index of one line per principle, saying
@@ -118,6 +124,8 @@ project.
 
 ### Asking the builder
 
+Amended by: [Current rule, restated 2026-10-12: asking the builder](#current-rule-restated-2026-10-12-asking-the-builder)
+
 **Ask when uncertain about anything irreversible, outward-facing or large in
 scope. Proceed on reversible work with a stated default.** Every question
 carries:
@@ -135,6 +143,8 @@ when invoked and this rule must apply to every turn. `qg-skills --check` fails
 when that line is missing.
 
 ### Setting up a project: one command
+
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040)
 
 **A `/setup-standards` skill prepares a new or existing project for all three
 layers.** A builder can't be expected to know that a project needs a
@@ -159,6 +169,8 @@ nothing that is already correct, so it doubles as the upgrade after a pin
 bump.
 
 ### Writing for agents
+
+Amended by: [Addendum 2026-10-12: skills link generated reference files (v0.10.0)](#addendum-2026-10-12-skills-link-generated-reference-files-v0100)
 
 Every skill, `CLAUDE.md` line and principle file in this repo follows Pocock's
 `writing-for-agents`:
@@ -209,6 +221,8 @@ principle file names its source.
 
 ## Rejected
 
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040)
+
 - **Installing pstack whole.** It is Cursor-specific: its plugin format, the
   `Task` tool and model slugs. Its 23 playbooks would run beside each project's
   own process and contradict it, and it rejects planning outright.
@@ -227,6 +241,10 @@ principle file names its source.
 - **`GLOSSARY.md`.** See Workflow.
 
 ## Addendum 2026-10-06: building the two skills (v0.4.0)
+
+Amends: [Workflow: size decides the entry point](#workflow-size-decides-the-entry-point), [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path), [Setting up a project: one command](#setting-up-a-project-one-command), [Rejected](#rejected)
+
+Amended by: [Addendum 2026-10-10: a CRAP gate for SwiftPM packages (#6)](#addendum-2026-10-10-a-crap-gate-for-swiftpm-packages-6), [Current rule, restated 2026-10-12: principles from use](#current-rule-restated-2026-10-12-principles-from-use)
 
 The three layers, the size rule, the principles and the asking rule are
 unchanged. Building `standards` and `/setup-standards` changed five details of
@@ -266,6 +284,10 @@ without a commit. Those numbers are a starting point, to be revised from use.
 
 ## Addendum 2026-10-10: a CRAP gate for SwiftPM packages (#6)
 
+Amends: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040)
+
+Amended by: [Addendum 2026-10-11: a SwiftPM package with no test target (v0.8.4)](#addendum-2026-10-11-a-swiftpm-package-with-no-test-target-v084)
+
 The gate placement above still holds. `crap --lang swift` now reads a SwiftPM
 package's coverage from the llvm-cov export JSON that
 `swift test --enable-code-coverage` writes, through `--llvm-cov-json`. The
@@ -281,6 +303,8 @@ worked out and matched.
 
 ## Addendum 2026-10-11: a SwiftPM package with no test target (v0.8.4)
 
+Amends: [Addendum 2026-10-10: a CRAP gate for SwiftPM packages (#6)](#addendum-2026-10-10-a-crap-gate-for-swiftpm-packages-6)
+
 The addendum above holds for a SwiftPM package with a test target. A package
 with no test target has no coverage to measure: `swift test
 --enable-code-coverage` reports no tests found and `crap` exits 2. For such a
@@ -288,3 +312,87 @@ package `/setup-standards` sets up no CRAP baseline or CI step, still sets up
 SwiftLint, Swift's complexity gate, and reports CRAP as not done, with the
 reason and what it takes: add a test target with tests, then rerun the skill.
 No threshold, counting tool or gate scope changes.
+
+## Addendum 2026-10-12: skills link generated reference files (v0.10.0)
+
+Amends: [Writing for agents](#writing-for-agents)
+
+ADR-004 amends one line of *Writing for agents*. *Each meaning has one home*
+now reads: the home is the ADR or the gate's `--help`; a skill links the
+reference file `qg-references` generates from the tagged ADR section, rather
+than pointing at an ADR file a consumer does not have. The other lines of the
+checklist are unchanged.
+
+## Current rule, restated 2026-10-12: the three layers
+
+Amends: [Decision](#decision)
+
+<!-- rule:three-layers -->
+**Engineering standards come in three layers: Workflow, Principles and Gates.**
+
+| Layer | Answers | Source | Form |
+|---|---|---|---|
+| Workflow | what order to work in, for the size of the work | Matt Pocock | a size rule plus his skills |
+| Principles | how to judge each step, and how to ask | pstack, plus lessons from use | one skill: an index and one file per principle |
+| Gates | what fails without anyone's cooperation | quality-gates | commands that exit non-zero |
+
+The layers are ordered by how much they rely on the agent's cooperation. Gates
+need none. Principles need the agent to read and apply them. The workflow
+needs the builder to start at the right step. Where a standard can move from
+the workflow toward the gates, it does.
+<!-- /rule:three-layers -->
+
+## Current rule, restated 2026-10-12: principles from use
+
+Amends: [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path), [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040)
+
+<!-- rule:principles-from-use -->
+Two principles come from use rather than from pstack.
+
+- *Date every "this can't be done"*. A negative finding ("this API can't be
+  interrupted") records when and on what version it was observed, so it is
+  re-tested instead of inherited.
+- *Stop and report when a loop runs on*. After an hour, or three review rounds,
+  without a commit, the agent reports what is done, what is left, and what it
+  decided that nobody asked for. Those numbers are a starting point, to be
+  revised from use.
+<!-- /rule:principles-from-use -->
+
+## Current rule, restated 2026-10-12: the promotion path
+
+Amends: [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path)
+
+<!-- rule:promotion-path -->
+**A principle that can become a check, does.** When a class of mistake
+recurs, the fix goes in the strongest place available. Architecture comes
+first, then a gate in quality-gates, then a behaviour test, and prose comes last.
+The principle file then names the gate that replaced it. A principle with
+nothing enforcing it is either a judgement call or a gate that hasn't been
+built yet.
+
+**A lesson becomes a standard when it has happened at least twice and would
+recur in another project.** One-off and project-specific lessons stay in their
+project.
+<!-- /rule:promotion-path -->
+
+## Current rule, restated 2026-10-12: asking the builder
+
+Amends: [Asking the builder](#asking-the-builder)
+
+<!-- rule:asking-the-builder -->
+**Ask when uncertain about anything irreversible, outward-facing or large in
+scope. Proceed on reversible work with a stated default.** Every question
+carries:
+
+- what is at stake, in plain words;
+- two or three options, with only the pros and cons the builder would notice:
+  cost, risk, time, what changes for them;
+- a recommendation and the reason for it.
+
+The decision stays with the builder, and the analysis stays with the agent.
+
+This is a principle in the `standards` skill. Each consuming project's
+`CLAUDE.md` also carries a one-line pointer to it, because skills load only
+when invoked and this rule must apply to every turn. `qg-skills --check` fails
+when that line is missing.
+<!-- /rule:asking-the-builder -->

@@ -64,7 +64,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    ```bash
    crap --lang swift Sources/ --no-coverage
    ```
-   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: ADR-001 addenda "a workaround for two lizard Swift bugs (v0.8.3)" and "the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)".
+   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: [the lizard Swift workaround](references/swift-lizard-workaround.md).
 
    **TypeScript — with coverage** (Vitest needs `@vitest/coverage-v8`; under Jest use `npx jest --coverage --coverageReporters=json`):
    ```bash
@@ -80,7 +80,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 4. With `--no-coverage`, every function at CC 3 or above scores FAIL. That mode is a risk ranking, not a gate: report the top rows and say no coverage was available, never "the gate failed".
    When `crap` prints `no scored function got a figure from the coverage report`, every score in this run is worst case, whatever the language: do not report it as a gate result. Measure coverage again in this checkout, check that the report holds figures for the files you scan, and rerun.
    With coverage, report all FAIL rows in full; summarise WARN rows (CRAP 5–8 for Python/Swift/TypeScript; CC 11–15 for Rust).
-   `crap` skips the folders listed in ADR-001's addenda "one complexity scan for both gates" and "skip SwiftPM's .build". It follows symlinked folders by the rule in the addendum "follow symlinked folders". It names each skipped folder it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it. A folder marked `(already scanned)` was scanned once and is not lost source.
+   `crap` skips the folders on the [skip list](references/skip-list.md) and follows symlinked folders by the [symlink rule](references/symlinked-folders.md). It names each skipped folder it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it. A folder marked `(already scanned)` was scanned once and is not lost source.
 5. For each FAIL, recommend the cheaper fix first:
    - CC is the driver (high CC, low coverage): reduce CC — extract sub-functions
    - Coverage is the driver (low coverage, moderate CC): add tests
@@ -88,7 +88,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 
 ## TypeScript coverage matching
 
-Functions that start on the same line are matched to their Istanbul entries by the rule in ADR-001's addendum "functions that share a start line (v0.7.3)", and coverage is still counted by line. When a figure for such a function looks too high or too low, check for a neighbour function on its line before adding tests.
+Functions that start on the same line are matched to their Istanbul entries by the [shared start line rule](references/shared-start-line.md), and coverage is still counted by line. When a figure for such a function looks too high or too low, check for a neighbour function on its line before adding tests.
 
 ## Adopting the gate in a repo with existing debt (Python / Swift / TypeScript)
 
@@ -96,7 +96,7 @@ The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverag
 
 1. Record the debt once: `crap --lang python <dirs> --coverage-json coverage.json --baseline crap-baseline.json --update`. Commit the file.
 2. Add a test that runs after coverage is collected and calls `crap.main([...same flags without --update...])`, asserting `SystemExit` code 0, so CI enforces it.
-3. Baseline keys follow ADR-001's addenda "the baseline ratchet (v0.3.0)" and "baseline keys use the real path (v0.9.0)": a file behind a symlinked folder is keyed by its real path.
+3. Baseline keys follow the [baseline ratchet](references/baseline-ratchet.md) and the [baseline key rule](references/baseline-keys.md): a file behind a symlinked folder is keyed by its real path. Functions are named by the [function naming rule](references/function-names.md), and a name that repeats in a file gets its order as a suffix by the [repeated-names rule](references/repeated-names.md).
 4. A new or worse function fails; a lowered score fails until `--update` records it. `--update` never raises a score or adds a function.
 
 ## Exit codes (Python / Swift / TypeScript)
@@ -120,7 +120,7 @@ rustup component add clippy          # Rust
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.9.1"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.9.1"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.0"
 ```

@@ -18,5 +18,5 @@ start; the builder can redirect you.
 These steps are Matt Pocock's skills (github.com/mattpocock/skills), which
 `qg-skills` copies into the project beside this one, so local and cloud sessions
 both have them. His `code-review` ships as `/review-against-spec`, so it does
-not hide Claude Code's own `/code-review`. Why they are copied and what was
-changed: ADR-003 and `docs/upstream-adaptations.md` in the quality-gates repo.
+not hide Claude Code's own `/code-review`. Why they are copied: [vendored
+skills](references/vendored-skills.md).

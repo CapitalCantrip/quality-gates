@@ -28,6 +28,8 @@ could pass the CC gate and still fail CRAP at 100% coverage.
 
 ## Decision
 
+Amended by: [Addendum 2026-10-04: the baseline ratchet (v0.3.0)](#addendum-2026-10-04-the-baseline-ratchet-v030), [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08), [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070), [Addendum 2026-10-11: coverage readers fail loudly (v0.8.1)](#addendum-2026-10-11-coverage-readers-fail-loudly-v081), [Current rule, restated 2026-10-12: the complexity ceiling](#current-rule-restated-2026-10-12-the-complexity-ceiling)
+
 **Agent-written code has a cyclomatic complexity ceiling of 8.** Human-maintained
 code targets 5. Agents keep exact short-term memory, so some of the cognitive
 load that drives the human limit does not apply (Robert C. Martin, interviewed
@@ -61,6 +63,8 @@ for the ranking, never a pass/fail result.
 
 ## Consequences
 
+Amended by: [Addendum 2026-10-10: SwiftPM coverage (v0.8.0)](#addendum-2026-10-10-swiftpm-coverage-v080)
+
 - Consumers switch the Python CC gate from `ruff --select C901` to `cc-check`.
   radon flags roughly twice as many existing functions as ruff did; that is debt
   to pay down, not a reason to keep ruff.
@@ -85,6 +89,10 @@ for the ranking, never a pass/fail result.
 
 ## Addendum 2026-10-04: the baseline ratchet (v0.3.0)
 
+Amends: [Decision](#decision)
+
+Amended by: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090), [Current rule, restated 2026-10-12: the baseline ratchet](#current-rule-restated-2026-10-12-the-baseline-ratchet), [Current rule, restated 2026-10-12: baseline keys](#current-rule-restated-2026-10-12-baseline-keys)
+
 The standards above are unchanged. `cc-check` and `crap` gained `--baseline` so a
 repo with existing debt can enforce them in CI without first paying it all off.
 
@@ -101,6 +109,10 @@ repo with existing debt can enforce them in CI without first paying it all off.
   coverage is a ranking, not a gate.
 
 ## Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)
+
+Amends: [Decision](#decision)
+
+Amended by: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-10: functions that share a start line (v0.7.3)](#addendum-2026-10-10-functions-that-share-a-start-line-v073), [Addendum 2026-10-10: the suffix list (v0.7.4)](#addendum-2026-10-10-the-suffix-list-v074), [Current rule, restated 2026-10-12: the complexity ceiling](#current-rule-restated-2026-10-12-the-complexity-ceiling), [Current rule, restated 2026-10-12: TypeScript and JavaScript counting](#current-rule-restated-2026-10-12-typescript-and-javascript-counting), [Current rule, restated 2026-10-12: TypeScript's known miscount](#current-rule-restated-2026-10-12-typescripts-known-miscount)
 
 The standards above extend to `.ts`, `.tsx`, `.js`, `.jsx`, `.cjs` and `.mjs`
 (`.cjs` and `.mjs` named by the 2026-10-10 addendum). Nothing changes for Python,
@@ -132,6 +144,10 @@ raise a score, so the gate errs strict; it is left as is.
 
 ### Amended 2026-10-08, on acceptance
 
+Amends: [Addendum 2026-10-04: the baseline ratchet (v0.3.0)](#addendum-2026-10-04-the-baseline-ratchet-v030), [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08)
+
+Amended by: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070), [Current rule, restated 2026-10-12: repeated names](#current-rule-restated-2026-10-12-repeated-names)
+
 **Repeated names get their order as a suffix in baseline keys.** lizard names a
 method without its class and every unnamed callback `(anonymous)`, and the
 ratchet keeps one score per key, so a new function could hide behind an old one
@@ -156,6 +172,10 @@ need it, and it is pure Python.
   it when a project on `node --test` adopts the gates.
 
 ## Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)
+
+Amends: [Decision](#decision), [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance)
+
+Amended by: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083), [Addendum 2026-10-11: skip SwiftPM's .build (v0.9.0)](#addendum-2026-10-11-skip-swiftpms-build-v090), [Addendum 2026-10-11: follow symlinked folders (v0.9.0)](#addendum-2026-10-11-follow-symlinked-folders-v090), [Addendum 2026-10-11: the freshness check reads the scan's files (v0.9.0)](#addendum-2026-10-11-the-freshness-check-reads-the-scans-files-v090), [Addendum 2026-10-11: Python end lines from the AST (v0.9.0)](#addendum-2026-10-11-python-end-lines-from-the-ast-v090), [Current rule, restated 2026-10-12: repeated names](#current-rule-restated-2026-10-12-repeated-names), [Current rule, restated 2026-10-12: what a Function is](#current-rule-restated-2026-10-12-what-a-function-is), [Current rule, restated 2026-10-12: the skip list](#current-rule-restated-2026-10-12-the-skip-list)
 
 The limits above are unchanged. What a gate scores, and where it looks, is now
 decided in one module that both `cc-check` and `crap` take their functions from
@@ -211,6 +231,10 @@ closure, or a method of a nested class, each on its own.
 
 ## Addendum 2026-10-10: functions that share a start line (v0.7.3)
 
+Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08)
+
+Amended by: [Current rule, restated 2026-10-12: functions that share a start line](#current-rule-restated-2026-10-12-functions-that-share-a-start-line)
+
 The limits above are unchanged. This amends the TypeScript addendum's sentence
 that a function's lines come from Istanbul's `fnMap`, *matched to lizard by
 start line*. That rule is exact only when one function starts on a line. In
@@ -254,6 +278,10 @@ changes, and `cc-check` is untouched.
 
 ## Addendum 2026-10-10: the suffix list (v0.7.4)
 
+Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08)
+
+Amended by: [Current rule, restated 2026-10-12: TypeScript and JavaScript counting](#current-rule-restated-2026-10-12-typescript-and-javascript-counting)
+
 The limits and gates above are unchanged, and so is what each gate counts. The
 TypeScript addendum named four suffixes until this note, but `languages.py` has
 counted six since v0.7.0. The docs did not follow the code, and the `--help` text
@@ -269,6 +297,10 @@ did not name until this note have been counted since v0.7.0, so a consumer needs
 action when bumping the pin.
 
 ## Addendum 2026-10-10: SwiftPM coverage (v0.8.0)
+
+Amends: [Consequences](#consequences)
+
+Amended by: [Addendum 2026-10-11: xccov matches exact paths (v0.8.2)](#addendum-2026-10-11-xccov-matches-exact-paths-v082), [Addendum 2026-10-11: a review rule covers the closure gap (v0.8.4)](#addendum-2026-10-11-a-review-rule-covers-the-closure-gap-v084)
 
 The limits above are unchanged. Swift CRAP now reads coverage from a SwiftPM
 package as well as from an Xcode project, so a SwiftPM package with tests has a
@@ -360,6 +392,8 @@ xccov reports too; the two were not compared function by function.
 
 ## Addendum 2026-10-11: coverage readers fail loudly (v0.8.1)
 
+Amends: [Decision](#decision)
+
 The limits above are unchanged. Three behaviours of `crap` that let a gate pass
 or fail without saying why now say so. They amend the rule that CRAP is a gate
 only with coverage data: a coverage flag that is present but empty or
@@ -398,6 +432,8 @@ the scanned files, or may carry no usable figures at all. Scores and the exit
 code are unchanged.
 
 ## Addendum 2026-10-11: xccov matches exact paths (v0.8.2)
+
+Amends: [Addendum 2026-10-10: SwiftPM coverage (v0.8.0)](#addendum-2026-10-10-swiftpm-coverage-v080)
 
 The limits above are unchanged. The rule from the *SwiftPM coverage (v0.8.0)*
 addendum, that a Function's file is the report file at lizard's exact resolved
@@ -440,6 +476,10 @@ now has its own. A crap baseline recorded with `--xcresult` may therefore hold
 stale scores and is re-recorded.
 
 ## Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)
+
+Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
+
+Amended by: [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091), [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround)
 
 The limits and the counting tool are unchanged: lizard still counts Swift.
 lizard 1.24.1, the latest release, misreads two Swift constructs (#69), and the
@@ -507,6 +547,8 @@ missing entries and is re-recorded. Python and TypeScript scans are unchanged.
 
 ## Addendum 2026-10-11: a review rule covers the closure gap (v0.8.4)
 
+Amends: [Addendum 2026-10-10: SwiftPM coverage (v0.8.0)](#addendum-2026-10-10-swiftpm-coverage-v080)
+
 `/cc-swift` carries a review rule. In Swift, a new or changed closure (including
 a trailing closure or a nested `func`) that contains a branch has a test that
 runs it. It is a judgement call in review, not a gate. The reason differs by
@@ -522,6 +564,10 @@ kind:
 No threshold, counting tool or gate scope changes.
 
 ## Addendum 2026-10-11: skip SwiftPM's .build (v0.9.0)
+
+Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
+
+Amended by: [Current rule, restated 2026-10-12: the skip list](#current-rule-restated-2026-10-12-the-skip-list)
 
 The limits above are unchanged. This adds one folder to the skip list of the
 2026-10-09 addendum. A scan of a SwiftPM package root with `--lang swift`
@@ -551,6 +597,10 @@ are re-recorded.
   same way.
 
 ## Addendum 2026-10-11: follow symlinked folders (v0.9.0)
+
+Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
+
+Amended by: [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090), [Current rule, restated 2026-10-12: baseline keys](#current-rule-restated-2026-10-12-baseline-keys), [Current rule, restated 2026-10-12: symlinked folders](#current-rule-restated-2026-10-12-symlinked-folders)
 
 The limits above are unchanged. The shared walk of the 2026-10-09 addendum did
 not follow symlinks, so with `Sources/Shop -> ../shared/Shop` a scan of
@@ -619,6 +669,8 @@ still listed twice.
 
 ## Addendum 2026-10-11: the freshness check reads the scan's files (v0.9.0)
 
+Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
+
 The limits above are unchanged, and so is what each gate scores. `crap` warns
 when the coverage file is older than the newest source file, and
 `--strict-freshness` turns the warning into exit 2. That check walked every file
@@ -656,6 +708,8 @@ baseline is re-recorded for this change.
 
 ## Addendum 2026-10-11: Python end lines from the AST (v0.9.0)
 
+Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
+
 The limits above are unchanged, and so is the counting tool: a Python function's
 CC is still radon's, and its start line is still radon's. This replaces where
 the end line comes from. Radon's `endline` ignores a trailing nested `def` or
@@ -692,6 +746,10 @@ statement there.
   baseline keys and the `#N` labels do not move.
 
 ## Addendum 2026-10-12: baseline keys use the real path (v0.9.0)
+
+Amends: [Addendum 2026-10-04: the baseline ratchet (v0.3.0)](#addendum-2026-10-04-the-baseline-ratchet-v030), [Addendum 2026-10-11: follow symlinked folders (v0.9.0)](#addendum-2026-10-11-follow-symlinked-folders-v090)
+
+Amended by: [Current rule, restated 2026-10-12: baseline keys](#current-rule-restated-2026-10-12-baseline-keys), [Current rule, restated 2026-10-12: symlinked folders](#current-rule-restated-2026-10-12-symlinked-folders)
 
 The limits above are unchanged. This amends one rule of the addendum "follow
 symlinked folders", which took the triage default of #58 that baseline keys
@@ -750,6 +808,10 @@ carried link-path keys.
 
 ## Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)
 
+Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083)
+
+Amended by: [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround)
+
 The limits and the counting tool are unchanged. The v0.8.3 workaround dropped
 `(set)` only straight after `private`, `fileprivate`, `internal` or `public`.
 The builder decided (2026-10-11, #89) to widen it now rather than wait for a
@@ -803,3 +865,325 @@ a local or parameter named `set` to a call (`foo(set)`, or `foo(\n set\n)`). A
 lizard master does. A crap baseline that holds such a `set` entry, or lacks the
 row for a declaration that was swallowed, is stale and is re-recorded. Python
 and TypeScript scans are unchanged.
+
+## Current rule, restated 2026-10-12: the complexity ceiling
+
+Amends: [Decision](#decision), [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08)
+
+<!-- rule:complexity-ceiling -->
+**Agent-written code has a cyclomatic complexity ceiling of 8.** Human-maintained
+code targets 5. Agents keep exact short-term memory, so some of the cognitive
+load that drives the human limit does not apply (Robert C. Martin, interviewed
+2026-09-06).
+
+| Language | Gate | Tool | Limit |
+|---|---|---|---|
+| Python | CC | `cc-check` (radon) | fail above 8 |
+| TypeScript, JavaScript | CC | `cc-check --lang typescript` (lizard) | fail above 8 |
+| Swift | CC | SwiftLint `cyclomatic_complexity`, `ignores_case_statements: true` | warn above 6, fail above 8 |
+| Rust | Cognitive complexity | `cargo clippy` | fail above 10; function length fail above 25 lines |
+| Python, TypeScript, JavaScript, Swift | CRAP | `crap` | warn above 5, fail above 8 |
+
+**Python CC is counted by radon, not ruff,** because CRAP counts with radon. With
+one counter, a fully covered function's CRAP equals its CC, so the CC ceiling and
+the CRAP ceiling meet at the same point: CC 8 passes CRAP only at 100% coverage.
+
+**Swift ignores `switch` cases.** An exhaustive `switch` over an enum is flat and
+readable at any length, and Swift requires every case to be listed. Counting each
+case pushed idiomatic Swift above the limit for no gain in risk. `guard let` and
+`if let` still count.
+
+**Rust's 10 is a different measure,** not a looser one. Cognitive complexity
+penalises nesting and ignores flat `match` arms. Do not align it with the CC
+numbers.
+
+**CRAP is a gate only with coverage data.** Without it every function scores
+CC² + CC, which fails at CC 3. `crap --no-coverage` is a worst-case report, read
+for the ranking, never a pass/fail result. A coverage flag that is given must
+work: an empty or whitespace-only path, a missing file, a file that is not UTF-8
+or one that is not valid JSON is a tool error (exit 2) naming the problem, never
+a quiet fall back to the worst-case ranking. A function the report holds no
+usable figure for has unknown coverage and scores worst case, so the gate fails
+safe. When a report was given, at least one function was scored and none got a
+figure, `crap` also prints a line to stderr saying the report may have been made
+elsewhere or hold no figures for the scanned files.
+
+**A project may tighten these limits, never loosen them.**
+<!-- /rule:complexity-ceiling -->
+
+## Current rule, restated 2026-10-12: the baseline ratchet
+
+Amends: [Addendum 2026-10-04: the baseline ratchet (v0.3.0)](#addendum-2026-10-04-the-baseline-ratchet-v030)
+
+<!-- rule:baseline-ratchet -->
+`cc-check` and `crap` take `--baseline`, so a repo with existing debt can
+enforce the limits in CI without first paying it all off.
+
+- **Only functions over the threshold are recorded.** A function that drops to
+  the threshold leaves the baseline at the next `--update`, and cannot return.
+- **A missing baseline is an error, except with `--update`.** Treating it as
+  empty would fail every adopting repo on its first run; treating it as
+  permissive would let a mistyped path pass CI.
+- **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
+  not a gate.
+<!-- /rule:baseline-ratchet -->
+
+## Current rule, restated 2026-10-12: baseline keys
+
+Amends: [Addendum 2026-10-04: the baseline ratchet (v0.3.0)](#addendum-2026-10-04-the-baseline-ratchet-v030), [Addendum 2026-10-11: follow symlinked folders (v0.9.0)](#addendum-2026-10-11-follow-symlinked-folders-v090), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090)
+
+<!-- rule:baseline-keys -->
+**The rule.** A baseline key is the file's real path relative to the real path of
+the repo root (the working directory outside a git repo), followed by `::` and
+the function name, with a method as `Class.method`. Symlinks are resolved and a
+`..` step lands where it really lands, so `src/Shop/../up.py` is keyed by the
+folder `src/Shop` links to, not by `src`. One file gets one key whatever spelling
+or argument order reached it. File names on screen, in the table and in `--json`,
+keep the link path as scanned.
+
+**A key carries no line number,** so editing elsewhere in the file does not move
+it. A renamed or moved function counts as new, so debt cannot be laundered by
+renaming.
+
+**The real path has the case stored on disk.** On a case-insensitive volume a
+link keeps its own spelling when resolved, so `pa/x -> ../shared/Shop` and
+`pb/x -> ../shared/shop` would key one file two ways, and one run would miss the
+coverage the other found. On macOS the real path is therefore read back from the
+filesystem (`F_GETPATH`), which gives `shared/Shop`; elsewhere, or when that read
+fails, it is the resolved path. The key and every coverage reader (coverage.json,
+Istanbul, llvm-cov, xccov) use the same function.
+
+**A link to a folder outside the repo** gives a key that starts with `../` and
+depends on where that folder sits relative to the repo on each machine. A
+checkout whose shared folder lies elsewhere sees those functions as new and their
+old rows as paid. This is accepted: such links are rare, and the alternative,
+keeping link-path keys and patching each way a path can be typed, fails more
+often.
+<!-- /rule:baseline-keys -->
+
+## Current rule, restated 2026-10-12: TypeScript and JavaScript counting
+
+Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08), [Addendum 2026-10-10: the suffix list (v0.7.4)](#addendum-2026-10-10-the-suffix-list-v074)
+
+<!-- rule:typescript-counting -->
+**TypeScript and JavaScript are the files ending in `.ts`, `.tsx`, `.js`, `.jsx`,
+`.cjs` and `.mjs`.** `languages.py` holds that list, and the `--help` text of
+`crap` and `cc-check` prints it from there.
+
+**lizard counts both gates,** for the reason radon counts both for Python: with
+one counter a fully covered function's CRAP equals its CC, so the ceilings meet
+at 8. On test functions lizard agrees with a hand count for `if`, loops, `case`,
+`catch`, `&&`, `||` and `?:`, and gives a nested arrow function its own score.
+
+**`switch` cases count.** Swift is exempt because its compiler requires an
+exhaustive `switch`; TypeScript does not, so each `case` is a path that can go
+untested. lizard runs without `-m`.
+<!-- /rule:typescript-counting -->
+
+## Current rule, restated 2026-10-12: TypeScript's known miscount
+
+Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08)
+
+<!-- rule:typescript-miscount -->
+**Known miscount:** lizard counts `??` as two paths, not one. That can only
+raise a score, so the gate errs strict; it is left as is.
+<!-- /rule:typescript-miscount -->
+
+## Current rule, restated 2026-10-12: repeated names
+
+Amends: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
+
+<!-- rule:repeated-names -->
+**Repeated names get their order as a suffix in baseline keys,** in every
+language: Python, TypeScript, JavaScript and Swift. lizard names a method without
+its class and every unnamed callback `(anonymous)`, and the ratchet keeps one
+score per key, so a new function could hide behind an old one of the same name.
+The second and later functions of a name in a file are keyed `path::name#2`,
+`#3`, in order of their start line. A file with no repeated names has no
+suffixed keys. Keying by the enclosing named function was rejected: lizard does not
+report nesting.
+<!-- /rule:repeated-names -->
+
+## Current rule, restated 2026-10-12: what a Function is
+
+Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
+
+<!-- rule:function-names -->
+**A Function is what is scored:** a function, a method, a closure, or a method
+of a nested class, each on its own. Both gates take their Functions from one
+scan, so they score the same Functions.
+
+- **Classes are not scored.** A class's radon score is built from its methods,
+  which are already scored, so a class could fail for complexity its methods
+  report.
+- **Python closures and nested-class methods are scored on their own,** with
+  names dotted from the outside in: `outer.inner`, `K.Inner.deep`.
+- **TypeScript, JavaScript and Swift names stay as lizard gives them,** since
+  lizard does not report nesting: a method without its class, and an unnamed
+  callback as `(anonymous)`.
+- **A repeated name gets its order as a suffix,** `name#2`, `name#3`, in every
+  language.
+<!-- /rule:function-names -->
+
+## Current rule, restated 2026-10-12: functions that share a start line
+
+Amends: [Addendum 2026-10-10: functions that share a start line (v0.7.3)](#addendum-2026-10-10-functions-that-share-a-start-line-v073)
+
+<!-- rule:shared-start-line -->
+A TypeScript or JavaScript Function's lines come from Istanbul's `fnMap`,
+matched to lizard by start line, because lizard's end line runs on into the next
+declaration when the code has type annotations. lizard gives no column, so in
+`const f = () => xs.map(x => x ? 1 : 2)` two functions start on line 1, and the
+end line decides which `fnMap` entry each one gets.
+
+**Matching rule.** Among the `fnMap` entries whose declaration starts on
+lizard's start line, in this order:
+
+1. the entry whose end line equals lizard's end line;
+2. else the narrowest entry whose end line is at or after lizard's end line;
+3. else, when no entry contains lizard's end line, the entry on that line that
+   ends last. This is the case when lizard's end line runs past the real end
+   because of type annotations, as when an `interface` follows the function.
+
+A function that is the only one starting on its line matches the same entry
+under all three. Only the end lines of the entries matter, so entries that tie
+on end line give the same range.
+
+**The limit that remains.** Coverage is counted by line: a branch or statement
+belongs to a function when it starts inside the function's lines. A callback
+that shares a line with its holder, or with the function declared beside it,
+still counts that line's branches and statements, and the holder still counts
+the callback's. The rule fixes the range, not the overlap on a shared line.
+Two functions that start and end on the same line get the same coverage.
+<!-- /rule:shared-start-line -->
+
+## Current rule, restated 2026-10-12: the lizard Swift workaround
+
+Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083), [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091)
+
+<!-- rule:swift-lizard-workaround -->
+lizard 1.24.1, the latest release, misreads two Swift constructs, and the scan
+corrects both before lizard's state machine sees them.
+
+- **lizard does not score a failable initialiser.** lizard's tokenizer makes `init?`
+  and `init!` single tokens, so they never match `init`. A failable `init?` with
+  two `if`s (CC 3) is not reported, and so is never scored.
+- **lizard reads `(set)` as a Function named `set`.** The `set` in an access modifier
+  (`private(set)`, `package(set)`) or in a call passing a local named `set`
+  (`foo(set)`) opens a setter accessor, which takes the next `{...}` as its
+  body. The declaration after it, such as `init() {}`, is swallowed into a
+  `set` Function and not scored under its own name.
+
+**The workaround.** A Swift scan runs lizard through
+`quality_gates.lizard_swift_workaround`, which puts a subclass of lizard's Swift
+reader in place and then runs lizard's own command-line entry point; a
+TypeScript scan runs plain `lizard`. The subclass rewrites the token stream in
+lizard's preprocessing step:
+
+- `init?` and `init!` become `init`. A failable initialiser is then a Function
+  named `init` with its own CC and lines; its `?` or `!` is not counted as a
+  condition.
+- When a `)` arrives and the last three significant tokens are `(`, `set`, `)`,
+  those three are dropped, whatever word comes before them, except `init`.
+  Whitespace, newline and comment (`//`, `/*`) tokens are skipped when looking
+  for the significant ones, so a comment or line break before or inside `(set)`
+  makes no difference.
+
+A property's own `get`, `set`, `willSet` and `didSet` blocks are Functions.
+Every newline and comment token stays, so line numbers and file paths are those
+of the source file, and coverage is matched to the source file's own lines.
+Source files on disk are never rewritten. Only the gates' scan is corrected:
+running `lizard` directly shows both bugs.
+
+**A failing lizard stops the gate.** lizard's CSV output counts no warnings, so
+the scan's lizard run exits 0 however many functions exceed lizard's own warning
+limit; the scan also passes `-i -1` in case a lizard release starts counting
+them. Any other exit, such as a crash in the workaround when a lizard release
+renames what it patches, is a tool error that shows lizard's error output.
+
+**The `init` exception.** `.init(set)`, `self.init(set)` and `super.init(set)`
+keep their tokens, which is how lizard's master branch reads them: it takes such
+a call for an initialiser declaration, so the function after it, or the rest of
+the convenience initialiser, scores as part of an `init` row. Master is the
+reference, so the workaround gives the same rows.
+
+**Not covered.**
+- A bare `set` word that is not inside `(set)`: a local, parameter or property
+  named `set` used as `max(set, 1)` or `set.count`, or a label as in
+  `g(set: 1)`. Each still opens a `set` Function, which takes the `{...}` after
+  it and moves the enclosing function's CC into that row. A property declared
+  `static let set = 1` opens none until it is used this way. lizard master does
+  not open the row, so this gap ends when the lizard floor reaches a release
+  with its fix.
+- `.init(set)`, `self.init(set)` and `super.init(set)`: the next function scores
+  as part of an `init` row, in the workaround and in lizard master alike. So does
+  `Foo.init(set)` inside a function body, where the row takes the enclosing
+  function's `if`s.
+
+**Upstream and removal.** Both bugs are reported as terryyin/lizard#516 and fixed
+on lizard's master after 1.24.1; the widened `(set)` rule is quality-gates#89.
+The workaround is removed once the lizard floor reaches a release with the fix
+(quality-gates#71).
+<!-- /rule:swift-lizard-workaround -->
+
+## Current rule, restated 2026-10-12: the skip list
+
+Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070), [Addendum 2026-10-11: skip SwiftPM's .build (v0.9.0)](#addendum-2026-10-11-skip-swiftpms-build-v090)
+
+<!-- rule:skip-list -->
+**The skip list** is `.git`, `.venv`, `venv`, `.direnv`, `node_modules`,
+`__pycache__`, `backups`, `build`, `.build`, `dist`, `.tox`, `.mypy_cache`,
+`.pytest_cache`, `.worktrees`, `.claude/worktrees`. It is one list for both
+gates and every language. Every other hidden folder is scanned, so agent-written
+hooks in `.claude/hooks` are held to the standard.
+
+An entry matches a folder of that name anywhere below the scanned path, so a
+real package called `build` or `dist` is skipped too; for that reason both gates
+end their report with a *Skipped N folder(s)* line naming every skipped folder
+they found. A folder above the scanned path never counts: a project checked out
+under a `build` or `.build` folder is scanned in full, in every language.
+<!-- /rule:skip-list -->
+
+## Current rule, restated 2026-10-12: symlinked folders
+
+Amends: [Addendum 2026-10-11: follow symlinked folders (v0.9.0)](#addendum-2026-10-11-follow-symlinked-folders-v090), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090)
+
+<!-- rule:symlinked-folders -->
+**The rule.** The walk follows a symlinked folder unless its name is on the skip
+list, and never walks the same real folder twice in one scan:
+
+- **Once each, across the whole scan.** A folder's identity, its device and
+  inode, is recorded when the walk enters it, including each scanned path
+  itself. Path text cannot tell folders apart: on a case-insensitive volume
+  `shared/Shop` and `shared/shop` are one folder under two spellings. A folder
+  whose identity was already entered is not walked again, which covers a link to
+  an ancestor (a loop), two links to one folder, a link beside the real folder,
+  and a folder reached from two scanned paths. The second visit is named on the
+  *Skipped N folder(s)* line, like a skip-list folder, but marked: `src/Shop
+  (already scanned)`. The mark says the folder's files were scanned once,
+  through the first visit, so it is not lost source; a skip-list folder carries
+  no mark and was not scanned.
+- **Which visit wins is fixed.** Among the folders under one parent, real
+  folders are entered before links, then by name; the walk is depth first in
+  that order. The first visit is scanned, so the same arguments on the same
+  checkout always yield the same file names. The order holds among siblings
+  only, and scanned paths are entered in the order given, so a different
+  argument order can change which spelling a file shows on screen; its baseline
+  key does not change. A link in an earlier subtree (`src/A/link`) reaches a real
+  folder in a later one (`src/Z/real`) first, so the files are named by the link
+  path and the real folder is the one marked already scanned.
+- **File names on screen keep the link path as scanned.** A file reached through
+  a link is reported as `Sources/Shop/Shop.swift`, not its real path, and the
+  coverage readers (which resolve both sides to a real path) still match it. The
+  baseline key does not follow this rule: it is the file's real path.
+- **The skip list still applies by name.** A link called `build` is skipped and
+  named, as a real folder of that name would be. A link to a folder that does not
+  exist is ignored. A scanned path that is itself a link is followed.
+- **The skip list checks a link's own name, not its target.** A link into
+  `node_modules` or `.build`, or to a parent folder, is followed, and so widens
+  the scan. Name such a link on the skip list or remove it.
+- **Only folders are deduplicated.** A scan given overlapping folders
+  (`src src/pkg`) lists the inner folder's functions once and marks the repeat
+  as already scanned. The same file named twice on the command line, or once
+  inside a folder that is also scanned, is listed twice.
+<!-- /rule:symlinked-folders -->
