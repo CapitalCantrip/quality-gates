@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.8.4 — 2026-10-11
+
+Skills and docs only: no score, threshold or scanned file changes (#67, #70).
+
+`/setup-standards` now finishes for a SwiftPM package with no test target.
+Before, its CRAP steps assumed `swift test --enable-code-coverage` succeeds, so
+such a package had no way through. Now it sets up no CRAP baseline or CI step
+for it and reports CRAP as **not done**, with the reason (no test target, so no
+coverage) and what it takes (add a test target with tests, then rerun the
+skill). A project on `node --test`, which the skill already told to report CRAP
+as not done, can now finish setup too. ADR-002 addendum "a SwiftPM package with
+no test target (v0.8.4)".
+
+`cc-swift` has a review rule: a new or changed Swift closure (including a
+trailing closure or a nested `func`) that contains a branch has a test that
+runs it. It is a judgement call in review, not a gate. A closure needs it
+because the CRAP gate does not count a closure's lines against the function
+that holds it (#53). A nested `func` is scored on its own, but a small one can
+pass the gate untested. ADR-001 addendum "a review rule covers the closure gap
+(v0.8.4)".
+
+**When you bump the pin:** run `qg-skills`. A SwiftPM package with no test
+target removes the CRAP CI step that 0.8.0 told it to add, because
+`swift test --enable-code-coverage` finds no tests there, and reports CRAP as
+not done. A SwiftPM package with tests and an Xcode project see no difference.
+
 ## 0.8.3 — 2026-10-11
 
 The Swift scan works around two lizard Swift bugs (#69; ADR-001 addendum "a

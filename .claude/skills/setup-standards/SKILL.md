@@ -14,10 +14,10 @@ engineering knowledge. Run on a set-up project, every step finds its work
 already in place and changes nothing, so this is also the upgrade after a pin
 bump.
 
-The pin this skill belongs to: `v0.8.3`. Install line, used in step 2:
+The pin this skill belongs to: `v0.8.4`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.3"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.4"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`
@@ -81,8 +81,10 @@ Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
 - **Swift:** the complexity gate is SwiftLint's `cyclomatic_complexity` block,
   exactly as `/cc-swift` gives it, in `.swiftlint.yml`. The CRAP gate is
   `crap --lang swift`, reading coverage as `/crap` describes: an Xcode project
-  from its `.xcresult` bundle (`--xcresult`), a SwiftPM package from the
-  llvm-cov export JSON its tests write (`--llvm-cov-json`).
+  from its `.xcresult` bundle (`--xcresult`), or a SwiftPM package with a test
+  target from the llvm-cov export JSON its tests write (`--llvm-cov-json`). A
+  SwiftPM package with no test target has no CRAP gate; step 3 says how to
+  report that.
 - **Rust:** run the setup steps of `/cc-rust`: `clippy.toml` and the deny
   attributes.
 - **TypeScript / JavaScript:** `cc-check --lang typescript` and
@@ -92,8 +94,9 @@ Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
   project on `node --test` cannot yet (it writes lcov), so report CRAP as not
   done with that reason.
 
-Done when every detected language has its gates configured and `qg-skills`
-has run.
+Done when every detected language's gates are configured, each CRAP gate step
+2 or 3 says to report as not done is reported not done with its reason, and
+`qg-skills` has run.
 
 ## 3. Baselines
 
@@ -109,24 +112,32 @@ from the repo root and commit the file it writes.
 - **Swift:** run SwiftLint. Each function already over the limit gets
   `// swiftlint:disable:next cyclomatic_complexity` above it; that pragma is its
   baseline entry. Then record CRAP from the project's coverage. In a SwiftPM
-  package, run `swift test --enable-code-coverage`, then
+  package with a test target, run `swift test --enable-code-coverage`, then
   `crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json --update`.
   In an Xcode project with an `.xcresult`, run
   `crap --lang swift <source dirs> --xcresult <bundle> --baseline crap-baseline.json --update`.
   Run the tests in the same checkout as `crap`: it matches a report file only at
   its exact path, so a bundle made in another checkout or container gives every
   function unknown coverage.
+  A SwiftPM package with no test target (no `.testTarget` in its
+  `Package.swift`) has no coverage to record, so CRAP is not set up for it.
+  Report CRAP as **not done**, with the reason (no test target, so
+  `swift test --enable-code-coverage` reports no tests found) and what it takes
+  (add a test target with tests, then rerun `/setup-standards`).
 - **TypeScript / JavaScript:**
   `cc-check --lang typescript <source dirs> --baseline cc-baseline.json --update`;
   collect coverage as in step 2 and run
   `crap --lang typescript <source dirs> --istanbul-json coverage/coverage-final.json --baseline crap-baseline.json --update`.
-  Add `coverage/` to `.gitignore`.
+  Add `coverage/` to `.gitignore`. A project on `node --test` gets no CRAP
+  baseline: report CRAP as not done, as step 2 says.
 - **Rust:** run `cargo clippy --all-targets`. Each function it fails gets
   `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]`;
   that attribute is its baseline entry.
 
 Report each baseline with its count: "12 functions over the complexity limit,
-recorded; new ones will fail". Done when the gate passes on today's tree.
+recorded; new ones will fail". Done when each gate passes on today's tree,
+except a CRAP gate step 2 or 3 says to report as not done, which is reported
+not done with its reason.
 
 On an upgrade, a baseline that fails after the bump is re-recorded as the
 release's CHANGELOG entry says under *When you bump the pin*.
@@ -162,9 +173,9 @@ Make CI enforce what the hooks enforce, plus the slow gates.
 - **TypeScript / JavaScript:** the steps in [ci-typescript.md](ci-typescript.md).
 - **Swift:** a CI step running SwiftLint, on a macOS runner. If the project has
   no macOS CI job, report this as not done and say what it would cost. A
-  SwiftPM package also gets a CRAP step, which runs on Linux or macOS. Put it
-  on the one the baseline was recorded on, and run both commands in the same
-  job:
+  SwiftPM package with a test target also gets a CRAP step, which runs on Linux
+  or macOS. Put it on the one the baseline was recorded on, and run both
+  commands in the same job:
 
   ```bash
   swift test --enable-code-coverage
@@ -175,12 +186,17 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   record on Linux, so it scores worst case there. A report made in another
   checkout or container gives every function unknown coverage, because `crap`
   matches a report file only at its exact path.
+
+  A SwiftPM package with no test target gets no CRAP step: report CRAP as
+  **not done**, as step 3 says.
 - If the project has no CI workflow, add `.github/workflows/tests.yml` that
   installs the project, runs the tests and the steps above, on pull requests
-  and pushes to the default branch.
+  and pushes to the default branch. A SwiftPM package with no test target has
+  no tests to run (`swift test` exits 1 there), so the Swift part of its
+  workflow runs SwiftLint only.
 
-Done when the test suite passes locally with the new tests, and every gate the
-hooks run also runs in CI.
+Done when the test suite, where the project has one, passes locally with the
+new tests, and every gate the hooks run also runs in CI.
 
 ## 6. The asking rule
 
