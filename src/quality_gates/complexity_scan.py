@@ -81,7 +81,7 @@ def _entry(here: Path, name: str) -> tuple:
     return is_link, name, identity
 
 
-def _enter(identity: tuple, seen: set) -> bool:
+def _first_visit(identity: tuple, seen: set) -> bool:
     if identity in seen:
         return False
     seen.add(identity)
@@ -94,7 +94,7 @@ def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
         child = here / name
         if is_skipped(child):
             skipped.append(os.path.relpath(child))
-        elif _enter(identity, seen):
+        elif _first_visit(identity, seen):
             kept.append(name)
         else:
             skipped.append(os.path.relpath(child) + ALREADY_SCANNED)
@@ -104,7 +104,7 @@ def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
 def _walk(root: Path, seen: set) -> tuple:
     if not root.is_dir():
         return [root], []
-    if not _enter(_identity(root)[1], seen):
+    if not _first_visit(_identity(root)[1], seen):
         return [], [os.path.relpath(root) + ALREADY_SCANNED]
     files, skipped = [], []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
@@ -253,11 +253,11 @@ def find_sources(paths: list, lang: str) -> Sources:
     return Sources([f for f in files if f.suffix in suffixes], skipped)
 
 
-def count(found: Sources, lang: str, runner=None) -> Scan:
+def count_functions(sources: Sources, lang: str, runner=None) -> Scan:
     language = languages.LANGUAGES[lang]
-    functions, analysed = COUNTING_TOOLS[language.counter](found.files, language, runner)
-    return Scan(functions, analysed, found.skipped)
+    functions, analysed = COUNTING_TOOLS[language.counter](sources.files, language, runner)
+    return Scan(functions, analysed, sources.skipped)
 
 
 def scan(paths: list, lang: str, runner=None) -> Scan:
-    return count(find_sources(paths, lang), lang, runner)
+    return count_functions(find_sources(paths, lang), lang, runner)

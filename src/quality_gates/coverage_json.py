@@ -1,9 +1,9 @@
 import sys
 from dataclasses import dataclass
-from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from quality_gates.json_report import load_json
+from quality_gates.real_path import real_path
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
@@ -67,8 +67,7 @@ def load(coverage_json_path: str) -> dict:
         entry = _parse_file_coverage(fd)
         if entry.has_branches:
             any_branches = True
-        abspath = str(Path(relpath).resolve())
-        out[abspath] = entry
+        out[real_path(relpath)] = entry
         out[relpath] = entry
 
     if not any_branches:
@@ -82,8 +81,7 @@ def function_coverage(
     start_line: int,
     end_line: int,
 ) -> Optional[float]:
-    key = str(Path(filepath).resolve())
-    entry = cov_map.get(key) or cov_map.get(filepath)
+    entry = cov_map.get(real_path(filepath)) or cov_map.get(filepath)
     if not entry:
         return None
     if entry.has_branches:

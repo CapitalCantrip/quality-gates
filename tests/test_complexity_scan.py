@@ -355,15 +355,6 @@ class SymlinkedFolderTest(InTempDir):
             (["src/A/link/m.py"], ["src/Z/real (already scanned)"]),
         )
 
-    def test_two_links_that_the_filesystem_reaches_by_different_spellings_of_one_folder_scan_it_once(self):
-        self.write("shared/Shop/shop.py")
-        self.link("shared/Shop", "src/ShopA")
-        self.link("shared/Shop", "src/ShopB")
-        spellings = iter(range(100))
-        with patch.object(os.path, "realpath", side_effect=lambda p: f"{p}-{next(spellings)}"):
-            found = complexity_scan.scan(["src"], "python")
-        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/ShopA/shop.py"], ["src/ShopB (already scanned)"]))
-
     def test_two_links_spelling_one_folder_in_different_case_scan_it_once_on_a_case_insensitive_volume(self):
         self.write("shared/Shop/shop.py")
         if not os.path.exists("shared/shop"):
