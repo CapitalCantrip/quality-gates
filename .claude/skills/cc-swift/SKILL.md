@@ -81,7 +81,7 @@ xcode-select --install          # xcrun xccov for --xcresult coverage (optional)
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.4"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.9.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.8.4"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.9.0"
 ```

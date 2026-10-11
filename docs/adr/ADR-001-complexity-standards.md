@@ -626,7 +626,7 @@ stale* (#51).
 
 **The rule.** The newest modification time is taken over the source files of the
 scan itself: the shared walk, with its skip list and its symlink rule, filtered
-to the chosen language's suffixes. The walk returns that list as `find_sources`, and
+to the chosen language's suffixes. `find_sources` returns that list, and
 `crap` reads it; there is no second walk and no second copy of the skip rules. A
 path given as a single file counts if its suffix is the language's, as it does
 for the scan. A file that cannot be read for its time is ignored, as before.

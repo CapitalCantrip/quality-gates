@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## 0.9.0 — 2026-10-12
 
 What the scan covers (#54, #58, #51, #59; ADR-001 addenda "skip SwiftPM's
 .build (v0.9.0)", "follow symlinked folders (v0.9.0)", "the freshness check
