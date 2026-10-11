@@ -80,9 +80,12 @@ the coverage report has no figure for it. If you stopped passing
 output raised a false stale warning, you can pass it again.
 
 A baseline recorded before 0.9.0 holds real-path keys for ordinary files, and
-0.9.0 keys them the same way. A symlinked source folder whose target lies outside
-the repo gives `../` keys, so record that baseline on a checkout laid out as CI's
-is.
+0.9.0 keys them the same way, with one exception. On macOS, if you ran a gate
+with a path typed in a different case from the one on disk (`crap SRC` for a
+folder named `src`), 0.9.0 gives true-case keys, so that baseline shows every
+function as new: delete it and record it once more with `--update`. A symlinked
+source folder whose target lies outside the repo gives `../` keys, so record
+that baseline on a checkout laid out as CI's is.
 
 ## 0.8.4 — 2026-10-11
 

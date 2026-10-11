@@ -3,6 +3,7 @@ import os
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from quality_gates import coverage_json, istanbul, ratchet
@@ -56,12 +57,33 @@ class TrueCaseCoverageTest(InCaseInsensitiveTree):
         self.assertEqual(found, 1.0)
 
 
+class CoverageLookupCostTest(unittest.TestCase):
+    def test_a_file_with_three_functions_has_its_real_path_read_once(self):
+        with tempfile.TemporaryDirectory() as folder:
+            file = Path(folder).resolve() / "mod.py"
+            file.write_text("x = 1\n")
+            report = Path(folder) / "coverage.json"
+            report.write_text(json.dumps({"files": {str(file): {"executed_lines": [1], "missing_lines": []}}}))
+            lookup = coverage_json.read(str(report))
+            with patch("quality_gates.coverage_json.real_path", wraps=real_path) as spy:
+                for start in (1, 2, 3):
+                    lookup(SimpleNamespace(file=str(file), start=start, end=start))
+            self.assertEqual(spy.call_count, 1)
+
+
 class FallbackTest(unittest.TestCase):
     def test_a_path_whose_true_case_cannot_be_read_keeps_the_resolved_path(self):
         with tempfile.TemporaryDirectory() as folder:
             file = Path(folder).resolve() / "mod.py"
             file.write_text("x = 1\n")
             with patch("os.open", side_effect=OSError("no")):
+                self.assertEqual(real_path(str(file)), str(file))
+
+    def test_a_platform_with_no_true_case_lookup_keeps_the_resolved_path(self):
+        with tempfile.TemporaryDirectory() as folder:
+            file = Path(folder).resolve() / "mod.py"
+            file.write_text("x = 1\n")
+            with patch("quality_gates.real_path.GET_PATH", None):
                 self.assertEqual(real_path(str(file)), str(file))
 
     def test_a_path_that_does_not_exist_keeps_the_resolved_path(self):

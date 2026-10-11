@@ -1,6 +1,6 @@
 import sys
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Callable, Dict, Optional
 
 from quality_gates.json_report import load_json
 from quality_gates.real_path import real_path
@@ -80,8 +80,9 @@ def function_coverage(
     filepath: str,
     start_line: int,
     end_line: int,
+    resolve: Callable[[str], str] = real_path,
 ) -> Optional[float]:
-    entry = cov_map.get(real_path(filepath)) or cov_map.get(filepath)
+    entry = cov_map.get(resolve(filepath)) or cov_map.get(filepath)
     if not entry:
         return None
     if entry.has_branches:
@@ -93,4 +94,11 @@ def function_coverage(
 
 def read(coverage_json_path: str) -> "CoverageOf":
     files = load(coverage_json_path)
-    return lambda fn: function_coverage(files, fn.file, fn.start, fn.end)
+    real_paths: Dict[str, str] = {}
+
+    def resolve(filepath: str) -> str:
+        if filepath not in real_paths:
+            real_paths[filepath] = real_path(filepath)
+        return real_paths[filepath]
+
+    return lambda fn: function_coverage(files, fn.file, fn.start, fn.end, resolve)

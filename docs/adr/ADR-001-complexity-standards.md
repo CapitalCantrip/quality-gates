@@ -730,10 +730,13 @@ old rows as paid. This is accepted: such links are rare, and the alternative
 (below) fails more often.
 
 **Effect on existing scores.** A file that no link reaches keeps the key it had
-before 0.9.0, and so does a scanned path that is itself a link. Functions
-behind a symlinked folder came into the scan with v0.9.0 and are recorded under
-their real path when the baseline is re-recorded. No release carried link-path
-keys.
+before 0.9.0, and so does a scanned path that is itself a link, with one
+exception: on macOS, a gate run with a path typed in a different case from the
+one on disk gets true-case keys from 0.9.0. A baseline recorded that way before
+0.9.0 must be recorded once more (delete it, then run with `--update`).
+Functions behind a symlinked folder came into the scan with v0.9.0 and are
+recorded under their real path when the baseline is re-recorded. No release
+carried link-path keys.
 
 ### Rejected
 
