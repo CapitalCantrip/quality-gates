@@ -21,7 +21,7 @@ CI_WITHOUT_TEST_TARGET_PHRASES = (
     "A SwiftPM package with no test target gets no CRAP step",
     "report CRAP as **not done**, as step 3 says",
 )
-BASELINES_CAN_FINISH = "where step 2 or 3 says to report CRAP as not done, it is reported not done with its reason"
+BASELINES_CAN_FINISH = "except a CRAP gate step 2 or 3 says to report as not done, which is reported not done with its reason"
 CLOSURE_RULE = (
     "a new or changed closure (including a trailing closure or a nested `func`) "
     "that contains a branch has a test that runs it"
