@@ -20,7 +20,7 @@ functions above the complexity threshold.
 
 ## Steps
 
-1. Identify Python source directories in the project. The tool skips the folders the lists in ADR-001's addenda "one complexity scan for both gates" and "skip SwiftPM's .build", follows symlinked folders by the rule in its addendum "follow symlinked folders", and names each skipped folder it found on a last `Skipped N folder(s):` line; if that line names a folder holding real source, report it; a folder marked `(already scanned)` was scanned once and is not lost source.
+1. Identify Python source directories in the project. The tool skips the folders listed in ADR-001's addenda "one complexity scan for both gates" and "skip SwiftPM's .build". It follows symlinked folders by the rule in the addendum "follow symlinked folders". It names each skipped folder it found on a last `Skipped N folder(s):` line; if that line names a folder holding real source, report it. A folder marked `(already scanned)` was scanned once and is not lost source.
 2. Run:
    ```bash
    cc-check <dirs> --threshold 8 --format text
@@ -44,7 +44,7 @@ functions above the complexity threshold.
    ```
 3. When a refactor lowers a baselined score, the check fails until you run `--update` and commit the lower baseline. `--update` never records a new or worse function: fix those instead.
 
-Baseline keys follow ADR-001's ratchet section and its 2026-10-09 addendum. A renamed or moved function counts as new.
+Baseline keys follow ADR-001's addenda "the baseline ratchet (v0.3.0)" and "baseline keys use the real path (v0.9.0)": a file behind a symlinked folder is keyed by its real path. A renamed or moved function counts as new.
 
 ## Thresholds
 

@@ -80,7 +80,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 4. With `--no-coverage`, every function at CC 3 or above scores FAIL. That mode is a risk ranking, not a gate: report the top rows and say no coverage was available, never "the gate failed".
    When `crap` prints `no scored function got a figure from the coverage report`, every score in this run is worst case, whatever the language: do not report it as a gate result. Measure coverage again in this checkout, check that the report holds figures for the files you scan, and rerun.
    With coverage, report all FAIL rows in full; summarise WARN rows (CRAP 5–8 for Python/Swift/TypeScript; CC 11–15 for Rust).
-   `crap` skips the folders the lists in ADR-001's addenda "one complexity scan for both gates" and "skip SwiftPM's .build", follows symlinked folders by the rule in its addendum "follow symlinked folders", and names each skipped folder it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it; a folder marked `(already scanned)` was scanned once and is not lost source.
+   `crap` skips the folders listed in ADR-001's addenda "one complexity scan for both gates" and "skip SwiftPM's .build". It follows symlinked folders by the rule in the addendum "follow symlinked folders". It names each skipped folder it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it. A folder marked `(already scanned)` was scanned once and is not lost source.
 5. For each FAIL, recommend the cheaper fix first:
    - CC is the driver (high CC, low coverage): reduce CC — extract sub-functions
    - Coverage is the driver (low coverage, moderate CC): add tests
@@ -88,7 +88,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
 
 ## TypeScript coverage matching
 
-Functions that start on the same line are matched to their Istanbul entries by the rule in ADR-001's 2026-10-10 addendum on shared start lines, and coverage is still counted by line. When a figure for such a function looks too high or too low, check for a neighbour function on its line before adding tests.
+Functions that start on the same line are matched to their Istanbul entries by the rule in ADR-001's addendum "functions that share a start line (v0.7.3)", and coverage is still counted by line. When a figure for such a function looks too high or too low, check for a neighbour function on its line before adding tests.
 
 ## Adopting the gate in a repo with existing debt (Python / Swift / TypeScript)
 
@@ -96,7 +96,7 @@ The baseline needs coverage data; `crap` refuses `--baseline` with `--no-coverag
 
 1. Record the debt once: `crap --lang python <dirs> --coverage-json coverage.json --baseline crap-baseline.json --update`. Commit the file.
 2. Add a test that runs after coverage is collected and calls `crap.main([...same flags without --update...])`, asserting `SystemExit` code 0, so CI enforces it.
-3. Baseline keys follow ADR-001's ratchet section and its 2026-10-09 addendum.
+3. Baseline keys follow ADR-001's addenda "the baseline ratchet (v0.3.0)" and "baseline keys use the real path (v0.9.0)": a file behind a symlinked folder is keyed by its real path.
 4. A new or worse function fails; a lowered score fails until `--update` records it. `--update` never raises a score or adds a function.
 
 ## Exit codes (Python / Swift / TypeScript)

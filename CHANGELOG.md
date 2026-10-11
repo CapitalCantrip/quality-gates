@@ -4,8 +4,8 @@
 
 What the scan covers (#54, #58, #51, #59; ADR-001 addenda "skip SwiftPM's
 .build (v0.9.0)", "follow symlinked folders (v0.9.0)", "the freshness check
-reads the scan's files (v0.9.0)" and "Python end lines from the AST (v0.9.0)").
-No threshold changes.
+reads the scan's files (v0.9.0)", "Python end lines from the AST (v0.9.0)" and
+"baseline keys use the real path (v0.9.0)"). No threshold changes.
 
 - `.build`, SwiftPM's build folder, joins the skip list of both gates in every
   language and is named on the *Skipped N folder(s)* line (#54). A scan of a
@@ -17,10 +17,16 @@ No threshold changes.
   per scan: a link to an ancestor (a loop), a second link to one folder, and a
   folder reached from two scanned paths each give their repeat a place on the
   *Skipped* line, marked `(already scanned)` because its files were scanned once
-  and are not lost. File names keep the link path as scanned, and so do baseline
-  keys: a file behind a link is keyed `src/Shop/shop.py::f`, not by its real
-  path, and a scanned path that is itself a link is now keyed by the link path
-  too (main resolved it), which the same re-record covers. A link named on the
+  and are not lost. Two links that spell one folder in different case on a
+  case-insensitive volume count as one folder, since folders are told apart by
+  device and inode, not by path text. File names in the report keep the link path
+  as scanned, but a baseline key is the file's real path, as in v0.8.2 and
+  earlier: a file behind `src/Shop -> ../shared/Shop` is keyed
+  `shared/Shop/shop.py::f`, and one file gets one key whatever spelling or
+  argument order reached it (`crap src/app src` and `crap src` agree). A link to
+  a folder outside the repo gives a `../` key that depends on where that folder
+  sits relative to the repo on each machine (ADR-001's addendum "baseline keys
+  use the real path"). A link named on the
   skip list is still skipped, a dangling link is ignored. The skip list checks a
   link's own name, not its target, so a link into `node_modules` or `.build`, or
   to a parent folder, widens the scan: name it on the skip list or remove it.
@@ -32,15 +38,18 @@ No threshold changes.
   output) or of another language no longer makes the report stale, with or
   without `--strict-freshness`; a newer source file of the chosen language still
   does. The check uses the scan's own file list, so a symlinked folder counts. It
-  runs after the scan, so a missing path or tool is reported first. No score
-  changes.
+  runs after the walk and before the count, so a missing path is reported first
+  and a stale report under `--strict-freshness` exits 2 without paying for the
+  counting run. No score changes.
 - A Python function's end line comes from the AST (#59). A function ending in a
   nested `def`, a method ending in a nested `class`, or a closure ending in a
   nested `def` is now measured over its whole body; before, the range stopped
   before the nested definition and `crap` read coverage from the `def` line
   alone, which always runs. Python `crap` scores can rise for these functions
   and a new failure can appear. Start lines, CC and `cc-check` are unchanged.
-- Internal: the scan returns the source files it walked as `Scan.sources`.
+- Internal: `complexity_scan.find_sources` walks and `count` counts; `scan` does
+  both, and `Scan.sources` is gone. Folders in the walk are compared by device and
+  inode.
 
 **When you bump the pin:** run `qg-skills`. Re-record the baselines whose scan
 changed, once: delete the baseline file, then run the gate with `--update`.
@@ -48,12 +57,11 @@ changed, once: delete the baseline file, then run the gate with `--update`.
 - `cc-check` baseline (`cc-check <dirs> --baseline cc-baseline.json --update`),
   for Python and TypeScript, if you scan a SwiftPM package root or a folder that
   contains a symlinked source folder: functions under `.build` drop out, and
-  functions behind a link come in. Swift is not a `cc-check` language, so a
+  functions behind a link come in under their real path. Swift is not a `cc-check` language, so a
   SwiftPM-only project has no `cc-check` baseline to re-record.
 - `crap` baseline (`crap --lang <lang> <dirs> <coverage flag> --baseline
   crap-baseline.json --update`), for every language, under the same conditions
-  (a SwiftPM package root, a symlinked source folder, a scanned path that is a
-  link, or overlapping folders).
+  (a SwiftPM package root, a symlinked source folder, or overlapping folders).
   A Python project also re-records it when a function ends in a nested `def` or
   `class`: its CRAP score can rise.
 - A project with none of these has nothing to re-record.
@@ -61,9 +69,14 @@ changed, once: delete the baseline file, then run the gate with `--update`.
 Before you commit a re-recorded baseline, explain or fix every row that shows `?`
 in the coverage column: each is a worst-case score the baseline will exempt
 (#81); a function that now comes in through a symlinked folder shows `?` when
-the coverage report has no figure for it. If you passed
-`--strict-freshness` to work around a false stale warning, you can drop the
-workaround.
+the coverage report has no figure for it. If you stopped passing
+`--strict-freshness` because a newer file under `node_modules`, `.venv` or build
+output raised a false stale warning, you can pass it again.
+
+A baseline recorded before 0.9.0 holds real-path keys for ordinary files, and
+0.9.0 keys them the same way. A symlinked source folder whose target lies outside
+the repo gives `../` keys, so record that baseline on a checkout laid out as CI's
+is.
 
 ## 0.8.4 — 2026-10-11
 

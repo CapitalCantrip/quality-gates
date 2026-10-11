@@ -209,7 +209,8 @@ resolved path matches, so measure coverage and run `crap` in the same checkout
 (v0.8.2)"). TypeScript and JavaScript coverage comes
 from Istanbul's `coverage-final.json` (`--istanbul-json`), which Vitest and Jest
 write. Functions that share a start line are matched to their Istanbul entries
-by the rule in ADR-001's 2026-10-10 addendum on shared start lines. Without
+by the rule in ADR-001's addendum "functions that share a start line
+(v0.7.3)". Without
 coverage (`--no-coverage`) every function at CC 3 or above fails, so that mode
 ranks functions by risk and is never read as pass/fail. `crap` takes
 `--baseline FILE` too, and refuses it without coverage (exit 2). A
@@ -220,8 +221,8 @@ When a report is given and none of the scored functions gets a figure from it,
 readers fail loudly").
 `crap` warns when the coverage file is older than the newest source file the
 scan read, and `--strict-freshness` makes that exit 2; files under a skipped
-folder and files of another language do not count (ADR-001's 2026-10-11
-addendum on the freshness check).
+folder and files of another language do not count (ADR-001's addendum "the
+freshness check reads the scan's files (v0.9.0)").
 
 ### What both gates score
 
@@ -241,10 +242,16 @@ real package called `build` or `dist` is never dropped silently. The reasons are
 in ADR-001's addenda "one complexity scan for both gates", "skip SwiftPM's
 .build" and "follow symlinked folders".
 
+File names in the report keep the link path as scanned, but a baseline key is
+the file's real path, so one file has one key whatever spelling or argument
+order reached it. A link to a folder outside the repo gives a `../` key that
+depends on where that folder sits on each machine (ADR-001's addendum "baseline
+keys use the real path (v0.9.0)").
+
 A Python function's line range runs from its `def` line to the end of its last
 statement, taken from the syntax tree, so a function whose body ends in a nested
 `def` or `class` is measured, and `crap` reads its coverage, over the whole body
-(ADR-001's 2026-10-11 addendum on Python end lines). CC is still radon's.
+(ADR-001's addendum "Python end lines from the AST (v0.9.0)"). CC is still radon's.
 
 ### How they fit together
 
@@ -266,7 +273,7 @@ cc-check src --baseline cc-baseline.json               # the check CI runs
 ```
 
 The baseline maps `path::function` to its score, and holds only functions over
-the threshold. Paths are relative to the git root, so the file is the same on
+the threshold. Paths are real paths relative to the git root, so the file is the same on
 every machine and in CI. Python names are dotted from the outside in:
 `path::Class.method`, `path::outer.inner`, `path::K.Inner.deep`. lizard
 (Swift, TypeScript) names a method without its class and an unnamed callback

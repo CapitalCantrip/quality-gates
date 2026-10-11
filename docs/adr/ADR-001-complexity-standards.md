@@ -561,9 +561,11 @@ mode these standards guard against.
 **The rule.** The walk follows a symlinked folder unless its name is on the skip
 list, and never walks the same real folder twice in one scan:
 
-- **Once each, across the whole scan.** A folder's real path is recorded when the
-  walk enters it, including each scanned path itself. A folder whose real path
-  was already entered is not walked again, which covers a link to an ancestor
+- **Once each, across the whole scan.** A folder's identity, its device and
+  inode, is recorded when the walk enters it, including each scanned path
+  itself. Path text cannot tell folders apart: on a case-insensitive volume
+  `shared/Shop` and `shared/shop` are one folder under two spellings. A folder
+  whose identity was already entered is not walked again, which covers a link to an ancestor
   (a loop), two links to one folder, a link beside the real folder, and a folder
   reached from two scanned paths. The second visit is named on the *Skipped N
   folder(s)* line, like a skip-list folder, but marked: `src/Shop (already
@@ -577,10 +579,12 @@ list, and never walks the same real folder twice in one scan:
   subtree (`src/A/link`) reaches a real folder in a later one (`src/Z/real`)
   first, so the files are named by the link path and the real folder is the one
   marked already scanned.
-- **File names keep the link path as scanned.** A file reached through a link is
-  reported as `Sources/Shop/Shop.swift`, not its real path, so a baseline key
-  follows what the builder typed, and the coverage readers (which already resolve
-  both sides to a real path) still match it.
+- **File names on screen keep the link path as scanned.** A file reached through
+  a link is reported as `Sources/Shop/Shop.swift`, not its real path, and the
+  coverage readers (which already resolve both sides to a real path) still match
+  it. The baseline key does not follow this rule: the addendum "baseline keys use
+  the real path" overrides the triage default of #58 that keys follow the typed
+  path.
 - **The skip list still applies by name.** A link called `build` is skipped and
   named, as a real folder of that name would be. A link to a folder that does not
   exist is ignored. A scanned path that is itself a link is followed.
@@ -603,9 +607,9 @@ still listed twice.
   word, which is the failure the standards guard against.
 - **Following links with no guard.** A link to a parent never ends, and two
   links to one folder double its functions.
-- **Reporting the real path of a linked file.** It would rename every
-  function in the folder if the link target moves, and baseline keys would no
-  longer match what the builder passes on the command line.
+- **Reporting the real path of a linked file on screen.** It would rename every
+  function in the folder in the report if the link target moves, and the names
+  would no longer match what the builder passes on the command line.
 - **Counting a repeated visit under its link path as well.** The same function
   would be scored, and baselined, twice.
 
@@ -622,14 +626,15 @@ stale* (#51).
 
 **The rule.** The newest modification time is taken over the source files of the
 scan itself: the shared walk, with its skip list and its symlink rule, filtered
-to the chosen language's suffixes. The scan returns that list as `sources`, and
+to the chosen language's suffixes. The walk returns that list as `find_sources`, and
 `crap` reads it; there is no second walk and no second copy of the skip rules. A
 path given as a single file counts if its suffix is the language's, as it does
 for the scan. A file that cannot be read for its time is ignored, as before.
 
-`crap` now scans before it checks freshness, so a scan error (a missing path, a
-missing tool) is reported ahead of a stale coverage file, and with
-`--strict-freshness` the counting tool runs even when the file turns out stale.
+`crap` walks before it checks freshness and counts after it. A missing path is
+reported ahead of a stale coverage file, which is reported ahead of a missing
+counting tool, and `--strict-freshness` stops with exit 2 before the counting
+tool runs, so a stale report does not pay for the count.
 
 **Effect on existing scores.** None: no function is scored differently. A report
 that was called stale only because of a skipped folder or another language no
@@ -681,3 +686,49 @@ statement there.
   body.
 - **Taking the start line from the AST too.** The brief keeps start lines as
   they are, so baseline keys and the `#N` labels do not move.
+
+## Addendum 2026-10-12: baseline keys use the real path (v0.9.0)
+
+The limits above are unchanged. This amends one rule of the addendum "follow
+symlinked folders", which took the triage default of #58 that baseline keys
+follow the path the builder typed. Review of that rule found two faults that
+share one cause, rebuilding a key from typed path text:
+
+- Typing the scanned folder through a symlinked prefix (`crap "$PWD/src"` with a
+  logical `$PWD`, a CI workspace that is a symlink, `/tmp` on macOS) flipped
+  every key behind a link back to a real path, so the ratchet reported those
+  functions as new.
+- Argument order changed the keys: with `src/app` a link to `src/real`,
+  `crap src/app src` keyed the files `src/app/x.py` and `crap src` keyed them
+  `src/real/x.py`.
+
+The builder chose, on #72 (2026-10-11), to key by the real path as v0.8.2 and
+earlier did. This overrides the triage default of #58.
+
+**The rule.** A baseline key is the file's real path relative to the real path of
+the repo root, followed by `::` and the function name: symlinks are resolved and
+a `..` step lands where it really lands, so `src/Shop/../up.py` is keyed by the
+folder `src/Shop` links to, not by `src`. One file gets one key whatever spelling
+or argument order reached it. File names on screen, in the table and in `--json`,
+keep the link path as scanned.
+
+**A link to a folder outside the repo** gives a key that starts with `../` and
+depends on where that folder sits relative to the repo on each machine. A
+checkout whose shared folder lies elsewhere sees those functions as new and their
+old rows as paid. This is accepted: such links are rare, and the alternative
+(below) fails more often.
+
+**Effect on existing scores.** A file that no link reaches keeps the key it had in
+v0.8.2 and earlier, and so does a scanned path that is itself a link. Functions
+behind a symlinked folder came into the scan with v0.9.0 and are recorded under
+their real path when the baseline is re-recorded. No release carried link-path
+keys.
+
+### Rejected
+
+- **Keeping link-path keys and patching the triggers** (walk up the typed path to
+  find the repo root, mark every typed folder as seen before the walk). The class
+  of fault had already come back once in other words, and every way of typing a
+  path would stay a possible new trigger.
+- **Releasing #54, #51 and #59 without #58.** It is the fastest route, but a
+  symlinked source folder would stay unscanned.

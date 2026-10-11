@@ -17,7 +17,7 @@ Swift source files and reports functions above the complexity threshold.
 
 ## Steps
 
-1. Locate the Swift source directory (typically `Sources/`). The tool skips the folders the lists in ADR-001's addenda "one complexity scan for both gates" and "skip SwiftPM's .build", follows symlinked folders by the rule in its addendum "follow symlinked folders", and names each skipped folder it found on a last `Skipped N folder(s):` line; if that line names a folder holding real source, report it; a folder marked `(already scanned)` was scanned once and is not lost source.
+1. Locate the Swift source directory (typically `Sources/`). The tool skips the folders listed in ADR-001's addenda "one complexity scan for both gates" and "skip SwiftPM's .build". It follows symlinked folders by the rule in the addendum "follow symlinked folders". It names each skipped folder it found on a last `Skipped N folder(s):` line; if that line names a folder holding real source, report it. A folder marked `(already scanned)` was scanned once and is not lost source.
 2. **If a `.swiftlint.yml` is present**, run SwiftLint first:
    ```bash
    swiftlint lint --reporter emoji
