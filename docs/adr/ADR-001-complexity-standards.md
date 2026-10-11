@@ -897,6 +897,17 @@ case pushed idiomatic Swift above the limit for no gain in risk. `guard let` and
 penalises nesting and ignores flat `match` arms. Do not align it with the CC
 numbers.
 
+**CRAP is a gate only with coverage data.** Without it every function scores
+CC² + CC, which fails at CC 3. `crap --no-coverage` is a worst-case report, read
+for the ranking, never a pass/fail result. A coverage flag that is given must
+work: an empty or whitespace-only path, a missing file, a file that is not UTF-8
+or one that is not valid JSON is a tool error (exit 2) naming the problem, never
+a quiet fall back to the worst-case ranking. A function the report holds no
+usable figure for has unknown coverage and scores worst case, so the gate fails
+safe. When a report was given, at least one function was scored and none got a
+figure, `crap` also prints a line to stderr saying the report may have been made
+elsewhere or hold no figures for the scanned files.
+
 **A project may tighten these limits, never loosen them.**
 <!-- /rule:complexity-ceiling -->
 
@@ -988,8 +999,8 @@ language: Python, TypeScript, JavaScript and Swift. lizard names a method withou
 its class and every unnamed callback `(anonymous)`, and the ratchet keeps one
 score per key, so a new function could hide behind an old one of the same name.
 The second and later functions of a name in a file are keyed `path::name#2`,
-`#3`, in order of their start line. A baseline with no repeated names is
-unchanged. Keying by the enclosing named function was rejected: lizard does not
+`#3`, in order of their start line. A file with no repeated names has no
+suffixed keys. Keying by the enclosing named function was rejected: lizard does not
 report nesting.
 <!-- /rule:repeated-names -->
 
@@ -1054,19 +1065,20 @@ Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#
 lizard 1.24.1, the latest release, misreads two Swift constructs, and the scan
 corrects both before lizard's state machine sees them.
 
-- **A failable initialiser was not scored.** lizard's tokenizer makes `init?`
+- **A failable initialiser is not scored.** lizard's tokenizer makes `init?`
   and `init!` single tokens, so they never match `init`. A failable `init?` with
-  two `if`s (CC 3) was not reported, and so was never scored.
-- **`(set)` made a Function named `set`.** The `set` in an access modifier
+  two `if`s (CC 3) is not reported, and so is never scored.
+- **`(set)` makes a Function named `set`.** The `set` in an access modifier
   (`private(set)`, `package(set)`) or in a call passing a local named `set`
-  (`foo(set)`) opened a setter accessor, which took the next `{...}` as its
-  body. The declaration after it, such as `init() {}`, was swallowed into a
+  (`foo(set)`) opens a setter accessor, which takes the next `{...}` as its
+  body. The declaration after it, such as `init() {}`, is swallowed into a
   `set` Function and not scored under its own name.
 
 **The workaround.** A Swift scan runs lizard through
 `quality_gates.lizard_swift_workaround`, which puts a subclass of lizard's Swift
-reader in place and then calls lizard as before; a TypeScript scan runs plain
-`lizard`. The subclass rewrites the token stream in lizard's preprocessing step:
+reader in place and then runs lizard's own command-line entry point; a
+TypeScript scan runs plain `lizard`. The subclass rewrites the token stream in
+lizard's preprocessing step:
 
 - `init?` and `init!` become `init`. A failable initialiser is then a Function
   named `init` with its own CC and lines; its `?` or `!` is not counted as a
@@ -1077,10 +1089,17 @@ reader in place and then calls lizard as before; a TypeScript scan runs plain
   for the significant ones, so a comment or line break before or inside `(set)`
   makes no difference.
 
-A property's own `get`, `set`, `willSet` and `didSet` blocks are still
-Functions. Every newline and comment token stays, so line numbers and file paths
-are those of the source file and coverage matching is unchanged. Source files on
-disk are never rewritten.
+A property's own `get`, `set`, `willSet` and `didSet` blocks are Functions.
+Every newline and comment token stays, so line numbers and file paths are those
+of the source file, and coverage is matched to the source file's own lines.
+Source files on disk are never rewritten. Only the gates' scan is corrected:
+running `lizard` directly shows both bugs.
+
+**A failing lizard stops the gate.** lizard's CSV output counts no warnings, so
+the scan's lizard run exits 0 however many functions exceed lizard's own warning
+limit; the scan also passes `-i -1` in case a lizard release starts counting
+them. Any other exit, such as a crash in the workaround when a lizard release
+renames what it patches, is a tool error that shows lizard's error output.
 
 **The `init` exception.** `.init(set)`, `self.init(set)` and `super.init(set)`
 keep their tokens, which is how lizard's master branch reads them: it takes such
@@ -1163,4 +1182,8 @@ list, and never walks the same real folder twice in one scan:
 - **The skip list checks a link's own name, not its target.** A link into
   `node_modules` or `.build`, or to a parent folder, is followed, and so widens
   the scan. Name such a link on the skip list or remove it.
+- **Only folders are deduplicated.** A scan given overlapping folders
+  (`src src/pkg`) lists the inner folder's functions once and marks the repeat
+  as already scanned. The same file named twice on the command line, or once
+  inside a folder that is also scanned, is listed twice.
 <!-- /rule:symlinked-folders -->

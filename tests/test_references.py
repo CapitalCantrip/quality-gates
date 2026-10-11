@@ -196,6 +196,15 @@ class FenceEdges(unittest.TestCase):
         self.assertIn("Other.", self.repo.read("skills/crap/references/other.md"))
 
 
+class FenceInListItems(unittest.TestCase):
+    def test_a_fence_opened_in_a_list_item_closes_on_its_indented_closing_fence(self):
+        repo = Repo()
+        repo.write("docs/adr/ADR-009-example.md", "## Decision\n\n- Example:\n  ```markdown\n  <!-- rule:shown -->\n  ```\n- ```\n  text\n  ```\n- ```\n      deeper\n    ```\n\n" + ADR.split("## Decision\n", 1)[1])
+        repo.write("skills/crap/SKILL.md", SKILL)
+        self.assertEqual(repo.generate(), [])
+        self.assertIn("It applies to every language.", repo.read("skills/crap/references/skip-list.md"))
+
+
 class LinkForms(unittest.TestCase):
     def setUp(self):
         self.repo = Repo()
@@ -211,6 +220,11 @@ class LinkForms(unittest.TestCase):
         self.assertEqual(self.repo.check(), [
             "crap/SKILL.md: cannot read the link references/skip-list.md The list; write it as references/<name>.md",
         ])
+
+    def test_a_reference_style_link_gets_its_reference_file(self):
+        self.repo.write("skills/crap/SKILL.md", "See [the list][skip].\n\n[skip]: references/skip-list.md \"The skip list\"\n")
+        self.assertEqual(self.repo.generate(), [])
+        self.assertEqual(self.repo.read("skills/crap/references/skip-list.md"), EXPECTED_REFERENCE)
 
     def test_a_web_address_that_contains_references_is_not_a_reference_link(self):
         self.repo.write("skills/crap/SKILL.md", SKILL + "Upstream: [notes](https://example.com/skills/references/notes.md).\n")
@@ -342,8 +356,33 @@ class AmendmentLinks(unittest.TestCase):
         self.assertIn('ADR-009-example.md:19: "Rejected" is amended by "Current rule, restated 2026-10-12: the rule", '
                       'but "Current rule, restated 2026-10-12: the rule" has no Amends: link to it', self.check(text))
 
+    def test_an_amends_line_below_the_sections_text_fails_the_check(self):
+        text = AMENDED.replace("Amends: [Decision](#decision)\n\nMore.\n", "More.\n\nAmends: [Decision](#decision)\n")
+        self.assertEqual(self.check(text), [
+            "ADR-009-example.md:17: an Amends: or Amended by: line sits directly under its heading, above the section's text",
+        ])
+
     def test_an_amends_line_inside_a_code_fence_is_an_example(self):
         self.assertEqual(self.check(AMENDED + "\n```markdown\nAmends: [Nowhere](#nowhere)\n```\n"), [])
+
+
+class MissingFolders(unittest.TestCase):
+    def setUp(self):
+        self.repo = Repo()
+        self.repo.write("docs/adr/ADR-009-example.md", ADR)
+        self.repo.write("skills/crap/SKILL.md", SKILL)
+
+    def test_a_skills_folder_that_does_not_exist_stops_with_exit_2(self):
+        for extra in [(), ("--check",)]:
+            with self.subTest(extra):
+                code, out = self.repo.main("--skills", str(self.repo.root / "nowhere"), *extra)
+                self.assertEqual(code, 2)
+                self.assertIn("nowhere is not a folder", out)
+
+    def test_an_adr_folder_that_does_not_exist_stops_with_exit_2(self):
+        code, out = self.repo.main("--adr-dir", str(self.repo.root / "nowhere"), "--check")
+        self.assertEqual(code, 2)
+        self.assertIn("nowhere is not a folder", out)
 
 
 class ReferenceFolders(unittest.TestCase):

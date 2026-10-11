@@ -14,6 +14,7 @@ DEFAULT_SKILLS = Path("src") / "quality_gates" / "skills"
 TAG = re.compile(r"^<!-- (/?)rule:([a-z0-9-]+) -->$")
 HEADING = re.compile(r"^(#{2,6}) (.+)$")
 LINK = re.compile(r"\]\(([^)]*references/[^)]*)\)")
+DEFINITION = re.compile(r"^ {0,3}\[[^\]]+\]:[ \t]*(\S*references/.*?)[ \t]*$", re.MULTILINE)
 LINK_TITLE = re.compile(r"""^(?:"[^"]*"|'[^']*')$""")
 WEB_ADDRESS = re.compile(r"^[a-z][a-z0-9+.-]*:", re.IGNORECASE)
 READABLE_LINK = re.compile(r"^(?:\./)?(?:\.\./)*references/([a-z0-9-]+)\.md(?:#[a-z0-9-]*)?$")
@@ -141,7 +142,8 @@ def own_reference(skills_dir, source, name):
 def links(skills_dir):
     found = []
     for source in skill_documents(skills_dir):
-        for match in LINK.finditer(source.read_text(encoding="utf-8")):
+        text = source.read_text(encoding="utf-8")
+        for match in list(LINK.finditer(text)) + list(DEFINITION.finditer(text)):
             target = link_target(match.group(1))
             if target is not None:
                 found.append(read_link(source, target))
@@ -254,8 +256,16 @@ def report(problems, success):
     sys.exit(0)
 
 
+def missing_folders(*folders):
+    for folder in folders:
+        if not folder.is_dir():
+            print(f"{folder} is not a folder", file=sys.stderr)
+            sys.exit(2)
+
+
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    missing_folders(args.adr_dir, args.skills)
     if args.check:
         report(check(args.adr_dir, args.skills), "Every reference file matches its tagged ADR section.")
     outcome = generate(args.adr_dir, args.skills)

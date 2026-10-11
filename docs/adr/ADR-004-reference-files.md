@@ -90,16 +90,22 @@ markup in the history it must not rewrite. `qg-references --check` fails when:
 - a section's `Amended by:` link names an amendment whose `Amends:` line does
   not link back.
 
+A link line anywhere else in a section, below its text, fails the check.
+
 A line inside a code fence is an example, not a tag or a link, for both checks.
 A fence opens on a line of three or more backticks or tildes indented at most
 three spaces; a backtick fence's info string holds no backtick. It closes on a
 line of the same character, at least as long, with nothing after it but spaces,
 so a line such as ```` ```markdown ```` inside a fence does not close it. A line
-indented four spaces or more is not a fence.
+indented four spaces or more is not a fence, except that a fence opened after a
+list marker (`` - ``` ``) closes on a fence line indented up to three spaces
+past where it opened. A fence opened on a list item's continuation line indented
+four or more spaces is not recognised; write it at three spaces or fewer.
 
 **A skill links the rule as `references/<name>.md` in its own folder,** from
-`SKILL.md` or from a file in a subfolder (`../references/<name>.md`). A leading
-`./`, a trailing `#anchor` and a quoted link title (`"The skip list"`) are
+`SKILL.md` or from a file in a subfolder (`../references/<name>.md`). A
+reference-style definition (`[skip]: references/skip-list.md`) counts as a link.
+A leading `./`, a trailing `#anchor` and a quoted link title (`"The skip list"`) are
 allowed. A web address that contains `references/` is not a reference link and
 is left alone. Every skill
 that links a rule gets its own copy, so each skill stays whole when copied.
@@ -118,6 +124,8 @@ the test suite runs the same check, so a commit fails when:
 - a skill links a rule no ADR tags, or a link does not reach its own skill's
   `references/` folder;
 - a link contains `references/` in a form the generator cannot read.
+- `--skills` or `--adr-dir` is not a folder (exit 2, before anything is
+  written);
 - tagged text points outside its reference file, as listed above;
 - an amendment and the text it amends do not link both ways.
 

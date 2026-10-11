@@ -112,4 +112,16 @@ recorded with what changed, why, and how to redo it on a newer upstream file.
 different job: it hunts for bugs, where Pocock's checks the change against the
 project's written standards and the issue or spec it came from. The builder
 wants both. The three skills that call it by name are changed to match.
+
+**`setup-matt-pocock-skills` is replaced by a pointer skill** of the same name
+that sends the builder to `/setup-standards`. Six of the copied skills tell the
+builder to run his setup when the project's agent docs are missing;
+`/setup-standards` already writes them from his templates. A pointer keeps those
+six skills word for word.
+
+**An update is a release.** A monthly check opens an issue when a watched
+upstream file changes. Adopting the change means replacing the word-for-word
+copies, redoing each listed change, moving the pinned commit, and releasing.
+Consumers get it by bumping their pin; their `qg-skills --check` test fails
+until they rerun `qg-skills`, so a stale copy cannot pass CI.
 <!-- /rule:vendored-skills -->

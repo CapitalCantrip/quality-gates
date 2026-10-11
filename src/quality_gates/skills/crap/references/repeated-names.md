@@ -7,6 +7,6 @@ language: Python, TypeScript, JavaScript and Swift. lizard names a method withou
 its class and every unnamed callback `(anonymous)`, and the ratchet keeps one
 score per key, so a new function could hide behind an old one of the same name.
 The second and later functions of a name in a file are keyed `path::name#2`,
-`#3`, in order of their start line. A baseline with no repeated names is
-unchanged. Keying by the enclosing named function was rejected: lizard does not
+`#3`, in order of their start line. A file with no repeated names has no
+suffixed keys. Keying by the enclosing named function was rejected: lizard does not
 report nesting.

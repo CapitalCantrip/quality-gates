@@ -35,3 +35,7 @@ list, and never walks the same real folder twice in one scan:
 - **The skip list checks a link's own name, not its target.** A link into
   `node_modules` or `.build`, or to a parent folder, is followed, and so widens
   the scan. Name such a link on the skip list or remove it.
+- **Only folders are deduplicated.** A scan given overlapping folders
+  (`src src/pkg`) lists the inner folder's functions once and marks the repeat
+  as already scanned. The same file named twice on the command line, or once
+  inside a folder that is also scanned, is listed twice.

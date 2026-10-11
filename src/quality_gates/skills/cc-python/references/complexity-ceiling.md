@@ -28,4 +28,15 @@ case pushed idiomatic Swift above the limit for no gain in risk. `guard let` and
 penalises nesting and ignores flat `match` arms. Do not align it with the CC
 numbers.
 
+**CRAP is a gate only with coverage data.** Without it every function scores
+CC² + CC, which fails at CC 3. `crap --no-coverage` is a worst-case report, read
+for the ranking, never a pass/fail result. A coverage flag that is given must
+work: an empty or whitespace-only path, a missing file, a file that is not UTF-8
+or one that is not valid JSON is a tool error (exit 2) naming the problem, never
+a quiet fall back to the worst-case ranking. A function the report holds no
+usable figure for has unknown coverage and scores worst case, so the gate fails
+safe. When a report was given, at least one function was scored and none got a
+figure, `crap` also prints a line to stderr saying the report may have been made
+elsewhere or hold no figures for the scanned files.
+
 **A project may tighten these limits, never loosen them.**

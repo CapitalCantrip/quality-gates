@@ -27,6 +27,7 @@ class Sections:
         self.sections = []
         self.counts = {}
         self.fences = Fences()
+        self.text_started = False
         self.problems = []
         for index, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
             self.read_line(index + 1, line)
@@ -37,8 +38,11 @@ class Sections:
         heading = HEADING.match(line)
         if heading:
             self.add(number, heading.group(2))
+            self.text_started = False
         elif self.sections and line.startswith((AMENDS, AMENDED_BY)):
             self.add_links(number, line)
+        elif line.strip():
+            self.text_started = True
 
     def add(self, number, title):
         base = slug(plain(title))
@@ -48,6 +52,9 @@ class Sections:
         self.sections.append(Section(title, anchor, number, [], []))
 
     def add_links(self, number, line):
+        if self.text_started:
+            self.problems.append(f"{self.name}:{number}: an Amends: or Amended by: line sits directly under its "
+                                 f"heading, above the section's text")
         field = self.sections[-1].amends if line.startswith(AMENDS) else self.sections[-1].amended_by
         field += [(number, anchor) for anchor in ANCHOR_LINK.findall(line)]
 
@@ -55,7 +62,7 @@ class Sections:
 def problems(path):
     reader = Sections(path)
     by_anchor = {section.anchor: section for section in reader.sections}
-    found = []
+    found = list(reader.problems)
     for section in reader.sections:
         found += section_problems(reader.name, section, by_anchor)
     return found
