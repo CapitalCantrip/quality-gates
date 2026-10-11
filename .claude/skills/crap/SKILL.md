@@ -64,7 +64,7 @@ Gate: CC > 10 = FAIL, function > 25 executable lines = FAIL.
    ```bash
    crap --lang swift Sources/ --no-coverage
    ```
-   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: ADR-001 addendum "a workaround for two lizard Swift bugs (v0.8.3)".
+   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: ADR-001 addenda "a workaround for two lizard Swift bugs (v0.8.3)" and "the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)".
 
    **TypeScript — with coverage** (Vitest needs `@vitest/coverage-v8`; under Jest use `npx jest --coverage --coverageReporters=json`):
    ```bash
@@ -120,7 +120,7 @@ rustup component add clippy          # Rust
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.9.0"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.9.1"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.9.0"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.9.1"
 ```
