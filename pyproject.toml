@@ -19,6 +19,7 @@ crap = "quality_gates.crap:main"
 qg-skills = "quality_gates.skills_sync:main"
 qg-agent-docs = "quality_gates.agent_docs:main"
 qg-upstream = "quality_gates.upstream:main"
+qg-references = "quality_gates.references:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
