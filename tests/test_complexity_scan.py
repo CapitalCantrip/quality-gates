@@ -312,11 +312,6 @@ class SymlinkedFolderTest(InTempDir):
         self.link("shared/Shop", "Sources/Shop")
         self.assertEqual(self.files("Sources"), ["Sources/A/a.py", "Sources/Shop/shop.py"])
 
-    def test_a_symlinked_folder_keeps_the_link_path_in_the_file_name(self):
-        self.write("shared/Shop/shop.py")
-        self.link("shared/Shop", "Sources/Shop")
-        self.assertEqual(self.files("Sources"), ["Sources/Shop/shop.py"])
-
     def test_a_symlinked_folder_of_swift_files_is_scanned_by_lizard(self):
         self.write("shared/Shop/Shop.swift", "func shop(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
         self.link("shared/Shop", "Sources/Shop")
@@ -359,6 +354,31 @@ class SymlinkedFolderTest(InTempDir):
             ([fn.file for fn in found.functions], found.skipped),
             (["src/A/link/m.py"], ["src/Z/real (already scanned)"]),
         )
+
+    def test_two_links_that_the_filesystem_reaches_by_different_spellings_of_one_folder_scan_it_once(self):
+        self.write("shared/Shop/shop.py")
+        self.link("shared/Shop", "src/ShopA")
+        self.link("shared/Shop", "src/ShopB")
+        spellings = iter(range(100))
+        with patch.object(os.path, "realpath", side_effect=lambda p: f"{p}-{next(spellings)}"):
+            found = complexity_scan.scan(["src"], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/ShopA/shop.py"], ["src/ShopB (already scanned)"]))
+
+    def test_two_links_spelling_one_folder_in_different_case_scan_it_once_on_a_case_insensitive_volume(self):
+        self.write("shared/Shop/shop.py")
+        if not os.path.exists("shared/shop"):
+            self.skipTest("this volume is case sensitive")
+        self.link("shared/Shop", "src/ShopA")
+        self.link("shared/shop", "src/ShopB")
+        found = complexity_scan.scan(["src"], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/ShopA/shop.py"], ["src/ShopB (already scanned)"]))
+
+    def test_finding_sources_lists_files_and_skipped_folders_without_counting_functions(self):
+        self.write("src/mod.py")
+        self.write("src/dist/y.py")
+        self.write("src/notes.md")
+        found = complexity_scan.find_sources(["src"], "python")
+        self.assertEqual(([str(f) for f in found.files], found.skipped), (["src/mod.py"], ["src/dist"]))
 
     def test_a_skip_list_folder_is_not_marked_already_scanned(self):
         self.write("src/x.py")

@@ -3,6 +3,7 @@ import csv
 import importlib.util
 import io
 import os
+import stat
 import sys
 import tempfile
 from dataclasses import dataclass, replace
@@ -46,11 +47,16 @@ class Function:
 
 
 @dataclass(frozen=True)
+class Sources:
+    files: list
+    skipped: list
+
+
+@dataclass(frozen=True)
 class Scan:
     functions: list
     files: list
     skipped: list
-    sources: list
 
 
 def print_skipped(skipped: list, out) -> None:
@@ -62,25 +68,33 @@ def is_skipped(folder: Path) -> bool:
     return any(folder.parts[-len(parts):] == parts for parts in SKIPPED_PARTS)
 
 
-def _enter(folder: Path, seen: set) -> bool:
-    real = os.path.realpath(folder)
-    if real in seen:
+def _identity(folder: Path) -> tuple:
+    info = os.lstat(folder)
+    is_link = stat.S_ISLNK(info.st_mode)
+    if is_link:
+        info = os.stat(folder)
+    return is_link, (info.st_dev, info.st_ino)
+
+
+def _entry(here: Path, name: str) -> tuple:
+    is_link, identity = _identity(here / name)
+    return is_link, name, identity
+
+
+def _enter(identity: tuple, seen: set) -> bool:
+    if identity in seen:
         return False
-    seen.add(real)
+    seen.add(identity)
     return True
-
-
-def _is_link(here: Path, name: str) -> bool:
-    return os.path.islink(here / name)
 
 
 def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
     kept, skipped = [], []
-    for name in sorted(dirnames, key=lambda d: (_is_link(here, d), d)):
+    for _, name, identity in sorted(_entry(here, name) for name in dirnames):
         child = here / name
         if is_skipped(child):
             skipped.append(os.path.relpath(child))
-        elif _enter(child, seen):
+        elif _enter(identity, seen):
             kept.append(name)
         else:
             skipped.append(os.path.relpath(child) + ALREADY_SCANNED)
@@ -90,13 +104,13 @@ def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
 def _walk(root: Path, seen: set) -> tuple:
     if not root.is_dir():
         return [root], []
-    if not _enter(root, seen):
+    if not _enter(_identity(root)[1], seen):
         return [], [os.path.relpath(root) + ALREADY_SCANNED]
     files, skipped = [], []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         here = Path(dirpath)
-        dirnames[:], left = _subfolders(here, dirnames, seen)
-        skipped.extend(left)
+        dirnames[:], skipped_here = _subfolders(here, dirnames, seen)
+        skipped.extend(skipped_here)
         files.extend(here / name for name in filenames)
     return files, skipped
 
@@ -233,9 +247,17 @@ COUNTING_TOOLS = {
 }
 
 
-def scan(paths: list, lang: str, runner=None) -> Scan:
+def find_sources(paths: list, lang: str) -> Sources:
     files, skipped = _walk_all(paths)
+    suffixes = languages.LANGUAGES[lang].suffixes
+    return Sources([f for f in files if f.suffix in suffixes], skipped)
+
+
+def count(found: Sources, lang: str, runner=None) -> Scan:
     language = languages.LANGUAGES[lang]
-    sources = [f for f in files if f.suffix in language.suffixes]
-    functions, analysed = COUNTING_TOOLS[language.counter](sources, language, runner)
-    return Scan(functions, analysed, skipped, sources)
+    functions, analysed = COUNTING_TOOLS[language.counter](found.files, language, runner)
+    return Scan(functions, analysed, found.skipped)
+
+
+def scan(paths: list, lang: str, runner=None) -> Scan:
+    return count(find_sources(paths, lang), lang, runner)

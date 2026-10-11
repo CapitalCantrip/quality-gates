@@ -316,6 +316,16 @@ class FreshnessScopeTest(unittest.TestCase):
         code, _, err = self.gate("--strict-freshness")
         self.assertEqual((code, "coverage file may be stale" in err), (2, True))
 
+    def test_a_stale_report_under_strict_freshness_stops_before_any_function_is_counted(self):
+        self.touch("src/newer.py", 1020)
+
+        def counted(*args):
+            raise AssertionError("functions were counted")
+
+        with patch.dict(complexity_scan.COUNTING_TOOLS, {languages.RADON: counted}):
+            code, _, err = self.gate("--strict-freshness")
+        self.assertEqual((code, "coverage file may be stale" in err), (2, True))
+
     def test_a_newer_source_file_in_a_symlinked_folder_makes_the_report_stale(self):
         self.touch("shared/linked.py", 1020)
         os.symlink(os.path.abspath("shared"), "src/shared")
@@ -329,8 +339,8 @@ class FreshnessScopeTest(unittest.TestCase):
 
     def test_the_freshness_check_reads_the_files_the_scan_read(self):
         self.touch("src/newer.py", 1020)
-        found = complexity_scan.scan(["src"], "python")
-        self.assertEqual(sorted(map(str, found.sources)), ["src/mod.py", "src/newer.py"])
+        found = complexity_scan.find_sources(["src"], "python")
+        self.assertEqual(sorted(map(str, found.files)), ["src/mod.py", "src/newer.py"])
 
 
 class CoverageSourceTest(unittest.TestCase):
