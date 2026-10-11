@@ -61,6 +61,54 @@ class C {
 }
 """
 
+DOT_INIT_WITH_SET_ARGUMENT = """\
+struct Foo { init(_ v: Int) {} }
+struct S {
+    let x: Foo = .init(set)
+    func g(_ a: Int) -> Int {
+        if a > 1 { return 1 }
+        if a > 2 { return 2 }
+        return 0
+    }
+}
+"""
+
+SELF_INIT_WITH_SET_ARGUMENT = """\
+class B {
+    init(_ v: Int) {}
+    convenience init(set: Int, flag: Bool) {
+        if flag { print(1) }
+        self.init(set)
+    }
+    func g(_ a: Int) -> Int {
+        if a > 1 { return 1 }
+        return 0
+    }
+}
+"""
+
+CALL_WITH_SET_ARGUMENT = """\
+class C {
+    func g(_ set: Int) -> Int {
+        let t = foo(set)
+        if t > 5 { return 1 }
+        return t
+    }
+    func h() {}
+}
+"""
+
+INIT_CALL_IN_BODY = """\
+struct S {
+    func g(_ set: Int) -> Int {
+        let x = Foo.init(set)
+        if x.ok { return 1 }
+        return 0
+    }
+    func h() {}
+}
+"""
+
 
 def lizard_rows(text: str) -> list:
     with tempfile.TemporaryDirectory() as folder:
@@ -93,6 +141,24 @@ class LizardSwiftWorkaroundTest(unittest.TestCase):
 
     def test_line_numbers_after_a_wrapped_setter_access_match_lizard_master(self):
         self.assertEqual(lizard_rows(WRAPPED_SETTER), [("init", 1, 4, 4), ("g", 2, 5, 7)])
+
+    def test_set_passed_to_dot_init_keeps_the_init_call_as_lizard_master_reads_it(self):
+        self.assertEqual(lizard_rows(DOT_INIT_WITH_SET_ARGUMENT), [("init", 1, 1, 1), ("init", 3, 3, 8)])
+
+    def test_set_passed_to_self_init_matches_lizard_master_including_its_known_gap(self):
+        self.assertEqual(
+            lizard_rows(SELF_INIT_WITH_SET_ARGUMENT),
+            [("init", 1, 2, 2), ("init", 2, 5, 10), ("init", 2, 3, 11)],
+        )
+
+    def test_a_local_named_set_passed_to_a_call_scores_the_enclosing_function_as_lizard_master_does(self):
+        self.assertEqual(lizard_rows(CALL_WITH_SET_ARGUMENT), [("g", 2, 2, 6), ("h", 1, 7, 7)])
+
+    def test_set_passed_to_init_inside_a_function_body_matches_lizard_master_including_its_known_gap(self):
+        self.assertEqual(
+            lizard_rows(INIT_CALL_IN_BODY),
+            [("init", 2, 3, 4), ("g", 1, 2, 6), ("h", 1, 7, 7)],
+        )
 
 
 if __name__ == "__main__":
