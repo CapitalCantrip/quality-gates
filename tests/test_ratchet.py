@@ -1,5 +1,6 @@
 import io
 import json
+import os
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -7,6 +8,7 @@ from pathlib import Path
 
 from quality_gates import crap
 from quality_gates import quality_check as qc
+from quality_gates import ratchet
 
 
 def branchy(name, branches, indent=""):
@@ -22,6 +24,63 @@ def call(entry, argv, root):
         except SystemExit as stop:
             return stop.code, out.getvalue() + err.getvalue()
     raise AssertionError("main did not exit")
+
+
+class KeyTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        before = os.getcwd()
+        os.chdir(self.root)
+        self.addCleanup(os.chdir, before)
+        (self.root / "shared" / "Shop").mkdir(parents=True)
+        (self.root / "src").mkdir()
+        (self.root / "shared" / "Shop" / "shop.py").write_text("x = 1\n")
+        (self.root / "src" / "mod.py").write_text("x = 1\n")
+        os.symlink(self.root / "shared" / "Shop", self.root / "src" / "Shop")
+
+    def test_a_file_behind_a_symlinked_folder_is_keyed_by_its_real_path(self):
+        self.assertEqual(ratchet.key(self.root, "src/Shop/shop.py", "f"), "shared/Shop/shop.py::f")
+
+    def test_an_absolute_file_behind_a_symlinked_folder_is_keyed_by_its_real_path(self):
+        file = str(self.root / "src" / "Shop" / "shop.py")
+        self.assertEqual(ratchet.key(self.root, file, "f"), "shared/Shop/shop.py::f")
+
+    def test_a_file_behind_a_link_to_a_folder_outside_the_repo_is_keyed_with_a_parent_step(self):
+        outside = tempfile.TemporaryDirectory(dir=self.root.parent)
+        self.addCleanup(outside.cleanup)
+        (Path(outside.name) / "o.py").write_text("x = 1\n")
+        os.symlink(outside.name, self.root / "src" / "Out")
+        expected = f"../{Path(outside.name).name}/o.py::f"
+        self.assertEqual(ratchet.key(self.root, "src/Out/o.py", "f"), expected)
+
+    def test_an_ordinary_files_key_is_its_path_from_the_root(self):
+        self.assertEqual(ratchet.key(self.root, "src/mod.py", "f"), "src/mod.py::f")
+
+    def test_an_ordinary_absolute_files_key_is_its_path_from_the_root(self):
+        self.assertEqual(ratchet.key(self.root, str(self.root / "src" / "mod.py"), "f"), "src/mod.py::f")
+
+    def test_a_relative_file_with_dot_segments_is_keyed_without_them(self):
+        self.assertEqual(ratchet.key(self.root, "./src/../src/mod.py", "f"), "src/mod.py::f")
+
+    def test_a_scanned_path_that_is_itself_a_link_is_keyed_by_its_real_path(self):
+        os.symlink(self.root / "shared", self.root / "alias")
+        self.assertEqual(ratchet.key(self.root, "alias/Shop/shop.py", "f"), "shared/Shop/shop.py::f")
+
+    def test_a_file_reached_through_a_link_and_a_dot_dot_step_is_keyed_by_where_the_step_really_lands(self):
+        (self.root / "shared" / "up.py").write_text("x = 1\n")
+        self.assertEqual(ratchet.key(self.root, "src/Shop/../up.py", "f"), "shared/up.py::f")
+
+    def test_one_file_reached_by_three_spellings_gets_one_key(self):
+        spellings = ("src/Shop/shop.py", "shared/Shop/shop.py", str(self.root / "src" / "Shop" / ".." / "Shop" / "shop.py"))
+        self.assertEqual({ratchet.key(self.root, s, "f") for s in spellings}, {"shared/Shop/shop.py::f"})
+
+    def test_a_logical_working_directory_does_not_change_the_key(self):
+        alias = self.root.parent / (self.root.name + "-alias")
+        os.symlink(self.root, alias)
+        self.addCleanup(os.unlink, alias)
+        self.assertEqual(ratchet.key(alias, str(alias / "src" / "Shop" / "shop.py"), "f"), "shared/Shop/shop.py::f")
 
 
 class CcCheckRatchetTest(unittest.TestCase):
@@ -70,6 +129,25 @@ class CcCheckRatchetTest(unittest.TestCase):
         for name in self.baseline():
             self.assertFalse(name.startswith("/"), name)
             self.assertNotIn(self.tmp.name, name)
+
+    def test_a_function_behind_a_symlinked_folder_shows_its_link_path_and_is_baselined_by_its_real_path(self):
+        (self.root / "pkg" / "real").mkdir()
+        (self.root / "pkg" / "real" / "inner.py").write_text(branchy("g", 5))
+        os.symlink(self.root / "pkg" / "real", self.root / "pkg" / "app")
+        app = str(self.root / "pkg" / "app")
+        _, shown = call(qc.main, [app, "--threshold", "3", "--format", "json"], self.root)
+        call(qc.main, [app, "--threshold", "3", "--baseline", str(self.file), "--update"], self.root)
+        self.assertEqual(([r["file"] for r in json.loads(shown)], self.baseline()), ([f"{app}/inner.py"], {"pkg/real/inner.py::g": 6}))
+
+    def test_argument_order_does_not_change_which_keys_a_baseline_holds(self):
+        (self.root / "pkg" / "real").mkdir()
+        (self.root / "pkg" / "real" / "inner.py").write_text(branchy("g", 5))
+        os.symlink(self.root / "pkg" / "real", self.root / "pkg" / "app")
+        base = ["--threshold", "3", "--baseline", str(self.file)]
+        self.assertEqual(call(qc.main, [str(self.root / "pkg"), *base, "--update"], self.root)[0], 0)
+        before = self.baseline()
+        code, out = call(qc.main, [str(self.root / "pkg" / "app"), str(self.root / "pkg"), *base], self.root)
+        self.assertEqual((code, before), (0, {"pkg/real/inner.py::g": 6}))
 
     def test_a_method_is_keyed_by_its_class(self):
         self.put("class A:\n" + branchy("m", 5, indent="    "))

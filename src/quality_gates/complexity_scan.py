@@ -3,6 +3,7 @@ import csv
 import importlib.util
 import io
 import os
+import stat
 import sys
 import tempfile
 from dataclasses import dataclass, replace
@@ -23,11 +24,12 @@ SWIFT = "swift"
 EXIT_0_ON_WARNINGS = ("-i", "-1")
 
 SKIPPED_FOLDERS = (
-    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", "dist",
+    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
     ".tox", ".mypy_cache", ".pytest_cache", ".worktrees", ".claude/worktrees",
 )
 SKIPPED_PARTS = [tuple(folder.split("/")) for folder in SKIPPED_FOLDERS]
 ORDINAL_MARK = "#"
+ALREADY_SCANNED = " (already scanned)"
 NAME_SEPARATOR = "."
 FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef)
 LIZARD_MISSING = "lizard is missing, though quality-gates depends on it.\n  Reinstall quality-gates in this environment."
@@ -42,6 +44,12 @@ class Function:
     start: int
     end: int
     unlabelled_name: str
+
+
+@dataclass(frozen=True)
+class Sources:
+    files: list
+    skipped: list
 
 
 @dataclass(frozen=True)
@@ -60,24 +68,59 @@ def is_skipped(folder: Path) -> bool:
     return any(folder.parts[-len(parts):] == parts for parts in SKIPPED_PARTS)
 
 
-def _walk(root: Path) -> tuple:
+def _identity(folder: Path) -> tuple:
+    info = os.lstat(folder)
+    is_link = stat.S_ISLNK(info.st_mode)
+    if is_link:
+        info = os.stat(folder)
+    return is_link, (info.st_dev, info.st_ino)
+
+
+def _entry(here: Path, name: str) -> tuple:
+    is_link, identity = _identity(here / name)
+    return is_link, name, identity
+
+
+def _first_visit(identity: tuple, seen: set) -> bool:
+    if identity in seen:
+        return False
+    seen.add(identity)
+    return True
+
+
+def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
+    kept, skipped = [], []
+    for _, name, identity in sorted(_entry(here, name) for name in dirnames):
+        child = here / name
+        if is_skipped(child):
+            skipped.append(os.path.relpath(child))
+        elif _first_visit(identity, seen):
+            kept.append(name)
+        else:
+            skipped.append(os.path.relpath(child) + ALREADY_SCANNED)
+    return kept, skipped
+
+
+def _walk(root: Path, seen: set) -> tuple:
     if not root.is_dir():
         return [root], []
+    if not _first_visit(_identity(root)[1], seen):
+        return [], [os.path.relpath(root) + ALREADY_SCANNED]
     files, skipped = [], []
-    for dirpath, dirnames, filenames in os.walk(root):
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         here = Path(dirpath)
-        skipped.extend(os.path.relpath(here / d) for d in dirnames if is_skipped(here / d))
-        dirnames[:] = [d for d in dirnames if not is_skipped(here / d)]
+        dirnames[:], skipped_here = _subfolders(here, dirnames, seen)
+        skipped.extend(skipped_here)
         files.extend(here / name for name in filenames)
     return files, skipped
 
 
 def _walk_all(paths: list) -> tuple:
-    files, skipped = [], set()
+    files, skipped, seen = [], set(), set()
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
-        found, folders = _walk(Path(path))
+        found, folders = _walk(Path(path), seen)
         files.extend(found)
         skipped.update(folders)
     return sorted(files), sorted(skipped)
@@ -155,6 +198,10 @@ def _classes_defined_in(block, nodes: dict, visitors) -> list:
     return classes
 
 
+def _end_line(block, nodes: dict) -> int:
+    return nodes[(block.name, block.lineno, block.col_offset)].end_lineno
+
+
 def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     path = (*outer, block.name)
     if isinstance(block, visitors.Class):
@@ -163,7 +210,7 @@ def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     else:
         inner = block.closures + _classes_defined_in(block, nodes, visitors)
         name = NAME_SEPARATOR.join(path)
-        own = [Function(file, name, block.complexity, block.lineno, block.endline, name)]
+        own = [Function(file, name, block.complexity, block.lineno, _end_line(block, nodes), name)]
     return own + [fn for child in inner for fn in _flatten(child, file, path, visitors, nodes)]
 
 
@@ -200,9 +247,17 @@ COUNTING_TOOLS = {
 }
 
 
-def scan(paths: list, lang: str, runner=None) -> Scan:
+def find_sources(paths: list, lang: str) -> Sources:
     files, skipped = _walk_all(paths)
+    suffixes = languages.LANGUAGES[lang].suffixes
+    return Sources([f for f in files if f.suffix in suffixes], skipped)
+
+
+def count_functions(sources: Sources, lang: str, runner=None) -> Scan:
     language = languages.LANGUAGES[lang]
-    sources = [f for f in files if f.suffix in language.suffixes]
-    functions, analysed = COUNTING_TOOLS[language.counter](sources, language, runner)
-    return Scan(functions, analysed, skipped)
+    functions, analysed = COUNTING_TOOLS[language.counter](sources.files, language, runner)
+    return Scan(functions, analysed, sources.skipped)
+
+
+def scan(paths: list, lang: str, runner=None) -> Scan:
+    return count_functions(find_sources(paths, lang), lang, runner)

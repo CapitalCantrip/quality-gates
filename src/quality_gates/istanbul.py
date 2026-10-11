@@ -1,7 +1,7 @@
-from pathlib import Path
 from typing import TYPE_CHECKING, Optional
 
 from quality_gates.json_report import load_json
+from quality_gates.real_path import real_path
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
@@ -9,7 +9,7 @@ if TYPE_CHECKING:
 
 def load(report_path: str) -> dict:
     data = load_json(report_path, "Istanbul coverage file", "Istanbul coverage JSON")
-    return {str(Path(path).resolve()): entry for path, entry in data.items()}
+    return {real_path(path): entry for path, entry in data.items()}
 
 
 def _end_lines_starting_on(entry: dict, start: int) -> list:
@@ -56,7 +56,7 @@ def _statement_coverage(entry: dict, span: tuple) -> Optional[float]:
 
 
 def function_coverage(files: dict, filepath: str, start: int, lizard_end: int) -> Optional[float]:
-    entry = files.get(str(Path(filepath).resolve()))
+    entry = files.get(real_path(filepath))
     if entry is None:
         return None
     span = function_range(entry, start, lizard_end)

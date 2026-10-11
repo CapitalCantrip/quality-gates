@@ -1,3 +1,4 @@
+import re
 import tempfile
 import unittest
 from pathlib import Path
@@ -41,6 +42,37 @@ def section(case, text, heading, next_heading):
     after_heading = text.split(heading, 1)[1]
     case.assertIn(next_heading, after_heading, f"no heading {next_heading!r} after {heading!r}")
     return flat(after_heading.split(next_heading, 1)[0])
+
+
+SCAN_SKILLS = ("cc-python", "cc-swift", "cc-typescript", "crap")
+KEY_RULE_SKILLS = ("cc-python", "cc-typescript", "crap")
+SKIP_LIST_SENTENCE = (
+    'skips the folders listed in ADR-001\'s addenda "one complexity scan for both gates" and "skip SwiftPM\'s .build". '
+    'It follows symlinked folders by the rule in the addendum "follow symlinked folders".'
+)
+REAL_PATH_ADDENDUM = '"baseline keys use the real path (v0.9.0)"'
+CITED_BY_DATE = re.compile(r"ADR-001's 20\d\d-\d\d-\d\d addendum")
+
+
+def skill_text(name):
+    return flat((SKILLS / name / "SKILL.md").read_text(encoding="utf-8"))
+
+
+class ScanSkillsCiteAddendaByTitle(unittest.TestCase):
+    def test_each_scan_skill_names_the_skip_list_and_symlink_addenda_in_whole_sentences(self):
+        for name in SCAN_SKILLS:
+            self.assertIn(SKIP_LIST_SENTENCE, skill_text(name), name)
+
+    def test_each_skill_that_gives_baseline_keys_cites_the_real_path_addendum(self):
+        for name in KEY_RULE_SKILLS:
+            self.assertIn(REAL_PATH_ADDENDUM, skill_text(name), name)
+
+    def test_no_shipped_skill_cites_an_adr_addendum_by_its_date(self):
+        for path in SKILLS.glob("*/SKILL.md"):
+            self.assertIsNone(CITED_BY_DATE.search(flat(path.read_text(encoding="utf-8"))), path.parent.name)
+
+    def test_the_readme_cites_no_adr_addendum_by_its_date(self):
+        self.assertIsNone(CITED_BY_DATE.search(flat((ROOT / "README.md").read_text(encoding="utf-8"))))
 
 
 class SetupStandards(unittest.TestCase):

@@ -3,6 +3,8 @@ import os
 import subprocess
 from pathlib import Path
 
+from quality_gates.real_path import real_path
+
 KEY_SEPARATOR = "::"
 
 
@@ -17,7 +19,7 @@ def repo_root():
 
 
 def key(root, file, name):
-    relative = os.path.relpath(Path(file).resolve(), Path(root).resolve())
+    relative = os.path.relpath(real_path(file), real_path(root))
     return Path(relative).as_posix() + KEY_SEPARATOR + name
 
 
