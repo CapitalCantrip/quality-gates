@@ -26,6 +26,15 @@ class InCaseInsensitiveTree(unittest.TestCase):
         self.true_case = str(self.root / "shared" / "Shop" / "shop.py")
 
 
+class NoTrueCaseLookupTest(InCaseInsensitiveTree):
+    def test_a_platform_with_no_true_case_lookup_keeps_the_link_spelling(self):
+        with patch("quality_gates.real_path.GET_PATH", None):
+            self.assertEqual(
+                real_path(str(self.root / "pb" / "x" / "shop.py")),
+                str(self.root / "shared" / "shop" / "shop.py"),
+            )
+
+
 class TrueCasePathTest(InCaseInsensitiveTree):
     def test_a_link_spelled_in_the_wrong_case_resolves_to_the_case_on_disk(self):
         self.assertEqual(real_path(str(self.root / "pb" / "x" / "shop.py")), self.true_case)
