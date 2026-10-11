@@ -278,10 +278,13 @@ every machine and in CI. Python names are dotted from the outside in:
 `path::Class.method`, `path::outer.inner`, `path::K.Inner.deep`. lizard
 (Swift, TypeScript) names a method without its class and an unnamed callback
 `(anonymous)`. In Swift a failable `init?` or `init!` is named `init`, and
-`private(set)`, `fileprivate(set)`, `internal(set)` and `public(set)` written
-on one line make no `set` Function: the scan works around two lizard bugs until
-a lizard release fixes them (ADR-001 addendum "a workaround for two lizard
-Swift bugs (v0.8.3)", which lists what is not covered). In every language a
+`private(set)`, `fileprivate(set)`, `internal(set)`, `public(set)` and
+`package(set)`, with a comment or line break before or inside `(set)`, make no
+`set` Function, and neither does a `(set)` after any word but `init`: the scan
+works around two lizard bugs until a lizard release fixes them (ADR-001 addenda
+"a workaround for two lizard Swift bugs (v0.8.3)" and "the `(set)` rule no
+longer depends on the word before it, except `init` (v0.9.1)", which list what
+is not covered). In every language a
 name that repeats in a file gets its order as a suffix: `path::(anonymous)#2`.
 
 - A function over the threshold that is not in the baseline fails. A renamed or

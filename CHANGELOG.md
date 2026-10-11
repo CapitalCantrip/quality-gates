@@ -1,5 +1,41 @@
 # Changelog
 
+## 0.9.1 — 2026-10-12
+
+The Swift scan's `(set)` workaround no longer depends on the word before `(set)`
+(#89; ADR-001 addendum "the `(set)` rule no longer depends on the word before
+it, except `init` (v0.9.1)"). No threshold changes.
+
+- `package(set)`, a comment between a modifier and `(set)`
+  (`private /* why */ (set)`), and a line break inside the parens
+  (`private(\n set)`) no longer create a Function named `set` that takes the
+  next declaration's body. That declaration, such as `init() {}`, is scored
+  under its own name.
+- A local or parameter named `set` passed to a call, `foo(set)`, no longer
+  opens a `set` Function that takes `{...}` and moves the enclosing function's
+  `if`s into it; the function is scored whole, as lizard master does.
+- Line numbers after a wrapped `private(\n set)` are unchanged: only the three
+  tokens `(`, `set`, `)` are dropped, and the newlines stay. Function names,
+  start and end lines and CCN match lizard master 9a63062 on these cases.
+- `.init(set)` and `self.init(set)` keep their tokens, as before.
+- Not covered: a bare `set` word that is not inside `(set)`, such as a local
+  named `set` in `max(set, 1)` or `set.count`, or a label `g(set: 1)`; it still
+  makes a `set` Function that takes the enclosing function's CC. Also
+  `Foo.init(set)` inside a function body, which opens an `init` Function that
+  takes the function's `if`s, as in lizard master. Both are rare and wait for
+  #71.
+
+**When you bump the pin:** run `qg-skills`. These Swift projects see rows move
+in `crap --lang swift`: one that wrote `package(set)`, one that put a comment or
+line break before or inside `(set)`, and one that passes a local or parameter
+named `set` to a call (`foo(set)`, or `foo(\n set\n)`). A `set` row goes away
+and the code after it is scored under its own name, as lizard master does. If
+your crap baseline holds such a `set` entry, or fails after the bump, delete
+`crap-baseline.json` and re-record it with `crap --lang swift <source dirs>
+<coverage flag> --baseline crap-baseline.json --update`. Explain or fix every
+row that shows `?` in the coverage column before you commit it. Python and
+TypeScript scores are unchanged.
+
 ## 0.9.0 — 2026-10-12
 
 What the scan covers (#54, #58, #51, #59; ADR-001 addenda "skip SwiftPM's

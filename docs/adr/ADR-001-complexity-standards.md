@@ -468,7 +468,8 @@ and coverage matching is unchanged. Source files on disk are never rewritten.
 
 Not covered: `package(set)`, and a comment or line break between the modifier
 and `(set)`. Each still makes a `set` Function that swallows the next
-declaration; both are filed as #89.
+declaration; both are filed as #89 and fixed in v0.9.1 (addendum "the `(set)`
+rule no longer depends on the word before it, except `init` (v0.9.1)").
 
 **A failing lizard stops the gate.** lizard's CSV output counts no warnings, so
 the scan's lizard run exits 0 however many functions exceed lizard's own warning
@@ -746,3 +747,53 @@ carried link-path keys.
   path would stay a possible new trigger.
 - **Releasing #54, #51 and #59 without #58.** It is the fastest route, but a
   symlinked source folder would stay unscanned.
+
+## Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)
+
+The limits and the counting tool are unchanged. The v0.8.3 workaround dropped
+`(set)` only straight after `private`, `fileprivate`, `internal` or `public`.
+The builder decided (2026-10-11, #89) to widen it now rather than wait for a
+lizard release (#71) or copy the ~160-line reader rewrite on lizard's master
+(commits 2d38691 and 4af401c).
+
+**The rule.** In the token stream, when a `)` arrives and the last three
+significant tokens are `(`, `set`, `)`, those three are dropped, whatever word
+comes before them, except `init`. Whitespace, newline and comment (`//`, `/*`)
+tokens are skipped when looking for the significant ones. Only the three
+significant tokens are deleted: every newline and comment token stays, so no
+later line number moves. This covers `package(set)`, a comment between the
+modifier and `(set)`, and a line break inside the parens (`private(\n set)`). It
+also drops a `(set)` that follows any other word, such as `foo(set)` with a
+local or parameter named `set`, which opened the same fake `set` Function.
+
+**The `init` exception.** `.init(set)` and `self.init(set)` keep their tokens:
+dropping them made the next function vanish, or took a branch out of the
+convenience initialiser. lizard master reads them the same way.
+
+**Checked against lizard master.** lizard master 9a63062 and the workaround
+give the same function names, start and end lines and CCN on `package(set) var
+x = 0` then `init() {}`, on `private /* why */ (set) var z`, on `private(\n
+set)`, on a function with one `if` after a wrapped `private(\n set)` (lines
+5-7, CCN 2), on `let x: Foo = .init(set)` at type scope, on `self.init(set)`
+inside a convenience initialiser, and on `let t = foo(set)` inside a function
+with an `if`.
+
+**Not covered until #71.**
+- A bare `set` word that is not inside `(set)`: a local or parameter named `set`
+  used as `max(set, 1)` or `set.count`, or a label as in `g(set: 1)`. Each still
+  opens a `set` Function, which takes the `{...}` after it and moves the
+  enclosing function's CC into that row. A property declared `static let set = 1`
+  and a pattern `case .a(let set)` do not.
+- `Foo.init(set)` inside a function body. It opens an `init` Function that takes
+  the enclosing function's `if`s, in the workaround and in lizard master alike.
+
+Fixing these needs lizard's deeper reader rewrite. They are rare, and removing
+the workaround at the lizard floor (#71) ends the first.
+
+**Effect on existing scores.** A Swift project sees rows move if it wrote
+`package(set)`, put a comment or line break before or inside `(set)`, or passes
+a local or parameter named `set` to a call (`foo(set)`, or `foo(\n set\n)`). A
+`set` row disappears and the code after it is scored under its own name, as
+lizard master does. A crap baseline that holds such a `set` entry, or lacks the
+row for a declaration that was swallowed, is stale and is re-recorded. Python
+and TypeScript scans are unchanged.
