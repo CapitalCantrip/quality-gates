@@ -94,8 +94,8 @@ Rust (`Cargo.toml`), TypeScript or JavaScript (`package.json`, or `.ts`, `.tsx`,
   project on `node --test` cannot yet (it writes lcov), so report CRAP as not
   done with that reason.
 
-Done when every detected language's gates are configured, each CRAP gate this
-step says to report as not done is reported not done with its reason, and
+Done when every detected language's gates are configured, each CRAP gate step
+2 or 3 says to report as not done is reported not done with its reason, and
 `qg-skills` has run.
 
 ## 3. Baselines
@@ -128,15 +128,16 @@ from the repo root and commit the file it writes.
   `cc-check --lang typescript <source dirs> --baseline cc-baseline.json --update`;
   collect coverage as in step 2 and run
   `crap --lang typescript <source dirs> --istanbul-json coverage/coverage-final.json --baseline crap-baseline.json --update`.
-  Add `coverage/` to `.gitignore`.
+  Add `coverage/` to `.gitignore`. A project on `node --test` gets no CRAP
+  baseline: report CRAP as not done, as step 2 says.
 - **Rust:** run `cargo clippy --all-targets`. Each function it fails gets
   `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]`;
   that attribute is its baseline entry.
 
 Report each baseline with its count: "12 functions over the complexity limit,
-recorded; new ones will fail". Done when each gate passes on today's tree, or,
-where step 2 or 3 says to report CRAP as not done, it is reported not done with
-its reason.
+recorded; new ones will fail". Done when each gate passes on today's tree,
+except a CRAP gate step 2 or 3 says to report as not done, which is reported
+not done with its reason.
 
 On an upgrade, a baseline that fails after the bump is re-recorded as the
 release's CHANGELOG entry says under *When you bump the pin*.
@@ -191,8 +192,8 @@ Make CI enforce what the hooks enforce, plus the slow gates.
 - If the project has no CI workflow, add `.github/workflows/tests.yml` that
   installs the project, runs the tests and the steps above, on pull requests
   and pushes to the default branch. A SwiftPM package with no test target has
-  no tests to run (`swift test` exits 1 there), so its workflow runs SwiftLint
-  only.
+  no tests to run (`swift test` exits 1 there), so the Swift part of its
+  workflow runs SwiftLint only.
 
 Done when the test suite, where the project has one, passes locally with the
 new tests, and every gate the hooks run also runs in CI.
