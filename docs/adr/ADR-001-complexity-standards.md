@@ -766,9 +766,12 @@ modifier and `(set)`, and a line break inside the parens (`private(\n set)`). It
 also drops a `(set)` that follows any other word, such as `foo(set)` with a
 local or parameter named `set`, which opened the same fake `set` Function.
 
-**The `init` exception.** `.init(set)` and `self.init(set)` keep their tokens:
-dropping them made the next function vanish, or took a branch out of the
-convenience initialiser. lizard master reads them the same way.
+**The `init` exception.** `.init(set)`, `self.init(set)` and `super.init(set)`
+keep their tokens, which is how lizard master reads them. Master takes such a
+call for an initialiser declaration, so the function after it, or the rest of
+the convenience initialiser, scores as part of an `init` row. Dropping the
+tokens instead would make results differ from master here, and master is the
+reference.
 
 **Checked against lizard master.** lizard master 9a63062 and the workaround
 give the same function names, start and end lines and CCN on `package(set) var
@@ -778,17 +781,20 @@ set)`, on a function with one `if` after a wrapped `private(\n set)` (lines
 inside a convenience initialiser, and on `let t = foo(set)` inside a function
 with an `if`.
 
-**Not covered until #71.**
-- A bare `set` word that is not inside `(set)`: a local or parameter named `set`
-  used as `max(set, 1)` or `set.count`, or a label as in `g(set: 1)`. Each still
-  opens a `set` Function, which takes the `{...}` after it and moves the
-  enclosing function's CC into that row. A property declared `static let set = 1`
-  and a pattern `case .a(let set)` do not.
-- `Foo.init(set)` inside a function body. It opens an `init` Function that takes
-  the enclosing function's `if`s, in the workaround and in lizard master alike.
+**Not covered.**
+- A bare `set` word that is not inside `(set)`: a local, parameter or property
+  named `set` used as `max(set, 1)` or `set.count`, or a label as in
+  `g(set: 1)`. Each still opens a `set` Function, which takes the `{...}` after
+  it and moves the enclosing function's CC into that row. A property declared
+  `static let set = 1` opens none until it is used this way. lizard master does
+  not open the row, so this gap ends when the lizard floor reaches a release
+  with its fix (#71).
+- `.init(set)`, `self.init(set)` and `super.init(set)`: the next function scores
+  as part of an `init` row, in the workaround and in lizard master alike. So does
+  `Foo.init(set)` inside a function body, where the row takes the enclosing
+  function's `if`s.
 
-Fixing these needs lizard's deeper reader rewrite. They are rare, and removing
-the workaround at the lizard floor (#71) ends the first.
+Fixing the first needs lizard's deeper reader rewrite. Both are rare.
 
 **Effect on existing scores.** A Swift project sees rows move if it wrote
 `package(set)`, put a comment or line break before or inside `(set)`, or passes

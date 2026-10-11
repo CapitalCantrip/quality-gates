@@ -17,13 +17,14 @@ it, except `init` (v0.9.1)"). No threshold changes.
 - Line numbers after a wrapped `private(\n set)` are unchanged: only the three
   tokens `(`, `set`, `)` are dropped, and the newlines stay. Function names,
   start and end lines and CCN match lizard master 9a63062 on these cases.
-- `.init(set)` and `self.init(set)` keep their tokens, as before.
-- Not covered: a bare `set` word that is not inside `(set)`, such as a local
-  named `set` in `max(set, 1)` or `set.count`, or a label `g(set: 1)`; it still
-  makes a `set` Function that takes the enclosing function's CC. Also
-  `Foo.init(set)` inside a function body, which opens an `init` Function that
-  takes the function's `if`s, as in lizard master. Both are rare and wait for
-  #71.
+- `.init(set)`, `self.init(set)` and `super.init(set)` keep their tokens, as
+  before, and match lizard master.
+- Not covered: a bare `set` word that is not inside `(set)`, such as a local,
+  parameter or property named `set` in `max(set, 1)` or `set.count`, or a label
+  `g(set: 1)`; it still makes a `set` Function that takes the enclosing
+  function's CC. It waits for #71. Also `.init(set)`, `self.init(set)`,
+  `super.init(set)` and `Foo.init(set)` in a function body, where the next
+  function scores as part of an `init` row; lizard master does the same.
 
 **When you bump the pin:** run `qg-skills`. These Swift projects see rows move
 in `crap --lang swift`: one that wrote `package(set)`, one that put a comment or

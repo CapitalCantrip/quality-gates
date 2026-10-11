@@ -109,6 +109,42 @@ struct S {
 }
 """
 
+SUPER_INIT_WITH_SET_ARGUMENT = """\
+class A {
+    init(_ v: Int) {}
+}
+class B: A {
+    init(set: Int, flag: Bool) {
+        if flag { print(1) }
+        super.init(set)
+    }
+    func g(_ a: Int) -> Int {
+        if a > 1 { return 1 }
+        return 0
+    }
+}
+"""
+
+PROPERTY_NAMED_SET_USED_AS_ARGUMENT = """\
+struct S {
+    static let set = 1
+    let t = max(set, 2)
+    init?(v: Int) {
+        if v > 1 { return nil }
+    }
+    func g() {}
+}
+"""
+
+CALL_WITH_SET_AT_TYPE_SCOPE = """\
+struct S {
+    let t = f(set)
+    init?(v: Int) {
+        if v > 1 { return nil }
+    }
+}
+"""
+
 
 def lizard_rows(text: str) -> list:
     with tempfile.TemporaryDirectory() as folder:
@@ -159,6 +195,18 @@ class LizardSwiftWorkaroundTest(unittest.TestCase):
             lizard_rows(INIT_CALL_IN_BODY),
             [("init", 2, 3, 4), ("g", 1, 2, 6), ("h", 1, 7, 7)],
         )
+
+    def test_set_passed_to_super_init_matches_lizard_master_including_its_known_gap(self):
+        self.assertEqual(
+            lizard_rows(SUPER_INIT_WITH_SET_ARGUMENT),
+            [("init", 1, 2, 2), ("init", 2, 7, 12), ("init", 2, 5, 13)],
+        )
+
+    def test_a_property_named_set_used_as_an_argument_still_opens_a_set_function_that_lizard_master_does_not(self):
+        self.assertEqual(lizard_rows(PROPERTY_NAMED_SET_USED_AS_ARGUMENT), [("set", 2, 3, 6), ("g", 1, 7, 7)])
+
+    def test_set_passed_to_a_call_at_type_scope_leaves_the_next_failable_init_scored_as_lizard_master_does(self):
+        self.assertEqual(lizard_rows(CALL_WITH_SET_AT_TYPE_SCOPE), [("init", 2, 3, 5)])
 
 
 if __name__ == "__main__":
