@@ -574,8 +574,11 @@ list, and never walks the same real folder twice in one scan:
   was not scanned.
 - **Which visit wins is fixed.** Among the folders under one parent, real
   folders are entered before links, then by name; the walk is depth first in
-  that order. The first visit is scanned, so the same checkout always yields the
-  same file names. The order holds among siblings only: a link in an earlier
+  that order. The first visit is scanned, so the same arguments on the same checkout
+  always yield the same file names. The order holds among siblings only, and
+  scanned paths are entered in the order given, so a different argument order can
+  change which spelling a file shows on screen; its baseline key does not change
+  (see the addendum "baseline keys use the real path"). A link in an earlier
   subtree (`src/A/link`) reaches a real folder in a later one (`src/Z/real`)
   first, so the files are named by the link path and the real folder is the one
   marked already scanned.
@@ -684,8 +687,8 @@ statement there.
   closures and nested classes.** It repeats in a second place what the AST
   already states, and needs a rule for each kind of statement that can close a
   body.
-- **Taking the start line from the AST too.** The brief keeps start lines as
-  they are, so baseline keys and the `#N` labels do not move.
+- **Taking the start line from the AST too.** Start lines stay radon's, so
+  baseline keys and the `#N` labels do not move.
 
 ## Addendum 2026-10-12: baseline keys use the real path (v0.9.0)
 
@@ -702,8 +705,8 @@ share one cause, rebuilding a key from typed path text:
   `crap src/app src` keyed the files `src/app/x.py` and `crap src` keyed them
   `src/real/x.py`.
 
-The builder chose, on #72 (2026-10-11), to key by the real path as v0.8.2 and
-earlier did. This overrides the triage default of #58.
+The builder chose, on #72 (2026-10-11), to key by the real path as every release
+before 0.9.0 did. This overrides the triage default of #58.
 
 **The rule.** A baseline key is the file's real path relative to the real path of
 the repo root, followed by `::` and the function name: symlinks are resolved and
@@ -712,14 +715,22 @@ folder `src/Shop` links to, not by `src`. One file gets one key whatever spellin
 or argument order reached it. File names on screen, in the table and in `--json`,
 keep the link path as scanned.
 
+**The real path has the case stored on disk.** On a case-insensitive volume a
+link keeps its own spelling when resolved, so `pa/x -> ../shared/Shop` and
+`pb/x -> ../shared/shop` would key one file two ways, and one run would miss the
+coverage the other found. On macOS the real path is therefore read back from the
+filesystem (`F_GETPATH`), which gives `shared/Shop`; elsewhere, or when that read
+fails, it is the resolved path. The key and every coverage reader (coverage.json,
+Istanbul, llvm-cov, xccov) use the same function.
+
 **A link to a folder outside the repo** gives a key that starts with `../` and
 depends on where that folder sits relative to the repo on each machine. A
 checkout whose shared folder lies elsewhere sees those functions as new and their
 old rows as paid. This is accepted: such links are rare, and the alternative
 (below) fails more often.
 
-**Effect on existing scores.** A file that no link reaches keeps the key it had in
-v0.8.2 and earlier, and so does a scanned path that is itself a link. Functions
+**Effect on existing scores.** A file that no link reaches keeps the key it had
+before 0.9.0, and so does a scanned path that is itself a link. Functions
 behind a symlinked folder came into the scan with v0.9.0 and are recorded under
 their real path when the baseline is re-recorded. No release carried link-path
 keys.

@@ -20,8 +20,7 @@ reads the scan's files (v0.9.0)", "Python end lines from the AST (v0.9.0)" and
   and are not lost. Two links that spell one folder in different case on a
   case-insensitive volume count as one folder, since folders are told apart by
   device and inode, not by path text. File names in the report keep the link path
-  as scanned, but a baseline key is the file's real path, as in v0.8.2 and
-  earlier: a file behind `src/Shop -> ../shared/Shop` is keyed
+  as scanned, but a baseline key is the file's real path, as before 0.9.0: a file behind `src/Shop -> ../shared/Shop` is keyed
   `shared/Shop/shop.py::f`, and one file gets one key whatever spelling or
   argument order reached it (`crap src/app src` and `crap src` agree). A link to
   a folder outside the repo gives a `../` key that depends on where that folder
@@ -47,7 +46,12 @@ reads the scan's files (v0.9.0)", "Python end lines from the AST (v0.9.0)" and
   before the nested definition and `crap` read coverage from the `def` line
   alone, which always runs. Python `crap` scores can rise for these functions
   and a new failure can appear. Start lines, CC and `cc-check` are unchanged.
-- Internal: `complexity_scan.find_sources` walks and `count` counts; `scan` does
+- On a case-insensitive macOS volume, the real path takes the case stored on
+  disk. `pa/x -> ../shared/Shop` and `pb/x -> ../shared/shop` now key one file
+  one way whatever the argument order, and the coverage.json and Istanbul readers
+  find its figures through either link, as the llvm-cov and xccov readers
+  already did. Elsewhere the real path is the resolved path.
+- Internal: `complexity_scan.find_sources` walks and `count_functions` counts; `scan` does
   both, and `Scan.sources` is gone. Folders in the walk are compared by device and
   inode.
 
@@ -55,10 +59,12 @@ reads the scan's files (v0.9.0)", "Python end lines from the AST (v0.9.0)" and
 changed, once: delete the baseline file, then run the gate with `--update`.
 
 - `cc-check` baseline (`cc-check <dirs> --baseline cc-baseline.json --update`),
-  for Python and TypeScript, if you scan a SwiftPM package root or a folder that
-  contains a symlinked source folder: functions under `.build` drop out, and
-  functions behind a link come in under their real path. Swift is not a `cc-check` language, so a
-  SwiftPM-only project has no `cc-check` baseline to re-record.
+  for Python and TypeScript, if you scan a SwiftPM package root, a folder that
+  contains a symlinked source folder, or overlapping folders (`src src/pkg`):
+  functions under `.build` drop out, functions behind a link come in under their
+  real path, and an inner folder's functions are listed once, where they were
+  listed twice with the second numbered `#2`. Swift is not a `cc-check`
+  language, so a SwiftPM-only project has no `cc-check` baseline to re-record.
 - `crap` baseline (`crap --lang <lang> <dirs> <coverage flag> --baseline
   crap-baseline.json --update`), for every language, under the same conditions
   (a SwiftPM package root, a symlinked source folder, or overlapping folders).
