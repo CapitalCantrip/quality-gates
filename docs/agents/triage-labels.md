@@ -13,3 +13,9 @@ The skills speak in terms of five canonical triage roles. This file maps those r
 When a skill mentions a role (e.g. "apply the AFK-ready triage label"), use the corresponding label string from this table.
 
 Edit the right-hand column to match whatever vocabulary you actually use.
+
+## Before `ready-for-agent`
+
+The brief has a Done-when, and every command in it, and every claim the brief
+makes about how the code behaves, has been run once against `main`, with the
+output pasted in the brief.
