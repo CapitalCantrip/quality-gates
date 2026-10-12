@@ -419,6 +419,8 @@ A change that alters no behaviour, such as a README fix, is still released.
 
 At every release, check terryyin/lizard#516; if a release fixes it, raise the
 lizard floor and remove the workaround (#71).
+The `lizard` workflow also checks PyPI every Monday and opens an issue when
+a newer lizard than the last one looked at appears.
 
 ## Keeping the copied skills current
 
