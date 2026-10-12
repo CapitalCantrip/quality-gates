@@ -2,7 +2,7 @@
 
 Automated guardrails for software built with AI coding agents, for people who
 can't review the code themselves. Checks fail the commit or the build when the
-agent's code gets too complex, goes untested or adds comments, so problems are
+agent's code gets too complex, goes untested or adds comments, so problems get
 caught without anyone reading a diff. Claude Code skills set a project up and
 keep the agent to a working method that fits the size of the job. Each project
 pins a version, so nothing changes until you update, and a fix reaches every
@@ -23,7 +23,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.0"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.1"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -420,7 +420,7 @@ A change that alters no behaviour, such as a README fix, is still released.
 At every release, check terryyin/lizard#516; if a release fixes it, raise the
 lizard floor and remove the workaround (#71).
 The `lizard` workflow also checks PyPI every Monday and opens an issue when
-a newer lizard than the last one looked at appears.
+it finds a lizard release newer than the last one checked.
 
 ## Keeping the copied skills current
 
@@ -448,7 +448,7 @@ uv venv && uv pip install -e .
 .venv/bin/comment-debt
 ```
 
-This repo gates itself, and carries no comment debt: `comment-debt.json` is
+This repo runs its own gates and carries no comment debt: `comment-debt.json` is
 `{}`.
 
 ## Licence

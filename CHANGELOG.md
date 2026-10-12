@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.10.1 — 2026-10-12
+
+No score, threshold or scanned file changes.
+
+- A `lizard` workflow checks PyPI every Monday and opens an issue when a lizard
+  release newer than 1.24.1 appears, so the wait on terryyin/lizard#516 (#71,
+  #89) no longer depends on someone remembering at release time.
+- The README prose had a light pass for readability. No rule, number, command or
+  link changed.
+
+**When you bump the pin:** run `qg-skills`. The skills' install lines now name
+`v0.10.1`. Nothing else.
+
 ## 0.10.0 — 2026-10-12
 
 The rules the skills cite now ship inside the skills, as generated reference
