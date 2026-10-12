@@ -549,6 +549,8 @@ missing entries and is re-recorded. Python and TypeScript scans are unchanged.
 
 Amends: [Addendum 2026-10-10: SwiftPM coverage (v0.8.0)](#addendum-2026-10-10-swiftpm-coverage-v080)
 
+Amended by: [Addendum 2026-10-12: a closure outside any function is not scored (v0.10.1)](#addendum-2026-10-12-a-closure-outside-any-function-is-not-scored-v0101)
+
 `/cc-swift` carries a review rule. In Swift, a new or changed closure (including
 a trailing closure or a nested `func`) that contains a branch has a test that
 runs it. It is a judgement call in review, not a gate. The reason differs by
@@ -865,6 +867,18 @@ a local or parameter named `set` to a call (`foo(set)`, or `foo(\n set\n)`). A
 lizard master does. A crap baseline that holds such a `set` entry, or lacks the
 row for a declaration that was swallowed, is stale and is re-recorded. Python
 and TypeScript scans are unchanged.
+
+## Addendum 2026-10-12: a closure outside any function is not scored (v0.10.1)
+
+Amends: [Addendum 2026-10-11: a review rule covers the closure gap (v0.8.4)](#addendum-2026-10-11-a-review-rule-covers-the-closure-gap-v084)
+
+The closure bullet above assumes a function holds the closure. A closure that
+no function holds, such as a file-scope closure, a stored-property closure or a
+`lazy var` closure, is not scored by any gate: `crap --lang swift` reports "no
+functions analysed" for it. The review rule covers it all the same, so a
+consumer loses nothing today. No threshold, counting tool or gate scope
+changes.
+
 
 ## Current rule, restated 2026-10-12: the complexity ceiling
 

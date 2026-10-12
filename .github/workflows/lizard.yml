@@ -1,0 +1,31 @@
+name: lizard
+
+on:
+  schedule:
+    - cron: "0 9 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      LAST_SEEN: "1.24.1"
+      TITLE: "lizard has a new release: check whether it fixes #516"
+    steps:
+      - name: Compare PyPI's latest lizard with the last one we looked at
+        run: |
+          latest=$(curl -fsS https://pypi.org/pypi/lizard/json | python3 -c 'import json,sys; print(json.load(sys.stdin)["info"]["version"])')
+          echo "latest=$latest last_seen=$LAST_SEEN"
+          if [ "$latest" = "$LAST_SEEN" ]; then exit 0; fi
+          open=$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --search "in:title \"$TITLE\"" --json number --jq length)
+          if [ "$open" -gt 0 ]; then
+            echo "An issue for this is already open."
+            exit 0
+          fi
+          printf 'PyPI has lizard %s; the last release looked at was %s.\n\nCheck whether terryyin/lizard#516 (failable `init?`, `private(set)`) is fixed in it. If yes, follow #71. Either way, set `LAST_SEEN` in `.github/workflows/lizard.yml` to %s and close this issue.\n' "$latest" "$LAST_SEEN" "$latest" > body.md
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --label needs-triage --body-file body.md
