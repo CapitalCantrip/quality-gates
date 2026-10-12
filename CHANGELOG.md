@@ -7,11 +7,17 @@ No score, threshold or scanned file changes.
 - A `lizard` workflow checks PyPI every Monday and opens an issue when a lizard
   release newer than 1.24.1 appears, so the wait on terryyin/lizard#516 (#71,
   #89) no longer depends on someone remembering at release time.
+- `/setup-standards` now reports CRAP as not done for a project in any language
+  with no tests, with the reason and what it takes, instead of getting stuck at
+  the CRAP step (#94; ADR-002 addendum "a project with no tests (v0.10.1)").
+- The GLOSSARY and `/cc-swift` say that a Swift closure no function holds (file
+  scope, a stored property, a `lazy var`) is not scored at all (#95; ADR-001
+  addendum "a closure outside any function is not scored (v0.10.1)").
 - The README prose had a light pass for readability. No rule, number, command or
   link changed.
 
 **When you bump the pin:** run `qg-skills`. The skills' install lines now name
-`v0.10.1`. Nothing else.
+`v0.10.1`, and `/setup-standards` and `/cc-swift` have new text. Nothing else.
 
 ## 0.10.0 — 2026-10-12
 

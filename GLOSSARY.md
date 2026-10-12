@@ -51,7 +51,9 @@ _Avoid_: linter, check, rule
 What a complexity gate scores: a function, a method, a closure, or a method of
 a nested class, each scored on its own. A class is never scored. In Swift a
 closure is the exception: lizard counts its branches in the function that holds
-it, and its untested lines do not lower that function's coverage (#53).
+it, and its untested lines do not lower that function's coverage (#53). A Swift
+closure that no function holds (file scope, a stored property, a `lazy var`) is
+not scored at all.
 _Avoid_: block, unit
 
 **Asking rule**:

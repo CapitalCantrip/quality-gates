@@ -134,6 +134,11 @@ from the repo root and commit the file it writes.
   `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]`;
   that attribute is its baseline entry.
 
+A project in any language with no tests has no coverage for `crap` to read, so
+CRAP is not set up for it. Report CRAP as **not done**, with the reason (no
+tests, so no coverage) and what it takes (write tests, then rerun
+`/setup-standards`). Its other gates are set up as usual.
+
 Report each baseline with its count: "12 functions over the complexity limit,
 recorded; new ones will fail". Done when each gate passes on today's tree,
 except a CRAP gate step 2 or 3 says to report as not done, which is reported
@@ -194,6 +199,9 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   and pushes to the default branch. A SwiftPM package with no test target has
   no tests to run (`swift test` exits 1 there), so the Swift part of its
   workflow runs SwiftLint only.
+
+A project with no tests gets no CRAP step: report CRAP as **not done**, as
+step 3 says.
 
 Done when the test suite, where the project has one, passes locally with the
 new tests, and every gate the hooks run also runs in CI.

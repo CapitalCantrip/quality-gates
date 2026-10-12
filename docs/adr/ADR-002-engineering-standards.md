@@ -305,6 +305,8 @@ worked out and matched.
 
 Amends: [Addendum 2026-10-10: a CRAP gate for SwiftPM packages (#6)](#addendum-2026-10-10-a-crap-gate-for-swiftpm-packages-6)
 
+Amended by: [Addendum 2026-10-12: a project with no tests (v0.10.1)](#addendum-2026-10-12-a-project-with-no-tests-v0101)
+
 The addendum above holds for a SwiftPM package with a test target. A package
 with no test target has no coverage to measure: `swift test
 --enable-code-coverage` reports no tests found and `crap` exits 2. For such a
@@ -322,6 +324,17 @@ now reads: the home is the ADR or the gate's `--help`; a skill links the
 reference file `qg-references` generates from the tagged ADR section, rather
 than pointing at an ADR file a consumer does not have. The other lines of the
 checklist are unchanged.
+
+## Addendum 2026-10-12: a project with no tests (v0.10.1)
+
+Amends: [Addendum 2026-10-11: a SwiftPM package with no test target (v0.8.4)](#addendum-2026-10-11-a-swiftpm-package-with-no-test-target-v084)
+
+The rule above is not only Swift's. A project in any language with no tests has
+no coverage for `crap` to read, so `/setup-standards` sets up no CRAP baseline
+or CI step for it and reports CRAP as not done, with the reason (no tests, so
+no coverage) and what it takes: write tests, then rerun the skill. Its other
+gates are set up as usual. No threshold, counting tool or gate scope changes.
+
 
 ## Current rule, restated 2026-10-12: the three layers
 
