@@ -44,7 +44,7 @@ functions above the complexity threshold.
    ```
 3. When a refactor lowers a baselined score, the check fails until you run `--update` and commit the lower baseline. `--update` never records a new or worse function: fix those instead.
 
-Baseline keys follow the [baseline ratchet](references/baseline-ratchet.md) and the [baseline key rule](references/baseline-keys.md): a file behind a symlinked folder is keyed by its real path. Functions are named by the [function naming rule](references/function-names.md), and a name that repeats in a file gets its order as a suffix by the [repeated-names rule](references/repeated-names.md). A renamed or moved function counts as new.
+Baseline keys follow the [baseline ratchet](references/baseline-ratchet.md) and the [baseline key rule](references/baseline-keys.md): a file behind a symlinked folder is keyed by its real path. Functions are named by the [function naming rule](references/function-names.md), and a name that repeats in a file gets its order as a suffix by the [repeated-names rule](references/repeated-names.md).
 
 ## Thresholds
 
@@ -67,10 +67,4 @@ radon ships with quality-gates.
 
 ## Installing the commands
 
-`cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
-
-```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.1"
-# or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.1"
-```
+`cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing, install with the install line in `/setup-standards`.

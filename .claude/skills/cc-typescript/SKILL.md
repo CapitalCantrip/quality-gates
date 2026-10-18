@@ -49,8 +49,4 @@ lizard ships with quality-gates. No Node packages are needed for CC.
 
 ## Installing the commands
 
-`cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
-
-```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.1"
-```
+`cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing, install with the install line in `/setup-standards`.

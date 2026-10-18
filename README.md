@@ -335,7 +335,7 @@ with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 | `/cc-typescript` | ours | Runs `cc-check --lang typescript` at 8 and proposes refactors |
 | `/cc-swift` | ours | Runs SwiftLint and lizard and proposes refactors |
 | `/cc-rust` | ours | Runs `cargo clippy`; `setup` scaffolds `clippy.toml` and deny attributes |
-| `/crap` | ours | Runs `crap` (Python, Swift, TypeScript) or `cargo clippy` (Rust) and says whether to add tests or reduce CC |
+| `/crap` | ours | Runs `crap` (Python, Swift, TypeScript) and says whether to add tests or reduce CC |
 | `/improve-codebase-architecture` | Pocock | Finds code that resists change and proposes how to reshape it |
 
 **Used by the steps above, or beside them**
