@@ -30,7 +30,7 @@ Swift source files and reports functions above the complexity threshold.
    ```
    With tests, swap `--no-coverage` for coverage so the CRAP column is a gate: `--xcresult <path>` for an Xcode project's `.xcresult` bundle, or, in a SwiftPM package, run `swift test --enable-code-coverage` and pass `--llvm-cov-json "$(swift test --show-codecov-path)"`; for either, measure coverage in the checkout where `crap` runs, since a report file counts only at the exact path `crap` scans
 4. Report SwiftLint warnings (CC > 6) and errors (CC > 8). With `--no-coverage`, lizard's CRAP column is a worst-case ranking, not a gate: every function at CC 3 or above "fails" it
-   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: [the lizard Swift workaround](references/swift-lizard-workaround.md).
+   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: [how lizard reads Swift](references/swift-reading.md).
 5. For each violation propose: extract helper functions, break up long `switch` bodies, split large `body` computed properties into `@ViewBuilder` helpers
 
 ## Thresholds
@@ -79,7 +79,7 @@ xcode-select --install          # xcrun xccov for --xcresult coverage (optional)
 `cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.1"
+uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.0"
 # or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.1"
+pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.0"
 ```

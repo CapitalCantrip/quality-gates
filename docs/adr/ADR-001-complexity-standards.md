@@ -112,7 +112,7 @@ repo with existing debt can enforce them in CI without first paying it all off.
 
 Amends: [Decision](#decision)
 
-Amended by: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-10: functions that share a start line (v0.7.3)](#addendum-2026-10-10-functions-that-share-a-start-line-v073), [Addendum 2026-10-10: the suffix list (v0.7.4)](#addendum-2026-10-10-the-suffix-list-v074), [Current rule, restated 2026-10-12: the complexity ceiling](#current-rule-restated-2026-10-12-the-complexity-ceiling), [Current rule, restated 2026-10-12: TypeScript and JavaScript counting](#current-rule-restated-2026-10-12-typescript-and-javascript-counting), [Current rule, restated 2026-10-12: TypeScript's known miscount](#current-rule-restated-2026-10-12-typescripts-known-miscount)
+Amended by: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-10: functions that share a start line (v0.7.3)](#addendum-2026-10-10-functions-that-share-a-start-line-v073), [Addendum 2026-10-10: the suffix list (v0.7.4)](#addendum-2026-10-10-the-suffix-list-v074), [Current rule, restated 2026-10-12: the complexity ceiling](#current-rule-restated-2026-10-12-the-complexity-ceiling), [Current rule, restated 2026-10-12: TypeScript and JavaScript counting](#current-rule-restated-2026-10-12-typescript-and-javascript-counting), [Current rule, restated 2026-10-12: TypeScript's known miscount](#current-rule-restated-2026-10-12-typescripts-known-miscount), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-22: TypeScript and JavaScript counting](#current-rule-restated-2026-10-22-typescript-and-javascript-counting)
 
 The standards above extend to `.ts`, `.tsx`, `.js`, `.jsx`, `.cjs` and `.mjs`
 (`.cjs` and `.mjs` named by the 2026-10-10 addendum). Nothing changes for Python,
@@ -479,7 +479,7 @@ stale scores and is re-recorded.
 
 Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
 
-Amended by: [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091), [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround)
+Amended by: [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091), [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-22: how lizard reads Swift](#current-rule-restated-2026-10-22-how-lizard-reads-swift)
 
 The limits and the counting tool are unchanged: lizard still counts Swift.
 lizard 1.24.1, the latest release, misreads two Swift constructs (#69), and the
@@ -812,7 +812,7 @@ carried link-path keys.
 
 Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083)
 
-Amended by: [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround)
+Amended by: [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-22: how lizard reads Swift](#current-rule-restated-2026-10-22-how-lizard-reads-swift)
 
 The limits and the counting tool are unchanged. The v0.8.3 workaround dropped
 `(set)` only straight after `private`, `fileprivate`, `internal` or `public`.
@@ -879,6 +879,69 @@ functions analysed" for it. The review rule covers it all the same, so a
 consumer loses nothing today. No threshold, counting tool or gate scope
 changes.
 
+
+## Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)
+
+Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08), [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083), [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091), [Current rule, restated 2026-10-12: TypeScript's known miscount](#current-rule-restated-2026-10-12-typescripts-known-miscount)
+
+Amended by: [Current rule, restated 2026-10-22: TypeScript and JavaScript counting](#current-rule-restated-2026-10-22-typescript-and-javascript-counting), [Current rule, restated 2026-10-22: how lizard reads Swift](#current-rule-restated-2026-10-22-how-lizard-reads-swift)
+
+lizard 1.24.2 (released 2026-10-22) fixes terryyin/lizard#516 and reads Swift
+better than the workaround did. The lizard floor in `pyproject.toml` is now
+1.24.2, the workaround module and its rewriting are deleted, and a Swift scan
+runs plain `lizard`, as a TypeScript scan does (#71, #89, #108). The limits are
+unchanged; the counting tool is the same, at a newer floor.
+
+**Swift, against the fixtures the workaround was tested on.** 1.24.2 with no
+correction gives the rows lizard master 9a63062 gave for every case the
+workaround covered, and also reads correctly the cases the workaround and master
+both got wrong:
+
+- `.init(set)`, `self.init(set)`, `super.init(set)` and `Foo.init(set)` are
+  calls. The function after one, or the one holding it, keeps its own row and
+  CC instead of scoring as part of an `init` row.
+- A bare `set` word (`max(set, 1)`, `set.count`, `g(set: 1)`) opens no `set`
+  Function.
+
+The release also tokenizes Swift macros such as `#Preview` so their braces
+count, scans raw, multi-line and interpolated strings and nested block comments
+as single tokens, and stops `.type` and `type(of:)` from reading as a type
+declaration. Each of these can move a Swift function's lines or CC.
+
+**TypeScript and JavaScript counting changes with the release.** The builder
+chose to take it as lizard counts it, over capping lizard at 1.24.1 or patching
+the default-value count back out:
+
+- `??` and `??=` count one path each, not two. The known miscount is gone, and
+  scores that held it go down.
+- Each default parameter, and each default inside a destructuring pattern,
+  counts one path. `function f(a = 1, b = 2)` is CC 3. Scores with defaults go
+  up, and a function near 8 may now fail.
+- Optional chaining (`?.`) still counts nothing.
+- An unnamed function inside an array literal, as in
+  `const p = [function () {}]`, is named `(anonymous)`, not `p`, which is the
+  name every other unnamed callback already had.
+
+Python is unaffected: radon counts it.
+
+**Why now.** The old floor was `lizard>=1.17` with no cap, so any project
+installing quality-gates fresh already ran 1.24.2 and its counts. Raising the
+floor makes every install count the same way and lets the workaround go.
+
+Rejected:
+- Capping lizard below 1.24.2. It freezes today's scores, but keeps the
+  workaround, its known gaps and the `??` miscount, and the same decision comes
+  back with the next release.
+- Taking 1.24.2 but not counting default values. That is a new patch on
+  lizard's TypeScript reader, the kind of workaround this release lets us
+  delete.
+
+**Effect on existing scores.** A Swift baseline may gain rows for functions
+that a `.init(set)` call or a bare `set` used to swallow, and lose `init` or
+`set` rows that held them. A TypeScript baseline may see scores fall where `??`
+is used and rise where defaults are used, and a function in an array literal
+changes key from its holder's name to `(anonymous)`. Re-record both baselines
+when bumping the pin, and fix or baseline any function that newly fails.
 
 ## Current rule, restated 2026-10-12: the complexity ceiling
 
@@ -979,7 +1042,8 @@ often.
 
 Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08), [Addendum 2026-10-10: the suffix list (v0.7.4)](#addendum-2026-10-10-the-suffix-list-v074)
 
-<!-- rule:typescript-counting -->
+Amended by: [Current rule, restated 2026-10-22: TypeScript and JavaScript counting](#current-rule-restated-2026-10-22-typescript-and-javascript-counting)
+
 **TypeScript and JavaScript are the files ending in `.ts`, `.tsx`, `.js`, `.jsx`,
 `.cjs` and `.mjs`.** `languages.py` holds that list, and the `--help` text of
 `crap` and `cc-check` prints it from there.
@@ -992,16 +1056,15 @@ at 8. On test functions lizard agrees with a hand count for `if`, loops, `case`,
 **`switch` cases count.** Swift is exempt because its compiler requires an
 exhaustive `switch`; TypeScript does not, so each `case` is a path that can go
 untested. lizard runs without `-m`.
-<!-- /rule:typescript-counting -->
 
 ## Current rule, restated 2026-10-12: TypeScript's known miscount
 
 Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08)
 
-<!-- rule:typescript-miscount -->
+Amended by: [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110)
+
 **Known miscount:** lizard counts `??` as two paths, not one. That can only
 raise a score, so the gate errs strict; it is left as is.
-<!-- /rule:typescript-miscount -->
 
 ## Current rule, restated 2026-10-12: repeated names
 
@@ -1075,7 +1138,8 @@ Two functions that start and end on the same line get the same coverage.
 
 Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083), [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091)
 
-<!-- rule:swift-lizard-workaround -->
+Amended by: [Current rule, restated 2026-10-22: how lizard reads Swift](#current-rule-restated-2026-10-22-how-lizard-reads-swift)
+
 lizard 1.24.1, the latest release, misreads two Swift constructs, and the scan
 corrects both before lizard's state machine sees them.
 
@@ -1138,7 +1202,6 @@ reference, so the workaround gives the same rows.
 on lizard's master after 1.24.1; the widened `(set)` rule is quality-gates#89.
 The workaround is removed once the lizard floor reaches a release with the fix
 (quality-gates#71).
-<!-- /rule:swift-lizard-workaround -->
 
 ## Current rule, restated 2026-10-12: the skip list
 
@@ -1201,3 +1264,53 @@ list, and never walks the same real folder twice in one scan:
   as already scanned. The same file named twice on the command line, or once
   inside a folder that is also scanned, is listed twice.
 <!-- /rule:symlinked-folders -->
+
+## Current rule, restated 2026-10-22: TypeScript and JavaScript counting
+
+Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-12: TypeScript and JavaScript counting](#current-rule-restated-2026-10-12-typescript-and-javascript-counting)
+
+<!-- rule:typescript-counting -->
+**TypeScript and JavaScript are the files ending in `.ts`, `.tsx`, `.js`, `.jsx`,
+`.cjs` and `.mjs`.** `languages.py` holds that list, and the `--help` text of
+`crap` and `cc-check` prints it from there.
+
+**lizard counts both gates,** at 1.24.2 or newer, for the reason radon counts
+both for Python: with one counter a fully covered function's CRAP equals its CC,
+so the ceilings meet at 8. Each `if`, loop, `case`, `catch`, `&&`, `||`, `??`,
+`??=` and `?:` counts one path, and a nested arrow function gets its own score.
+Optional chaining (`?.`) counts nothing.
+
+**Default values count.** Each default parameter, and each default inside a
+destructuring pattern, counts one path: `function f(a = 1, b = 2)` is CC 3, and
+`function f({ a = 1 } = {})` is CC 3.
+
+**`switch` cases count.** Swift is exempt because its compiler requires an
+exhaustive `switch`; TypeScript does not, so each `case` is a path that can go
+untested. lizard runs without `-m`.
+<!-- /rule:typescript-counting -->
+
+## Current rule, restated 2026-10-22: how lizard reads Swift
+
+Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083), [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround)
+
+<!-- rule:swift-reading -->
+**A Swift scan runs plain `lizard`, at 1.24.2 or newer, with no correction.**
+That release reads these Swift constructs as follows:
+
+- A failable initialiser, `init?` or `init!`, is a Function named `init` with
+  its own CC and lines; its `?` or `!` is not counted as a condition.
+- `set` opens a Function only as a property's own accessor block. An access
+  modifier (`private(set)`, `package(set)`, with a comment or line break before
+  or inside the parens), a value named `set` (`foo(set)`, `max(set, 1)`,
+  `set.count`) and a label (`g(set: 1)`) open none.
+- A call to an initialiser, `.init(...)`, `self.init(...)`, `super.init(...)`
+  or `Foo.init(...)`, is a call, not a declaration, so the function holding it
+  and the one after it each keep their own row and CC.
+
+A property's own `get`, `set`, `willSet` and `didSet` blocks are Functions.
+
+**A failing lizard stops the gate.** lizard's CSV output counts no warnings, so
+the scan's lizard run exits 0 however many functions exceed lizard's own warning
+limit; the scan also passes `-i -1` in case a lizard release starts counting
+them. Any other exit is a tool error that shows lizard's error output.
+<!-- /rule:swift-reading -->
