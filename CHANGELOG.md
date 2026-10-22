@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.1 — 2026-10-22
+
+No score, threshold or scanned file changes.
+
+- The install line lives only in `/setup-standards`. `/crap`, `/cc-python`,
+  `/cc-swift`, `/cc-typescript` and `/no-comments` point to it instead of each
+  carrying a pinned copy, and a test checks that every pin in the shipped
+  skills matches the package version.
+- `/crap` no longer has a Rust section. It told agents to run `crap --lang
+  rust`, which `crap` has never accepted; Rust has no CRAP score, and `/crap`
+  now says to use `/cc-rust`. `/cc-rust` has one threshold table (cognitive
+  complexity over 10 fails, a function over 25 lines fails), dropping a second
+  table whose warning band the deny attributes never allowed.
+
+**When you bump the pin:** run `qg-skills`. In a Rust project, use `/cc-rust`
+where you used `/crap`. Nothing else.
+
 ## 0.11.0 — 2026-10-22
 
 lizard 1.24.2 is the new floor, and it changes some scores (#108; ADR-001

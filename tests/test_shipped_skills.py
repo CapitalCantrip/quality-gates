@@ -34,6 +34,10 @@ NESTED_FUNC_REASON = (
     "A small one (a single branch, CRAP 6) can still pass untested, which is why the rule asks for a test for it too."
 )
 
+PIN = re.compile(r"quality-gates@v(\d+\.\d+\.\d+)")
+PIN_HOMES = ("setup-standards/SKILL.md", "setup-standards/ci-typescript.md")
+PYPROJECT_VERSION = re.compile(r'^version = "([^"]+)"', re.MULTILINE)
+
 
 def flat(text):
     return " ".join(text.split())
@@ -206,6 +210,25 @@ class ClosureReviewRule(unittest.TestCase):
             skills_sync.sync(dest)
             copied = flat((dest / "cc-swift" / "SKILL.md").read_text(encoding="utf-8"))
         self.assertIn(CLOSURE_RULE, copied)
+
+
+class VersionPin(unittest.TestCase):
+    def pins(self):
+        found = {}
+        for path in SKILLS.rglob("*"):
+            if path.is_file() and path.suffix == ".md":
+                for version in PIN.findall(path.read_text(encoding="utf-8")):
+                    found.setdefault(path.relative_to(SKILLS).as_posix(), []).append(version)
+        return found
+
+    def test_every_pin_in_the_shipped_skills_matches_the_version_in_pyproject(self):
+        project = PYPROJECT_VERSION.search((ROOT / "pyproject.toml").read_text(encoding="utf-8")).group(1)
+        readme = PIN.findall((ROOT / "README.md").read_text(encoding="utf-8"))
+        mismatched = {name: versions for name, versions in self.pins().items() if set(versions) != {project}}
+        self.assertEqual((mismatched, set(readme)), ({}, {project}))
+
+    def test_only_setup_standards_carries_the_install_pin(self):
+        self.assertEqual(sorted(self.pins()), sorted(PIN_HOMES))
 
 
 if __name__ == "__main__":

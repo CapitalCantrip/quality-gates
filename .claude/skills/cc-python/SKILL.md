@@ -67,10 +67,4 @@ radon ships with quality-gates.
 
 ## Installing the commands
 
-`cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing:
-
-```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.0"
-# or, inside a project venv:
-pip install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.0"
-```
+`cc-check`, `crap` and `comment-debt` come from the quality-gates Python package. If one is missing, install with the install line in `/setup-standards`.
