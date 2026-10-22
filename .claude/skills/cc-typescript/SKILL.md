@@ -35,7 +35,7 @@ Done when every flagged function is reported with a refactor, or the run is clea
 
 ## What counts
 
-The [TypeScript counting rule](references/typescript-counting.md) says what lizard counts; it has one [known miscount](references/typescript-miscount.md).
+The [TypeScript counting rule](references/typescript-counting.md) says what lizard counts, including default values.
 
 Functions that start on the same line, such as a callback in the first line of its holder, are each counted on their own. `crap` matches their coverage by the [shared start line rule](references/shared-start-line.md); `cc-check` is unaffected.
 

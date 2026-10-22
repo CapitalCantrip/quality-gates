@@ -1,5 +1,64 @@
 # Changelog
 
+## 0.11.1 — 2026-10-22
+
+No score, threshold or scanned file changes.
+
+- The install line lives only in `/setup-standards`. `/crap`, `/cc-python`,
+  `/cc-swift`, `/cc-typescript` and `/no-comments` point to it instead of each
+  carrying a pinned copy, and a test checks that every pin in the shipped
+  skills matches the package version.
+- `/crap` no longer has a Rust section. It told agents to run `crap --lang
+  rust`, which `crap` has never accepted; Rust has no CRAP score, and `/crap`
+  now says to use `/cc-rust`. `/cc-rust` has one threshold table (cognitive
+  complexity over 10 fails, a function over 25 lines fails), dropping a second
+  table whose warning band the deny attributes never allowed.
+
+**When you bump the pin:** run `qg-skills`. In a Rust project, use `/cc-rust`
+where you used `/crap`. Nothing else.
+
+## 0.11.0 — 2026-10-22
+
+lizard 1.24.2 is the new floor, and it changes some scores (#108; ADR-001
+addendum "lizard 1.24.2 is the floor and the Swift workaround is gone
+(v0.11.0)"). Fresh installs of earlier versions already pick up 1.24.2, so
+this release makes every install count the same way.
+
+- **Swift:** lizard 1.24.2 fixes terryyin/lizard#516, so the Swift workaround
+  is deleted and Swift scans run plain `lizard` (closes #71 and #89). 1.24.2
+  also gets right what the workaround missed: a `.init(set)`, `self.init(set)`,
+  `super.init(set)` or `Foo.init(set)` call, or a bare `set` word such as
+  `max(set, 1)`, no longer swallows the function after it into an `init` or
+  `set` row. Macros such as `#Preview`, raw and multi-line strings and nested
+  block comments are read correctly too.
+- **TypeScript and JavaScript:** `??` and `??=` now count one path each, not
+  two (the known miscount is gone). Each default parameter, and each default
+  in a destructuring pattern, now counts one path: `function f(a = 1, b = 2)`
+  is CC 3. An unnamed function in an array literal is named `(anonymous)`, not
+  after the variable that holds the array.
+- **Python:** unchanged; radon counts it.
+- The `lizard` workflow now watches for any lizard release after 1.24.2 and
+  asks for its score changes to be checked, since #516 is fixed.
+- The `/cc-swift` and `/crap` skills link a new reference, *how lizard reads
+  Swift*, in place of the workaround's. `/cc-typescript` drops the
+  known-miscount reference.
+- The stage guard's refusal now lists the changed files the blocked command
+  would have staged: only those under the folders it named, or every changed
+  file for a whole-tree add or `commit -a`, cut at 30 with a count of the rest.
+  It reads the repo the command would have run in, following an earlier `cd`
+  in the same command and `git -C`.
+  Agents in a consuming project retried the same folder-wide add in five
+  sessions; with the list in front of them, the next attempt names files.
+
+**When you bump the pin:** reinstall quality-gates so lizard 1.24.2 or newer
+is installed, then run `qg-skills`, which also copies the new
+`.claude/hooks/stage_guard.py`. Rerun the Swift and TypeScript gates and
+re-record their baselines (`--update`). Expect TypeScript scores to go down
+where `??` is used and up where default values are used; a function that now
+fails the gate needs a split or a baseline entry. A Swift baseline may gain
+rows for functions that were swallowed before, and lose `init` or `set` rows
+that held them. Python baselines do not change.
+
 ## 0.10.1 — 2026-10-12
 
 No score, threshold or scanned file changes.

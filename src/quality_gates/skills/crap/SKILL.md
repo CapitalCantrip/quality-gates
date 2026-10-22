@@ -55,7 +55,7 @@ Rust has no CRAP score: use `/cc-rust`.
    ```bash
    crap --lang swift Sources/ --no-coverage
    ```
-   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: [the lizard Swift workaround](references/swift-lizard-workaround.md).
+   Which Swift initialisers and accessors become Functions, including `init?` and `private(set)`: [how lizard reads Swift](references/swift-reading.md).
 
    **TypeScript — with coverage** (Vitest needs `@vitest/coverage-v8`; under Jest use `npx jest --coverage --coverageReporters=json`):
    ```bash

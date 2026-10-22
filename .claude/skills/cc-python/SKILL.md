@@ -44,7 +44,7 @@ functions above the complexity threshold.
    ```
 3. When a refactor lowers a baselined score, the check fails until you run `--update` and commit the lower baseline. `--update` never records a new or worse function: fix those instead.
 
-Baseline keys follow the [baseline ratchet](references/baseline-ratchet.md) and the [baseline key rule](references/baseline-keys.md): a file behind a symlinked folder is keyed by its real path. Functions are named by the [function naming rule](references/function-names.md), and a name that repeats in a file gets its order as a suffix by the [repeated-names rule](references/repeated-names.md).
+Baseline keys follow the [baseline ratchet](references/baseline-ratchet.md) and the [baseline key rule](references/baseline-keys.md): a file behind a symlinked folder is keyed by its real path. Functions are named by the [function naming rule](references/function-names.md), and a name that repeats in a file gets its order as a suffix by the [repeated-names rule](references/repeated-names.md). A renamed or moved function counts as new.
 
 ## Thresholds
 
