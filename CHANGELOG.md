@@ -7,6 +7,8 @@ No score, threshold or scanned file changes.
 - The stage guard's refusal now lists the changed files the blocked command
   would have staged: only those under the folders it named, or every changed
   file for a whole-tree add or `commit -a`, cut at 30 with a count of the rest.
+  It reads the repo the command would have run in, following an earlier `cd`
+  in the same command and `git -C`.
   Agents in a consuming project retried the same folder-wide add in five
   sessions; with the list in front of them, the next attempt names files.
 

@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import json
+import os
 import shlex
 import subprocess
 import sys
@@ -112,11 +113,27 @@ def stages_everything(segment):
     return False
 
 
-def blocked_segment(command):
+def moved_to(directory, segment):
+    if not segment or segment[0] != "cd":
+        return directory
+    target = segment[1] if len(segment) > 1 else "~"
+    return os.path.join(directory, os.path.expanduser(target))
+
+
+def git_directory(directory, segment):
+    for index, token in enumerate(segment[:-1]):
+        if token == "-C":
+            return os.path.join(directory, os.path.expanduser(segment[index + 1]))
+    return directory
+
+
+def blocked_segment(command, cwd=""):
+    directory = cwd
     for segment in segments(command):
         if stages_everything(segment):
-            return segment
-    return None
+            return segment, git_directory(directory, segment)
+        directory = moved_to(directory, segment)
+    return None, directory
 
 
 def payload_from(text):
@@ -168,10 +185,10 @@ def main(stdin=None, stderr=None, status=git_status):
     stdin = stdin or sys.stdin
     stderr = stderr or sys.stderr
     data = payload_from(stdin.read())
-    segment = blocked_segment(command_from(data))
+    segment, directory = blocked_segment(command_from(data), data.get("cwd") or os.getcwd())
     if segment is None:
         return 0
-    listing = changed_listing(segment, status(data.get("cwd")))
+    listing = changed_listing(segment, status(directory))
     print(MESSAGE.format(segment=" ".join(segment)) + listing, file=stderr)
     return BLOCK_EXIT
 

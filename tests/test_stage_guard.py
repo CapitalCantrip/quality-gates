@@ -13,10 +13,22 @@ stage_guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stage_guard)
 
 
-def verdict(command, changed=()):
+def verdict(command, changed=(), cwd="/start", asked=None):
     stderr = io.StringIO()
-    payload = io.StringIO(json.dumps({"tool_name": "Bash", "tool_input": {"command": command}}))
-    return stage_guard.main(payload, stderr, status=lambda cwd: list(changed)), stderr.getvalue()
+    payload = io.StringIO(json.dumps({"tool_name": "Bash", "tool_input": {"command": command}, "cwd": cwd}))
+
+    def status(directory):
+        if asked is not None:
+            asked.append(directory)
+        return list(changed)
+
+    return stage_guard.main(payload, stderr, status=status), stderr.getvalue()
+
+
+def directory_listed(command, cwd="/start"):
+    asked = []
+    verdict(command, cwd=cwd, asked=asked)
+    return asked[0]
 
 
 class BulkStagingIsBlocked(unittest.TestCase):
@@ -115,6 +127,21 @@ class RefusalListsTheChangedFiles(unittest.TestCase):
         code, message = verdict("git add -A")
         self.assertEqual(code, stage_guard.BLOCK_EXIT)
         self.assertNotIn("Changed files", message)
+
+    def test_the_listing_reads_the_session_directory_when_the_command_stays_put(self):
+        self.assertEqual(directory_listed("git add -A"), "/start")
+
+    def test_the_listing_follows_a_cd_earlier_in_the_command(self):
+        self.assertEqual(directory_listed("cd /other/repo && git add -A"), "/other/repo")
+
+    def test_a_relative_cd_is_read_against_the_session_directory(self):
+        self.assertEqual(directory_listed("cd sub; git add -A"), "/start/sub")
+
+    def test_a_cd_after_the_blocked_add_does_not_move_the_listing(self):
+        self.assertEqual(directory_listed("git add -A && cd /elsewhere"), "/start")
+
+    def test_the_listing_follows_git_dash_c(self):
+        self.assertEqual(directory_listed("git -C /other/repo add -A"), "/other/repo")
 
     def test_status_outside_a_repo_is_an_empty_listing_not_a_crash(self):
         with tempfile.TemporaryDirectory() as folder:
