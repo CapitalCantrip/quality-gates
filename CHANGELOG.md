@@ -25,9 +25,17 @@ this release makes every install count the same way.
 - The `/cc-swift` and `/crap` skills link a new reference, *how lizard reads
   Swift*, in place of the workaround's. `/cc-typescript` drops the
   known-miscount reference.
+- The stage guard's refusal now lists the changed files the blocked command
+  would have staged: only those under the folders it named, or every changed
+  file for a whole-tree add or `commit -a`, cut at 30 with a count of the rest.
+  It reads the repo the command would have run in, following an earlier `cd`
+  in the same command and `git -C`.
+  Agents in a consuming project retried the same folder-wide add in five
+  sessions; with the list in front of them, the next attempt names files.
 
 **When you bump the pin:** reinstall quality-gates so lizard 1.24.2 or newer
-is installed, then run `qg-skills`. Rerun the Swift and TypeScript gates and
+is installed, then run `qg-skills`, which also copies the new
+`.claude/hooks/stage_guard.py`. Rerun the Swift and TypeScript gates and
 re-record their baselines (`--update`). Expect TypeScript scores to go down
 where `??` is used and up where default values are used; a function that now
 fails the gate needs a split or a baseline entry. A Swift baseline may gain
