@@ -19,8 +19,6 @@ LIZARD_FILE = 6
 LIZARD_NAME = 7
 LIZARD_START = 9
 LIZARD_END = 10
-LIZARD_MODULE = "quality_gates.lizard_swift_workaround"
-SWIFT = "swift"
 EXIT_0_ON_WARNINGS = ("-i", "-1")
 
 SKIPPED_FOLDERS = (
@@ -139,8 +137,7 @@ def parse_row(row: list) -> Optional[Function]:
 
 def command(file_list: str, lizard_languages: tuple) -> list:
     flags = [arg for language in lizard_languages for arg in ("-l", language)]
-    module = LIZARD_MODULE if SWIFT in lizard_languages else "lizard"
-    return [sys.executable, "-m", module, *flags, *EXIT_0_ON_WARNINGS, "--csv", "-f", file_list]
+    return [sys.executable, "-m", "lizard", *flags, *EXIT_0_ON_WARNINGS, "--csv", "-f", file_list]
 
 
 def _run_lizard(files: list, lizard_languages: tuple, runner):

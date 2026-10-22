@@ -14,8 +14,8 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LAST_SEEN: "1.24.1"
-      TITLE: "lizard has a new release: check whether it fixes #516"
+      LAST_SEEN: "1.24.2"
+      TITLE: "lizard has a new release: check it for score changes"
     steps:
       - name: Compare PyPI's latest lizard with the last one we looked at
         run: |
@@ -27,5 +27,5 @@ jobs:
             echo "An issue for this is already open."
             exit 0
           fi
-          printf 'PyPI has lizard %s; the last release looked at was %s.\n\nCheck whether terryyin/lizard#516 (failable `init?`, `private(set)`) is fixed in it. If yes, follow #71. Either way, set `LAST_SEEN` in `.github/workflows/lizard.yml` to %s and close this issue.\n' "$latest" "$LAST_SEEN" "$latest" > body.md
+          printf 'PyPI has lizard %s; the last release looked at was %s.\n\nRead its changelog for Swift and TypeScript changes and run the tests against it (README § Releasing). Record any counting change in ADR-001 before raising the floor. Then set `LAST_SEEN` in `.github/workflows/lizard.yml` to %s and close this issue.\n' "$latest" "$LAST_SEEN" "$latest" > body.md
           gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --label needs-triage --body-file body.md

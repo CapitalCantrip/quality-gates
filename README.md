@@ -23,7 +23,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.10.2"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.0"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -266,7 +266,7 @@ other, the same on every machine and in CI. The details are in the
 [naming rule](src/quality_gates/skills/crap/references/function-names.md), the
 [repeated-names rule](src/quality_gates/skills/crap/references/repeated-names.md), the
 [baseline key rule](src/quality_gates/skills/crap/references/baseline-keys.md) and, for Swift initialisers and
-`private(set)`, the [lizard Swift workaround](src/quality_gates/skills/crap/references/swift-lizard-workaround.md).
+`private(set)`, [how lizard reads Swift](src/quality_gates/skills/crap/references/swift-reading.md).
 
 - A function over the threshold that is not in the baseline fails. A renamed or
   moved function counts as new. So does a `name#2` entry whose number shifted because
@@ -417,10 +417,11 @@ refuses tag pushes and the API call that creates a tag.
 
 A change that alters no behaviour, such as a README fix, is still released.
 
-At every release, check terryyin/lizard#516; if a release fixes it, raise the
-lizard floor and remove the workaround (#71).
-The `lizard` workflow also checks PyPI every Monday and opens an issue when
-it finds a lizard release newer than the last one checked.
+The `lizard` workflow checks PyPI every Monday and opens an issue when it
+finds a lizard release newer than the last one checked. A lizard release can
+change scores, so read its changelog for Swift and TypeScript changes, run the
+tests against it, and record any counting change in ADR-001 before raising the
+floor.
 
 ## Keeping the copied skills current
 
