@@ -415,16 +415,10 @@ class LizardRunTest(InTempDir):
         found = complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed(row))
         self.assertEqual([(fn.name, fn.cc, fn.start, fn.end) for fn in found.functions], [("load", 4, 10, 30)])
 
-    def test_a_failing_wrapper_is_a_tool_error_that_shows_its_stderr(self):
-        crash = "Traceback (most recent call last):\nAttributeError: SwiftReader"
-        with self.assertRaises(ToolError) as raised:
-            complexity_scan.scan(["App.swift"], "swift", runner=lambda *a, **k: completed("", 1, crash))
-        self.assertEqual(str(raised.exception), f"lizard failed:\n{crash}")
-
-    def test_a_swift_scan_runs_lizard_through_the_workaround(self):
+    def test_a_swift_scan_runs_plain_lizard(self):
         given = []
         complexity_scan.scan(["App.swift"], "swift", runner=lambda cmd, **k: given.append(cmd) or completed(""))
-        self.assertEqual(given[0][1:3], ["-m", "quality_gates.lizard_swift_workaround"])
+        self.assertEqual(given[0][1:3], ["-m", "lizard"])
 
     def test_a_scan_asks_lizard_to_exit_0_on_warnings(self):
         given = []

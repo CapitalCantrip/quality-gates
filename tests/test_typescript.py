@@ -6,7 +6,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from quality_gates import crap, istanbul
+from quality_gates import complexity_scan, crap, istanbul
 from quality_gates.errors import ToolError
 from quality_gates import quality_check as qc
 
@@ -214,7 +214,36 @@ class CrapTypescriptTest(InRepoRoot):
             argv = ["--lang", "typescript", str(src), "--istanbul-json", str(report), "--baseline", str(baseline), "--update"]
             run_main(crap.main, argv)
             keys = set(json.loads(baseline.read_text(encoding="utf-8")))
-        self.assertEqual({k.split("::")[1] for k in keys}, {"p", "p#2"})
+        self.assertEqual({k.split("::")[1] for k in keys}, {"(anonymous)", "(anonymous)#2"})
+
+
+def lizard_cc(text: str) -> int:
+    with tempfile.TemporaryDirectory() as folder:
+        Path(folder, "a.ts").write_text(text, encoding="utf-8")
+        here = os.getcwd()
+        os.chdir(folder)
+        try:
+            found = complexity_scan.scan(["a.ts"], "typescript")
+        finally:
+            os.chdir(here)
+    return [fn.cc for fn in found.functions]
+
+
+class TypescriptCountingTest(unittest.TestCase):
+    def test_each_nullish_coalescing_operator_counts_one_path(self):
+        self.assertEqual(lizard_cc("function f(a) { return a ?? 1; }\n"), [2])
+
+    def test_each_nullish_assignment_counts_one_path(self):
+        self.assertEqual(lizard_cc("function f(a) { a ??= 1; return a; }\n"), [2])
+
+    def test_each_default_parameter_counts_one_path(self):
+        self.assertEqual(lizard_cc("function f(a = 1, b = 2) { return a + b; }\n"), [3])
+
+    def test_a_destructuring_default_and_its_parameter_default_each_count_one_path(self):
+        self.assertEqual(lizard_cc("function f({ a = 1 } = {}) { return a; }\n"), [3])
+
+    def test_optional_chaining_counts_no_path(self):
+        self.assertEqual(lizard_cc("function f(a) { return a?.b?.c; }\n"), [1])
 
 
 class CcCheckTypescriptTest(InRepoRoot):
