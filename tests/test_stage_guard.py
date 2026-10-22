@@ -3,6 +3,7 @@ import io
 import json
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -12,10 +13,10 @@ stage_guard = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(stage_guard)
 
 
-def verdict(command):
+def verdict(command, changed=()):
     stderr = io.StringIO()
     payload = io.StringIO(json.dumps({"tool_name": "Bash", "tool_input": {"command": command}}))
-    return stage_guard.main(payload, stderr), stderr.getvalue()
+    return stage_guard.main(payload, stderr, status=lambda cwd: list(changed)), stderr.getvalue()
 
 
 class BulkStagingIsBlocked(unittest.TestCase):
@@ -86,6 +87,38 @@ class TheShippedScriptRunsOnItsOwn(unittest.TestCase):
         result = subprocess.run([sys.executable, str(HOOK)], input=payload, capture_output=True, text=True)
         self.assertEqual(result.returncode, 2)
         self.assertIn("stage guard", result.stderr)
+
+
+
+CHANGED = ["ops/tasks.md", "ops/build.py", "docs/a.md", "src/x.py"]
+
+
+class RefusalListsTheChangedFiles(unittest.TestCase):
+    def test_a_blocked_folder_add_lists_the_changed_files_under_that_folder_only(self):
+        _, message = verdict("git add -A ops docs/", CHANGED)
+        self.assertIn("  ops/tasks.md", message)
+        self.assertIn("  docs/a.md", message)
+        self.assertNotIn("src/x.py", message)
+
+    def test_a_blocked_whole_repo_commit_lists_every_changed_file(self):
+        _, message = verdict('git commit -am "msg"', CHANGED)
+        for path in CHANGED:
+            self.assertIn("  " + path, message)
+
+    def test_a_long_listing_is_cut_and_says_how_many_more(self):
+        many = [f"ops/f{n}.md" for n in range(stage_guard.LISTED_FILES + 4)]
+        _, message = verdict("git add -A", many)
+        self.assertIn("and 4 more", message)
+        self.assertNotIn(f"ops/f{stage_guard.LISTED_FILES}.md", message)
+
+    def test_a_clean_tree_leaves_the_plain_message(self):
+        code, message = verdict("git add -A")
+        self.assertEqual(code, stage_guard.BLOCK_EXIT)
+        self.assertNotIn("Changed files", message)
+
+    def test_status_outside_a_repo_is_an_empty_listing_not_a_crash(self):
+        with tempfile.TemporaryDirectory() as folder:
+            self.assertEqual(stage_guard.git_status(folder), [])
 
 
 if __name__ == "__main__":

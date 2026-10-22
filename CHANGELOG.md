@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.2 — 2026-10-22
+
+No score, threshold or scanned file changes.
+
+- The stage guard's refusal now lists the changed files the blocked command
+  would have staged: only those under the folders it named, or every changed
+  file for a whole-tree add or `commit -a`, cut at 30 with a count of the rest.
+  Agents in a consuming project retried the same folder-wide add in five
+  sessions; with the list in front of them, the next attempt names files.
+
+**When you bump the pin:** run `qg-skills`, which copies the new
+`.claude/hooks/stage_guard.py`. The skills' install lines now name `v0.10.2`.
+Nothing else.
+
 ## 0.10.1 — 2026-10-12
 
 No score, threshold or scanned file changes.

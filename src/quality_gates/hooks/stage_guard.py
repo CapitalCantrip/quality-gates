@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 import shlex
+import subprocess
 import sys
 
 BLOCK_EXIT = 2
@@ -11,6 +12,8 @@ BULK_ADD_LETTERS = set("Au")
 BULK_COMMIT_ARGS = {"-a", "--all"}
 COMMIT_LETTERS_WITH_VALUE = set("mFCct")
 ADD_SUBCOMMANDS = {"add", "stage"}
+LISTED_FILES = 30
+STATUS_PREFIX = 3
 
 MESSAGE = (
     "Blocked by the stage guard: `{segment}` stages every changed file, which sweeps in "
@@ -112,26 +115,64 @@ def stages_everything(segment):
 def blocked_segment(command):
     for segment in segments(command):
         if stages_everything(segment):
-            return " ".join(segment)
+            return segment
     return None
 
 
-def command_from(payload):
+def payload_from(text):
     try:
-        data = json.loads(payload)
+        data = json.loads(text)
     except ValueError:
-        return ""
-    command = data.get("tool_input", {}).get("command") if isinstance(data, dict) else None
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
+def command_from(data):
+    command = data.get("tool_input", {}).get("command")
     return command if isinstance(command, str) else ""
 
 
-def main(stdin=None, stderr=None):
+def git_status(cwd):
+    try:
+        result = subprocess.run(
+            ["git", "status", "--porcelain", "--untracked-files=all"],
+            cwd=cwd or None, capture_output=True, text=True, timeout=5)
+    except (OSError, subprocess.SubprocessError):
+        return []
+    return [line[STATUS_PREFIX:] for line in result.stdout.splitlines() if len(line) > STATUS_PREFIX]
+
+
+def named_paths(segment):
+    args = git_arguments(segment)
+    if not args or args[0] not in ADD_SUBCOMMANDS:
+        return []
+    return [arg.rstrip("/") for arg in args[1:] if not arg.startswith("-") and arg not in BULK_ADD_ARGS]
+
+
+def under(path, prefixes):
+    return not prefixes or any(path == p or path.startswith(p + "/") for p in prefixes)
+
+
+def changed_listing(segment, files):
+    prefixes = named_paths(segment)
+    matching = [path for path in files if under(path, prefixes)]
+    if not matching:
+        return ""
+    shown = "\n".join("  " + path for path in matching[:LISTED_FILES])
+    more = len(matching) - LISTED_FILES
+    tail = f"\n  … and {more} more" if more > 0 else ""
+    return f"\nChanged files it would have staged; pick only this change's:\n{shown}{tail}"
+
+
+def main(stdin=None, stderr=None, status=git_status):
     stdin = stdin or sys.stdin
     stderr = stderr or sys.stderr
-    segment = blocked_segment(command_from(stdin.read()))
+    data = payload_from(stdin.read())
+    segment = blocked_segment(command_from(data))
     if segment is None:
         return 0
-    print(MESSAGE.format(segment=segment), file=stderr)
+    listing = changed_listing(segment, status(data.get("cwd")))
+    print(MESSAGE.format(segment=" ".join(segment)) + listing, file=stderr)
     return BLOCK_EXIT
 
 
