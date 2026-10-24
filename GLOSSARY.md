@@ -20,9 +20,26 @@ is bumped.
 _Avoid_: version, dependency
 
 **Upstream**:
-A published body of work this repo adapts text from: Matt Pocock's skills or
-Lauren Tan's pstack.
+A published body of work this repo copies and adapts text from, such as Matt
+Pocock's skills or Lauren Tan's pstack; watched for changes and re-copied here.
 _Avoid_: vendor, source
+
+**Dependency**:
+An outside tool a component runs but this repo does not copy, such as radon or
+lizard; updated by bumping its version.
+_Avoid_: upstream, vendor
+
+## Components
+
+**Component**:
+One capability a consumer switches on or off as a whole, with all its parts:
+for example a gate's command, skill, baseline and CI step together.
+_Avoid_: module, plugin, feature, part
+
+**Core**:
+The components every consumer has and cannot switch off: the workflow, the
+principles and the asking rule.
+_Avoid_: base, defaults
 
 ## The three layers
 
