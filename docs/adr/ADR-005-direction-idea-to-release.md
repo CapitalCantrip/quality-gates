@@ -126,6 +126,8 @@ project decision, which `qg status` and the UI show as a warning.
 
 ### Rollout
 
+Amended by: [Addendum 2026-10-25: the component manifest and `qg status`](#addendum-2026-10-25-the-component-manifest-and-qg-status)
+
 Staged, so no pinned project breaks:
 
 1. `qg status`, read-only, built together with the origin manifest
@@ -166,6 +168,8 @@ this ADR adds is tracked in quality-gates#112 to quality-gates#115.
   that already pin quality-gates.
 
 ## Addendum 2026-10-25: the component manifest and `qg status`
+
+Amends: [Rollout](#rollout)
 
 Settled with the builder while specifying quality-gates#104 and `qg status`.
 
