@@ -1,7 +1,12 @@
 # quality-gates
 
-Automated guardrails for software built with AI coding agents, for people who
-can't review the code themselves. Checks fail the commit or the build when the
+A guided framework for building software with AI coding agents, from idea to
+release, for people who can't review the code themselves. It aims for
+well-designed outcomes, efficient use of resources, and a builder who stays
+informed and in control ([ADR-005](docs/adr/ADR-005-direction-idea-to-release.md)).
+Today it ships the gates and the working method; the rest is on the way.
+
+Checks fail the commit or the build when the
 agent's code gets too complex, goes untested or adds comments, so problems get
 caught without anyone reading a diff. Claude Code skills set a project up and
 keep the agent to a working method that fits the size of the job. Each project
@@ -89,12 +94,18 @@ silently swallowed. That leaves four gaps:
 Agents follow a failing tool more reliably than a paragraph of guidance, so
 wherever a standard can be a command that exits non-zero, it is one.
 
-## As the quality control of a software factory
+## From idea to release
 
-In a software factory, agents do most of the building, from plan to release,
-and a person decides what to build and checks that it works. That only holds
-up if the line has a quality control station that needs no one to read the
-code. quality-gates can be that station:
+Quality is built in from the first step, not only checked at the end. Each
+stage, from testing the idea through spec, planning, building and review to
+release, leaves the builder with a clearer picture of where the project is
+going and what each choice trades off. The gates below are the part that needs
+no judgement; the direction for the rest is in
+[ADR-005](docs/adr/ADR-005-direction-idea-to-release.md).
+
+In a software factory, agents do most of the building and a person decides what
+to build and checks that it works. That only holds up when no step depends on
+someone reading the code:
 
 - **It judges by numbers, not opinion.** Each gate is a command with a
   threshold and an exit code, so an agent running the line can act on the
@@ -126,6 +137,11 @@ A standard moves down this table whenever it can. The workflow is
 many principles come from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack).
 All three layers ship in this package, so neither Pocock's plugin nor pstack needs installing. Why it
 is shaped this way: [ADR-002](docs/adr/ADR-002-engineering-standards.md).
+
+A fourth layer, **Understanding**, is planned: a project map of the outcome and
+the key forks, a plain-words checkpoint at each stage boundary, fixed teaching
+material, and a personal learning record kept outside the repo
+([ADR-005](docs/adr/ADR-005-direction-idea-to-release.md)).
 
 ### Workflow: size decides where to start
 
