@@ -16,6 +16,7 @@ dev = ["coverage>=7"]
 comment-debt = "quality_gates.comment_debt:main"
 cc-check = "quality_gates.quality_check:main"
 crap = "quality_gates.crap:main"
+qg = "quality_gates.status:main"
 qg-skills = "quality_gates.skills_sync:main"
 qg-agent-docs = "quality_gates.agent_docs:main"
 qg-upstream = "quality_gates.upstream:main"
