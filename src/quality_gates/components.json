@@ -1,0 +1,492 @@
+{
+  "format_version": 1,
+  "components": [
+    {
+      "id": "core",
+      "name": "Core workflow and principles",
+      "description": "The workflow from idea to merged change, the principles, the asking rule and the guard against staging everything; every project has it.",
+      "core": true,
+      "languages": [],
+      "origin": {
+        "type": "upstream",
+        "name": "mattpocock/skills"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "standards",
+          "origin": {
+            "type": "ours",
+            "adapts": [
+              "cursor/plugins"
+            ]
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "setup-standards",
+          "origin": {
+            "type": "ours",
+            "adapts": [
+              "mattpocock/skills"
+            ]
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "setup-matt-pocock-skills",
+          "origin": {
+            "type": "ours"
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "wayfinder",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "grill-with-docs",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "to-spec",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "to-tickets",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "implement",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills",
+            "changed": true
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "implement-spec",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills",
+            "changed": true
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "tdd",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills",
+            "changed": true
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "diagnosing-bugs",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "review-against-spec",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills",
+            "changed": true
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "pr",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "hook",
+          "id": "stage_guard.py",
+          "origin": {
+            "type": "ours"
+          }
+        },
+        {
+          "kind": "claude_md_line",
+          "id": "asking-rule",
+          "origin": {
+            "type": "ours"
+          }
+        },
+        {
+          "kind": "command",
+          "id": "qg-skills",
+          "origin": {
+            "type": "ours"
+          }
+        },
+        {
+          "kind": "command",
+          "id": "qg-agent-docs",
+          "origin": {
+            "type": "ours"
+          }
+        }
+      ]
+    },
+    {
+      "id": "no-comments",
+      "name": "No code comments",
+      "description": "Stops comments from creeping into Python code: counts them, blocks new ones and helps pay down the old ones.",
+      "core": false,
+      "languages": [
+        "python"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "no-comments"
+        },
+        {
+          "kind": "command",
+          "id": "comment-debt"
+        },
+        {
+          "kind": "baseline",
+          "id": "comment-debt.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "comment-debt-python",
+          "file": "skills/setup-standards/ci-python.md",
+          "marker": "comment_debt.main",
+          "found_in": "tests/test_quality_gates.py"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "comment-debt",
+          "marker": "comment-debt"
+        }
+      ]
+    },
+    {
+      "id": "complexity-python",
+      "name": "Complexity gate for Python",
+      "description": "Flags Python functions that are too tangled to follow, and proposes how to simplify them.",
+      "core": false,
+      "languages": [
+        "python"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "cc-python"
+        },
+        {
+          "kind": "command",
+          "id": "cc-check"
+        },
+        {
+          "kind": "baseline",
+          "id": "cc-baseline.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "cc-check-python",
+          "file": "skills/setup-standards/ci-python.md",
+          "marker": "quality_check.main",
+          "found_in": "tests/test_quality_gates.py"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "cc-check-python",
+          "marker": "cc-check"
+        },
+        {
+          "kind": "dependency",
+          "id": "radon",
+          "origin": {
+            "type": "dependency",
+            "name": "radon",
+            "version": ">=6"
+          }
+        }
+      ]
+    },
+    {
+      "id": "complexity-typescript",
+      "name": "Complexity gate for TypeScript",
+      "description": "Flags TypeScript and JavaScript functions that are too tangled to follow, and proposes how to simplify them.",
+      "core": false,
+      "languages": [
+        "typescript"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "cc-typescript"
+        },
+        {
+          "kind": "command",
+          "id": "cc-check"
+        },
+        {
+          "kind": "baseline",
+          "id": "cc-baseline.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "cc-check-typescript",
+          "file": "skills/setup-standards/ci-typescript.md",
+          "marker": "cc-check --lang typescript"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "cc-check-typescript",
+          "marker": "cc-check --lang typescript"
+        },
+        {
+          "kind": "dependency",
+          "id": "lizard",
+          "origin": {
+            "type": "dependency",
+            "name": "lizard",
+            "version": ">=1.24.2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "complexity-swift",
+      "name": "Complexity gate for Swift",
+      "description": "Flags Swift functions that are too tangled to follow, through SwiftLint, and proposes how to simplify them.",
+      "core": false,
+      "languages": [
+        "swift"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "cc-swift"
+        },
+        {
+          "kind": "config",
+          "id": ".swiftlint.yml"
+        },
+        {
+          "kind": "ci_step",
+          "id": "swiftlint",
+          "file": "skills/cc-swift/SKILL.md",
+          "marker": "swiftlint"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "swiftlint",
+          "marker": "swiftlint"
+        },
+        {
+          "kind": "dependency",
+          "id": "lizard",
+          "origin": {
+            "type": "dependency",
+            "name": "lizard",
+            "version": ">=1.24.2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "complexity-rust",
+      "name": "Complexity gate for Rust",
+      "description": "Sets up the compiler's own lint for tangled Rust functions and runs it.",
+      "core": false,
+      "languages": [
+        "rust"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "cc-rust"
+        },
+        {
+          "kind": "config",
+          "id": "clippy.toml"
+        },
+        {
+          "kind": "ci_step",
+          "id": "cargo-clippy",
+          "file": "skills/cc-rust/SKILL.md",
+          "marker": "cargo clippy"
+        }
+      ]
+    },
+    {
+      "id": "crap",
+      "name": "Risk gate: complexity without tests",
+      "description": "Flags code that is both tangled and untested, the likeliest place for a hidden bug, for Python, TypeScript and Swift.",
+      "core": false,
+      "languages": [
+        "python",
+        "typescript",
+        "swift"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "crap"
+        },
+        {
+          "kind": "command",
+          "id": "crap"
+        },
+        {
+          "kind": "baseline",
+          "id": "crap-baseline.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "crap-python",
+          "file": "skills/setup-standards/ci-python.md",
+          "marker": "crap --lang python",
+          "languages": [
+            "python"
+          ]
+        },
+        {
+          "kind": "ci_step",
+          "id": "crap-typescript",
+          "file": "skills/setup-standards/ci-typescript.md",
+          "marker": "crap --lang typescript",
+          "languages": [
+            "typescript"
+          ]
+        },
+        {
+          "kind": "ci_step",
+          "id": "crap-swift",
+          "file": "skills/setup-standards/SKILL.md",
+          "marker": "crap --lang swift",
+          "languages": [
+            "swift"
+          ]
+        },
+        {
+          "kind": "dependency",
+          "id": "radon",
+          "languages": [
+            "python"
+          ],
+          "origin": {
+            "type": "dependency",
+            "name": "radon",
+            "version": ">=6"
+          }
+        },
+        {
+          "kind": "dependency",
+          "id": "lizard",
+          "languages": [
+            "typescript",
+            "swift"
+          ],
+          "origin": {
+            "type": "dependency",
+            "name": "lizard",
+            "version": ">=1.24.2"
+          }
+        }
+      ]
+    },
+    {
+      "id": "design-helpers",
+      "name": "Design helpers",
+      "description": "Shared words for designing simple-to-use code, a search for code that resists change, and upkeep of the project's glossary and decisions.",
+      "core": false,
+      "languages": [],
+      "origin": {
+        "type": "upstream",
+        "name": "mattpocock/skills"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "codebase-design"
+        },
+        {
+          "kind": "skill",
+          "id": "improve-codebase-architecture"
+        },
+        {
+          "kind": "skill",
+          "id": "domain-modeling"
+        }
+      ]
+    },
+    {
+      "id": "session-helpers",
+      "name": "Session helpers",
+      "description": "Sorting issues, handing a session over, looking back on one, and writing text an agent reads.",
+      "core": false,
+      "languages": [],
+      "origin": {
+        "type": "upstream",
+        "name": "mattpocock/skills"
+      },
+      "parts": [
+        {
+          "kind": "skill",
+          "id": "handoff"
+        },
+        {
+          "kind": "skill",
+          "id": "retro"
+        },
+        {
+          "kind": "skill",
+          "id": "triage"
+        },
+        {
+          "kind": "skill",
+          "id": "writing-for-agents"
+        }
+      ]
+    }
+  ]
+}

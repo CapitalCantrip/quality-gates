@@ -28,7 +28,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.1"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.12.0"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -315,6 +315,41 @@ column, **ours** was written here, **Pocock** is a word-for-word copy of Matt
 Pocock's skill, and **Pocock, changed** is his skill with the changes listed,
 with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 
+### The component manifest
+
+[components.json](src/quality_gates/components.json) ships in the package and
+lists every component: what it is made of, what it does in one line, and where
+it came from. It is readable from an installed copy without network access, and
+it is a contract for `qg status`, the planned UI and any tool that reads it. A
+test fails when the *From* column below disagrees with it, when a shipped skill
+belongs to no component, when a component names a part that does not ship, or
+when it disagrees with [upstream.json](src/quality_gates/upstream.json), the
+file-level record `qg-upstream` reads.
+
+- `format_version`: a whole number. A change to the shape below raises it and
+  gets a CHANGELOG note; adding a component or a part does not.
+- `components`: a list. Each has `id`, `name`, `description` (one line, plain
+  words), `core` (true for the parts every project has and cannot switch off),
+  `languages` (empty when the component has none), `origin` and `parts`.
+- `origin`: `{"type": "ours"}`, `{"type": "upstream", "name": "<repo>"}` (with
+  `"changed": true` when the copy is adapted), or `{"type": "dependency",
+  "name": "<tool>", "version": "<requirement>"}`. A component's origin is the
+  one most of its parts have; a part with a different one carries its own. An
+  `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
+  upstream.
+- `parts`: each has a `kind` and an `id`, unique for its kind within the
+  component. The kinds are `skill`, `hook`, `command`, `baseline`, `config`,
+  `ci_step`, `precommit_step`, `claude_md_line` and `dependency`. A `config` is
+  a settings file the gate reads, such as `.swiftlint.yml`, and is present or
+  absent like a baseline. A `precommit_step` has `marker`, the command
+  `/setup-standards` puts in `.githooks/pre-commit`. A `ci_step` has `file`, the setup example
+  it comes from, and `marker`, the text that example puts in a CI workflow; with
+  `found_in`, the marker is looked for in that project file instead, such as the
+  test file `cc-check` runs inside for Python. A part for only some of its
+  component's languages lists them in `languages`; in a project that uses none
+  of them the part is *not applicable* and does not count toward the
+  component's status.
+
 **Set up and standards**
 
 | Skill | From | Does |
@@ -394,6 +429,7 @@ Three more commands support them:
 
   | Command | Code |
   |---|---|
+  | `qg` | [src/quality_gates/status.py](src/quality_gates/status.py) |
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
   | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |
@@ -401,6 +437,43 @@ Three more commands support them:
   | `comment-debt` | [src/quality_gates/comment_debt.py](src/quality_gates/comment_debt.py) |
   | `cc-check` | [src/quality_gates/quality_check.py](src/quality_gates/quality_check.py) |
   | `crap` | [src/quality_gates/crap.py](src/quality_gates/crap.py) |
+
+- `qg status` shows what quality-gates has installed in the project you are in.
+  It lists every component with one of these words, a line on what it does and
+  where it came from: *installed*, *missing*, *different* (a copied file was
+  edited, so it no longer matches the release), *partly installed*, *unknown*
+  (it could not read something) or *not applicable* (the component is for a
+  language the project does not use). Core components come first. It also shows
+  the version the project pins next to the version installed, or *pin not
+  found*. It only reads, works offline and always exits 0, so it never blocks a
+  commit; `qg-skills --check` stays the check that fails. `qg status --json`
+  prints the same report for an agent, with the component list's format
+  version, and for each component its id, status and parts. The commands and
+  tools quality-gates itself installs, such as `cc-check` or `radon`, have no
+  status of their own: they are listed as *provided by quality-gates* and do
+  not count toward a component's status, and neither does a part for a language
+  the project does not use. *Needs attention* names only the parts that count.
+
+  ```text
+  $ qg status
+  Pin: v0.12.0. Installed quality-gates: 0.12.0 (matches).
+
+  Core components (every project has these)
+    core                     installed          upstream: mattpocock/skills
+      The workflow from idea to merged change, ...
+
+  Optional components
+    crap                     partly installed   ours
+      Flags code that is both tangled and untested, ...
+      Needs attention: baseline crap-baseline.json: missing
+    complexity-python        different          ours
+      Flags Python functions that are too tangled to follow, ...
+      Needs attention: skill cc-python: different
+
+  Not applicable to this project
+    complexity-swift         not applicable     ours
+      Flags Swift functions that are too tangled to follow, ...
+  ```
 
 - `qg-skills` copies from the installed package, not from GitHub, so the
   version you installed decides which skills a project gets. It writes
