@@ -25,4 +25,4 @@ qg-references = "quality_gates.references:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-quality_gates = ["skills/**/*", "hooks/*", "agent_doc_templates/*", "upstream.json"]
+quality_gates = ["skills/**/*", "hooks/*", "agent_doc_templates/*", "upstream.json", "components.json"]
