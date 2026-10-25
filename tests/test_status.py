@@ -293,6 +293,16 @@ class Status(unittest.TestCase):
         manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
         self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
 
+    def test_a_project_with_source_in_every_language_gets_every_language_component(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("app.py", "App.swift", "app.ts"):
+            self.write(self.repo / name, "x")
+        self.write(self.repo / "src" / "more" / "deeper.py", "x = 1")
+        components = [dict(MANIFEST["components"][1], id=language, languages=[language])
+                      for language in ("python", "swift", "typescript")]
+        report = self.report({"format_version": 1, "components": components})
+        self.assertEqual([c["status"] for c in report["components"]], ["missing", "missing", "missing"])
+
     def test_a_language_component_is_applicable_to_a_project_with_typescript_files(self):
         (self.repo / "pyproject.toml").unlink()
         manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["typescript"])]}
