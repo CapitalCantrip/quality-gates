@@ -203,8 +203,10 @@
         },
         {
           "kind": "ci_step",
-          "id": "cc-check",
-          "file": "skills/setup-standards/ci-python.md"
+          "id": "cc-check-python",
+          "file": "skills/setup-standards/ci-python.md",
+          "marker": "quality_check.main",
+          "found_in": "tests/test_quality_gates.py"
         },
         {
           "kind": "dependency",
@@ -243,8 +245,9 @@
         },
         {
           "kind": "ci_step",
-          "id": "cc-check",
-          "file": "skills/setup-standards/ci-typescript.md"
+          "id": "cc-check-typescript",
+          "file": "skills/setup-standards/ci-typescript.md",
+          "marker": "cc-check --lang typescript"
         },
         {
           "kind": "dependency",
@@ -338,17 +341,37 @@
         },
         {
           "kind": "ci_step",
-          "id": "crap",
-          "file": "skills/setup-standards/ci-python.md"
+          "id": "crap-python",
+          "file": "skills/setup-standards/ci-python.md",
+          "marker": "crap --lang python",
+          "languages": [
+            "python"
+          ]
         },
         {
           "kind": "ci_step",
-          "id": "crap",
-          "file": "skills/setup-standards/ci-typescript.md"
+          "id": "crap-typescript",
+          "file": "skills/setup-standards/ci-typescript.md",
+          "marker": "crap --lang typescript",
+          "languages": [
+            "typescript"
+          ]
+        },
+        {
+          "kind": "ci_step",
+          "id": "crap-swift",
+          "file": "skills/setup-standards/SKILL.md",
+          "marker": "crap --lang swift",
+          "languages": [
+            "swift"
+          ]
         },
         {
           "kind": "dependency",
           "id": "radon",
+          "languages": [
+            "python"
+          ],
           "origin": {
             "type": "dependency",
             "name": "radon",
@@ -358,6 +381,10 @@
         {
           "kind": "dependency",
           "id": "lizard",
+          "languages": [
+            "typescript",
+            "swift"
+          ],
           "origin": {
             "type": "dependency",
             "name": "lizard",

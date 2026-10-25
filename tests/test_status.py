@@ -5,6 +5,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -41,7 +42,8 @@ MANIFEST = {
             "parts": [
                 {"kind": "skill", "id": "crap"},
                 {"kind": "baseline", "id": "crap-baseline.json"},
-                {"kind": "ci_step", "id": "crap"},
+                {"kind": "ci_step", "id": "crap-python", "marker": "crap --lang python", "languages": ["python"]},
+                {"kind": "ci_step", "id": "crap-swift", "marker": "crap --lang swift", "languages": ["swift"]},
                 {"kind": "dependency", "id": "radon"},
             ],
         },
@@ -167,21 +169,49 @@ class Status(unittest.TestCase):
     def test_a_ci_step_is_unknown_when_a_workflow_file_cannot_be_read(self):
         self.set_up()
         (self.repo / ".github" / "workflows" / "tests.yml").write_bytes(b"\xff\xfe\x00bad")
-        self.assertEqual(part(self.report(), "risk", "ci_step", "crap")["status"], "unknown")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "unknown")
 
     def test_a_ci_step_is_installed_when_a_workflow_runs_the_gate(self):
         self.set_up()
-        self.assertEqual(part(self.report(), "risk", "ci_step", "crap")["status"], "installed")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "installed")
 
     def test_a_ci_step_is_missing_when_no_workflow_runs_the_gate(self):
         self.set_up()
         self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: pytest\n")
-        self.assertEqual(part(self.report(), "risk", "ci_step", "crap")["status"], "missing")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "missing")
 
     def test_a_ci_step_is_not_found_in_a_longer_command_name(self):
         self.set_up()
         self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: echo my-crap\n")
-        self.assertEqual(part(self.report(), "risk", "ci_step", "crap")["status"], "missing")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "missing")
+
+    def test_a_ci_step_is_judged_only_by_its_own_marker(self):
+        self.set_up()
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: crap --lang typescript src\n")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "missing")
+
+    def test_a_ci_step_that_runs_inside_a_named_file_is_installed_when_that_file_has_its_marker(self):
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+            {"kind": "ci_step", "id": "cc-check-python", "marker": "quality_check.main",
+             "found_in": "tests/test_quality_gates.py"}])]}
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
+        self.write(self.repo / "tests" / "test_quality_gates.py", "self.exit_code(quality_check.main, argv)\n")
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
+
+    def test_a_part_for_a_language_the_project_does_not_use_is_not_applicable_and_left_out_of_the_roll_up(self):
+        self.set_up()
+        report = self.report()
+        self.assertEqual(part(report, "risk", "ci_step", "crap-swift")["status"], "not applicable")
+        self.assertEqual(component(report, "risk")["status"], "installed")
+
+    def test_a_set_up_swift_project_shows_a_gate_with_a_swift_ci_step_installed(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "Package.swift", "// package")
+        self.set_up()
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: crap --lang swift Sources/\n")
+        report = self.report()
+        self.assertEqual(part(report, "risk", "ci_step", "crap-python")["status"], "not applicable")
+        self.assertEqual(component(report, "risk")["status"], "installed")
 
     def test_a_missing_asking_rule_line_is_missing(self):
         self.set_up()
@@ -209,16 +239,10 @@ class Status(unittest.TestCase):
     def test_a_component_with_nothing_installed_is_missing(self):
         self.assertEqual(component(self.report(), "core")["status"], "missing")
 
-    def test_commands_and_dependencies_the_running_package_provides_are_installed(self):
+    def test_commands_and_dependencies_are_shown_as_provided_by_quality_gates_not_as_installed(self):
         report = self.report()
-        self.assertEqual(part(report, "core", "command", "qg-skills")["status"], "installed")
-        self.assertEqual(part(report, "risk", "dependency", "radon")["status"], "installed")
-
-    def test_a_dependency_that_is_not_installed_is_missing(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
-            {"kind": "dependency", "id": "no-such-distribution-xyz"}])]}
-        part_status = self.report(manifest)["components"][0]["parts"][0]["status"]
-        self.assertEqual(part_status, "missing")
+        self.assertEqual(part(report, "core", "command", "qg-skills")["status"], "provided by quality-gates")
+        self.assertEqual(part(report, "risk", "dependency", "radon")["status"], "provided by quality-gates")
 
     def test_a_skill_the_release_does_not_ship_is_unknown(self):
         manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][2], parts=[
@@ -253,6 +277,31 @@ class Status(unittest.TestCase):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / ".venv" / "lib" / "dep.py", "x = 1")
         self.assertEqual(component(self.report(), "risk")["status"], "not applicable")
+
+    def test_the_copied_stage_guard_does_not_make_a_project_a_python_project(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "src" / "app.ts", "export {}")
+        self.set_up()
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
+
+    def test_source_files_in_build_and_vendored_output_do_not_count_as_a_language(self):
+        (self.repo / "pyproject.toml").unlink()
+        for folder in ("dist", "build", "target", "Pods", "DerivedData", ".tox", "lib/site-packages", ".build",
+                       "node_modules", ".cache"):
+            self.write(self.repo / folder / "vendored.py", "x = 1")
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
+
+    def test_a_project_with_source_in_every_language_gets_every_language_component(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("app.py", "App.swift", "app.ts"):
+            self.write(self.repo / name, "x")
+        self.write(self.repo / "src" / "more" / "deeper.py", "x = 1")
+        components = [dict(MANIFEST["components"][1], id=language, languages=[language])
+                      for language in ("python", "swift", "typescript")]
+        report = self.report({"format_version": 1, "components": components})
+        self.assertEqual([c["status"] for c in report["components"]], ["missing", "missing", "missing"])
 
     def test_a_language_component_is_applicable_to_a_project_with_typescript_files(self):
         (self.repo / "pyproject.toml").unlink()
@@ -289,6 +338,21 @@ class Status(unittest.TestCase):
         self.assertTrue(self.report()["pin_matches"])
         self.assertIn("matches", self.run_status()[1])
 
+    def test_a_pin_is_neither_matching_nor_differing_when_the_installed_version_cannot_be_read(self):
+        self.write(self.repo / "pyproject.toml", 'dev = ["quality-gates @ git+https://x/quality-gates@v0.12.0"]\n')
+        with mock.patch.object(skills_sync, "installed_version", return_value="unknown"):
+            report = self.report()
+            _, out = self.run_status()
+        self.assertIsNone(report["pin_matches"])
+        self.assertNotIn("differs", out)
+        self.assertIn("could not tell whether it matches", out)
+
+    def test_the_shipped_skills_are_listed_once_per_report(self):
+        self.set_up()
+        with mock.patch.object(skills_sync, "skill_names", wraps=skills_sync.skill_names) as listing:
+            self.report()
+        self.assertEqual(listing.call_count, 1)
+
     def test_core_components_are_listed_first_and_marked_core(self):
         _, out = self.run_status()
         self.assertLess(out.index("core"), out.index("risk"))
@@ -316,6 +380,13 @@ class Status(unittest.TestCase):
         self.set_up()
         self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "edited")
         self.assertIn("skill tdd: different", self.run_status()[1])
+
+    def test_needs_attention_lists_only_parts_that_count_toward_status(self):
+        self.set_up()
+        (self.repo / "crap-baseline.json").unlink()
+        _, out = self.run_status()
+        attention = [line for line in out.splitlines() if "Needs attention" in line]
+        self.assertEqual(attention, ["    Needs attention: baseline crap-baseline.json: missing"])
 
     def test_an_empty_folder_gets_a_plain_report_and_exit_0(self):
         empty = self.tmp / "empty"

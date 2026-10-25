@@ -4,10 +4,9 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from quality_gates import languages, project_files, skills_sync
+from quality_gates import complexity_scan, languages, project_files, skills_sync
 
 MANIFEST_PATH = Path(__file__).parent / "components.json"
 
@@ -17,8 +16,10 @@ DIFFERENT = "different"
 UNKNOWN = "unknown"
 PARTLY = "partly installed"
 NOT_APPLICABLE = "not applicable"
+PROVIDED = "provided by quality-gates"
 
-SKIPPED_DIRECTORIES = {".git", ".venv", "venv", "node_modules", ".build", "__pycache__"}
+BUILD_OUTPUT_FOLDERS = {"target", "Pods", "DerivedData", "site-packages"}
+HIDDEN_PREFIX = "."
 PROJECT_MARKERS = {
     "python": ("pyproject.toml", "setup.py"),
     "swift": ("Package.swift",),
@@ -30,6 +31,11 @@ WORKFLOW_SUFFIXES = (".yml", ".yaml")
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
+PIN_VERDICTS = {
+    True: "matches",
+    False: "differs from the installed version",
+    None: "could not tell whether it matches",
+}
 NO_PARTS_NOTICE = "No quality-gates parts found in this folder. Run /setup-standards to add them."
 
 
@@ -38,6 +44,7 @@ class Project:
     root: Path
     source: Path
     hooks: Path
+    shipped_skills: frozenset
 
     @property
     def claude_dir(self):
@@ -55,7 +62,7 @@ def load_manifest():
 
 
 def skill_status(project, part):
-    if part["id"] not in skills_sync.skill_names(project.source):
+    if part["id"] not in project.shipped_skills:
         return UNKNOWN
     dest = project.claude_dir / "skills"
     if not skills_sync.files_under(dest / part["id"]):
@@ -103,27 +110,22 @@ def runs_command(text, command):
     return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
 
 
+def ci_step_files(project, part):
+    if "found_in" not in part:
+        return project.workflows()
+    path = project.root / part["found_in"]
+    return [path] if path.is_file() else []
+
+
 def ci_step_status(project, part):
     unreadable = False
-    for workflow in project.workflows():
+    for path in ci_step_files(project, part):
         try:
-            if runs_command(workflow.read_text(encoding="utf-8"), part["id"]):
+            if runs_command(path.read_text(encoding="utf-8"), part["marker"]):
                 return INSTALLED
         except (OSError, UnicodeDecodeError):
             unreadable = True
     return UNKNOWN if unreadable else MISSING
-
-
-def command_status(project, part):
-    return INSTALLED
-
-
-def dependency_status(project, part):
-    try:
-        version(part["id"])
-    except PackageNotFoundError:
-        return MISSING
-    return INSTALLED
 
 
 PART_STATUS = {
@@ -132,8 +134,6 @@ PART_STATUS = {
     "claude_md_line": claude_md_line_status,
     "baseline": baseline_status,
     "ci_step": ci_step_status,
-    "command": command_status,
-    "dependency": dependency_status,
 }
 
 
@@ -158,11 +158,18 @@ def marker_languages(root):
     return {name for name, markers in PROJECT_MARKERS.items() if any((root / marker).exists() for marker in markers)}
 
 
+def is_detection_skipped(folder):
+    name = folder.name
+    return name.startswith(HIDDEN_PREFIX) or name in BUILD_OUTPUT_FOLDERS or complexity_scan.is_skipped(folder)
+
+
 def used_languages(root):
     suffixes = {suffix: name for name, language in languages.LANGUAGES.items() for suffix in language.suffixes}
     found = marker_languages(root)
     for folder, directories, files in os.walk(root):
-        directories[:] = [d for d in directories if d not in SKIPPED_DIRECTORIES]
+        if found >= set(languages.LANGUAGES):
+            break
+        directories[:] = [d for d in directories if not is_detection_skipped(Path(folder) / d)]
         found |= project_suffix_languages(directories, files, suffixes)
     return found
 
@@ -174,17 +181,33 @@ def project_suffix_languages(directories, files, suffixes):
     return found
 
 
+def applies(languages_wanted, used):
+    return not languages_wanted or bool(set(languages_wanted) & used)
+
+
+def part_report(project, part, used):
+    if part["kind"] in PROVIDED_BY_PACKAGE:
+        found = PROVIDED
+    elif applies(part.get("languages"), used):
+        found = part_status(project, part)
+    else:
+        found = NOT_APPLICABLE
+    return {"kind": part["kind"], "id": part["id"], "status": found}
+
+
+def counts_toward_status(part):
+    return part["status"] not in (PROVIDED, NOT_APPLICABLE)
+
+
 def component_report(project, component, used):
     wanted = component["languages"]
-    parts = [
-        {"kind": p["kind"], "id": p["id"], "status": part_status(project, p)} for p in component["parts"]
-    ]
-    applicable = not wanted or bool(set(wanted) & used)
+    parts = [part_report(project, p, used) for p in component["parts"]]
+    applicable = applies(wanted, used)
     return {
         "id": component["id"],
         "name": component["name"],
         "core": component["core"],
-        "status": roll_up([p["status"] for p in parts if p["kind"] not in PROVIDED_BY_PACKAGE]) if applicable else NOT_APPLICABLE,
+        "status": roll_up([p["status"] for p in parts if counts_toward_status(p)]) if applicable else NOT_APPLICABLE,
         "description": component["description"],
         "origin": component["origin"],
         "languages": wanted,
@@ -204,6 +227,12 @@ def read_pin(project):
     return None
 
 
+def pin_matches(pin, installed):
+    if pin is None or installed == skills_sync.UNKNOWN_VERSION:
+        return None
+    return pin.lstrip("v") == installed
+
+
 def build_report(project, manifest):
     used = used_languages(project.root)
     pin, installed = read_pin(project), skills_sync.installed_version()
@@ -211,7 +240,7 @@ def build_report(project, manifest):
         "format_version": manifest["format_version"],
         "installed_version": installed,
         "pin": pin,
-        "pin_matches": None if pin is None else pin.lstrip("v") == installed,
+        "pin_matches": pin_matches(pin, installed),
         "components": [component_report(project, c, used) for c in manifest["components"]],
     }
 
@@ -224,13 +253,12 @@ def pin_line(report):
     installed = report["installed_version"]
     if report["pin"] is None:
         return f"Pin: pin not found. Installed quality-gates: {installed}."
-    verdict = "matches" if report["pin_matches"] else "differs from the installed version"
-    return f"Pin: {report['pin']}. Installed quality-gates: {installed} ({verdict})."
+    return f"Pin: {report['pin']}. Installed quality-gates: {installed} ({PIN_VERDICTS[report['pin_matches']]})."
 
 
 def component_lines(item):
     lines = [f"  {item['id']:<24} {item['status']:<18} {origin_text(item['origin'])}", f"    {item['description']}"]
-    needs = [f"{p['kind']} {p['id']}: {p['status']}" for p in item["parts"] if p["status"] != INSTALLED]
+    needs = [f"{p['kind']} {p['id']}: {p['status']}" for p in item["parts"] if counts_toward_status(p) and p["status"] != INSTALLED]
     if is_applicable(item) and needs:
         lines.append("    Needs attention: " + "; ".join(needs))
     return lines
@@ -282,7 +310,7 @@ def build_parser():
 
 def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None):
     args = build_parser().parse_args(argv)
-    project = Project(Path.cwd() if root is None else root, source, hooks)
+    project = Project(Path.cwd() if root is None else root, source, hooks, frozenset(skills_sync.skill_names(source)))
     report = build_report(project, manifest or load_manifest())
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0

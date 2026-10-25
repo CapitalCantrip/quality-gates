@@ -10,13 +10,14 @@ from quality_gates import project_files
 SHIPPED = Path(__file__).parent / "skills"
 DEFAULT_DEST = Path(".claude") / "skills"
 SKILL_FILE = "SKILL.md"
+UNKNOWN_VERSION = "unknown"
 
 
 def installed_version():
     try:
         return version("quality-gates")
     except PackageNotFoundError:
-        return "unknown"
+        return UNKNOWN_VERSION
 
 
 def skill_names(source):

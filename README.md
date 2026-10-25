@@ -28,7 +28,7 @@ folder:
    gate commands on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.1"
+   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.12.0"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -337,9 +337,15 @@ file-level record `qg-upstream` reads.
   one most of its parts have; a part with a different one carries its own. An
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.
-- `parts`: each has a `kind` and an `id`. The kinds are `skill`, `hook`,
-  `command`, `baseline`, `ci_step` (with `file`, the CI example it appears in),
-  `claude_md_line` and `dependency`.
+- `parts`: each has a `kind` and an `id`, unique for its kind within the
+  component. The kinds are `skill`, `hook`, `command`, `baseline`, `ci_step`,
+  `claude_md_line` and `dependency`. A `ci_step` has `file`, the setup example
+  it comes from, and `marker`, the text that example puts in a CI workflow; with
+  `found_in`, the marker is looked for in that project file instead, such as the
+  test file `cc-check` runs inside for Python. A part for only some of its
+  component's languages lists them in `languages`; in a project that uses none
+  of them the part is *not applicable* and does not count toward the
+  component's status.
 
 **Set up and standards**
 
@@ -439,7 +445,11 @@ Three more commands support them:
   found*. It only reads, works offline and always exits 0, so it never blocks a
   commit; `qg-skills --check` stays the check that fails. `qg status --json`
   prints the same report for an agent, with the component list's format
-  version, and for each component its id, status and parts.
+  version, and for each component its id, status and parts. The commands and
+  tools quality-gates itself installs, such as `cc-check` or `radon`, have no
+  status of their own: they are listed as *provided by quality-gates* and do
+  not count toward a component's status, and neither does a part for a language
+  the project does not use. *Needs attention* names only the parts that count.
 
   ```text
   $ qg status

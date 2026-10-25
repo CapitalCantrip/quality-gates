@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.12.0 — 2026-10-25
+
+No score, threshold or scanned file changes (#104, #118; ADR-005 addendum
+2026-10-25).
+
+- **New contract: `components.json`.** The package ships a component manifest,
+  `format_version` 1: every component, its parts, a one-line description, its
+  languages and its origin (ours, an upstream or a dependency). A tool that
+  reads it should check `format_version`; a change of shape raises it and gets
+  a note here. README § The component manifest documents the fields. Tests
+  keep it in step with the shipped skills, `upstream.json` and the README's
+  *From* column.
+- **New command: `qg status`.** Run in a project, it prints each component as
+  installed, missing, different, partly installed, unknown or not applicable,
+  with what it does and where it came from, and the project's pin beside the
+  installed version (or *pin not found*). `qg status --json` gives the same
+  report for agents. It only reads, works offline and always exits 0;
+  `qg-skills --check` stays the gate.
+
+**When you bump the pin:** run `qg-skills` as usual. Nothing else is required;
+`qg status` is there when you want to see what the project has.
+
 ## 0.11.1 — 2026-10-22
 
 No score, threshold or scanned file changes.
