@@ -338,8 +338,11 @@ file-level record `qg-upstream` reads.
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.
 - `parts`: each has a `kind` and an `id`, unique for its kind within the
-  component. The kinds are `skill`, `hook`, `command`, `baseline`, `ci_step`,
-  `claude_md_line` and `dependency`. A `ci_step` has `file`, the setup example
+  component. The kinds are `skill`, `hook`, `command`, `baseline`, `config`,
+  `ci_step`, `precommit_step`, `claude_md_line` and `dependency`. A `config` is
+  a settings file the gate reads, such as `.swiftlint.yml`, and is present or
+  absent like a baseline. A `precommit_step` has `marker`, the command
+  `/setup-standards` puts in `.githooks/pre-commit`. A `ci_step` has `file`, the setup example
   it comes from, and `marker`, the text that example puts in a CI workflow; with
   `found_in`, the marker is looked for in that project file instead, such as the
   test file `cc-check` runs inside for Python. A part for only some of its

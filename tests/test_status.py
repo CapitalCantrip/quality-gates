@@ -198,6 +198,28 @@ class Status(unittest.TestCase):
         self.write(self.repo / "tests" / "test_quality_gates.py", "self.exit_code(quality_check.main, argv)\n")
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
 
+    def test_a_precommit_step_is_installed_when_the_pre_commit_hook_runs_its_marker(self):
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+            {"kind": "precommit_step", "id": "comment-debt", "marker": "comment-debt"}])]}
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
+        self.write(self.repo / ".githooks" / "pre-commit", "#!/bin/sh\ncomment-debt-report\n")
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
+        self.write(self.repo / ".githooks" / "pre-commit", "#!/bin/sh\ncomment-debt || exit 1\n")
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
+
+    def test_a_precommit_step_is_not_found_in_a_ci_workflow(self):
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+            {"kind": "precommit_step", "id": "crap", "marker": "crap --lang python"}])]}
+        self.set_up()
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
+
+    def test_a_config_file_is_installed_when_present_and_missing_when_absent(self):
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+            {"kind": "config", "id": ".swiftlint.yml"}])]}
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
+        self.write(self.repo / ".swiftlint.yml", "cyclomatic_complexity:\n  error: 8\n")
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
+
     def test_a_part_for_a_language_the_project_does_not_use_is_not_applicable_and_left_out_of_the_roll_up(self):
         self.set_up()
         report = self.report()

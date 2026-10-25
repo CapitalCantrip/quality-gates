@@ -6,8 +6,9 @@ No score, threshold or scanned file changes (#104, #118; ADR-005 addendum
 2026-10-25).
 
 - **New contract: `components.json`.** The package ships a component manifest,
-  `format_version` 1: every component, its parts, a one-line description, its
-  languages and its origin (ours, an upstream or a dependency). A tool that
+  `format_version` 1: every component, its parts (down to each gate's settings
+  file, CI step and pre-commit step), a one-line description, its languages and
+  its origin (ours, an upstream or a dependency). A tool that
   reads it should check `format_version`; a change of shape raises it and gets
   a note here. README § The component manifest documents the fields. Tests
   keep it in step with the shipped skills, `upstream.json` and the README's

@@ -156,9 +156,11 @@
     {
       "id": "no-comments",
       "name": "No code comments",
-      "description": "Stops comments from creeping into code: counts them, blocks new ones and helps pay down the old ones.",
+      "description": "Stops comments from creeping into Python code: counts them, blocks new ones and helps pay down the old ones.",
       "core": false,
-      "languages": [],
+      "languages": [
+        "python"
+      ],
       "origin": {
         "type": "ours"
       },
@@ -174,6 +176,18 @@
         {
           "kind": "baseline",
           "id": "comment-debt.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "comment-debt-python",
+          "file": "skills/setup-standards/ci-python.md",
+          "marker": "comment_debt.main",
+          "found_in": "tests/test_quality_gates.py"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "comment-debt",
+          "marker": "comment-debt"
         }
       ]
     },
@@ -207,6 +221,11 @@
           "file": "skills/setup-standards/ci-python.md",
           "marker": "quality_check.main",
           "found_in": "tests/test_quality_gates.py"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "cc-check-python",
+          "marker": "cc-check"
         },
         {
           "kind": "dependency",
@@ -250,6 +269,11 @@
           "marker": "cc-check --lang typescript"
         },
         {
+          "kind": "precommit_step",
+          "id": "cc-check-typescript",
+          "marker": "cc-check --lang typescript"
+        },
+        {
           "kind": "dependency",
           "id": "lizard",
           "origin": {
@@ -263,7 +287,7 @@
     {
       "id": "complexity-swift",
       "name": "Complexity gate for Swift",
-      "description": "Flags Swift functions that are too tangled to follow, and proposes how to simplify them.",
+      "description": "Flags Swift functions that are too tangled to follow, through SwiftLint, and proposes how to simplify them.",
       "core": false,
       "languages": [
         "swift"
@@ -277,12 +301,19 @@
           "id": "cc-swift"
         },
         {
-          "kind": "command",
-          "id": "cc-check"
+          "kind": "config",
+          "id": ".swiftlint.yml"
         },
         {
-          "kind": "baseline",
-          "id": "cc-baseline.json"
+          "kind": "ci_step",
+          "id": "swiftlint",
+          "file": "skills/cc-swift/SKILL.md",
+          "marker": "swiftlint"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "swiftlint",
+          "marker": "swiftlint"
         },
         {
           "kind": "dependency",
@@ -310,6 +341,16 @@
         {
           "kind": "skill",
           "id": "cc-rust"
+        },
+        {
+          "kind": "config",
+          "id": "clippy.toml"
+        },
+        {
+          "kind": "ci_step",
+          "id": "cargo-clippy",
+          "file": "skills/cc-rust/SKILL.md",
+          "marker": "cargo clippy"
         }
       ]
     },

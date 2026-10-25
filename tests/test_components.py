@@ -1,8 +1,13 @@
 import json
 import re
+import sys
 import unittest
 from collections import Counter
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
+
+from quality_gates.languages import CC_CHECK_LANGUAGES  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src/quality_gates"
@@ -12,7 +17,9 @@ UPSTREAM = json.loads((PACKAGE / "upstream.json").read_text(encoding="utf-8"))
 PYPROJECT = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
-PART_KINDS = {"skill", "hook", "baseline", "ci_step", "claude_md_line", "command", "dependency"}
+PART_KINDS = {"skill", "hook", "baseline", "config", "ci_step", "precommit_step", "claude_md_line", "command", "dependency"}
+COMMENT_DEBT_LANGUAGES = {"python"}
+HOOK_SECTION = "\n## 4. Hooks\n"
 ORIGIN_TYPES = {"ours", "upstream", "dependency"}
 UPSTREAM_LABELS = {"mattpocock/skills": "Pocock"}
 SKILLS_PREFIX = "src/quality_gates/skills/"
@@ -107,16 +114,44 @@ class ComponentManifest(unittest.TestCase):
         for component, part in parts():
             self.assertLessEqual(set(part.get("languages", [])), set(component["languages"]), part["id"])
 
-    def test_every_language_a_language_component_has_gets_a_ci_step_when_any_language_does(self):
+    def test_every_language_a_component_has_gets_a_ci_step(self):
         for component in MANIFEST["components"]:
             steps = [part for part in component["parts"] if part["kind"] == "ci_step"]
             covered = {language for part in steps for language in part.get("languages", component["languages"])}
+            self.assertEqual(covered, set(component["languages"]), component["id"])
+
+    def test_every_baseline_and_config_file_a_component_names_is_named_by_a_shipped_skill(self):
+        skill_text = " ".join(path.read_text(encoding="utf-8") for path in SKILLS.glob("*/SKILL.md"))
+        for kind in ("baseline", "config"):
+            for _, part in parts(kind):
+                self.assertIn(part["id"], skill_text, part["id"])
+
+    def test_every_precommit_step_marker_is_in_the_hook_step_of_the_setup_guide(self):
+        guide = (SKILLS / "setup-standards" / "SKILL.md").read_text(encoding="utf-8")
+        hook_step = guide.split(HOOK_SECTION, 1)[1].split("\n## ", 1)[0]
+        for _, part in parts("precommit_step"):
+            self.assertIn(f"`{part['marker']}", hook_step, part["id"])
+
+    def test_every_language_a_fast_gate_component_has_gets_a_precommit_step(self):
+        for component in MANIFEST["components"]:
+            steps = [part for part in component["parts"] if part["kind"] == "precommit_step"]
+            covered = {language for part in steps for language in part.get("languages", component["languages"])}
             self.assertTrue(not steps or covered == set(component["languages"]), component["id"])
 
-    def test_every_baseline_a_component_names_is_named_by_a_shipped_skill(self):
-        skill_text = " ".join(path.read_text(encoding="utf-8") for path in SKILLS.glob("*/SKILL.md"))
-        for _, part in parts("baseline"):
-            self.assertIn(part["id"], skill_text, part["id"])
+    def test_a_component_names_cc_check_only_for_languages_cc_check_counts(self):
+        for component, _ in (pair for pair in parts("command") if pair[1]["id"] == "cc-check"):
+            self.assertLessEqual(set(component["languages"]), set(CC_CHECK_LANGUAGES), component["id"])
+
+    def test_the_comment_gate_names_only_the_languages_comment_debt_reads(self):
+        for component, _ in (pair for pair in parts("command") if pair[1]["id"] == "comment-debt"):
+            self.assertEqual(set(component["languages"]), COMMENT_DEBT_LANGUAGES, component["id"])
+
+    def test_the_swift_and_rust_complexity_gates_list_their_lint_config_and_ci_step(self):
+        for component_id, config in (("complexity-swift", ".swiftlint.yml"), ("complexity-rust", "clippy.toml")):
+            component = next(c for c in MANIFEST["components"] if c["id"] == component_id)
+            kinds = {(part["kind"], part.get("id")) for part in component["parts"]}
+            self.assertIn(("config", config), kinds, component_id)
+            self.assertTrue(any(kind == "ci_step" for kind, _ in kinds), component_id)
 
     def test_every_part_has_a_known_kind_and_every_origin_a_known_type(self):
         for component, part in parts():

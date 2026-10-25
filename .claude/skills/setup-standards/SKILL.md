@@ -152,7 +152,7 @@ release's CHANGELOG entry says under *When you bump the pin*.
 1. `.githooks/pre-commit` runs every fast gate, stopping at the first failure:
    `comment-debt` and `cc-check <source dirs> --baseline cc-baseline.json` for
    Python; `cc-check --lang typescript <source dirs> --baseline cc-baseline.json`
-   for TypeScript or JavaScript; SwiftLint for Swift where installed. Keep any lines the project
+   for TypeScript or JavaScript; `swiftlint` for Swift where installed. Keep any lines the project
    already had. Make it executable. If the project has a `.venv`, the hook's
    first line after the shebang is `[ -d .venv/bin ] && PATH="$PWD/.venv/bin:$PATH"`:
    VS Code and cloud shells run the hook without the venv activated.

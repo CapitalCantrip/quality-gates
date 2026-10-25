@@ -28,6 +28,7 @@ PROJECT_MARKERS = {
 }
 XCODE_PROJECT_SUFFIX = ".xcodeproj"
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
+PRE_COMMIT_HOOK = ".githooks/pre-commit"
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
@@ -99,7 +100,7 @@ def claude_md_line_status(project, part):
         return UNKNOWN
 
 
-def baseline_status(project, part):
+def file_status(project, part):
     path = project.root / part["id"]
     if not path.exists():
         return MISSING
@@ -128,12 +129,18 @@ def ci_step_status(project, part):
     return UNKNOWN if unreadable else MISSING
 
 
+def precommit_step_status(project, part):
+    return ci_step_status(project, {"marker": part["marker"], "found_in": PRE_COMMIT_HOOK})
+
+
 PART_STATUS = {
     "skill": skill_status,
     "hook": hook_status,
     "claude_md_line": claude_md_line_status,
-    "baseline": baseline_status,
+    "baseline": file_status,
+    "config": file_status,
     "ci_step": ci_step_status,
+    "precommit_step": precommit_step_status,
 }
 
 
