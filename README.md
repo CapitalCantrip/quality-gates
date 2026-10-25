@@ -420,6 +420,7 @@ Three more commands support them:
 
   | Command | Code |
   |---|---|
+  | `qg` | [src/quality_gates/status.py](src/quality_gates/status.py) |
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
   | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |
@@ -427,6 +428,39 @@ Three more commands support them:
   | `comment-debt` | [src/quality_gates/comment_debt.py](src/quality_gates/comment_debt.py) |
   | `cc-check` | [src/quality_gates/quality_check.py](src/quality_gates/quality_check.py) |
   | `crap` | [src/quality_gates/crap.py](src/quality_gates/crap.py) |
+
+- `qg status` shows what quality-gates has installed in the project you are in.
+  It lists every component with one of these words, a line on what it does and
+  where it came from: *installed*, *missing*, *different* (a copied file was
+  edited, so it no longer matches the release), *partly installed*, *unknown*
+  (it could not read something) or *not applicable* (the component is for a
+  language the project does not use). Core components come first. It also shows
+  the version the project pins next to the version installed, or *pin not
+  found*. It only reads, works offline and always exits 0, so it never blocks a
+  commit; `qg-skills --check` stays the check that fails. `qg status --json`
+  prints the same report for an agent, with the component list's format
+  version, and for each component its id, status and parts.
+
+  ```text
+  $ qg status
+  Pin: v0.12.0. Installed quality-gates: 0.12.0 (matches).
+
+  Core components (every project has these)
+    core                     installed          upstream: mattpocock/skills
+      The workflow from idea to merged change, ...
+
+  Optional components
+    crap                     partly installed   ours
+      Flags code that is both tangled and untested, ...
+      Needs attention: baseline crap-baseline.json: missing
+    complexity-python        different          ours
+      Flags Python functions that are too tangled to follow, ...
+      Needs attention: skill cc-python: different
+
+  Not applicable to this project
+    complexity-swift         not applicable     ours
+      Flags Swift functions that are too tangled to follow, ...
+  ```
 
 - `qg-skills` copies from the installed package, not from GitHub, so the
   version you installed decides which skills a project gets. It writes
