@@ -17,7 +17,7 @@ bump.
 The pin this skill belongs to: `v0.12.0`. Install line, used in step 2:
 
 ```bash
-uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.12.0"
+uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.12.0"
 ```
 
 Ask the builder only where a choice is theirs, in the form the `standards`
@@ -105,10 +105,15 @@ from the repo root and commit the file it writes.
 
 - **Python:** `comment-debt --update`;
   `cc-check <source dirs> --baseline cc-baseline.json --update`; collect
-  coverage (`coverage run -m pytest` or `-m unittest discover`, then
-  `coverage json`) and run
+  coverage (`coverage erase`, then `coverage run -m pytest` or
+  `-m unittest discover`, then `coverage json`) and run
   `crap --lang python <source dirs> --coverage-json coverage.json --baseline crap-baseline.json --update`.
-  Add `coverage.json` and `.coverage` to `.gitignore`.
+  Add `coverage.json` and `.coverage` to `.gitignore`. Run coverage in the
+  environment the tests run in; when the tests start child processes, add
+  `[tool.coverage.run] patch = ["subprocess"]` to `pyproject.toml`. If the
+  update exits 1 listing `UNMEASURED` functions, coverage missed those files:
+  fix the measuring or take them out of the scan, then rerun. Do not report
+  them as debt.
 - **Swift:** run SwiftLint. Each function already over the limit gets
   `// swiftlint:disable:next cyclomatic_complexity` above it; that pragma is its
   baseline entry. Then record CRAP from the project's coverage. In a SwiftPM
@@ -117,8 +122,8 @@ from the repo root and commit the file it writes.
   In an Xcode project with an `.xcresult`, run
   `crap --lang swift <source dirs> --xcresult <bundle> --baseline crap-baseline.json --update`.
   Run the tests in the same checkout as `crap`: it matches a report file only at
-  its exact path, so a bundle made in another checkout or container gives every
-  function unknown coverage.
+  its exact path, so a bundle made in another checkout or container leaves every
+  function unmeasured, and unmeasured functions fail the gate.
   A SwiftPM package with no test target (no `.testTarget` in its
   `Package.swift`) has no coverage to record, so CRAP is not set up for it.
   Report CRAP as **not done**, with the reason (no test target, so
@@ -188,9 +193,9 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   ```
 
   A function under `#if os(macOS)` or `canImport(UIKit)` has no coverage
-  record on Linux, so it scores worst case there. A report made in another
-  checkout or container gives every function unknown coverage, because `crap`
-  matches a report file only at its exact path.
+  record on Linux, so it is unmeasured there and fails the gate. A report made
+  in another checkout or container leaves every function unmeasured, because
+  `crap` matches a report file only at its exact path.
 
   A SwiftPM package with no test target gets no CRAP step: report CRAP as
   **not done**, as step 3 says.

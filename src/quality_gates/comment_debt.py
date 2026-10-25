@@ -221,6 +221,9 @@ def main(argv=None, root=None, baseline=None, out=sys.stdout):
     parser.add_argument("--baseline", help=f"baseline file (default: {DEFAULT_BASELINE} at the repo root)")
     parser.add_argument("--exclude", action="append", default=[], metavar="PREFIX", help="skip tracked paths with this prefix")
     args = parser.parse_args(argv)
+    if args.baseline is not None and not args.baseline.strip():
+        out.write("--baseline was given an empty path\n")
+        return 2
     root = root or repo_root()
     baseline = Path(baseline or args.baseline or root / DEFAULT_BASELINE)
     if args.update:

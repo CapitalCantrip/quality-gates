@@ -99,8 +99,8 @@ class CoverageReaderTest(unittest.TestCase):
         self.addCleanup(os.chdir, before)
 
     def xccov(self):
-        stdout = SWIFT_REPORT.read_text(encoding="utf-8")
-        return patch.object(xccov, "run", return_value=CompletedProcess([], 0, stdout=stdout, stderr=""))
+        stdout = SWIFT_REPORT.read_bytes()
+        return patch.object(xccov, "run", return_value=CompletedProcess([], 0, stdout=stdout, stderr=b""))
 
     def test_python_coverage_is_the_branch_coverage_within_the_functions_lines(self):
         coverage_of = reader("--coverage-json")(PYTHON_REPORT)

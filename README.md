@@ -24,11 +24,11 @@ a cloud session on your phone. To update, install the new version and repeat.
 You need [uv](https://docs.astral.sh/uv/) and Claude Code. In the project's
 folder:
 
-1. Install the commands, pinned to a version. This puts `qg-skills` and the
-   gate commands on your computer:
+1. Install the commands, pinned to a version. This puts `qg-skills`, the
+   gate commands and `coverage` on your computer:
 
    ```bash
-   uv tool install "quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.12.0"
+   uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.12.0"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -116,9 +116,10 @@ someone reading the code:
 - **Old code doesn't stop the line, and no run makes it worse.** Existing debt
   is recorded once and can only shrink, so the factory can take on a project
   as it is.
-- **It fails safe.** When a check can't tell, for example because it can't
-  match test coverage to a file, it assumes the worst instead of guessing in
-  the code's favour.
+- **It fails safe, and says why.** When a check can't tell, for example
+  because it can't match test coverage to a file, it fails instead of guessing
+  in the code's favour, and names the gap rather than dressing it up as a
+  failing score.
 - **The line learns once.** A mistake that keeps coming back becomes a check
   or a review rule, and it reaches every project at the next release.
 - **People steer without reading code.** When an agent needs a decision, it
@@ -231,6 +232,13 @@ ranks functions by risk and is never read as pass/fail. `crap` takes
 `--baseline FILE` too, and refuses it without coverage (exit 2). A
 coverage flag given an empty path exits 2, so a path command that fails inside
 `$(...)` fails the build instead of passing as a worst-case ranking.
+A coverage report of the wrong shape (a list where an object belongs, an xccov
+`path` or `name` that is not text) exits 2 too.
+When the report has no usable figure for a function, `crap` grades it `UNMEASURED`: no
+CRAP score (`—` in the table, `"crap": null` in `--json`), a failing gate,
+and the summary names its file. `--baseline --update` records none and keeps
+any entry it already has, so a coverage outage can neither add debt nor drop it
+(ADR-001's addendum "unmeasured functions (v0.12.0)").
 When a report is given and none of the scored functions gets a figure from it,
 `crap` prints one line to stderr saying so (ADR-001's addendum "Coverage
 readers fail loudly").
@@ -424,6 +432,15 @@ Three more commands support them:
 - Instead of `uv tool install`, you can add the same requirement to the
   project's dev dependencies; `/setup-standards` does this for a Python
   project. lizard, which counts Swift and TypeScript, installs with the package.
+- The `coverage` extra installs coverage.py beside the gates, and
+  `--with-executables-from coverage` puts its command on your PATH. That
+  `coverage` runs tests with the tool's own Python, so it suits a project whose
+  tests need only the standard library. A project whose tests import its own
+  dependencies installs coverage in the environment the tests run in.
+  Child processes the tests start are measured only with
+  `[tool.coverage.run] patch = ["subprocess"]` in `pyproject.toml` (coverage
+  7.10 or later). Clear old data with `coverage erase`: `rm .coverage*` also
+  deletes `.coveragerc`.
 - Each command is a Python file in the package, linked to its name in
   [pyproject.toml](pyproject.toml); installing the package makes the link:
 

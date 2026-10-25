@@ -148,6 +148,16 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual(cd.main(['--update', '--baseline', str(other)], root=self.root, out=out), 0)
         self.assertEqual(json.loads(other.read_text()), {'a.py': 1})
 
+    def test_an_empty_or_whitespace_only_baseline_flag_is_refused_naming_the_flag(self):
+        self.put('a.py', '# one\nx = 1\n')
+        for value in ('', '  '):
+            for mode in ([], ['--update']):
+                with self.subTest(value=value, mode=mode):
+                    out = io.StringIO()
+                    self.assertEqual(cd.main([*mode, '--baseline', value], root=self.root, out=out), 2)
+                    self.assertIn('--baseline was given an empty path', out.getvalue())
+        self.assertFalse(self.file.exists())
+
     def test_an_excluded_prefix_is_not_counted(self):
         (self.root / 'backups').mkdir()
         self.put('backups/old.py', '# old\nx = 1\n')

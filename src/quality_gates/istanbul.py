@@ -1,15 +1,19 @@
 from typing import TYPE_CHECKING, Optional
 
-from quality_gates.json_report import load_json
+from quality_gates.errors import ToolError
+from quality_gates.json_report import MALFORMED_RECORD, load_json, shaped
 from quality_gates.real_path import real_path
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
 
 
+ISTANBUL_JSON = "Istanbul coverage JSON"
+
+
 def load(report_path: str) -> dict:
-    data = load_json(report_path, "Istanbul coverage file", "Istanbul coverage JSON")
-    return {real_path(path): entry for path, entry in data.items()}
+    data = shaped(load_json(report_path, "Istanbul coverage file", ISTANBUL_JSON), dict, ISTANBUL_JSON, "the document")
+    return {real_path(path): shaped(entry, dict, ISTANBUL_JSON, f"the entry for {path}") for path, entry in data.items()}
 
 
 def _end_lines_starting_on(entry: dict, start: int) -> list:
@@ -59,6 +63,13 @@ def function_coverage(files: dict, filepath: str, start: int, lizard_end: int) -
     entry = files.get(real_path(filepath))
     if entry is None:
         return None
+    try:
+        return _range_coverage(entry, start, lizard_end)
+    except MALFORMED_RECORD as exc:
+        raise ToolError(f"bad {ISTANBUL_JSON}: the entry for {filepath}: {exc!r}") from None
+
+
+def _range_coverage(entry: dict, start: int, lizard_end: int) -> Optional[float]:
     span = function_range(entry, start, lizard_end)
     branch = _branch_coverage(entry, span)
     return branch if branch is not None else _statement_coverage(entry, span)

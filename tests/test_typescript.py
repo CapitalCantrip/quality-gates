@@ -209,7 +209,8 @@ class CrapTypescriptTest(InRepoRoot):
                 encoding="utf-8",
             )
             report = Path(tmp) / "coverage-final.json"
-            report.write_text(json.dumps({str(src): {"fnMap": {}, "statementMap": {}, "s": {}, "branchMap": {}, "b": {}}}), encoding="utf-8")
+            uncovered = {"statementMap": {"0": {"start": {"line": 2}}, "1": {"start": {"line": 4}}}, "s": {"0": 0, "1": 0}}
+            report.write_text(json.dumps({str(src): {"fnMap": {}, "branchMap": {}, "b": {}, **uncovered}}), encoding="utf-8")
             baseline = Path(tmp) / "crap-baseline.json"
             argv = ["--lang", "typescript", str(src), "--istanbul-json", str(report), "--baseline", str(baseline), "--update"]
             run_main(crap.main, argv)

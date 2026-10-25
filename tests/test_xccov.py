@@ -1,4 +1,7 @@
 import json
+import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -11,7 +14,7 @@ from quality_gates.errors import ToolError
 
 
 def completed(stdout, returncode=0):
-    return CompletedProcess([], returncode, stdout=stdout, stderr="")
+    return CompletedProcess([], returncode, stdout=stdout.encode("utf-8"), stderr=b"")
 
 
 def indexed(path, funcs):
@@ -52,7 +55,7 @@ class SwiftCoverageTest(unittest.TestCase):
         self.assertEqual(str(raised.exception), "could not parse xccov output: Exceeds the limit")
 
     def test_a_failed_xccov_is_a_tool_error(self):
-        with patch.object(xccov, "run", return_value=CompletedProcess([], 1, stdout="", stderr="no bundle")):
+        with patch.object(xccov, "run", return_value=CompletedProcess([], 1, stdout=b"", stderr=b"no bundle")):
             with self.assertRaises(ToolError) as raised:
                 xccov.load("r.xcresult")
         self.assertEqual(str(raised.exception), "xcrun xccov failed:\nno bundle")
@@ -164,6 +167,44 @@ class SwiftCoverageTest(unittest.TestCase):
         with self.assertRaises(ToolError) as raised:
             read_report(xccov_file("/abs/Ap\u0000p.swift", "f", 3, 1.0))
         self.assertTrue(str(raised.exception).startswith("cannot resolve path "))
+
+
+ASCII_LOCALE = {"LC_ALL": "C", "LANG": "C", "PYTHONUTF8": "0", "PYTHONIOENCODING": ""}
+
+
+class XccovEncodingTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+
+    def fake_xcrun(self, output: bytes):
+        (self.dir / "report.json").write_bytes(output)
+        xcrun = self.dir / "xcrun"
+        xcrun.write_text(f"#!/bin/sh\ncat '{self.dir / 'report.json'}'\n", encoding="utf-8")
+        xcrun.chmod(0o755)
+
+    def run_under_ascii_locale(self, code):
+        env = {**os.environ, **ASCII_LOCALE, "PATH": f"{self.dir}{os.pathsep}{os.environ['PATH']}"}
+        return subprocess.run([sys.executable, "-c", code], capture_output=True, env=env, cwd=self.dir)
+
+    def test_xccov_output_is_read_as_utf8_under_an_ascii_locale(self):
+        record = {"name": "café()", "lineNumber": 3, "lineCoverage": 1.0}
+        report = {"targets": [{"files": [{"path": "/x/a.swift", "functions": [record]}]}]}
+        self.fake_xcrun(json.dumps(report, ensure_ascii=False).encode("utf-8"))
+        done = self.run_under_ascii_locale("from quality_gates import xccov; print(ascii(list(xccov.load('r').values())))")
+        self.assertEqual(done.stderr, b"")
+        self.assertIn(b"caf\\xe9", done.stdout)
+
+    def test_xccov_output_that_is_not_utf8_is_a_tool_error(self):
+        self.fake_xcrun(b'{"targets": [{"files": [{"path": "/x/caf\xe9.swift"}]}]}')
+        done = self.run_under_ascii_locale(
+            "from quality_gates import xccov\n"
+            "from quality_gates.errors import ToolError\n"
+            "try:\n    xccov.load('r')\nexcept ToolError as e:\n    print(e)\n"
+        )
+        self.assertNotIn(b"Traceback", done.stderr)
+        self.assertTrue(done.stdout.startswith(b"xccov output is not UTF-8: "), done.stdout)
 
 
 if __name__ == "__main__":

@@ -2,8 +2,41 @@
 
 ## 0.12.0 — 2026-10-25
 
-No score, threshold or scanned file changes (#104, #118; ADR-005 addendum
-2026-10-25).
+No threshold or scanned file changes. `crap` now grades a function with no
+coverage figure `UNMEASURED` instead of scoring it worst case, and the install
+ships coverage (#104, #118, #75, #76, #77, #78, #81, #85, #105; ADR-005 addendum
+2026-10-25, ADR-001 addendum 2026-10-25).
+
+- **`UNMEASURED` grade (#81, #105).** A function the coverage report holds no
+  usable figure for (a file the report never saw, a null xccov figure, a
+  SwiftPM function sharing a line with another's opening) gets no CRAP score:
+  `—` in the table, `"crap": null` and `"grade": "UNMEASURED"` in `--json`. It
+  fails the gate (exit 1). The table lists it after the FAIL rows and `--top`
+  never hides it; the summary adds "N unmeasured in F file(s): …"; `--json`
+  adds a top-level `"unmeasured"` file list and sets `"pass"` to false.
+  `--no-coverage` and `cc-check` are unchanged.
+- **The baseline never records or loses an unmeasured function.** `--update`
+  lowers and removes measured entries as before, adds none for an unmeasured
+  function and keeps an existing entry as it is, writes the file, then exits 1
+  listing `UNMEASURED` keys. A check run does not report a baselined unmeasured
+  function as `PAID`. A report made in another checkout can no longer put every
+  function into the baseline as accepted debt.
+- **A coverage report of the wrong shape exits 2** in the coverage.py,
+  Istanbul and xccov readers, as llvm-cov already did, naming the reader's
+  input, never a traceback (#75).
+- **xccov output is read as UTF-8 whatever the locale,** and output that is not
+  UTF-8 exits 2 (#76). A report key that cannot be resolved (a NUL byte, a
+  symlink loop, a path the locale cannot encode) exits 2 (#85, tests only).
+- **`crap` and `cc-check` write UTF-8 whatever the locale,** so the table
+  prints under `LC_ALL=C` (#78).
+- **An empty or whitespace-only `--baseline` exits 2 naming the flag** in
+  `crap`, `cc-check` and `comment-debt` (#77).
+- **New extra: `quality-gates[coverage]`.** The install line adds it and
+  `--with-executables-from coverage`, so `coverage` is on PATH beside the gates.
+  README § Setup details says when to install coverage in the project's own
+  environment instead, how to measure child processes
+  (`[tool.coverage.run] patch = ["subprocess"]`) and why to clear data with
+  `coverage erase`.
 
 - **New contract: `components.json`.** The package ships a component manifest,
   `format_version` 1: every component, its parts (down to each gate's settings
@@ -20,7 +53,25 @@ No score, threshold or scanned file changes (#104, #118; ADR-005 addendum
   report for agents. It only reads, works offline and always exits 0;
   `qg-skills --check` stays the gate.
 
-**When you bump the pin:** run `qg-skills` as usual. Nothing else is required;
+**When you bump the pin:**
+
+1. Reinstall with the new line:
+   `uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.12.0"`.
+   A project that pins `quality-gates` in its dev dependencies needs no extra;
+   its own `coverage` stays.
+2. Run `qg-skills`.
+3. Run the CRAP gate. A function that used to score worst case for want of a
+   figure now shows `UNMEASURED` and fails, even if the baseline holds it. Fix
+   the measuring (run the tests and `crap` in the same checkout, coverage in
+   the tests' environment) or take the file out of the scan. A Swift function
+   under `#if os(macOS)` or `canImport(UIKit)` has no figure on Linux, so a
+   Linux CRAP job now fails on it: run that job on macOS, or leave the file out
+   of the Linux scan. Do not re-record
+   the baseline for this: its entries stay while the function is unmeasured and
+   are lowered or removed once it is measured.
+4. A tool that reads `crap --json` must accept `"crap": null`, the
+   `UNMEASURED` grade and the new `"unmeasured"` list.
+
 `qg status` is there when you want to see what the project has.
 
 ## 0.11.1 — 2026-10-22

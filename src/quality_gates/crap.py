@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from quality_gates import complexity_scan, ratchet
-from quality_gates.errors import ToolError, run_gate
+from quality_gates.errors import ToolError, given_path, run_gate
 from quality_gates.languages import COVERAGE_FORMATS, LANGUAGES, CoverageFormat, CoverageOf, Language
 
 FAIL_THRESHOLD = 8.0
@@ -16,6 +16,8 @@ WARN_THRESHOLD = 5.0
 LABEL_WIDTH = 50
 TAG = "[crap] "
 ASSUMED_ZERO = "assumed-zero"
+UNMEASURED = "UNMEASURED"
+NO_SCORE = "—"
 UNMATCHED_REPORT = "no scored function got a figure from the coverage report; it may have been made elsewhere or hold no figures for the scanned files"
 
 USAGE_WIDTH = 79
@@ -61,7 +63,7 @@ Examples:
 
 Exit codes:
   0  no function scores above --threshold
-  1  one or more functions score above --threshold
+  1  one or more functions score above --threshold, or have no coverage figure
   2  tool error: missing dependency, bad input, or no functions found
 
 Dependencies: radon (Python CC), coverage (Python coverage), lizard (Swift and
@@ -90,7 +92,7 @@ class FunctionResult:
     line: int
     cc: int
     coverage: Optional[float]
-    crap: float
+    crap: Optional[float]
     grade: str
 
 
@@ -105,14 +107,28 @@ def _to_result(fn: complexity_scan.Function, coverage_of: CoverageOf, limits: Li
     if fn.cc < limits.min_cc:
         return None
     cov = coverage_of(fn)
-    score = crap_score(fn.cc, cov if cov is not None else 0.0)
+    if cov is None:
+        return FunctionResult(fn.file, fn.name, fn.start, fn.cc, None, None, UNMEASURED)
+    score = crap_score(fn.cc, cov)
     grade = crap_grade(score, limits.warn, limits.threshold)
     return FunctionResult(fn.file, fn.name, fn.start, fn.cc, cov, score, grade)
 
 
+def _measured(results: list) -> list:
+    return [r for r in results if r.crap is not None]
+
+
+def _unmeasured(results: list) -> list:
+    return [r for r in results if r.crap is None]
+
+
+def unmeasured_files(results: list) -> list:
+    return sorted({r.file for r in _unmeasured(results)})
+
+
 def score(functions: list, coverage_of: CoverageOf, limits: Limits) -> list:
-    scored = (_to_result(fn, coverage_of, limits) for fn in functions)
-    return sorted((r for r in scored if r is not None), key=lambda r: r.crap, reverse=True)
+    results = [r for r in (_to_result(fn, coverage_of, limits) for fn in functions) if r is not None]
+    return sorted(_measured(results), key=lambda r: r.crap, reverse=True) + _unmeasured(results)
 
 
 def _assume_zero(fn: complexity_scan.Function) -> float:
@@ -130,9 +146,7 @@ def _given_report(args) -> Optional[CoverageReport]:
         path = getattr(args, coverage.dest)
         if path is None:
             continue
-        if not path.strip():
-            raise ToolError(f"{coverage.flag} was given an empty path")
-        return CoverageReport(coverage, path)
+        return CoverageReport(coverage, given_path(coverage.flag, path))
     return None
 
 
@@ -146,13 +160,19 @@ def _coverage_source(report: Optional[CoverageReport]) -> str:
     return report.format.source if report else ASSUMED_ZERO
 
 
-_GRADE_EMOJI  = {"ok": "✅", "WARN": "⚠️ ", "FAIL": "❌"}
-_GRADE_COLOR  = {"ok": "\033[32m", "WARN": "\033[33m", "FAIL": "\033[31m"}
+_GRADE_EMOJI  = {"ok": "✅", "WARN": "⚠️ ", "FAIL": "❌", UNMEASURED: "❔"}
+_GRADE_COLOR  = {"ok": "\033[32m", "WARN": "\033[33m", "FAIL": "\033[31m", UNMEASURED: "\033[31m"}
 _RESET        = "\033[0m"
+GRADE_WIDTH   = len(UNMEASURED)
+RULE_WIDTH    = 71 + GRADE_WIDTH
 
 
 def _fmt_cov(cov: Optional[float]) -> str:
     return f"{cov * 100:5.1f}%" if cov is not None else "    ?"
+
+
+def _fmt_crap(crap: Optional[float]) -> str:
+    return f"{crap:6.1f}" if crap is not None else f"{NO_SCORE:>6}"
 
 
 def _print_row(r: FunctionResult, no_color: bool) -> None:
@@ -162,16 +182,16 @@ def _print_row(r: FunctionResult, no_color: bool) -> None:
     label = f"{Path(r.file).name}:{r.line}  {r.name}"
     if len(label) > LABEL_WIDTH:
         label = label[:LABEL_WIDTH - 1] + "…"
-    print(f"{color}{emoji} {r.grade:5}{reset}  {r.crap:6.1f}  {r.cc:3}  {_fmt_cov(r.coverage)}  {label}")
+    print(f"{color}{emoji} {r.grade:{GRADE_WIDTH}}{reset}  {_fmt_crap(r.crap)}  {r.cc:3}  {_fmt_cov(r.coverage)}  {label}")
 
 
 def print_table(results: list, no_color: bool, top: int) -> None:
     fails     = [r for r in results if r.grade == "FAIL"]
-    non_fails = [r for r in results if r.grade != "FAIL"]
+    non_fails = [r for r in _measured(results) if r.grade != "FAIL"]
     capped    = non_fails[:top] if top else non_fails
-    shown     = fails + capped
-    print(f"{'GRADE':8}  {'CRAP':6}  {'CC':3}  {'COV':6}  FUNCTION")
-    print("─" * 76)
+    shown     = fails + _unmeasured(results) + capped
+    print(f"{'GRADE':{GRADE_WIDTH + 3}}  {'CRAP':6}  {'CC':3}  {'COV':6}  FUNCTION")
+    print("─" * RULE_WIDTH)
     for r in shown:
         _print_row(r, no_color)
     hidden = len(non_fails) - len(capped)
@@ -179,19 +199,23 @@ def print_table(results: list, no_color: bool, top: int) -> None:
         print(f"\n  … {hidden} more ok/WARN (pass --top 0 to show all)")
 
 
+def _print_unmeasured(results: list) -> None:
+    files = unmeasured_files(results)
+    if files:
+        print(f"  {len(_unmeasured(results))} unmeasured in {len(files)} file(s): {', '.join(files)}")
+
+
 def print_summary(results: list, warn_threshold: float, fail_threshold: float) -> None:
-    total  = len(results)
-    n_fail = sum(1 for r in results if r.grade == "FAIL")
-    n_warn = sum(1 for r in results if r.grade == "WARN")
-    n_ok   = total - n_fail - n_warn
-    if results:
-        max_crap = max(r.crap for r in results)
-        avg_crap = sum(r.crap for r in results) / total
-    else:
-        max_crap = avg_crap = 0.0
+    measured = _measured(results)
+    n_fail = sum(1 for r in measured if r.grade == "FAIL")
+    n_warn = sum(1 for r in measured if r.grade == "WARN")
+    n_ok   = len(measured) - n_fail - n_warn
     print()
-    print(f"  {total} function(s) · {n_ok} ok · {n_warn} warn · {n_fail} fail")
-    print(f"  Max CRAP: {max_crap:.1f}  ·  Mean CRAP: {avg_crap:.1f}")
+    print(f"  {len(results)} function(s) · {n_ok} ok · {n_warn} warn · {n_fail} fail")
+    _print_unmeasured(results)
+    if measured:
+        avg_crap = sum(r.crap for r in measured) / len(measured)
+        print(f"  Max CRAP: {max(r.crap for r in measured):.1f}  ·  Mean CRAP: {avg_crap:.1f}")
     print(f"  Thresholds: warn > {warn_threshold}  fail > {fail_threshold}")
 
 
@@ -322,7 +346,7 @@ def _fn_to_dict(r: FunctionResult, cov_source: str) -> dict:
         "line":            r.line,
         "cc":              r.cc,
         "coverage":        r.coverage,
-        "crap":            round(r.crap, 2),
+        "crap":            round(r.crap, 2) if r.crap is not None else None,
         "grade":           r.grade,
         "coverage_source": cov_source if r.coverage is not None else None,
     }
@@ -335,6 +359,7 @@ def _print_json(results: list, args, n_fail: int, skipped: list, cov_source: str
         "pass":            n_fail == 0,
         "coverage_source": cov_source,
         "functions":       [_fn_to_dict(r, cov_source) for r in results],
+        "unmeasured":      unmeasured_files(results),
         "skipped":         skipped,
     }
     print(json.dumps(payload, indent=2))
@@ -350,7 +375,9 @@ def _emit_output(results: list, args, n_fail: int, skipped: list, cov_source: st
 
 
 def _check_baseline_args(args, report: Optional[CoverageReport]) -> None:
-    if args.update and not args.baseline:
+    if args.baseline is not None:
+        given_path("--baseline", args.baseline)
+    if args.update and args.baseline is None:
         raise ToolError("--update needs --baseline")
     if args.baseline and report is None:
         raise ToolError("--baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).")
@@ -366,8 +393,10 @@ def _failing_scores(results: list, root) -> dict:
 
 def _enforce_baseline(results: list, args, root) -> int:
     out = sys.stderr if args.json_output else sys.stdout
-    current = _failing_scores(results, root or ratchet.repo_root())
-    return ratchet.enforce(current, Path(args.baseline), args.update, out)
+    root = root or ratchet.repo_root()
+    current = _failing_scores(results, root)
+    unmeasured = {ratchet.key(root, r.file, r.name) for r in _unmeasured(results)}
+    return ratchet.enforce(current, Path(args.baseline), args.update, out, unmeasured)
 
 
 def gate(argv, root) -> int:
@@ -383,7 +412,7 @@ def gate(argv, root) -> int:
     results = score(found.functions, coverage_of, Limits(args.min_cc, args.warn, args.threshold))
     _check_results_empty(results, args, found.skipped)
     _check_report_matched(report, results)
-    n_fail = sum(1 for r in results if r.grade == "FAIL")
+    n_fail = sum(1 for r in results if r.grade in ("FAIL", UNMEASURED))
     _emit_output(results, args, n_fail, found.skipped, _coverage_source(report))
     if args.baseline:
         return _enforce_baseline(results, args, root)

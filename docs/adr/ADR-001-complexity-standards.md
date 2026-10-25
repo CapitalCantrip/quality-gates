@@ -91,7 +91,7 @@ Amended by: [Addendum 2026-10-10: SwiftPM coverage (v0.8.0)](#addendum-2026-10-1
 
 Amends: [Decision](#decision)
 
-Amended by: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090), [Current rule, restated 2026-10-12: the baseline ratchet](#current-rule-restated-2026-10-12-the-baseline-ratchet), [Current rule, restated 2026-10-12: baseline keys](#current-rule-restated-2026-10-12-baseline-keys)
+Amended by: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090), [Current rule, restated 2026-10-12: the baseline ratchet](#current-rule-restated-2026-10-12-the-baseline-ratchet), [Current rule, restated 2026-10-12: baseline keys](#current-rule-restated-2026-10-12-baseline-keys), [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120)
 
 The standards above are unchanged. `cc-check` and `crap` gained `--baseline` so a
 repo with existing debt can enforce them in CI without first paying it all off.
@@ -393,6 +393,8 @@ xccov reports too; the two were not compared function by function.
 ## Addendum 2026-10-11: coverage readers fail loudly (v0.8.1)
 
 Amends: [Decision](#decision)
+
+Amended by: [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120)
 
 The limits above are unchanged. Three behaviours of `crap` that let a gate pass
 or fail without saying why now say so. They amend the rule that CRAP is a gate
@@ -943,11 +945,90 @@ is used and rise where defaults are used, and a function in an array literal
 changes key from its holder's name to `(anonymous)`. Re-record both baselines
 when bumping the pin, and fix or baseline any function that newly fails.
 
+## Addendum 2026-10-25: unmeasured functions (v0.12.0)
+
+Amends: [Addendum 2026-10-04: the baseline ratchet (v0.3.0)](#addendum-2026-10-04-the-baseline-ratchet-v030), [Addendum 2026-10-11: coverage readers fail loudly (v0.8.1)](#addendum-2026-10-11-coverage-readers-fail-loudly-v081), [Current rule, restated 2026-10-12: the complexity ceiling](#current-rule-restated-2026-10-12-the-complexity-ceiling), [Current rule, restated 2026-10-12: the baseline ratchet](#current-rule-restated-2026-10-12-the-baseline-ratchet)
+
+Amended by: [Current rule, restated 2026-10-25: the complexity ceiling](#current-rule-restated-2026-10-25-the-complexity-ceiling), [Current rule, restated 2026-10-25: the baseline ratchet](#current-rule-restated-2026-10-25-the-baseline-ratchet)
+
+The limits are unchanged. What `crap` does with a function the coverage report
+holds no figure for changes, and so does the install (#81, #105).
+
+**Before this,** such a function had unknown coverage and scored worst case,
+CC² + CC, as if it were untested. That failed safe, but two things went wrong.
+A gap in measuring looked exactly like untested code: a consumer whose coverage
+config was missing saw 221 FAILs that read as real ones (#105). And
+`--baseline --update` recorded those worst-case scores, so a report made in
+another checkout put every function into the baseline as accepted debt and
+exited 0 (#81).
+
+**A function with no usable figure is now unmeasured.** That covers a file the
+report never saw, and a function the reader cannot place in a file it did see
+(an xccov figure that is null, a SwiftPM function whose lines hold another
+function's opening). The builder chose one rule for both over a rule for missing
+files only, so there is one thing to explain and #81's case, where no function
+got a figure, falls under it.
+
+- **An unmeasured function is graded `UNMEASURED`, gets no CRAP score, and
+  fails the gate (exit 1).** The gate still fails safe, but says why: measure
+  the file, or take it out of the scan. The table shows `—` for its score and
+  lists it after the FAIL rows; the summary counts unmeasured functions and
+  names their files. In `--json` the function has `"grade": "UNMEASURED"` and
+  `"crap": null`, the report lists the files under `"unmeasured"`, and `"pass"`
+  is false.
+- **The baseline never records an unmeasured function, and never loses one.**
+  `--update` lowers and removes entries for measured functions as before, adds
+  no entry for an unmeasured one, and keeps an existing entry as it is while
+  the function stays unmeasured. It writes the file, then exits 1 and lists the
+  unmeasured functions. A check run reports a baselined function that is
+  unmeasured as unmeasured, not as paid. A coverage outage therefore cannot
+  drop recorded debt, which `--update` could never add back, and it does not
+  block recording debt paid elsewhere in the tree.
+- **A coverage report of the wrong shape is a tool error (exit 2)** in every
+  reader, as llvm-cov already was: a document, file map, file entry or function
+  record of the wrong type, and an xccov `path` or `name` that is not text
+  (#75).
+
+`--no-coverage` is unchanged: every function scores at 0% for the ranking.
+`cc-check` reads no coverage and is unaffected.
+
+**The install ships coverage.** `quality-gates[coverage]` is a new extra, and
+the install line exposes its command:
+`uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+…"`.
+That `coverage` runs tests with the tool's own Python, which suits a project
+whose tests need only the standard library. A project with its own dependencies
+installs coverage in the environment its tests run in. Child processes are
+measured only with `[tool.coverage.run] patch = ["subprocess"]` (coverage 7.10
+or later), and cleanup is `coverage erase`, since `rm .coverage*` also deletes
+`.coveragerc`.
+
+Rejected:
+- Keeping worst-case scores and only listing the unmeasured files. It names the
+  gap but leaves #81 open: `--update` still records the scores.
+- An `UNMEASURED` grade that passes with a warning. A new file no test imports
+  is absent from a coverage.py report, so it would pass the gate.
+- Refusing `--update` while any function is unmeasured. One unmeasured script
+  would block recording debt paid anywhere else.
+- Writing the baseline from measured functions only. A function unmeasured for
+  one run would lose its entry and come back as new.
+- Keeping the worst-case number in the JSON `crap` field. That number is what
+  made a gap look like a failure.
+- Making coverage a required dependency. Its command is still not on PATH
+  without the install flag, and nobody could leave it out.
+
+**Effect on existing runs.** A function that scored worst case for want of a
+figure now shows as `UNMEASURED` and fails even if the baseline holds it. Fix
+the measuring or narrow the scan. A baseline that already holds such an entry
+needs no re-recording: the entry stays while the function is unmeasured and is
+lowered or removed once it is measured. A tool reading `--json` must accept
+`"crap": null` and the `UNMEASURED` grade.
+
 ## Current rule, restated 2026-10-12: the complexity ceiling
 
 Amends: [Decision](#decision), [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08)
 
-<!-- rule:complexity-ceiling -->
+Amended by: [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120), [Current rule, restated 2026-10-25: the complexity ceiling](#current-rule-restated-2026-10-25-the-complexity-ceiling)
+
 **Agent-written code has a cyclomatic complexity ceiling of 8.** Human-maintained
 code targets 5. Agents keep exact short-term memory, so some of the cognitive
 load that drives the human limit does not apply (Robert C. Martin, interviewed
@@ -986,13 +1067,13 @@ figure, `crap` also prints a line to stderr saying the report may have been made
 elsewhere or hold no figures for the scanned files.
 
 **A project may tighten these limits, never loosen them.**
-<!-- /rule:complexity-ceiling -->
 
 ## Current rule, restated 2026-10-12: the baseline ratchet
 
 Amends: [Addendum 2026-10-04: the baseline ratchet (v0.3.0)](#addendum-2026-10-04-the-baseline-ratchet-v030)
 
-<!-- rule:baseline-ratchet -->
+Amended by: [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120), [Current rule, restated 2026-10-25: the baseline ratchet](#current-rule-restated-2026-10-25-the-baseline-ratchet)
+
 `cc-check` and `crap` take `--baseline`, so a repo with existing debt can
 enforce the limits in CI without first paying it all off.
 
@@ -1003,7 +1084,6 @@ enforce the limits in CI without first paying it all off.
   permissive would let a mistyped path pass CI.
 - **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
   not a gate.
-<!-- /rule:baseline-ratchet -->
 
 ## Current rule, restated 2026-10-12: baseline keys
 
@@ -1314,3 +1394,80 @@ the scan's lizard run exits 0 however many functions exceed lizard's own warning
 limit; the scan also passes `-i -1` in case a lizard release starts counting
 them. Any other exit is a tool error that shows lizard's error output.
 <!-- /rule:swift-reading -->
+
+## Current rule, restated 2026-10-25: the complexity ceiling
+
+Amends: [Current rule, restated 2026-10-12: the complexity ceiling](#current-rule-restated-2026-10-12-the-complexity-ceiling), [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120)
+
+<!-- rule:complexity-ceiling -->
+**Agent-written code has a cyclomatic complexity ceiling of 8.** Human-maintained
+code targets 5. Agents keep exact short-term memory, so some of the cognitive
+load that drives the human limit does not apply (Robert C. Martin, interviewed
+2026-09-06).
+
+| Language | Gate | Tool | Limit |
+|---|---|---|---|
+| Python | CC | `cc-check` (radon) | fail above 8 |
+| TypeScript, JavaScript | CC | `cc-check --lang typescript` (lizard) | fail above 8 |
+| Swift | CC | SwiftLint `cyclomatic_complexity`, `ignores_case_statements: true` | warn above 6, fail above 8 |
+| Rust | Cognitive complexity | `cargo clippy` | fail above 10; function length fail above 25 lines |
+| Python, TypeScript, JavaScript, Swift | CRAP | `crap` | warn above 5, fail above 8 |
+
+**Python CC is counted by radon, not ruff,** because CRAP counts with radon. With
+one counter, a fully covered function's CRAP equals its CC, so the CC ceiling and
+the CRAP ceiling meet at the same point: CC 8 passes CRAP only at 100% coverage.
+
+**Swift ignores `switch` cases.** An exhaustive `switch` over an enum is flat and
+readable at any length, and Swift requires every case to be listed. Counting each
+case pushed idiomatic Swift above the limit for no gain in risk. `guard let` and
+`if let` still count.
+
+**Rust's 10 is a different measure,** not a looser one. Cognitive complexity
+penalises nesting and ignores flat `match` arms. Do not align it with the CC
+numbers.
+
+**CRAP is a gate only with coverage data.** Without it every function scores
+CC² + CC, which fails at CC 3. `crap --no-coverage` is a worst-case report, read
+for the ranking, never a pass/fail result. A coverage flag that is given must
+work: an empty or whitespace-only path, a missing file, a file that is not UTF-8,
+one that is not valid JSON, or one whose JSON has the wrong shape is a tool error
+(exit 2) naming the problem, never a quiet fall back to the worst-case ranking.
+
+**A function the report holds no usable figure for is unmeasured,** whether the
+report never saw its file or the reader cannot place it in a file it did see. An
+unmeasured function is graded `UNMEASURED` and gets no CRAP score, so a gap in
+measuring never reads as untested code. It still fails the gate (exit 1), so the
+gate fails safe: measure the file, or take it out of the scan. The table shows
+`—` for its score, and the summary counts unmeasured functions and names their
+files. In `--json` the function has `"crap": null` and the report lists the files
+under `"unmeasured"`. When a report was given, at least one function was scored
+and none got a figure, `crap` also prints a line to stderr saying the report may
+have been made elsewhere or hold no figures for the scanned files.
+
+**A project may tighten these limits, never loosen them.**
+<!-- /rule:complexity-ceiling -->
+
+## Current rule, restated 2026-10-25: the baseline ratchet
+
+Amends: [Current rule, restated 2026-10-12: the baseline ratchet](#current-rule-restated-2026-10-12-the-baseline-ratchet), [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120)
+
+<!-- rule:baseline-ratchet -->
+`cc-check` and `crap` take `--baseline`, so a repo with existing debt can
+enforce the limits in CI without first paying it all off.
+
+- **Only functions over the threshold are recorded.** A function that drops to
+  the threshold leaves the baseline at the next `--update`, and cannot return.
+- **A missing baseline is an error, except with `--update`.** Treating it as
+  empty would fail every adopting repo on its first run; treating it as
+  permissive would let a mistyped path pass CI.
+- **An unmeasured function is never recorded, and keeps its entry.** `--update`
+  lowers and removes entries for measured functions, adds none for an unmeasured
+  one, and keeps an existing entry as it is while the function stays unmeasured.
+  It writes the file, then exits 1 and lists the unmeasured functions. A check
+  run reports a baselined function that is unmeasured as unmeasured, not as paid.
+  A worst-case score for a function with no figure would sit in the baseline as
+  accepted debt, and an entry dropped during a coverage outage could never be
+  added back.
+- **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
+  not a gate.
+<!-- /rule:baseline-ratchet -->
