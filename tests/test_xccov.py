@@ -189,11 +189,12 @@ class XccovEncodingTest(unittest.TestCase):
         return subprocess.run([sys.executable, "-c", code], capture_output=True, env=env, cwd=self.dir)
 
     def test_xccov_output_is_read_as_utf8_under_an_ascii_locale(self):
-        report = {"targets": [{"files": [{"path": "/x/café.swift", "functions": []}]}]}
+        record = {"name": "café()", "lineNumber": 3, "lineCoverage": 1.0}
+        report = {"targets": [{"files": [{"path": "/x/a.swift", "functions": [record]}]}]}
         self.fake_xcrun(json.dumps(report, ensure_ascii=False).encode("utf-8"))
-        done = self.run_under_ascii_locale("from quality_gates import xccov; print(ascii(sorted(xccov.load('r'))))")
+        done = self.run_under_ascii_locale("from quality_gates import xccov; print(ascii(list(xccov.load('r').values())))")
         self.assertEqual(done.stderr, b"")
-        self.assertIn(b"caf\\xe9.swift", done.stdout)
+        self.assertIn(b"caf\\xe9", done.stdout)
 
     def test_xccov_output_that_is_not_utf8_is_a_tool_error(self):
         self.fake_xcrun(b'{"targets": [{"files": [{"path": "/x/caf\xe9.swift"}]}]}')
