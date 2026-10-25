@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
-from quality_gates import languages, project_files, skills_sync
+from quality_gates import complexity_scan, languages, project_files, skills_sync
 
 MANIFEST_PATH = Path(__file__).parent / "components.json"
 
@@ -18,7 +18,8 @@ UNKNOWN = "unknown"
 PARTLY = "partly installed"
 NOT_APPLICABLE = "not applicable"
 
-SKIPPED_DIRECTORIES = {".git", ".venv", "venv", "node_modules", ".build", "__pycache__"}
+BUILD_OUTPUT_FOLDERS = {"target", "Pods", "DerivedData", "site-packages"}
+HIDDEN_PREFIX = "."
 PROJECT_MARKERS = {
     "python": ("pyproject.toml", "setup.py"),
     "swift": ("Package.swift",),
@@ -158,11 +159,18 @@ def marker_languages(root):
     return {name for name, markers in PROJECT_MARKERS.items() if any((root / marker).exists() for marker in markers)}
 
 
+def is_detection_skipped(folder):
+    name = folder.name
+    return name.startswith(HIDDEN_PREFIX) or name in BUILD_OUTPUT_FOLDERS or complexity_scan.is_skipped(folder)
+
+
 def used_languages(root):
     suffixes = {suffix: name for name, language in languages.LANGUAGES.items() for suffix in language.suffixes}
     found = marker_languages(root)
     for folder, directories, files in os.walk(root):
-        directories[:] = [d for d in directories if d not in SKIPPED_DIRECTORIES]
+        if found >= set(languages.LANGUAGES):
+            break
+        directories[:] = [d for d in directories if not is_detection_skipped(Path(folder) / d)]
         found |= project_suffix_languages(directories, files, suffixes)
     return found
 

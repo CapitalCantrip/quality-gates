@@ -254,6 +254,21 @@ class Status(unittest.TestCase):
         self.write(self.repo / ".venv" / "lib" / "dep.py", "x = 1")
         self.assertEqual(component(self.report(), "risk")["status"], "not applicable")
 
+    def test_the_copied_stage_guard_does_not_make_a_project_a_python_project(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "src" / "app.ts", "export {}")
+        self.set_up()
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
+
+    def test_source_files_in_build_and_vendored_output_do_not_count_as_a_language(self):
+        (self.repo / "pyproject.toml").unlink()
+        for folder in ("dist", "build", "target", "Pods", "DerivedData", ".tox", "lib/site-packages", ".build",
+                       "node_modules", ".cache"):
+            self.write(self.repo / folder / "vendored.py", "x = 1")
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
+
     def test_a_language_component_is_applicable_to_a_project_with_typescript_files(self):
         (self.repo / "pyproject.toml").unlink()
         manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["typescript"])]}
