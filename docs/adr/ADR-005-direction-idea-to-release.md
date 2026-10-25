@@ -126,6 +126,8 @@ project decision, which `qg status` and the UI show as a warning.
 
 ### Rollout
 
+Amended by: [Addendum 2026-10-25: the component manifest and `qg status`](#addendum-2026-10-25-the-component-manifest-and-qg-status)
+
 Staged, so no pinned project breaks:
 
 1. `qg status`, read-only, built together with the origin manifest
@@ -164,3 +166,29 @@ this ADR adds is tracked in quality-gates#112 to quality-gates#115.
   gives. A total ban pushes users to fork.
 - **A big-bang release or a fresh repo.** Both break or strand the projects
   that already pin quality-gates.
+
+## Addendum 2026-10-25: the component manifest and `qg status`
+
+Amends: [Rollout](#rollout)
+
+Settled with the builder while specifying quality-gates#104 and `qg status`.
+
+**Two files, two questions.** A new `components.json` ships with the package
+and answers "what can a consumer install?": each component, its parts, a
+one-line plain-words description, and its origin (ours, an upstream, or a
+dependency). `upstream.json` stays the file-level record of which upstream
+commit each copied file came from, which `qg-upstream` reads. A test fails when
+the two disagree. Merging them was rejected: every upstream refresh would touch
+the file the UI and outside readers depend on.
+
+**The manifest is a contract.** It carries a format version; changing its shape
+needs a new format version and a CHANGELOG note. A test fails when the README's
+From column disagrees with it.
+
+**`qg status` is a report, not a gate.** It is read-only, offline, and exits 0;
+`qg-skills --check` stays the gate on copied files. Per component it reports
+installed, missing, different or unknown, with the description and origin, and
+it reports the consumer's pin against the installed version, or "pin not found".
+Only copied files can be different; baselines, CI steps and the asking-rule line
+are present or absent. When it cannot tell, it says unknown. `--json` gives the
+same data for agents and the UI.
