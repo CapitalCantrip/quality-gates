@@ -73,6 +73,12 @@ closure that no function holds (file scope, a stored property, a `lazy var`) is
 not scored at all.
 _Avoid_: block, unit
 
+**Unmeasured**:
+A Function the coverage report holds no usable figure for, because the report
+never saw its file or cannot place it within one. It is a gap in measuring, not
+untested code, and it fails the CRAP gate until it is measured.
+_Avoid_: unknown coverage, 0% covered, untested
+
 **Asking rule**:
 When and how an agent puts a decision to the builder: plain stakes, two or
 three options, a recommendation.
