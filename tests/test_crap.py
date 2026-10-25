@@ -469,7 +469,7 @@ class SwiftGateTest(unittest.TestCase):
 
     def gate(self, rows, *extra, xccov=None):
         lizard = patch.object(complexity_scan, "run", return_value=completed("\n".join(rows)))
-        xcrun = patch.object(xccov_reader, "run", return_value=completed(json.dumps(xccov or {})))
+        xcrun = patch.object(xccov_reader, "run", return_value=completed(json.dumps(xccov or {}).encode("utf-8")))
         with lizard, xcrun:
             code, out, self.err = call(["--lang", "swift", self.sources, "--json", *extra])
         return code, json.loads(out)["functions"]

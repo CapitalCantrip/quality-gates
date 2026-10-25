@@ -9,6 +9,8 @@ from quality_gates.real_path import real_path
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
 
+XCCOV_ENCODING = "utf-8"
+
 
 def _line_coverage(figure: object) -> Optional[float]:
     if isinstance(figure, bool) or not isinstance(figure, (int, float)):
@@ -41,15 +43,27 @@ def _register_file_coverage(cov_map: dict, filepath: object, file_funcs: dict) -
         cov_map.setdefault(real_path(filepath), file_funcs)
 
 
-def load(xcresult_path: str) -> dict:
+def _xccov_report(xcresult_path: str) -> str:
     result = run(
         ["xcrun", "xccov", "view", "--report", xcresult_path, "--json"],
-        stdout=PIPE, stderr=PIPE, text=True,
+        stdout=PIPE, stderr=PIPE,
     )
     if result.returncode != 0:
-        raise ToolError(f"xcrun xccov failed:\n{result.stderr.strip()}")
+        raise ToolError(f"xcrun xccov failed:\n{_text(result.stderr, 'replace').strip()}")
     try:
-        data = json.loads(result.stdout)
+        return _text(result.stdout, "strict")
+    except UnicodeDecodeError as exc:
+        raise ToolError(f"xccov output is not UTF-8: {exc}") from None
+
+
+def _text(output: bytes, errors: str) -> str:
+    return output.decode(XCCOV_ENCODING, errors)
+
+
+def load(xcresult_path: str) -> dict:
+    report = _xccov_report(xcresult_path)
+    try:
+        data = json.loads(report)
     except (ValueError, RecursionError) as exc:
         raise ToolError(f"could not parse xccov output: {exc}") from None
 

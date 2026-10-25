@@ -7,6 +7,7 @@ from types import SimpleNamespace
 from unittest.mock import patch
 
 from quality_gates import coverage_json, istanbul, ratchet
+from quality_gates.errors import ToolError
 from quality_gates.real_path import real_path
 
 
@@ -129,6 +130,48 @@ class FallbackTest(unittest.TestCase):
 
     def test_a_path_that_does_not_exist_keeps_the_resolved_path(self):
         self.assertEqual(real_path("/nowhere/Mod.py"), "/nowhere/Mod.py")
+
+    def test_a_path_the_locale_cannot_encode_is_a_tool_error_naming_it(self):
+        refused = UnicodeEncodeError("ascii", "café.py", 3, 4, "ordinal not in range(128)")
+        with patch.object(Path, "resolve", side_effect=refused):
+            with self.assertRaises(ToolError) as raised:
+                real_path("café.py")
+        self.assertTrue(str(raised.exception).startswith("cannot resolve path 'café.py': "))
+
+
+class UnresolvableReportKeyTest(unittest.TestCase):
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.dir = Path(tmp.name)
+        (self.dir / "a").symlink_to(self.dir / "b")
+        (self.dir / "b").symlink_to(self.dir / "a")
+        self.report = self.dir / "report.json"
+
+    def load(self, reader, document):
+        self.report.write_text(json.dumps(document), encoding="utf-8")
+        return reader.load(str(self.report))
+
+    def coverage_json(self, key):
+        return self.load(coverage_json, {"files": {key: {"executed_lines": [1]}}})
+
+    def istanbul(self, key):
+        return self.load(istanbul, {key: {}})
+
+    def test_a_report_key_with_a_nul_byte_is_a_tool_error_in_each_reader(self):
+        for read in (self.coverage_json, self.istanbul):
+            with self.subTest(reader=read.__name__):
+                with self.assertRaises(ToolError) as raised:
+                    read("mod\0.py")
+                self.assertTrue(str(raised.exception).startswith("cannot resolve path "))
+
+    def test_a_report_key_inside_a_symlink_loop_gives_at_most_a_tool_error_in_each_reader(self):
+        for read in (self.coverage_json, self.istanbul):
+            with self.subTest(reader=read.__name__):
+                try:
+                    read(str(self.dir / "a" / "mod.py"))
+                except ToolError as error:
+                    self.assertTrue(str(error).startswith("cannot resolve path "))
 
 
 if __name__ == "__main__":
