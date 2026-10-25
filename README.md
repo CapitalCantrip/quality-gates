@@ -445,7 +445,11 @@ Three more commands support them:
   found*. It only reads, works offline and always exits 0, so it never blocks a
   commit; `qg-skills --check` stays the check that fails. `qg status --json`
   prints the same report for an agent, with the component list's format
-  version, and for each component its id, status and parts.
+  version, and for each component its id, status and parts. The commands and
+  tools quality-gates itself installs, such as `cc-check` or `radon`, have no
+  status of their own: they are listed as *provided by quality-gates* and do
+  not count toward a component's status, and neither does a part for a language
+  the project does not use. *Needs attention* names only the parts that count.
 
   ```text
   $ qg status

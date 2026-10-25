@@ -238,16 +238,10 @@ class Status(unittest.TestCase):
     def test_a_component_with_nothing_installed_is_missing(self):
         self.assertEqual(component(self.report(), "core")["status"], "missing")
 
-    def test_commands_and_dependencies_the_running_package_provides_are_installed(self):
+    def test_commands_and_dependencies_are_shown_as_provided_by_quality_gates_not_as_installed(self):
         report = self.report()
-        self.assertEqual(part(report, "core", "command", "qg-skills")["status"], "installed")
-        self.assertEqual(part(report, "risk", "dependency", "radon")["status"], "installed")
-
-    def test_a_dependency_that_is_not_installed_is_missing(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
-            {"kind": "dependency", "id": "no-such-distribution-xyz"}])]}
-        part_status = self.report(manifest)["components"][0]["parts"][0]["status"]
-        self.assertEqual(part_status, "missing")
+        self.assertEqual(part(report, "core", "command", "qg-skills")["status"], "provided by quality-gates")
+        self.assertEqual(part(report, "risk", "dependency", "radon")["status"], "provided by quality-gates")
 
     def test_a_skill_the_release_does_not_ship_is_unknown(self):
         manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][2], parts=[
@@ -360,6 +354,13 @@ class Status(unittest.TestCase):
         self.set_up()
         self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "edited")
         self.assertIn("skill tdd: different", self.run_status()[1])
+
+    def test_needs_attention_lists_only_parts_that_count_toward_status(self):
+        self.set_up()
+        (self.repo / "crap-baseline.json").unlink()
+        _, out = self.run_status()
+        attention = [line for line in out.splitlines() if "Needs attention" in line]
+        self.assertEqual(attention, ["    Needs attention: baseline crap-baseline.json: missing"])
 
     def test_an_empty_folder_gets_a_plain_report_and_exit_0(self):
         empty = self.tmp / "empty"

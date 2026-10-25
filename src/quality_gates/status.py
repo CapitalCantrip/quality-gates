@@ -4,7 +4,6 @@ import json
 import os
 import re
 from dataclasses import dataclass
-from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from quality_gates import complexity_scan, languages, project_files, skills_sync
@@ -17,6 +16,7 @@ DIFFERENT = "different"
 UNKNOWN = "unknown"
 PARTLY = "partly installed"
 NOT_APPLICABLE = "not applicable"
+PROVIDED = "provided by quality-gates"
 
 BUILD_OUTPUT_FOLDERS = {"target", "Pods", "DerivedData", "site-packages"}
 HIDDEN_PREFIX = "."
@@ -122,26 +122,12 @@ def ci_step_status(project, part):
     return UNKNOWN if unreadable else MISSING
 
 
-def command_status(project, part):
-    return INSTALLED
-
-
-def dependency_status(project, part):
-    try:
-        version(part["id"])
-    except PackageNotFoundError:
-        return MISSING
-    return INSTALLED
-
-
 PART_STATUS = {
     "skill": skill_status,
     "hook": hook_status,
     "claude_md_line": claude_md_line_status,
     "baseline": baseline_status,
     "ci_step": ci_step_status,
-    "command": command_status,
-    "dependency": dependency_status,
 }
 
 
@@ -194,12 +180,17 @@ def applies(languages_wanted, used):
 
 
 def part_report(project, part, used):
-    found = part_status(project, part) if applies(part.get("languages"), used) else NOT_APPLICABLE
+    if part["kind"] in PROVIDED_BY_PACKAGE:
+        found = PROVIDED
+    elif applies(part.get("languages"), used):
+        found = part_status(project, part)
+    else:
+        found = NOT_APPLICABLE
     return {"kind": part["kind"], "id": part["id"], "status": found}
 
 
 def counts_toward_status(part):
-    return part["kind"] not in PROVIDED_BY_PACKAGE and part["status"] != NOT_APPLICABLE
+    return part["status"] not in (PROVIDED, NOT_APPLICABLE)
 
 
 def component_report(project, component, used):
@@ -256,7 +247,7 @@ def pin_line(report):
 
 def component_lines(item):
     lines = [f"  {item['id']:<24} {item['status']:<18} {origin_text(item['origin'])}", f"    {item['description']}"]
-    needs = [f"{p['kind']} {p['id']}: {p['status']}" for p in item["parts"] if p["status"] != INSTALLED]
+    needs = [f"{p['kind']} {p['id']}: {p['status']}" for p in item["parts"] if counts_toward_status(p) and p["status"] != INSTALLED]
     if is_applicable(item) and needs:
         lines.append("    Needs attention: " + "; ".join(needs))
     return lines
