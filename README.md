@@ -315,6 +315,32 @@ column, **ours** was written here, **Pocock** is a word-for-word copy of Matt
 Pocock's skill, and **Pocock, changed** is his skill with the changes listed,
 with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 
+### The component manifest
+
+[components.json](src/quality_gates/components.json) ships in the package and
+lists every component: what it is made of, what it does in one line, and where
+it came from. It is readable from an installed copy without network access, and
+it is a contract for `qg status`, the planned UI and any tool that reads it. A
+test fails when the *From* column below disagrees with it, when a shipped skill
+belongs to no component, when a component names a part that does not ship, or
+when it disagrees with [upstream.json](src/quality_gates/upstream.json), the
+file-level record `qg-upstream` reads.
+
+- `format_version`: a whole number. A change to the shape below raises it and
+  gets a CHANGELOG note; adding a component or a part does not.
+- `components`: a list. Each has `id`, `name`, `description` (one line, plain
+  words), `core` (true for the parts every project has and cannot switch off),
+  `languages` (empty when the component has none), `origin` and `parts`.
+- `origin`: `{"type": "ours"}`, `{"type": "upstream", "name": "<repo>"}` (with
+  `"changed": true` when the copy is adapted), or `{"type": "dependency",
+  "name": "<tool>", "version": "<requirement>"}`. A component's origin is the
+  one most of its parts have; a part with a different one carries its own. An
+  `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
+  upstream.
+- `parts`: each has a `kind` and an `id`. The kinds are `skill`, `hook`,
+  `command`, `baseline`, `ci_step` (with `file`, the CI example it appears in),
+  `claude_md_line` and `dependency`.
+
 **Set up and standards**
 
 | Skill | From | Does |
