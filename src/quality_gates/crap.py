@@ -63,7 +63,7 @@ Examples:
 
 Exit codes:
   0  no function scores above --threshold
-  1  one or more functions score above --threshold
+  1  one or more functions score above --threshold, or have no coverage figure
   2  tool error: missing dependency, bad input, or no functions found
 
 Dependencies: radon (Python CC), coverage (Python coverage), lizard (Swift and

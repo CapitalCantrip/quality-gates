@@ -41,14 +41,14 @@ Rust has no CRAP score: use `/cc-rust`.
    ```bash
    crap --lang swift Sources/ --xcresult /tmp/out.xcresult
    ```
-   Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a bundle made in another checkout or container gives every function unknown coverage, and a file name shared with another folder's file is never borrowed. When one file's functions all show `?` while others have figures, check that the Xcode project's file reference spells the file in the same case as the disk.
+   Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a bundle made in another checkout or container leaves every function unmeasured, and a file name shared with another folder's file is never borrowed. When one file's functions all show `?` while others have figures, check that the Xcode project's file reference spells the file in the same case as the disk.
 
    **Swift — with coverage, SwiftPM package:**
    ```bash
    swift test --enable-code-coverage
    crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)"
    ```
-   Run both in the same checkout, as for an Xcode project. A function whose lines hold the opening of another function's body gets unknown coverage: two functions on one line both do, and so does a function that ends on the line where the next one opens, while that next one keeps its own figure. Put each function on its own lines. A closure or autoclosure default argument on the line of the `{` (`= { _ in }`, `= {}`, `= flagA && flagB`, `= x ?? nil`) also gives its function unknown coverage; move it to a line above the `{`. A literal default (`= 0`, `= nil`, `= []`, `= .main`) is fine.
+   Run both in the same checkout, as for an Xcode project. A function whose lines hold the opening of another function's body is unmeasured: two functions on one line both do, and so does a function that ends on the line where the next one opens, while that next one keeps its own figure. Put each function on its own lines. A closure or autoclosure default argument on the line of the `{` (`= { _ in }`, `= {}`, `= flagA && flagB`, `= x ?? nil`) also leaves its function unmeasured; move it to a line above the `{`. A literal default (`= 0`, `= nil`, `= []`, `= .main`) is fine.
    Failing tests must fail the job at the `swift test --enable-code-coverage` step; `--show-codecov-path` runs no tests. When the path command itself fails (a broken `Package.swift`, or no package in the directory), the flag gets an empty path and `crap` exits 2: fix the package, not the flag.
 
    **Swift — no tests yet:**
@@ -69,7 +69,8 @@ Rust has no CRAP score: use `/cc-rust`.
    ```
 
 4. With `--no-coverage`, every function at CC 3 or above scores FAIL. That mode is a risk ranking, not a gate: report the top rows and say no coverage was available, never "the gate failed".
-   When `crap` prints `no scored function got a figure from the coverage report`, every score in this run is worst case, whatever the language: do not report it as a gate result. Measure coverage again in this checkout, check that the report holds figures for the files you scan, and rerun.
+   An `UNMEASURED` row is a function the report holds no figure for: it has no CRAP score (`—`), it fails the gate, and the summary names its file. It is a gap in measuring, not untested code: report it as such, then measure the file (same checkout, coverage run in the environment the tests use) or take it out of the scan. `--baseline --update` never records it and keeps any entry it already has, so it still exits 1 until the gap is fixed.
+   When `crap` prints `no scored function got a figure from the coverage report`, every function in this run is unmeasured, whatever the language: do not report it as a gate result. Measure coverage again in this checkout, check that the report holds figures for the files you scan, and rerun.
    With coverage, report all FAIL rows in full; summarise WARN rows (CRAP 5–8).
    `crap` skips the folders on the [skip list](references/skip-list.md) and follows symlinked folders by the [symlink rule](references/symlinked-folders.md). It names each skipped folder it found on a last `Skipped N folder(s):` line (the `skipped` list in `--json`); if it names a folder holding real source, report it. A folder marked `(already scanned)` was scanned once and is not lost source.
 5. For each FAIL, recommend the cheaper fix first:
