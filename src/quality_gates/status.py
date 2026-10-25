@@ -44,6 +44,7 @@ class Project:
     root: Path
     source: Path
     hooks: Path
+    shipped_skills: frozenset
 
     @property
     def claude_dir(self):
@@ -61,7 +62,7 @@ def load_manifest():
 
 
 def skill_status(project, part):
-    if part["id"] not in skills_sync.skill_names(project.source):
+    if part["id"] not in project.shipped_skills:
         return UNKNOWN
     dest = project.claude_dir / "skills"
     if not skills_sync.files_under(dest / part["id"]):
@@ -309,7 +310,7 @@ def build_parser():
 
 def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None):
     args = build_parser().parse_args(argv)
-    project = Project(Path.cwd() if root is None else root, source, hooks)
+    project = Project(Path.cwd() if root is None else root, source, hooks, frozenset(skills_sync.skill_names(source)))
     report = build_report(project, manifest or load_manifest())
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0

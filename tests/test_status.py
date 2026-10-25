@@ -337,6 +337,12 @@ class Status(unittest.TestCase):
         self.assertNotIn("differs", out)
         self.assertIn("could not tell whether it matches", out)
 
+    def test_the_shipped_skills_are_listed_once_per_report(self):
+        self.set_up()
+        with mock.patch.object(skills_sync, "skill_names", wraps=skills_sync.skill_names) as listing:
+            self.report()
+        self.assertEqual(listing.call_count, 1)
+
     def test_core_components_are_listed_first_and_marked_core(self):
         _, out = self.run_status()
         self.assertLess(out.index("core"), out.index("risk"))
