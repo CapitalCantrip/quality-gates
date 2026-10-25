@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 from quality_gates import complexity_scan, ratchet
-from quality_gates.errors import ToolError, run_gate
+from quality_gates.errors import ToolError, given_path, run_gate
 from quality_gates.languages import COVERAGE_FORMATS, LANGUAGES, CoverageFormat, CoverageOf, Language
 
 FAIL_THRESHOLD = 8.0
@@ -130,9 +130,7 @@ def _given_report(args) -> Optional[CoverageReport]:
         path = getattr(args, coverage.dest)
         if path is None:
             continue
-        if not path.strip():
-            raise ToolError(f"{coverage.flag} was given an empty path")
-        return CoverageReport(coverage, path)
+        return CoverageReport(coverage, given_path(coverage.flag, path))
     return None
 
 
@@ -350,7 +348,9 @@ def _emit_output(results: list, args, n_fail: int, skipped: list, cov_source: st
 
 
 def _check_baseline_args(args, report: Optional[CoverageReport]) -> None:
-    if args.update and not args.baseline:
+    if args.baseline is not None:
+        given_path("--baseline", args.baseline)
+    if args.update and args.baseline is None:
         raise ToolError("--update needs --baseline")
     if args.baseline and report is None:
         raise ToolError("--baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).")

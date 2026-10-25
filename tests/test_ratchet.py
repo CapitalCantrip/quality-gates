@@ -291,5 +291,31 @@ class CrapRatchetTest(unittest.TestCase):
         self.assertIn("baseline allows 12.0", out)
 
 
+class EmptyBaselineFlagTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        self.module = self.root / "mod.py"
+        self.module.write_text(branchy("f", 2))
+        self.coverage = self.root / "coverage.json"
+        self.coverage.write_text(json.dumps({"files": {}}))
+
+    def test_crap_refuses_an_empty_or_whitespace_only_baseline_naming_the_flag(self):
+        for value in ("", "  "):
+            with self.subTest(value=value):
+                argv = ["--lang", "python", str(self.module), "--coverage-json", str(self.coverage), "--baseline", value]
+                code, out = call(crap.main, argv, self.root)
+                self.assertEqual(code, 2)
+                self.assertIn("[crap] --baseline was given an empty path", out)
+
+    def test_cc_check_refuses_an_empty_or_whitespace_only_baseline_naming_the_flag(self):
+        for value in ("", "  "):
+            with self.subTest(value=value):
+                code, out = call(qc.main, [str(self.module), "--baseline", value], self.root)
+                self.assertEqual(code, 2)
+                self.assertIn("ERROR: --baseline was given an empty path", out)
+
+
 if __name__ == "__main__":
     unittest.main()

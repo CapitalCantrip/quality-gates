@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from quality_gates import complexity_scan, languages, ratchet
-from quality_gates.errors import run_gate
+from quality_gates.errors import given_path, run_gate
 
 AGENT_CC_CEILING = 8
 ERROR_TAG = "ERROR: "
@@ -100,11 +100,18 @@ def report(results, files, args):
     return print_text(results, files, args.threshold)
 
 
-def gate(argv, root):
+def parse_args(argv):
     parser = build_parser()
     args = parser.parse_args(argv)
-    if args.update and not args.baseline:
+    if args.update and args.baseline is None:
         parser.error("--update needs --baseline")
+    if args.baseline is not None:
+        given_path("--baseline", args.baseline)
+    return args
+
+
+def gate(argv, root):
+    args = parse_args(argv)
     found = complexity_scan.scan(args.paths, args.lang)
     if not found.files:
         complexity_scan.print_skipped(found.skipped, sys.stderr)
@@ -114,7 +121,7 @@ def gate(argv, root):
     code = report(results, found.files, args)
     out = sys.stderr if args.format == "json" else sys.stdout
     complexity_scan.print_skipped(found.skipped, out)
-    if not args.baseline:
+    if args.baseline is None:
         return code
     current = over_threshold(results, root or ratchet.repo_root())
     return ratchet.enforce(current, Path(args.baseline), args.update, out)
