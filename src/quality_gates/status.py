@@ -104,11 +104,18 @@ def runs_command(text, command):
     return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
 
 
+def ci_step_files(project, part):
+    if "found_in" not in part:
+        return project.workflows()
+    path = project.root / part["found_in"]
+    return [path] if path.is_file() else []
+
+
 def ci_step_status(project, part):
     unreadable = False
-    for workflow in project.workflows():
+    for path in ci_step_files(project, part):
         try:
-            if runs_command(workflow.read_text(encoding="utf-8"), part["id"]):
+            if runs_command(path.read_text(encoding="utf-8"), part["marker"]):
                 return INSTALLED
         except (OSError, UnicodeDecodeError):
             unreadable = True
@@ -182,17 +189,28 @@ def project_suffix_languages(directories, files, suffixes):
     return found
 
 
+def applies(languages_wanted, used):
+    return not languages_wanted or bool(set(languages_wanted) & used)
+
+
+def part_report(project, part, used):
+    found = part_status(project, part) if applies(part.get("languages"), used) else NOT_APPLICABLE
+    return {"kind": part["kind"], "id": part["id"], "status": found}
+
+
+def counts_toward_status(part):
+    return part["kind"] not in PROVIDED_BY_PACKAGE and part["status"] != NOT_APPLICABLE
+
+
 def component_report(project, component, used):
     wanted = component["languages"]
-    parts = [
-        {"kind": p["kind"], "id": p["id"], "status": part_status(project, p)} for p in component["parts"]
-    ]
-    applicable = not wanted or bool(set(wanted) & used)
+    parts = [part_report(project, p, used) for p in component["parts"]]
+    applicable = applies(wanted, used)
     return {
         "id": component["id"],
         "name": component["name"],
         "core": component["core"],
-        "status": roll_up([p["status"] for p in parts if p["kind"] not in PROVIDED_BY_PACKAGE]) if applicable else NOT_APPLICABLE,
+        "status": roll_up([p["status"] for p in parts if counts_toward_status(p)]) if applicable else NOT_APPLICABLE,
         "description": component["description"],
         "origin": component["origin"],
         "languages": wanted,

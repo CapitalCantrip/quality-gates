@@ -337,9 +337,15 @@ file-level record `qg-upstream` reads.
   one most of its parts have; a part with a different one carries its own. An
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.
-- `parts`: each has a `kind` and an `id`. The kinds are `skill`, `hook`,
-  `command`, `baseline`, `ci_step` (with `file`, the CI example it appears in),
-  `claude_md_line` and `dependency`.
+- `parts`: each has a `kind` and an `id`, unique for its kind within the
+  component. The kinds are `skill`, `hook`, `command`, `baseline`, `ci_step`,
+  `claude_md_line` and `dependency`. A `ci_step` has `file`, the setup example
+  it comes from, and `marker`, the text that example puts in a CI workflow; with
+  `found_in`, the marker is looked for in that project file instead, such as the
+  test file `cc-check` runs inside for Python. A part for only some of its
+  component's languages lists them in `languages`; in a project that uses none
+  of them the part is *not applicable* and does not count toward the
+  component's status.
 
 **Set up and standards**
 

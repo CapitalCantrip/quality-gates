@@ -41,7 +41,8 @@ MANIFEST = {
             "parts": [
                 {"kind": "skill", "id": "crap"},
                 {"kind": "baseline", "id": "crap-baseline.json"},
-                {"kind": "ci_step", "id": "crap"},
+                {"kind": "ci_step", "id": "crap-python", "marker": "crap --lang python", "languages": ["python"]},
+                {"kind": "ci_step", "id": "crap-swift", "marker": "crap --lang swift", "languages": ["swift"]},
                 {"kind": "dependency", "id": "radon"},
             ],
         },
@@ -167,21 +168,49 @@ class Status(unittest.TestCase):
     def test_a_ci_step_is_unknown_when_a_workflow_file_cannot_be_read(self):
         self.set_up()
         (self.repo / ".github" / "workflows" / "tests.yml").write_bytes(b"\xff\xfe\x00bad")
-        self.assertEqual(part(self.report(), "risk", "ci_step", "crap")["status"], "unknown")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "unknown")
 
     def test_a_ci_step_is_installed_when_a_workflow_runs_the_gate(self):
         self.set_up()
-        self.assertEqual(part(self.report(), "risk", "ci_step", "crap")["status"], "installed")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "installed")
 
     def test_a_ci_step_is_missing_when_no_workflow_runs_the_gate(self):
         self.set_up()
         self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: pytest\n")
-        self.assertEqual(part(self.report(), "risk", "ci_step", "crap")["status"], "missing")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "missing")
 
     def test_a_ci_step_is_not_found_in_a_longer_command_name(self):
         self.set_up()
         self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: echo my-crap\n")
-        self.assertEqual(part(self.report(), "risk", "ci_step", "crap")["status"], "missing")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "missing")
+
+    def test_a_ci_step_is_judged_only_by_its_own_marker(self):
+        self.set_up()
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: crap --lang typescript src\n")
+        self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "missing")
+
+    def test_a_ci_step_that_runs_inside_a_named_file_is_installed_when_that_file_has_its_marker(self):
+        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+            {"kind": "ci_step", "id": "cc-check-python", "marker": "quality_check.main",
+             "found_in": "tests/test_quality_gates.py"}])]}
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
+        self.write(self.repo / "tests" / "test_quality_gates.py", "self.exit_code(quality_check.main, argv)\n")
+        self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
+
+    def test_a_part_for_a_language_the_project_does_not_use_is_not_applicable_and_left_out_of_the_roll_up(self):
+        self.set_up()
+        report = self.report()
+        self.assertEqual(part(report, "risk", "ci_step", "crap-swift")["status"], "not applicable")
+        self.assertEqual(component(report, "risk")["status"], "installed")
+
+    def test_a_set_up_swift_project_shows_a_gate_with_a_swift_ci_step_installed(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "Package.swift", "// package")
+        self.set_up()
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: crap --lang swift Sources/\n")
+        report = self.report()
+        self.assertEqual(part(report, "risk", "ci_step", "crap-python")["status"], "not applicable")
+        self.assertEqual(component(report, "risk")["status"], "installed")
 
     def test_a_missing_asking_rule_line_is_missing(self):
         self.set_up()

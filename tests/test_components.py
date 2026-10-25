@@ -85,9 +85,33 @@ class ComponentManifest(unittest.TestCase):
             self.assertIn(f'"{part["id"]}{part["origin"]["version"]}"', PYPROJECT, part["id"])
             self.assertEqual(part["origin"]["name"], part["id"])
 
-    def test_every_ci_step_a_component_names_is_in_the_ci_file_it_points_to(self):
+    def test_every_ci_step_marker_appears_in_the_ci_example_it_points_to(self):
         for _, part in parts("ci_step"):
-            self.assertIn(part["id"], (SKILLS / part["file"].split("skills/", 1)[1]).read_text(encoding="utf-8"), part["id"])
+            self.assertIn(part["marker"], (SKILLS / part["file"].split("skills/", 1)[1]).read_text(encoding="utf-8"), part["id"])
+
+    def test_a_ci_step_marker_is_a_line_the_example_puts_in_a_workflow_or_in_the_file_it_names(self):
+        for _, part in parts("ci_step"):
+            example = (SKILLS / part["file"].split("skills/", 1)[1]).read_text(encoding="utf-8")
+            if "found_in" in part:
+                self.assertIn(f"Save as `{part['found_in']}`", example, part["id"])
+            else:
+                runs = [line for line in example.splitlines() if part["marker"] in line]
+                self.assertTrue(any(re.match(r"^\s*(- run: )?" + re.escape(part["marker"]), line) for line in runs), part["id"])
+
+    def test_part_ids_are_unique_within_a_component_for_each_kind(self):
+        for component in MANIFEST["components"]:
+            keys = [(part["kind"], part["id"]) for part in component["parts"]]
+            self.assertEqual(len(keys), len(set(keys)), component["id"])
+
+    def test_a_part_names_only_languages_its_component_has(self):
+        for component, part in parts():
+            self.assertLessEqual(set(part.get("languages", [])), set(component["languages"]), part["id"])
+
+    def test_every_language_a_language_component_has_gets_a_ci_step_when_any_language_does(self):
+        for component in MANIFEST["components"]:
+            steps = [part for part in component["parts"] if part["kind"] == "ci_step"]
+            covered = {language for part in steps for language in part.get("languages", component["languages"])}
+            self.assertTrue(not steps or covered == set(component["languages"]), component["id"])
 
     def test_every_baseline_a_component_names_is_named_by_a_shipped_skill(self):
         skill_text = " ".join(path.read_text(encoding="utf-8") for path in SKILLS.glob("*/SKILL.md"))
