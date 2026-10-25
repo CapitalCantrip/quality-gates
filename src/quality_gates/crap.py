@@ -164,6 +164,7 @@ _GRADE_EMOJI  = {"ok": "✅", "WARN": "⚠️ ", "FAIL": "❌", UNMEASURED: "❔
 _GRADE_COLOR  = {"ok": "\033[32m", "WARN": "\033[33m", "FAIL": "\033[31m", UNMEASURED: "\033[31m"}
 _RESET        = "\033[0m"
 GRADE_WIDTH   = len(UNMEASURED)
+RULE_WIDTH    = 71 + GRADE_WIDTH
 
 
 def _fmt_cov(cov: Optional[float]) -> str:
@@ -190,7 +191,7 @@ def print_table(results: list, no_color: bool, top: int) -> None:
     capped    = non_fails[:top] if top else non_fails
     shown     = fails + _unmeasured(results) + capped
     print(f"{'GRADE':{GRADE_WIDTH + 3}}  {'CRAP':6}  {'CC':3}  {'COV':6}  FUNCTION")
-    print("─" * (76 + GRADE_WIDTH - 5))
+    print("─" * RULE_WIDTH)
     for r in shown:
         _print_row(r, no_color)
     hidden = len(non_fails) - len(capped)
@@ -209,12 +210,12 @@ def print_summary(results: list, warn_threshold: float, fail_threshold: float) -
     n_fail = sum(1 for r in measured if r.grade == "FAIL")
     n_warn = sum(1 for r in measured if r.grade == "WARN")
     n_ok   = len(measured) - n_fail - n_warn
-    max_crap = max((r.crap for r in measured), default=0.0)
-    avg_crap = sum(r.crap for r in measured) / len(measured) if measured else 0.0
     print()
     print(f"  {len(results)} function(s) · {n_ok} ok · {n_warn} warn · {n_fail} fail")
     _print_unmeasured(results)
-    print(f"  Max CRAP: {max_crap:.1f}  ·  Mean CRAP: {avg_crap:.1f}")
+    if measured:
+        avg_crap = sum(r.crap for r in measured) / len(measured)
+        print(f"  Max CRAP: {max(r.crap for r in measured):.1f}  ·  Mean CRAP: {avg_crap:.1f}")
     print(f"  Thresholds: warn > {warn_threshold}  fail > {fail_threshold}")
 
 

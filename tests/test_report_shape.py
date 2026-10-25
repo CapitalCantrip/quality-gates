@@ -106,7 +106,9 @@ class XccovShapeTest(unittest.TestCase):
                 self.assertRefused({"targets": targets})
 
     def test_a_file_path_that_is_not_text_is_refused(self):
-        self.assertRefused({"targets": [{"files": [{"path": 123, "functions": []}]}]})
+        for path in (123, None):
+            with self.subTest(path=path):
+                self.assertRefused({"targets": [{"files": [{"path": path, "functions": []}]}]})
 
     def test_a_function_list_or_record_of_the_wrong_shape_is_refused(self):
         for functions in ({}, [None]):

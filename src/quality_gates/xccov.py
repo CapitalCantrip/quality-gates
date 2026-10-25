@@ -47,10 +47,10 @@ def _extract_file_funcs(file_data: dict) -> dict:
 
 def _register_file_coverage(cov_map: dict, file_data: dict) -> None:
     file_funcs = _extract_file_funcs(file_data)
-    filepath = file_data.get("path")
-    if filepath is None:
+    if "path" not in file_data:
         return
-    if shaped(filepath, str, XCCOV_OUTPUT, "a file path"):
+    filepath = shaped(file_data["path"], str, XCCOV_OUTPUT, "a file path")
+    if filepath:
         cov_map.setdefault(real_path(filepath), file_funcs)
 
 

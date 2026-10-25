@@ -63,7 +63,10 @@ ships coverage (#104, #118, #75, #76, #77, #78, #81, #85, #105; ADR-005 addendum
 3. Run the CRAP gate. A function that used to score worst case for want of a
    figure now shows `UNMEASURED` and fails, even if the baseline holds it. Fix
    the measuring (run the tests and `crap` in the same checkout, coverage in
-   the tests' environment) or take the file out of the scan. Do not re-record
+   the tests' environment) or take the file out of the scan. A Swift function
+   under `#if os(macOS)` or `canImport(UIKit)` has no figure on Linux, so a
+   Linux CRAP job now fails on it: run that job on macOS, or leave the file out
+   of the Linux scan. Do not re-record
    the baseline for this: its entries stay while the function is unmeasured and
    are lowered or removed once it is measured.
 4. A tool that reads `crap --json` must accept `"crap": null`, the

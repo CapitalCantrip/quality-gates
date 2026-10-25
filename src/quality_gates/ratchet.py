@@ -82,13 +82,14 @@ def check(current, file, out, unmeasured=frozenset()):
         describe_over(over, out)
     elif behind:
         describe_behind(behind, file, out)
-    if describe_unmeasured(unmeasured, out) or over or behind:
+    describe_unmeasured(unmeasured, out)
+    if over or behind or unmeasured:
         return 1
     out.write(f"ratchet: {len(current)} baselined function(s) over the threshold, none new or worse\n")
     return 0
 
 
-def kept(baseline, unmeasured):
+def held_for_unmeasured(baseline, unmeasured):
     return {k: v for k, v in baseline.items() if k in unmeasured}
 
 
@@ -101,7 +102,7 @@ def update(current, file, out, unmeasured=frozenset()):
         describe_over(over, out)
         out.write("--update only lowers the baseline. It will not record a new or worse function.\n")
         return 1
-    scores = dict(sorted({**lowered(current, baseline), **kept(baseline, unmeasured)}.items()))
+    scores = dict(sorted({**lowered(current, baseline), **held_for_unmeasured(baseline, unmeasured)}.items()))
     write(file, scores)
     out.write(f"baseline: {len(scores)} function(s) over the threshold\n")
     return describe_unmeasured(unmeasured, out)

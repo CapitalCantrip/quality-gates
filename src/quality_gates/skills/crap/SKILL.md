@@ -41,7 +41,7 @@ Rust has no CRAP score: use `/cc-rust`.
    ```bash
    crap --lang swift Sources/ --xcresult /tmp/out.xcresult
    ```
-   Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a bundle made in another checkout or container leaves every function unmeasured, and a file name shared with another folder's file is never borrowed. When one file's functions all show `?` while others have figures, check that the Xcode project's file reference spells the file in the same case as the disk.
+   Run both in the same checkout. A report file counts only at the exact path `crap` scans, so a bundle made in another checkout or container leaves every function unmeasured, and a file name shared with another folder's file is never borrowed. When one file's functions are all `UNMEASURED` while others have figures, check that the Xcode project's file reference spells the file in the same case as the disk.
 
    **Swift — with coverage, SwiftPM package:**
    ```bash

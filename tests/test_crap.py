@@ -139,6 +139,7 @@ class PythonGateTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertRegex(out, r"UNMEASURED\s+—\s+3\s+\?\s+mod\.py:1  f")
         self.assertIn(f"2 unmeasured in 1 file(s): {self.module}", out)
+        self.assertNotIn("Max CRAP", out)
 
     def test_a_measured_file_and_an_unmeasured_one_fail_together_and_pass_is_false(self):
         self.write_coverage(list(range(1, 16)), [])
