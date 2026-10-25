@@ -63,17 +63,18 @@ class CrapScoreTest(unittest.TestCase):
 
 
 class ScoreTest(unittest.TestCase):
-    def test_score_applies_the_coverage_lookup_skips_functions_below_min_cc_and_ranks_worst_first(self):
+    def test_score_applies_the_coverage_lookup_skips_functions_below_min_cc_and_ranks_unmeasured_after_the_worst(self):
         functions = [
             complexity_scan.Function("a.py", "simple", 1, 1, 2, "simple"),
             complexity_scan.Function("a.py", "half", 4, 3, 9, "half"),
             complexity_scan.Function("a.py", "unknown", 4, 10, 20, "unknown"),
+            complexity_scan.Function("a.py", "bare", 4, 21, 30, "bare"),
         ]
-        coverage = {"half": 0.5, "unknown": None}
+        coverage = {"half": 0.5, "unknown": None, "bare": 0.0}
         results = crap.score(functions, lambda fn: coverage[fn.name], crap.Limits(min_cc=2, warn=5, threshold=8))
         self.assertEqual(
             [(r.name, r.coverage, r.crap, r.grade) for r in results],
-            [("unknown", None, 20.0, "FAIL"), ("half", 0.5, 6.0, "WARN")],
+            [("bare", 0.0, 20.0, "FAIL"), ("half", 0.5, 6.0, "WARN"), ("unknown", None, None, "UNMEASURED")],
         )
 
 
@@ -119,14 +120,36 @@ class PythonGateTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("FAIL", out)
 
-    def test_a_function_outside_the_coverage_file_is_scored_as_uncovered_with_unknown_coverage(self):
+    def test_a_function_outside_the_coverage_file_is_unmeasured_with_no_score_and_fails_the_gate(self):
         self.coverage.write_text(json.dumps({"files": {}}))
         code, out, _ = self.gate("--json")
         self.assertEqual(code, 1)
-        functions = json.loads(out)["functions"]
+        payload = json.loads(out)
+        functions = payload["functions"]
+        self.assertEqual({f["grade"] for f in functions}, {"UNMEASURED"})
         self.assertEqual({f["coverage"] for f in functions}, {None})
         self.assertEqual({f["coverage_source"] for f in functions}, {None})
-        self.assertEqual({f["crap"] for f in functions}, {12.0})
+        self.assertEqual({f["crap"] for f in functions}, {None})
+        self.assertEqual(payload["unmeasured"], [str(self.module)])
+        self.assertFalse(payload["pass"])
+
+    def test_the_table_shows_an_unmeasured_function_with_a_dash_and_the_summary_names_its_file(self):
+        self.coverage.write_text(json.dumps({"files": {}}))
+        code, out, _ = self.gate("--no-color")
+        self.assertEqual(code, 1)
+        self.assertRegex(out, r"UNMEASURED\s+—\s+3\s+\?\s+mod\.py:1  f")
+        self.assertIn(f"2 unmeasured in 1 file(s): {self.module}", out)
+
+    def test_a_measured_file_and_an_unmeasured_one_fail_together_and_pass_is_false(self):
+        self.write_coverage(list(range(1, 16)), [])
+        other = self.dir / "other.py"
+        other.write_text("def g(x):\n    if x:\n        return 1\n    return 2\n")
+        code, out, _ = call(["--lang", "python", str(self.module), str(other), "--coverage-json", str(self.coverage), "--json"])
+        self.assertEqual(code, 1)
+        payload = json.loads(out)
+        self.assertEqual({f["name"]: f["grade"] for f in payload["functions"]}, {"f": "ok", "K.m": "ok", "g": "UNMEASURED"})
+        self.assertEqual(payload["unmeasured"], [str(other)])
+        self.assertFalse(payload["pass"])
 
     def test_without_a_coverage_source_scores_are_worst_case(self):
         code, _, err = call(["--lang", "python", str(self.module)])
@@ -453,6 +476,12 @@ class TableTest(unittest.TestCase):
         self.assertIn("fine4", out)
         self.assertNotIn("more ok/WARN", out)
 
+    def test_unmeasured_rows_follow_the_fail_rows_and_top_never_hides_them(self):
+        results = [result("bad", "FAIL", 20)] + [result(f"fine{i}", "ok") for i in range(3)]
+        results += [crap.FunctionResult("mod.py", "blind", 1, 2, None, None, "UNMEASURED")]
+        names = [line.split()[-1] for line in self.table(results, top=1).splitlines()[2:4]]
+        self.assertEqual(names, ["bad", "blind"])
+
     def test_long_labels_are_truncated_to_fifty_characters(self):
         out = self.table([result("x" * 80, "ok")], top=0)
         row = out.splitlines()[-1]
@@ -490,7 +519,7 @@ class SwiftGateTest(unittest.TestCase):
         _, functions = self.gate(rows, "--xcresult", "r.xcresult", xccov=report)
         self.assertEqual({f["name"]: f["coverage"] for f in functions}, {"load": 1.0, "load#2": 0.5})
 
-    def test_a_null_line_coverage_in_an_xcresult_report_scores_that_function_worst_case_without_a_traceback(self):
+    def test_a_null_line_coverage_in_an_xcresult_report_leaves_that_function_unmeasured_without_a_traceback(self):
         report = {"targets": [{"files": [{"path": "Sources/App.swift", "functions": [
             {"name": "load()", "lineNumber": 10, "lineCoverage": None},
             {"name": "save()", "lineNumber": 40, "lineCoverage": 1.0},
@@ -498,7 +527,7 @@ class SwiftGateTest(unittest.TestCase):
         rows = [lizard_row("load", 4, 10, 30), lizard_row("save", 4, 40, 50)]
         code, functions = self.gate(rows, "--xcresult", "r.xcresult", xccov=report)
         self.assertEqual(code, 1)
-        self.assertEqual({f["name"]: (f["coverage"], f["crap"]) for f in functions}, {"load": (None, 20), "save": (1.0, 4)})
+        self.assertEqual({f["name"]: (f["coverage"], f["crap"]) for f in functions}, {"load": (None, None), "save": (1.0, 4)})
 
     def test_an_xcresult_report_with_no_figure_for_any_scanned_function_says_so(self):
         report = {"targets": [{"files": [{"path": "Sources/App.swift", "functions": [

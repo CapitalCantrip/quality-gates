@@ -6,6 +6,10 @@ from pathlib import Path
 from quality_gates.real_path import real_path
 
 KEY_SEPARATOR = "::"
+UNMEASURED_ADVICE = (
+    "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
+    "the baseline keeps any entry they already have and records none for them."
+)
 
 
 def repo_root():
@@ -62,19 +66,33 @@ def describe_behind(behind, file, out):
     out.write(f"\nThe baseline is behind. Run again with --update and commit {file.name}.\n")
 
 
-def check(current, file, out):
+def describe_unmeasured(unmeasured, out):
+    if not unmeasured:
+        return 0
+    for name in sorted(unmeasured):
+        out.write(f"UNMEASURED {name}: no coverage figure\n")
+    out.write(f"\n{UNMEASURED_ADVICE}\n")
+    return 1
+
+
+def check(current, file, out, unmeasured=frozenset()):
     over, behind = compare(current, load(file, updating=False))
+    behind = {k: v for k, v in behind.items() if k not in unmeasured}
     if over:
         describe_over(over, out)
-        return 1
-    if behind:
+    elif behind:
         describe_behind(behind, file, out)
+    if describe_unmeasured(unmeasured, out) or over or behind:
         return 1
     out.write(f"ratchet: {len(current)} baselined function(s) over the threshold, none new or worse\n")
     return 0
 
 
-def update(current, file, out):
+def kept(baseline, unmeasured):
+    return {k: v for k, v in baseline.items() if k in unmeasured}
+
+
+def update(current, file, out, unmeasured=frozenset()):
     baseline = load(file, updating=True)
     if baseline is None:
         baseline = dict(current)
@@ -83,15 +101,16 @@ def update(current, file, out):
         describe_over(over, out)
         out.write("--update only lowers the baseline. It will not record a new or worse function.\n")
         return 1
-    scores = lowered(current, baseline)
+    scores = dict(sorted({**lowered(current, baseline), **kept(baseline, unmeasured)}.items()))
     write(file, scores)
     out.write(f"baseline: {len(scores)} function(s) over the threshold\n")
-    return 0
+    return describe_unmeasured(unmeasured, out)
 
 
-def enforce(current, file, updating, out):
+def enforce(current, file, updating, out, unmeasured=frozenset()):
     try:
-        return update(current, file, out) if updating else check(current, file, out)
+        run = update if updating else check
+        return run(current, file, out, unmeasured)
     except FileNotFoundError as missing:
         out.write(f"{missing}\n")
         return 2

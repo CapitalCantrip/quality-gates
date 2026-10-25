@@ -290,6 +290,45 @@ class CrapRatchetTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("baseline allows 12.0", out)
 
+    def unmeasured_gate(self, *extra):
+        other = self.root / "other.py"
+        other.write_text(branchy("g", 2))
+        argv = ["--lang", "python", str(self.module), str(other), "--coverage-json", str(self.coverage),
+                "--baseline", str(self.file), *extra]
+        return call(crap.main, argv, self.root)
+
+    def test_update_records_measured_functions_adds_no_entry_for_an_unmeasured_one_and_fails_naming_it(self):
+        self.put(branchy("f", 2))
+        code, out = self.unmeasured_gate("--update")
+        self.assertEqual(code, 1)
+        self.assertEqual(self.baseline(), {"mod.py::f": 12.0})
+        self.assertIn("UNMEASURED other.py::g", out)
+
+    def test_an_entry_for_a_function_that_becomes_unmeasured_is_kept_and_not_reported_as_paid(self):
+        self.put(branchy("f", 2))
+        self.gate("--update")
+        self.coverage.write_text(json.dumps({"files": {}}))
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn("UNMEASURED mod.py::f", out)
+        self.assertNotIn("PAID", out)
+        self.assertEqual(self.gate("--update")[0], 1)
+        self.assertEqual(self.baseline(), {"mod.py::f": 12.0})
+
+    def test_update_still_lowers_measured_entries_while_another_function_is_unmeasured(self):
+        self.put(branchy("f", 3))
+        self.gate("--update")
+        self.put(branchy("f", 2))
+        self.assertEqual(self.unmeasured_gate("--update")[0], 1)
+        self.assertEqual(self.baseline(), {"mod.py::f": 12.0})
+
+    def test_a_check_with_only_baselined_measured_functions_still_passes(self):
+        self.put(branchy("f", 2))
+        self.gate("--update")
+        code, out = self.gate()
+        self.assertEqual(code, 0)
+        self.assertNotIn("UNMEASURED", out)
+
 
 class EmptyBaselineFlagTest(unittest.TestCase):
     def setUp(self):
