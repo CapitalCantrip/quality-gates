@@ -2,12 +2,14 @@ import sys
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Callable, Dict, Optional
 
-from quality_gates.json_report import load_json
+from quality_gates.errors import ToolError
+from quality_gates.json_report import MALFORMED_RECORD, load_json, shaped
 from quality_gates.real_path import real_path
 
 if TYPE_CHECKING:
     from quality_gates.languages import CoverageOf
 
+COVERAGE_JSON = "coverage JSON"
 NO_BRANCH_DATA = (
     "[crap] ⚠️  no branch data in coverage file — using line coverage only.\n"
     "  For more accurate scores add [run] branch=True to .coveragerc."
@@ -59,12 +61,20 @@ def _line_coverage_for_range(lines: dict, start: int, end: int) -> Optional[floa
     return sum(1 for hit in in_range.values() if hit) / len(in_range)
 
 
+def _file_entry(relpath: str, fd: object) -> FileCoverage:
+    what = f"the entry for {relpath}"
+    try:
+        return _parse_file_coverage(shaped(fd, dict, COVERAGE_JSON, what))
+    except MALFORMED_RECORD as exc:
+        raise ToolError(f"bad {COVERAGE_JSON}: {what}: {exc!r}") from None
+
+
 def load(coverage_json_path: str) -> dict:
-    data = load_json(coverage_json_path, "coverage file", "coverage JSON")
+    data = shaped(load_json(coverage_json_path, "coverage file", COVERAGE_JSON), dict, COVERAGE_JSON, "the document")
     out: dict = {}
     any_branches = False
-    for relpath, fd in data.get("files", {}).items():
-        entry = _parse_file_coverage(fd)
+    for relpath, fd in shaped(data.get("files", {}), dict, COVERAGE_JSON, '"files"').items():
+        entry = _file_entry(relpath, fd)
         if entry.has_branches:
             any_branches = True
         out[real_path(relpath)] = entry
