@@ -31,6 +31,11 @@ WORKFLOW_SUFFIXES = (".yml", ".yaml")
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
+PIN_VERDICTS = {
+    True: "matches",
+    False: "differs from the installed version",
+    None: "could not tell whether it matches",
+}
 NO_PARTS_NOTICE = "No quality-gates parts found in this folder. Run /setup-standards to add them."
 
 
@@ -221,6 +226,12 @@ def read_pin(project):
     return None
 
 
+def pin_matches(pin, installed):
+    if pin is None or installed == skills_sync.UNKNOWN_VERSION:
+        return None
+    return pin.lstrip("v") == installed
+
+
 def build_report(project, manifest):
     used = used_languages(project.root)
     pin, installed = read_pin(project), skills_sync.installed_version()
@@ -228,7 +239,7 @@ def build_report(project, manifest):
         "format_version": manifest["format_version"],
         "installed_version": installed,
         "pin": pin,
-        "pin_matches": None if pin is None else pin.lstrip("v") == installed,
+        "pin_matches": pin_matches(pin, installed),
         "components": [component_report(project, c, used) for c in manifest["components"]],
     }
 
@@ -241,8 +252,7 @@ def pin_line(report):
     installed = report["installed_version"]
     if report["pin"] is None:
         return f"Pin: pin not found. Installed quality-gates: {installed}."
-    verdict = "matches" if report["pin_matches"] else "differs from the installed version"
-    return f"Pin: {report['pin']}. Installed quality-gates: {installed} ({verdict})."
+    return f"Pin: {report['pin']}. Installed quality-gates: {installed} ({PIN_VERDICTS[report['pin_matches']]})."
 
 
 def component_lines(item):

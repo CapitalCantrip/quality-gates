@@ -5,6 +5,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -326,6 +327,15 @@ class Status(unittest.TestCase):
         self.write(self.repo / "pyproject.toml", f'dev = ["quality-gates @ git+https://x/quality-gates@v{installed}"]\n')
         self.assertTrue(self.report()["pin_matches"])
         self.assertIn("matches", self.run_status()[1])
+
+    def test_a_pin_is_neither_matching_nor_differing_when_the_installed_version_cannot_be_read(self):
+        self.write(self.repo / "pyproject.toml", 'dev = ["quality-gates @ git+https://x/quality-gates@v0.12.0"]\n')
+        with mock.patch.object(skills_sync, "installed_version", return_value="unknown"):
+            report = self.report()
+            _, out = self.run_status()
+        self.assertIsNone(report["pin_matches"])
+        self.assertNotIn("differs", out)
+        self.assertIn("could not tell whether it matches", out)
 
     def test_core_components_are_listed_first_and_marked_core(self):
         _, out = self.run_status()
