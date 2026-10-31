@@ -30,6 +30,8 @@ Outside tools are admitted under #114.
 
 ### Two kinds of exception: debt and recorded reasons
 
+Amended by: [ADR-009: recorded reasons and loosening](ADR-009-recorded-reasons-and-loosening.md)
+
 Existing violations found when a gate is adopted are **debt**, recorded in a
 baseline as every gate does today (ADR-001 addendum). They gain reasons or are
 paid down, busiest files first, through the debt-audit route (#42).
@@ -164,6 +166,8 @@ a slow hook.
 | Mutation testing | yes | yes | yes | after a trial run (#127) | n/a |
 
 ### Reaching the builder
+
+Amended by: [ADR-008 § The "proven" checkpoint](ADR-008-project-map-and-checkpoints.md#the-proven-checkpoint)
 
 Each gate shows in the "proven" checkpoint (#112) as pass, fail or could not
 check, never letting a gate that did not run read as a pass, then its open

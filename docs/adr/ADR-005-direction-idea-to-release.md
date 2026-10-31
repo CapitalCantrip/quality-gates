@@ -67,6 +67,8 @@ simpler alternatives, and then the builder decides. It is not a gate.
 
 ### Four layers
 
+Amended by: [ADR-008: the project map and the checkpoints](ADR-008-project-map-and-checkpoints.md)
+
 ADR-002 set three layers: workflow, principles, gates. This ADR adds a fourth,
 **Understanding**: what the builder knows about the project and the process.
 
@@ -119,6 +121,8 @@ the conflict. Each source and its pinned version is recorded in the origin
 manifest (quality-gates#104).
 
 ### Loosening a standard
+
+Amended by: [ADR-009: recorded reasons and loosening](ADR-009-recorded-reasons-and-loosening.md)
 
 Until recorded loosening ships, a project may tighten a standard and never
 loosen it. Once it ships, a project may loosen one only through a recorded

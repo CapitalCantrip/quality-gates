@@ -109,6 +109,25 @@ _Avoid_: rule summary, consolidated rule
 The gate that refuses an agent's bulk staging of changed files.
 _Avoid_: git guardrail, commit guard
 
+## Understanding
+
+**Project map**:
+The one document per project that shows the builder its outcome, its shape,
+the route through the stages, the choices settled and open, and loose ends.
+Each job adds to it in proportion to its size.
+_Avoid_: roadmap, plan, overview
+
+**Checkpoint**:
+The plain-words note the builder gets at a stage boundary: what was decided,
+what it cost and what is next. Its lasting effect is the update it makes to the
+project map.
+_Avoid_: status report, summary, gate report
+
+**Stage boundary**:
+One of the five points where a checkpoint is given: idea settled, spec agreed,
+built, proven, released.
+_Avoid_: milestone, phase gate
+
 ## Debt
 
 **Debt**:
@@ -124,6 +143,13 @@ A project's written decision to relax a gate for one case: why, what would let
 the case come back, and, where the gate asks, a review date or a trigger. Unlike
 debt, it is a choice (ADR-006).
 _Avoid_: waiver, ignore entry, exemption
+
+**Loosening**:
+A recorded reason that relaxes a standard for the whole project rather than one
+case: switching off a gate the project has, raising a limit, or removing a
+language that still has code. It needs the builder's explicit yes and always
+shows as a warning.
+_Avoid_: override, opt-out, exemption
 
 **Catch**:
 A problem a gate stopped, counted once and ended as fixed, given a reason, or
