@@ -44,6 +44,8 @@ this project; it never writes an explanation fresh (ADR-005, Understanding).
 
 ### The choice file
 
+Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md)
+
 A committed `quality-gates.json` at the project root records the chosen
 components, the ones offered and declined, the project's languages, and its
 commit time limit. `qg status`, the runner and setup all read it. Without the
