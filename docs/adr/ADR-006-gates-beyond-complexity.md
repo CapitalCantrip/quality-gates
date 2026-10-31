@@ -145,6 +145,8 @@ does not need it moves up. Every other gate ships in a release of its own.
 
 ### The commit budget
 
+Amended by: [ADR-007 § The commit time limit](ADR-007-component-install.md#the-commit-time-limit)
+
 All gates that run on a commit stay under about 2 seconds together on a normal
 commit. A check that is slower runs at ticket end and in CI instead; this moves
 the type-aware parts of the swallowed-error gate there. An agent routes around
