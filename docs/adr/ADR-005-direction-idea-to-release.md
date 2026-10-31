@@ -126,7 +126,7 @@ project decision, which `qg status` and the UI show as a warning.
 
 ### Rollout
 
-Amended by: [Addendum 2026-10-25: the component manifest and `qg status`](#addendum-2026-10-25-the-component-manifest-and-qg-status)
+Amended by: [Addendum 2026-10-25: the component manifest and `qg status`](#addendum-2026-10-25-the-component-manifest-and-qg-status), [ADR-007: component install](ADR-007-component-install.md)
 
 Staged, so no pinned project breaks:
 

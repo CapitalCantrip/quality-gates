@@ -36,6 +36,16 @@ One capability a consumer switches on or off as a whole, with all its parts:
 for example a gate's command, skill, baseline and CI step together.
 _Avoid_: module, plugin, feature, part
 
+**Choice file**:
+The committed `quality-gates.json` that records which components a consumer
+chose or declined, its languages and its commit time limit (ADR-007).
+_Avoid_: config, settings, lock file
+
+**Explainer**:
+A component's plain-words page, shipped with each release: what it catches, why
+it matters, what it asks of the builder, and where to read more.
+_Avoid_: help text, docs page
+
 **Core**:
 The components every consumer has and cannot switch off: the workflow, the
 principles and the asking rule.
@@ -114,3 +124,8 @@ A project's written decision to relax a gate for one case: why, what would let
 the case come back, and, where the gate asks, a review date or a trigger. Unlike
 debt, it is a choice (ADR-006).
 _Avoid_: waiver, ignore entry, exemption
+
+**Catch**:
+A problem a gate stopped, counted once and ended as fixed, given a reason, or
+accepted as debt. Not a proven bug.
+_Avoid_: bug caught, issue caught
