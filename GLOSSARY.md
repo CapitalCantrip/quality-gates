@@ -108,3 +108,9 @@ Violations of a gate that existed when the gate was adopted.
 The committed record of a gate's debt; the gate fails only on what is new or
 worse, and on paid debt not yet recorded.
 _Avoid_: allowlist, ignore file, suppression
+
+**Recorded reason**:
+A project's written decision to relax a gate for one case: why, what would let
+the case come back, and, where the gate asks, a review date or a trigger. Unlike
+debt, it is a choice (ADR-006).
+_Avoid_: waiver, ignore entry, exemption
