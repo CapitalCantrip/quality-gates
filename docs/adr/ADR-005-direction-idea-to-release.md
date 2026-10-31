@@ -109,6 +109,8 @@ bundles of components may come later.
 
 ### Outside material
 
+Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md)
+
 The framework is a curated collection: some parts are built here, many come
 from other open-source projects. Each outside tool is either copied in
 (vendored) or declared as a dependency, decided per tool: small things such as

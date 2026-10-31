@@ -29,6 +29,17 @@ An outside tool a component runs but this repo does not copy, such as radon or
 lizard; updated by bumping its version.
 _Avoid_: upstream, vendor
 
+**Outside source**:
+Any upstream or dependency: material this repo did not write, whether copied
+in or run.
+_Avoid_: third-party code, external, vendor
+
+**Admission**:
+The recorded judgement that lets an outside source in: its licence, its
+author's practice, whether it is maintained or stable, and any conflict with an
+accepted ADR. A source without one does not ship.
+_Avoid_: approval, vetting, allowlisting
+
 ## Components
 
 **Component**:
@@ -150,6 +161,13 @@ case: switching off a gate the project has, raising a limit, or removing a
 language that still has code. It needs the builder's explicit yes and always
 shows as a warning.
 _Avoid_: override, opt-out, exemption
+
+**Recognised convention**:
+A comment form a language's own community requires, such as Rust's `SAFETY:`
+above an `unsafe` block, that a project may switch on as an ordinary choice.
+Each one is admitted with a written case for and against it, with sources;
+anything else a project wants is a loosening.
+_Avoid_: exemption, exception, allowed comment
 
 **Catch**:
 A problem a gate stopped, counted once and ended as fixed, given a reason, or

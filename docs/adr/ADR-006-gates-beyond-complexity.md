@@ -178,6 +178,7 @@ reason last. The wording agreed for each gate is on its issue.
 ### Prerequisites
 
 Amended by: [Addendum 2026-10-31: the "proven" checkpoint comes first](#addendum-2026-10-31-the-proven-checkpoint-comes-first)
+Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md)
 
 Every gate here except #3 waits on component install (ADR-005 rollout step 2)
 and recorded loosening (#115). The secret, dependency and mutation gates, and
