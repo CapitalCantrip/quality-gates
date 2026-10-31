@@ -173,6 +173,8 @@ reason last. The wording agreed for each gate is on its issue.
 
 ### Prerequisites
 
+Amended by: [Addendum 2026-10-31: the "proven" checkpoint comes first](#addendum-2026-10-31-the-proven-checkpoint-comes-first)
+
 Every gate here except #3 waits on component install (ADR-005 rollout step 2)
 and recorded loosening (#115). The secret, dependency and mutation gates, and
 the TypeScript part of the swallowed-error gate, also wait on the admission
@@ -209,3 +211,19 @@ rule (#114). Each gate gets one build issue, blocked by these.
   together.
 - **Shipping in shared-code order.** It is cheapest to build, but protection
   against leaked keys would arrive last.
+
+## Addendum 2026-10-31: the "proven" checkpoint comes first
+
+Amends: [Prerequisites](#prerequisites)
+
+Every gate here except #3 also waits on the "proven" checkpoint (#112). Each
+gate's failure wording, its open reasons and its "could not check" reach the
+builder only through the checkpoint (§ Reaching the builder). Without it, a
+gate that did not run is visible only to someone who runs `qg status`, which
+is the silent pass this ADR forbids.
+
+The builder chose this on 2026-10-31, after a hand-made project map showed the
+gap: the gate issues required the checkpoint, but nothing here listed it.
+Reporting through the runner and `qg status` until the checkpoint shipped was
+rejected. The first gate would then reach the builder without the plain-words
+report that keeps the builder in control (ADR-005).
