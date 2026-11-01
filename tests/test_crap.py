@@ -2,6 +2,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import tempfile
 import unittest
 from argparse import Namespace
@@ -10,7 +11,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from quality_gates import complexity_scan, crap, languages, project_files
+from quality_gates import complexity_scan, crap, languages
 from quality_gates import xccov as xccov_reader
 
 
@@ -300,6 +301,7 @@ class FreshnessScopeTest(unittest.TestCase):
         before = os.getcwd()
         os.chdir(tmp.name)
         self.addCleanup(os.chdir, before)
+        subprocess.run(["git", "init", "-q"], check=True)
         self.touch("src/mod.py", 1000, "def f(x):\n    return x\n")
         Path("coverage.json").write_text(json.dumps({"files": {"src/mod.py": {
             "executed_lines": [1, 2], "missing_lines": []}}}))
@@ -313,14 +315,9 @@ class FreshnessScopeTest(unittest.TestCase):
     def gate(self, *extra):
         return call(["--lang", "python", "src", "--coverage-json", "coverage.json", "--allow-empty", *extra])
 
-    def test_a_newer_file_under_a_skipped_folder_does_not_make_the_report_stale(self):
+    def test_a_newer_file_under_an_ignored_folder_does_not_make_the_report_stale(self):
+        Path(".gitignore").write_text("node_modules/\n")
         self.touch("src/node_modules/dep/index.py", 1020)
-        code, _, err = self.gate("--strict-freshness")
-        self.assertEqual((code, "stale" in err), (0, False))
-
-    def test_a_newer_file_under_every_skip_list_folder_does_not_make_the_report_stale(self):
-        for folder in project_files.SKIPPED_FOLDERS:
-            self.touch(f"src/{folder}/x.py", 1020)
         code, _, err = self.gate("--strict-freshness")
         self.assertEqual((code, "stale" in err), (0, False))
 

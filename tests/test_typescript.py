@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -223,6 +224,7 @@ def lizard_cc(text: str) -> int:
         Path(folder, "a.ts").write_text(text, encoding="utf-8")
         here = os.getcwd()
         os.chdir(folder)
+        subprocess.run(["git", "init", "-q"], check=True)
         try:
             found = complexity_scan.scan(["a.ts"], "typescript")
         finally:

@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -10,7 +11,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import languages, manifest as manifests, skills_sync, status
+from quality_gates import languages, manifest as manifests, project_files, skills_sync, status
+
+
+def git_init(folder):
+    subprocess.run(["git", "init", "-q", str(folder)], check=True)
 
 OURS = {"type": "ours"}
 POCOCK = {"type": "upstream", "name": "mattpocock/skills"}
@@ -83,6 +88,7 @@ class Status(unittest.TestCase):
         self.hooks = self.tmp / "shipped-hooks"
         self.write(self.hooks / "stage_guard.py", "guard")
         self.repo = self.tmp / "repo"
+        git_init(self.repo)
         self.write(self.repo / "CLAUDE.md", "# Repo\n")
         self.write(self.repo / "pyproject.toml", "[project]\nname = 'consumer'\n")
 
@@ -294,7 +300,7 @@ class Status(unittest.TestCase):
 
     def test_an_xcode_project_counts_as_a_swift_project(self):
         (self.repo / "pyproject.toml").unlink()
-        (self.repo / "App.xcodeproj").mkdir()
+        self.write(self.repo / "App.xcodeproj" / "project.pbxproj", "// project")
         self.assertEqual(component(self.report(), "risk")["status"], "missing")
 
     def test_a_component_is_applicable_when_any_one_of_its_languages_is_used(self):
@@ -302,10 +308,18 @@ class Status(unittest.TestCase):
         self.write(self.repo / "Sources" / "App.swift", "let a = 1")
         self.assertEqual(component(self.report(), "risk")["status"], "missing")
 
-    def test_source_files_inside_the_virtual_environment_do_not_count_as_a_language(self):
+    def test_source_files_inside_an_ignored_virtual_environment_do_not_count_as_a_language(self):
         (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".gitignore", ".venv/\n")
         self.write(self.repo / ".venv" / "lib" / "dep.py", "x = 1")
         self.assertEqual(component(self.report(), "risk")["status"], "not applicable")
+
+    def test_the_copied_skills_and_hooks_do_not_make_a_project_use_their_languages(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".claude" / "skills" / "diagnosing-bugs" / "scripts" / "loop.sh", "#!/bin/sh\n")
+        self.write(self.repo / ".claude" / "hooks" / "session_start.sh", "#!/bin/sh\n")
+        self.write(self.repo / ".claude" / "hooks" / "stage_guard.py", "x = 1\n")
+        self.assertEqual(self.used(), set())
 
     def test_the_copied_stage_guard_does_not_make_a_project_a_python_project(self):
         (self.repo / "pyproject.toml").unlink()
@@ -314,8 +328,10 @@ class Status(unittest.TestCase):
         manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
         self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
 
-    def test_source_files_in_build_and_vendored_output_do_not_count_as_a_language(self):
+    def test_source_files_in_ignored_build_and_vendored_output_do_not_count_as_a_language(self):
         (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".gitignore", "dist/\nbuild/\ntarget/\nPods/\nDerivedData/\n.tox/\nsite-packages/\n.build/\n"
+                   "node_modules/\n.cache/\n")
         for folder in ("dist", "build", "target", "Pods", "DerivedData", ".tox", "lib/site-packages", ".build",
                        "node_modules", ".cache"):
             self.write(self.repo / folder / "vendored.py", "x = 1")
@@ -332,30 +348,66 @@ class Status(unittest.TestCase):
         report = self.report({"format_version": 2, "components": components})
         self.assertEqual([c["status"] for c in report["components"]], ["missing", "missing", "missing"])
 
-    def test_rust_and_shell_source_files_do_not_make_a_project_use_a_language(self):
+    def used(self, root=None):
+        return set(project_files.detected_languages(root or self.repo))
+
+    def test_rust_and_shell_source_files_make_a_project_use_rust_and_shell(self):
         (self.repo / "pyproject.toml").unlink()
         for name in ("src/main.rs", "run.sh", "build.bash", "env.zsh"):
             self.write(self.repo / name, "x")
-        self.assertEqual(status.used_languages(self.repo), set())
+        self.assertEqual(self.used(), {"rust", "shell"})
 
     def test_a_cargo_manifest_makes_a_project_use_rust(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "Cargo.toml", "[package]\n")
-        self.assertEqual(status.used_languages(self.repo), {"rust"})
+        self.assertEqual(self.used(), {"rust"})
 
     def test_every_marker_the_registry_lists_makes_a_project_use_its_language(self):
         (self.repo / "pyproject.toml").unlink()
         for language in languages.REGISTERED:
             for marker in language.markers:
                 with self.subTest(marker), tempfile.TemporaryDirectory() as folder:
+                    git_init(folder)
                     (Path(folder) / marker).write_text("x")
-                    self.assertEqual(status.used_languages(Path(folder)), {language.name})
+                    self.assertEqual(self.used(Path(folder)), {language.name})
 
-    def test_a_project_with_source_in_every_detected_language_uses_exactly_those(self):
+    def test_a_project_with_source_in_every_registered_language_uses_exactly_those(self):
         (self.repo / "pyproject.toml").unlink()
         for name in ("app.py", "App.swift", "app.ts", "Cargo.toml", "main.rs", "run.sh"):
             self.write(self.repo / name, "x")
-        self.assertEqual(status.used_languages(self.repo), {"python", "swift", "typescript", "rust"})
+        self.assertEqual(self.used(), {"python", "swift", "typescript", "rust", "shell"})
+
+    def test_an_extensionless_script_with_a_shell_shebang_makes_a_project_use_shell(self):
+        (self.repo / "pyproject.toml").unlink()
+        for first_line in ("#!/bin/sh", "#!/usr/bin/env bash", "#! /bin/zsh -e", "#!/usr/bin/env -S bash -eu"):
+            with self.subTest(first_line):
+                self.write(self.repo / "bin" / "run", first_line + "\necho hi\n")
+                self.assertEqual(self.used(), {"shell"})
+
+    def test_a_script_with_another_shebang_or_none_uses_no_language(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "bin" / "tool", "#!/usr/bin/env node\n")
+        self.write(self.repo / "bin" / "notes", "sh is mentioned\n")
+        self.write(self.repo / "bin" / "blob", b"\x00\xff".decode("latin-1"))
+        self.assertEqual(self.used(), set())
+
+    def test_files_the_gitignore_lists_make_no_language_used(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".gitignore", "node_modules/\n")
+        self.write(self.repo / "node_modules" / "dep" / "index.ts", "x")
+        self.assertEqual(self.used(), set())
+
+    def test_source_files_inside_a_fixtures_folder_make_no_language_used(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("tests/fixtures/typescript/a.ts", "tests/fixtures/swift/A.swift", "spec/fixture/b.ts"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(self.used(), set())
+
+    def test_detection_names_the_files_that_made_each_language_used(self):
+        self.write(self.repo / "src" / "app.py", "x")
+        self.write(self.repo / "bin" / "run", "#!/bin/sh\n")
+        self.assertEqual(project_files.detected_languages(self.repo),
+                         {"python": ["pyproject.toml", "src/app.py"], "shell": ["bin/run"]})
 
     def test_a_language_component_is_applicable_to_a_project_with_typescript_files(self):
         (self.repo / "pyproject.toml").unlink()
@@ -454,7 +506,7 @@ class Status(unittest.TestCase):
 
     def test_an_empty_folder_gets_a_plain_report_and_exit_0(self):
         empty = self.tmp / "empty"
-        empty.mkdir()
+        git_init(empty)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = status.main([], root=empty, source=self.source, hooks=self.hooks,

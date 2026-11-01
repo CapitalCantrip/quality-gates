@@ -5,7 +5,8 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from quality_gates import languages, project_files, skills_sync
+from quality_gates import project_files, skills_sync
+from quality_gates.errors import ToolError
 from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, ManifestError, load_components
 
 INSTALLED = "installed"
@@ -15,9 +16,8 @@ UNKNOWN = "unknown"
 PARTLY = "partly installed"
 NOT_APPLICABLE = "not applicable"
 PROVIDED = "provided by quality-gates"
+NO_REPO_EXIT = 2
 
-DETECTED_BY_MARKER = tuple(language.name for language in languages.REGISTERED if language.markers)
-DETECTED_BY_FILE = ("python", "swift", "typescript")
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
@@ -135,24 +135,6 @@ def roll_up(statuses):
     return MISSING if found == {MISSING} else PARTLY
 
 
-def marker_languages(root):
-    return {name for name in DETECTED_BY_MARKER if any((root / marker).exists() for marker in languages.markers_of(name))}
-
-
-def used_languages(root):
-    found = marker_languages(root)
-    for directories, files in project_files.detection_walk(root):
-        if found >= set(DETECTED_BY_FILE):
-            break
-        found |= project_file_languages(directories, files)
-    return found
-
-
-def project_file_languages(directories, files):
-    named = {languages.language_of_file(f) for f in files} | {languages.language_of_folder(d) for d in directories}
-    return named & set(DETECTED_BY_FILE)
-
-
 def applies(languages_wanted, used):
     return not languages_wanted or bool(set(languages_wanted) & used)
 
@@ -202,7 +184,7 @@ def pin_matches(pin, installed):
 
 
 def build_report(project, manifest):
-    used = used_languages(project.root)
+    used = set(project_files.detected_languages(project.root))
     pin, installed = read_pin(project), skills_sync.installed_version()
     return {
         "format_version": manifest.format_version,
@@ -282,7 +264,12 @@ def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.H
     except ManifestError as error:
         print(f"qg status: {error}", file=sys.stderr)
         return BROKEN_EXIT
-    project = Project(project_files.current_folder() if root is None else root, source, hooks, frozenset(skills_sync.skill_names(source)))
+    try:
+        root = project_files.git_root() if root is None else root
+    except ToolError as error:
+        print(f"qg status: {error}", file=sys.stderr)
+        return NO_REPO_EXIT
+    project = Project(root, source, hooks, frozenset(skills_sync.skill_names(source)))
     report = build_report(project, manifest)
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0

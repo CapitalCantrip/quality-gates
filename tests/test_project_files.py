@@ -5,6 +5,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -13,6 +14,12 @@ from unittest import mock
 
 from quality_gates import agent_docs, languages, skills_sync, status
 from quality_gates import project_files as pf
+from quality_gates.errors import ToolError
+
+
+def git_repo(folder):
+    subprocess.run(["git", "init", "-q", str(folder)], check=True)
+    return Path(folder).resolve()
 
 
 class ProjectFiles(unittest.TestCase):
@@ -368,7 +375,7 @@ def opens_inside(root):
 
 class ProjectModuleReadsAndWritesTheKeptFiles(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp()).resolve()
+        self.root = git_repo(tempfile.mkdtemp())
         (self.root / ".github" / "workflows").mkdir(parents=True)
         (self.root / ".github" / "workflows" / "ci.yml").write_text("run: crap --lang python\n")
         (self.root / ".githooks").mkdir()
@@ -401,6 +408,47 @@ class ProjectModuleReadsAndWritesTheKeptFiles(unittest.TestCase):
         with opens_inside(self.root) as found:
             self.run_commands()
         self.assertEqual(set(OPENS_ALLOWED) - set(found), set())
+
+
+class OneRootFinder(unittest.TestCase):
+    def test_inside_a_git_repo_the_root_is_the_top_of_the_repo_wherever_the_command_runs(self):
+        repo = git_repo(tempfile.mkdtemp())
+        (repo / "src").mkdir()
+        self.assertEqual(pf.git_root(repo / "src"), repo)
+
+    def test_outside_a_git_repo_finding_the_root_fails_with_a_message_naming_git(self):
+        folder = Path(tempfile.mkdtemp())
+        with self.assertRaises(ToolError) as raised:
+            pf.git_root(folder)
+        self.assertEqual(str(raised.exception), pf.NOT_A_GIT_REPO)
+        self.assertIn("git init", pf.NOT_A_GIT_REPO)
+
+    def test_outside_a_git_repo_every_command_exits_2_with_the_one_message_and_no_traceback(self):
+        from quality_gates import comment_debt, crap, quality_check
+        commands = {
+            "qg status": lambda: status.main([]),
+            "comment-debt": lambda: comment_debt.main([], out=sys.stderr),
+            "cc-check": lambda: quality_check.main(["."]),
+            "crap": lambda: crap.main(["--lang", "python", "."]),
+            "qg-agent-docs": lambda: agent_docs.main(["--tracker", "github"]),
+        }
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(tempfile.mkdtemp())
+        for name, command in commands.items():
+            with self.subTest(name):
+                err = io.StringIO()
+                with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+                    try:
+                        code = command()
+                    except SystemExit as stop:
+                        code = stop.code
+                self.assertEqual(code, 2)
+                self.assertIn(pf.NOT_A_GIT_REPO, err.getvalue())
+
+    def test_the_project_module_has_one_root_finder_and_no_current_folder_fallback(self):
+        self.assertFalse(hasattr(pf, "git_root_or_current_folder"))
+        self.assertFalse(hasattr(pf, "current_folder"))
 
 
 if __name__ == "__main__":

@@ -455,7 +455,7 @@ def _failing_scores(results: list, root) -> dict:
 
 def _enforce_baseline(results: list, args, root) -> int:
     out = sys.stderr if args.json_output else sys.stdout
-    root = root or project_files.git_root_or_current_folder()
+    root = root or project_files.git_root()
     current = _failing_scores(results, root)
     unmeasured = {ratchet.key(root, r.file, r.name) for r in _unmeasured(results)}
     return ratchet.enforce(current, Path(args.baseline), args.update, out, unmeasured)
