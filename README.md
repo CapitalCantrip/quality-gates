@@ -454,7 +454,8 @@ Three more commands support them:
 
   | Command | Code |
   |---|---|
-  | `qg` | [src/quality_gates/status.py](src/quality_gates/status.py) |
+  | `qg` | [src/quality_gates/qg.py](src/quality_gates/qg.py), which hands each subcommand to its own file |
+  | `qg status` | [src/quality_gates/status.py](src/quality_gates/status.py) |
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
   | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |

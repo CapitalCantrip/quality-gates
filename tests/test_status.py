@@ -94,7 +94,7 @@ class Status(unittest.TestCase):
     def run_status(self, *flags, manifest=MANIFEST):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main(["status", *flags], root=self.repo, source=self.source, hooks=self.hooks, manifest=manifest)
+            code = status.main([*flags], root=self.repo, source=self.source, hooks=self.hooks, manifest=manifest)
         return code, out.getvalue()
 
     def report(self, manifest=MANIFEST):
@@ -415,7 +415,7 @@ class Status(unittest.TestCase):
         empty.mkdir()
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main(["status"], root=empty, source=self.source, hooks=self.hooks, manifest=MANIFEST)
+            code = status.main([], root=empty, source=self.source, hooks=self.hooks, manifest=MANIFEST)
         self.assertEqual(code, 0)
         self.assertIn("No quality-gates parts found", out.getvalue())
 
@@ -435,7 +435,7 @@ class Status(unittest.TestCase):
     def test_the_real_manifest_reports_every_component_with_a_status(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main(["status", "--json"], root=self.repo)
+            code = status.main(["--json"], root=self.repo)
         report = json.loads(out.getvalue())
         self.assertEqual(code, 0)
         self.assertEqual(report["format_version"], status.load_manifest()["format_version"])
