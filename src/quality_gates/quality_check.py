@@ -4,7 +4,7 @@ import json
 import sys
 from pathlib import Path
 
-from quality_gates import complexity_scan, languages, ratchet
+from quality_gates import complexity_scan, languages, project_files, ratchet
 from quality_gates.errors import given_path, run_gate
 
 AGENT_CC_CEILING = 8
@@ -123,7 +123,7 @@ def gate(argv, root):
     complexity_scan.print_skipped(found.skipped, out)
     if args.baseline is None:
         return code
-    current = over_threshold(results, root or ratchet.repo_root())
+    current = over_threshold(results, root or project_files.git_root_or_current_folder())
     return ratchet.enforce(current, Path(args.baseline), args.update, out)
 
 

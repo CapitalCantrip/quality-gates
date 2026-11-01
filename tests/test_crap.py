@@ -10,7 +10,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from quality_gates import complexity_scan, crap, languages
+from quality_gates import complexity_scan, crap, languages, project_files
 from quality_gates import xccov as xccov_reader
 
 
@@ -319,7 +319,7 @@ class FreshnessScopeTest(unittest.TestCase):
         self.assertEqual((code, "stale" in err), (0, False))
 
     def test_a_newer_file_under_every_skip_list_folder_does_not_make_the_report_stale(self):
-        for folder in complexity_scan.SKIPPED_FOLDERS:
+        for folder in project_files.SKIPPED_FOLDERS:
             self.touch(f"src/{folder}/x.py", 1020)
         code, _, err = self.gate("--strict-freshness")
         self.assertEqual((code, "stale" in err), (0, False))

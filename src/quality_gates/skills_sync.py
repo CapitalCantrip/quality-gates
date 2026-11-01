@@ -59,12 +59,8 @@ def sync(dest, source=SHIPPED):
     return names
 
 
-def project_root(dest):
-    return dest.resolve().parent.parent
-
-
 def check(dest, source=SHIPPED, hooks=project_files.HOOKS_SOURCE):
-    found = differences(dest, source) + project_files.differences(dest.parent, project_root(dest), hooks)
+    found = differences(dest, source) + project_files.differences(dest.parent, project_files.root_of_skills_folder(dest), hooks)
     for line in found:
         print(line)
     if found:
@@ -86,10 +82,10 @@ def build_parser():
 
 def install(dest, source, hooks):
     names = sync(dest, source)
-    project_files.sync(dest.parent, project_root(dest), hooks)
+    project_files.sync(dest.parent, project_files.root_of_skills_folder(dest), hooks)
     print(f"Copied {', '.join(names)} from quality-gates {installed_version()} to {dest}")
     print(f"Installed the stage guard in {dest.parent} and the asking-rule line in "
-          f"{project_files.instruction_file(project_root(dest)).name}")
+          f"{project_files.instruction_file(project_files.root_of_skills_folder(dest)).name}")
     return 0
 
 
