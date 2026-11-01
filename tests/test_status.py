@@ -403,6 +403,14 @@ class Status(unittest.TestCase):
             self.write(self.repo / name, "x")
         self.assertEqual(self.used(), set())
 
+    def test_detection_leaves_out_what_the_choice_file_excludes(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "vendor" / "lib.ts", "x")
+        self.write(self.repo / "tests" / "fixtures" / "a.swift", "x")
+        choice = project_files.Choice(languages=(), exclude=("vendor/",))
+        project_files.write_kept(self.repo, project_files.CHOICE_FILE, project_files.choice_text(choice))
+        self.assertEqual(self.used(), {"swift"})
+
     def test_detection_names_the_files_that_made_each_language_used(self):
         self.write(self.repo / "src" / "app.py", "x")
         self.write(self.repo / "bin" / "run", "#!/bin/sh\n")

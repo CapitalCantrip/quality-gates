@@ -2,6 +2,7 @@ import ast
 import contextlib
 import io
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -94,6 +95,7 @@ class QgDispatcherTest(unittest.TestCase):
         self.addCleanup(os.chdir, here)
         with tempfile.TemporaryDirectory() as folder:
             os.chdir(folder)
+            subprocess.run(["git", "init", "-q"], check=True)
             for flags in ([], ["--json"]):
                 with self.subTest(flags=flags):
                     self.assertEqual(run(qg.main, ["status", *flags]), run(status.main, flags))

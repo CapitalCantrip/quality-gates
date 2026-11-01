@@ -9,6 +9,7 @@ from pathlib import Path, PurePosixPath
 
 from quality_gates import languages
 from quality_gates.errors import ToolError
+from quality_gates.manifest import ManifestError, fail_unless, known, known_languages, read_json, require, unique
 
 HOOKS_SOURCE = Path(__file__).parent / "hooks"
 STAGE_GUARD = "stage_guard.py"
@@ -44,6 +45,14 @@ TRIAGE_LABELS_DOC = AGENT_DOCS / "triage-labels.md"
 DOMAIN_DOC = AGENT_DOCS / "domain.md"
 PR_TEMPLATE = Path(".github") / "pull_request_template.md"
 COMMENT_DEBT_BASELINE = "comment-debt.json"
+CHOICE_FILE = "quality-gates.json"
+CHOICE_FORMAT_VERSION = 1
+CHOICE_REQUIRED = ("format_version", "languages", "exclude", "components", "commit_time_limit_seconds", "settings")
+COMPONENTS_REQUIRED = ("chosen", "declined")
+COMMENT_GATE = "no-comments"
+COMMENT_GATE_REQUIRED = ("exclude", "conventions")
+RECOGNISED_CONVENTIONS = frozenset({"rust-safety"})
+DEFAULT_COMMIT_TIME_LIMIT_SECONDS = 2
 COPIED_BY_QUALITY_GATES = (".claude/skills/", ".claude/hooks/")
 FIXTURE_FOLDERS = ("fixtures", "fixture", "__fixtures__", "testdata")
 FIRST_LINE_BYTES = 256
@@ -342,9 +351,17 @@ def default_exclusions(listed):
     return tuple(prefix for prefix in found if not excluded_by(prefix, tuple(other for other in found if other != prefix)))
 
 
+def scope_exclusions(root, listed):
+    try:
+        choice = read_choice(root)
+    except ManifestError as error:
+        raise ToolError(str(error)) from error
+    return default_exclusions(listed) if choice is None else choice.exclude
+
+
 def scope_of(root, excluded=None):
     listed = committable_files(root)
-    excluded = default_exclusions(listed) if excluded is None else tuple(excluded)
+    excluded = scope_exclusions(root, listed) if excluded is None else tuple(excluded)
     return Scope(os.path.realpath(root), listed, parent_folders(listed), excluded)
 
 
@@ -428,3 +445,83 @@ def files_in_scope(paths: list, root=None) -> tuple:
         files.extend(found)
         skipped.update(folders)
     return sorted(once_each(files)), sorted(skipped)
+
+
+@dataclass(frozen=True)
+class Choice:
+    languages: tuple
+    chosen: tuple = ()
+    declined: tuple = ()
+    exclude: tuple = ()
+    commit_time_limit_seconds: float = DEFAULT_COMMIT_TIME_LIMIT_SECONDS
+    comment_exclude: tuple = ()
+    conventions: tuple = ()
+
+
+def text_list(data, field, where):
+    values = data[field]
+    fail_unless(isinstance(values, list) and all(isinstance(v, str) for v in values),
+                f"{where}: field '{field}' must be a list of text")
+    unique(values, where, lambda value: f"'{value}' in '{field}'")
+    return tuple(values)
+
+
+def check_version(data, where):
+    version = data["format_version"]
+    fail_unless(version == CHOICE_FORMAT_VERSION and not isinstance(version, bool),
+                f"{where}: field 'format_version' must be {CHOICE_FORMAT_VERSION}; this quality-gates cannot read {version!r}")
+
+
+def check_limit(value, where):
+    fail_unless(isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0,
+                f"{where}: field 'commit_time_limit_seconds' must be a number of seconds above 0")
+    return value
+
+
+def components_of(data, where):
+    require(data, COMPONENTS_REQUIRED, f"{where}: components")
+    chosen, declined = text_list(data, "chosen", where), text_list(data, "declined", where)
+    for both in set(chosen) & set(declined):
+        raise ManifestError(f"{where}: component '{both}' is both chosen and declined")
+    return chosen, declined
+
+
+def comment_gate_settings(settings, where):
+    fail_unless(isinstance(settings, dict), f"{where}: field 'settings' must be an object")
+    for name in settings:
+        known(name, {COMMENT_GATE}, "settings", where)
+    gate = require(settings.get(COMMENT_GATE, {"exclude": [], "conventions": []}), COMMENT_GATE_REQUIRED,
+                   f"{where}: settings '{COMMENT_GATE}'")
+    conventions = text_list(gate, "conventions", where)
+    for convention in conventions:
+        known(convention, RECOGNISED_CONVENTIONS, "convention", where)
+    return text_list(gate, "exclude", where), conventions
+
+
+def choice_from(data, where=CHOICE_FILE):
+    require(data, CHOICE_REQUIRED, where)
+    check_version(data, where)
+    chosen, declined = components_of(data["components"], where)
+    comment_exclude, conventions = comment_gate_settings(data["settings"], where)
+    return Choice(known_languages(text_list(data, "languages", where), where), chosen, declined,
+                  text_list(data, "exclude", where), check_limit(data["commit_time_limit_seconds"], where),
+                  comment_exclude, conventions)
+
+
+def read_choice(root):
+    path = Path(root) / CHOICE_FILE
+    if not path.exists():
+        return None
+    return choice_from(read_json(path))
+
+
+def choice_text(choice):
+    data = {
+        "format_version": CHOICE_FORMAT_VERSION,
+        "languages": list(choice.languages),
+        "exclude": list(choice.exclude),
+        "components": {"chosen": list(choice.chosen), "declined": list(choice.declined)},
+        "commit_time_limit_seconds": choice.commit_time_limit_seconds,
+        "settings": {COMMENT_GATE: {"exclude": list(choice.comment_exclude), "conventions": list(choice.conventions)}},
+    }
+    return json.dumps(data, indent=2) + "\n"

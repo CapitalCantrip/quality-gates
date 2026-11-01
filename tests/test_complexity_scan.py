@@ -297,6 +297,15 @@ class GitScopeTest(InTempDir):
         self.write("tests/fixtures/sample.py")
         self.assertEqual(len(complexity_scan.scan(["tests/fixtures/sample.py"], "python").functions), 1)
 
+    def test_the_choice_files_exclusions_replace_the_default_fixture_exclusion(self):
+        self.write("tests/fixtures/sample.py")
+        self.write("gen/made.py")
+        self.write("src/mod.py")
+        choice = project_files.Choice(languages=("python",), exclude=("gen/",))
+        project_files.write_kept(Path.cwd(), project_files.CHOICE_FILE, project_files.choice_text(choice))
+        self.assertEqual(sorted(fn.file for fn in complexity_scan.scan(["."], "python").functions),
+                         ["src/mod.py", "tests/fixtures/sample.py"])
+
     def test_lizard_reads_the_same_files_git_would_commit(self):
         self.write(".gitignore", "node_modules/\n")
         self.write("node_modules/dep/x.ts", "function x(a) { return a ? 1 : 2; }\n")

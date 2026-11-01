@@ -15,6 +15,7 @@ from unittest import mock
 from quality_gates import agent_docs, languages, skills_sync, status
 from quality_gates import project_files as pf
 from quality_gates.errors import ToolError
+from quality_gates.manifest import ManifestError
 
 
 def git_repo(folder):
@@ -408,6 +409,96 @@ class ProjectModuleReadsAndWritesTheKeptFiles(unittest.TestCase):
         with opens_inside(self.root) as found:
             self.run_commands()
         self.assertEqual(set(OPENS_ALLOWED) - set(found), set())
+
+
+CONVENTIONS_DOC = ROOT / "docs" / "recognised-conventions.md"
+
+
+def recorded_convention_ids():
+    return re.findall(r"^\*\*Id\.\*\* `([a-z0-9-]+)`\.$", CONVENTIONS_DOC.read_text(encoding="utf-8"), re.MULTILINE)
+
+
+class ChoiceFile(unittest.TestCase):
+    def setUp(self):
+        self.root = git_repo(tempfile.mkdtemp())
+
+    def write(self, data):
+        (self.root / pf.CHOICE_FILE).write_text(json.dumps(data), encoding="utf-8")
+
+    def valid(self, **changes):
+        data = {"format_version": 1, "languages": ["python"], "exclude": ["tests/fixtures/"],
+                "components": {"chosen": ["crap"], "declined": ["design-helpers"]}, "commit_time_limit_seconds": 2,
+                "settings": {"no-comments": {"exclude": ["gen/"], "conventions": []}}}
+        data.update(changes)
+        return data
+
+    def broken(self, data):
+        self.write(data)
+        with self.assertRaises(ManifestError) as raised:
+            pf.read_choice(self.root)
+        return str(raised.exception)
+
+    def test_a_project_without_a_choice_file_has_no_choice(self):
+        self.assertIsNone(pf.read_choice(self.root))
+
+    def test_a_choice_file_is_read_into_its_record(self):
+        self.write(self.valid())
+        self.assertEqual(pf.read_choice(self.root), pf.Choice(
+            languages=("python",), chosen=("crap",), declined=("design-helpers",), exclude=("tests/fixtures/",),
+            commit_time_limit_seconds=2, comment_exclude=("gen/",), conventions=()))
+
+    def test_a_written_choice_reads_back_the_same_and_ends_in_a_newline(self):
+        choice = pf.Choice(languages=("python", "shell"), chosen=("crap",), exclude=("tests/fixtures/",),
+                           comment_exclude=("gen/",), conventions=("rust-safety",))
+        pf.write_kept(self.root, pf.CHOICE_FILE, pf.choice_text(choice))
+        self.assertEqual(pf.read_choice(self.root), choice)
+        self.assertTrue((self.root / pf.CHOICE_FILE).read_text(encoding="utf-8").endswith("}\n"))
+
+    def test_a_new_choice_defaults_to_a_two_second_commit_limit_and_empty_comment_gate_settings(self):
+        choice = pf.Choice(languages=("python",))
+        self.assertEqual((choice.commit_time_limit_seconds, choice.comment_exclude, choice.conventions), (2, (), ()))
+        self.assertEqual(json.loads(pf.choice_text(choice))["settings"], {"no-comments": {"exclude": [], "conventions": []}})
+
+    def test_a_language_the_registry_does_not_know_is_refused(self):
+        self.assertIn("unknown language 'cobol'", self.broken(self.valid(languages=["python", "cobol"])))
+
+    def test_rust_and_shell_can_be_recorded(self):
+        self.write(self.valid(languages=["rust", "shell"]))
+        self.assertEqual(pf.read_choice(self.root).languages, ("rust", "shell"))
+
+    def test_a_convention_id_the_conventions_page_does_not_record_is_refused(self):
+        settings = {"no-comments": {"exclude": [], "conventions": ["todo-markers"]}}
+        self.assertIn("unknown convention 'todo-markers'", self.broken(self.valid(settings=settings)))
+
+    def test_the_conventions_a_choice_file_accepts_are_exactly_those_the_conventions_page_records(self):
+        self.assertEqual(sorted(pf.RECOGNISED_CONVENTIONS), sorted(recorded_convention_ids()))
+        self.assertIn("rust-safety", pf.RECOGNISED_CONVENTIONS)
+
+    def test_a_missing_field_is_named(self):
+        data = self.valid()
+        del data["languages"]
+        self.assertIn("missing field 'languages'", self.broken(data))
+
+    def test_a_format_version_this_release_cannot_read_is_refused(self):
+        self.assertIn("format_version", self.broken(self.valid(format_version=2)))
+
+    def test_a_component_both_chosen_and_declined_is_refused(self):
+        components = {"chosen": ["crap"], "declined": ["crap"]}
+        self.assertIn("'crap' is both chosen and declined", self.broken(self.valid(components=components)))
+
+    def test_a_commit_time_limit_that_is_not_a_positive_number_is_refused(self):
+        for limit in (0, -1, "2", True):
+            with self.subTest(limit):
+                self.assertIn("commit_time_limit_seconds", self.broken(self.valid(commit_time_limit_seconds=limit)))
+
+    def test_settings_for_a_component_that_has_none_are_refused(self):
+        self.assertIn("unknown settings 'crap'", self.broken(self.valid(settings={"crap": {}})))
+
+    def test_a_file_that_is_not_json_names_the_file(self):
+        (self.root / pf.CHOICE_FILE).write_text("{", encoding="utf-8")
+        with self.assertRaises(ManifestError) as raised:
+            pf.read_choice(self.root)
+        self.assertIn(pf.CHOICE_FILE, str(raised.exception))
 
 
 class OneRootFinder(unittest.TestCase):
