@@ -7,8 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from quality_gates import complexity_scan, languages, project_files, skills_sync
-
-MANIFEST_PATH = Path(__file__).parent / "components.json"
+from quality_gates.manifest import load_components
 
 INSTALLED = "installed"
 MISSING = "missing"
@@ -59,17 +58,13 @@ class Project:
         return sorted(p for p in folder.iterdir() if p.suffix in WORKFLOW_SUFFIXES)
 
 
-def load_manifest():
-    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-
-
 def skill_status(project, part):
-    if part["id"] not in project.shipped_skills:
+    if part.id not in project.shipped_skills:
         return UNKNOWN
     dest = project.claude_dir / "skills"
-    if not skills_sync.files_under(dest / part["id"]):
+    if not skills_sync.files_under(dest / part.id):
         return MISSING
-    return DIFFERENT if skills_sync.skill_differences(part["id"], project.source, dest) else INSTALLED
+    return DIFFERENT if skills_sync.skill_differences(part.id, project.source, dest) else INSTALLED
 
 
 def copied_hook_status(project, name):
@@ -82,8 +77,8 @@ def copied_hook_status(project, name):
 
 
 def hook_status(project, part):
-    found = copied_hook_status(project, part["id"])
-    if found != INSTALLED or part["id"] != project_files.STAGE_GUARD:
+    found = copied_hook_status(project, part.id)
+    if found != INSTALLED or part.id != project_files.STAGE_GUARD:
         return found
     try:
         registered = project_files.stage_guard_registered(project.claude_dir / "settings.json")
@@ -93,7 +88,7 @@ def hook_status(project, part):
 
 
 def claude_md_line_status(project, part):
-    if part["id"] != ASKING_RULE:
+    if part.id != ASKING_RULE:
         return UNKNOWN
     try:
         return INSTALLED if project_files.has_asking_line(project.root) else MISSING
@@ -102,7 +97,7 @@ def claude_md_line_status(project, part):
 
 
 def file_status(project, part):
-    path = project.root / part["id"]
+    path = project.root / part.id
     if not path.exists():
         return MISSING
     return INSTALLED if path.is_file() and os.access(path, os.R_OK) else UNKNOWN
@@ -112,26 +107,30 @@ def runs_command(text, command):
     return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
 
 
-def ci_step_files(project, part):
-    if "found_in" not in part:
+def ci_step_files(project, found_in):
+    if found_in is None:
         return project.workflows()
-    path = project.root / part["found_in"]
+    path = project.root / found_in
     return [path] if path.is_file() else []
 
 
-def ci_step_status(project, part):
+def marker_status(paths, marker):
     unreadable = False
-    for path in ci_step_files(project, part):
+    for path in paths:
         try:
-            if runs_command(path.read_text(encoding="utf-8"), part["marker"]):
+            if runs_command(path.read_text(encoding="utf-8"), marker):
                 return INSTALLED
         except (OSError, UnicodeDecodeError):
             unreadable = True
     return UNKNOWN if unreadable else MISSING
 
 
+def ci_step_status(project, part):
+    return marker_status(ci_step_files(project, part.found_in), part.marker)
+
+
 def precommit_step_status(project, part):
-    return ci_step_status(project, {"marker": part["marker"], "found_in": PRE_COMMIT_HOOK})
+    return marker_status(ci_step_files(project, PRE_COMMIT_HOOK), part.marker)
 
 
 PART_STATUS = {
@@ -146,7 +145,7 @@ PART_STATUS = {
 
 
 def part_status(project, part):
-    reader = PART_STATUS.get(part["kind"])
+    reader = PART_STATUS.get(part.kind)
     return reader(project, part) if reader else UNKNOWN
 
 
@@ -194,13 +193,13 @@ def applies(languages_wanted, used):
 
 
 def part_report(project, part, used):
-    if part["kind"] in PROVIDED_BY_PACKAGE:
+    if part.kind in PROVIDED_BY_PACKAGE:
         found = PROVIDED
-    elif applies(part.get("languages"), used):
+    elif applies(part.languages, used):
         found = part_status(project, part)
     else:
         found = NOT_APPLICABLE
-    return {"kind": part["kind"], "id": part["id"], "status": found}
+    return {"kind": part.kind, "id": part.id, "status": found}
 
 
 def counts_toward_status(part):
@@ -208,16 +207,16 @@ def counts_toward_status(part):
 
 
 def component_report(project, component, used):
-    wanted = component["languages"]
-    parts = [part_report(project, p, used) for p in component["parts"]]
+    wanted = list(component.languages)
+    parts = [part_report(project, p, used) for p in component.parts]
     applicable = applies(wanted, used)
     return {
-        "id": component["id"],
-        "name": component["name"],
-        "core": component["core"],
+        "id": component.id,
+        "name": component.name,
+        "core": component.core,
         "status": roll_up([p["status"] for p in parts if counts_toward_status(p)]) if applicable else NOT_APPLICABLE,
-        "description": component["description"],
-        "origin": component["origin"],
+        "description": component.description,
+        "origin": component.origin.as_dict(),
         "languages": wanted,
         "parts": parts,
     }
@@ -245,11 +244,11 @@ def build_report(project, manifest):
     used = used_languages(project.root)
     pin, installed = read_pin(project), skills_sync.installed_version()
     return {
-        "format_version": manifest["format_version"],
+        "format_version": manifest.format_version,
         "installed_version": installed,
         "pin": pin,
         "pin_matches": pin_matches(pin, installed),
-        "components": [component_report(project, c, used) for c in manifest["components"]],
+        "components": [component_report(project, c, used) for c in manifest.components],
     }
 
 
@@ -317,6 +316,6 @@ def build_parser():
 def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None):
     args = build_parser().parse_args(argv)
     project = Project(Path.cwd() if root is None else root, source, hooks, frozenset(skills_sync.skill_names(source)))
-    report = build_report(project, manifest or load_manifest())
+    report = build_report(project, manifest or load_components())
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0
