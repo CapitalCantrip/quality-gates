@@ -1,3 +1,4 @@
+import fnmatch
 import re
 import sys
 import unittest
@@ -253,6 +254,12 @@ class ComponentManifestShips(unittest.TestCase):
     def test_the_manifest_is_listed_in_the_package_data(self):
         package_data = re.search(r"(?m)^quality_gates = \[(.*)\]$", PYPROJECT).group(1)
         self.assertIn('"components.json"', package_data)
+
+    def test_every_explainer_a_component_names_matches_a_pattern_in_the_package_data(self):
+        patterns = re.findall(r'"([^"]+)"', re.search(r"(?m)^quality_gates = \[(.*)\]$", PYPROJECT).group(1))
+        for component in MANIFEST.components:
+            if component.explainer is not None:
+                self.assertTrue(any(fnmatch.fnmatch(component.explainer, pattern) for pattern in patterns), component.id)
 
 
 if __name__ == "__main__":
