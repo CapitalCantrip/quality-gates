@@ -81,7 +81,7 @@ def measure(root, paths):
     for path in paths:
         file = root / path
         if file.exists():
-            current[path] = LANGUAGES[languages.language_of_file(path)](file.read_text(encoding="utf-8"))
+            current[path] = LANGUAGES[languages.language_of_tracked_file(path)](file.read_text(encoding="utf-8"))
     return current
 
 
