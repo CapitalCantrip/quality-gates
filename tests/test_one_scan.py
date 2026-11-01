@@ -2,6 +2,7 @@ import io
 import json
 import os
 import sys
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -61,6 +62,7 @@ class InTempDir(unittest.TestCase):
         before = os.getcwd()
         os.chdir(tmp.name)
         self.addCleanup(os.chdir, before)
+        subprocess.run(["git", "init", "-q"], check=True)
 
     def write(self, path, text):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -101,17 +103,17 @@ class SameFunctionsTest(InTempDir):
 class SkippedFolderLineTest(InTempDir):
     def setUp(self):
         super().setUp()
-        self.write("src/build/gen.py", "def gen(x):\n    return 1 if x else 2\n")
-        self.write("src/dist/out.py", "def out(x):\n    return 1 if x else 2\n")
         self.write("src/real.py", "def real(x):\n    return 1 if x else 2\n")
+        os.symlink(os.path.abspath("src"), "src/up")
+        os.symlink(os.path.abspath("src"), "src/again")
 
     def test_crap_names_the_skipped_folders_after_its_report(self):
         _, out, _ = call(crap.main, ["--lang", "python", "src", "--no-coverage", "--no-color"])
-        self.assertTrue(out.endswith("Skipped 2 folder(s): src/build, src/dist\n"))
+        self.assertTrue(out.endswith("Skipped 2 folder(s): src/again (already scanned), src/up (already scanned)\n"))
 
     def test_crap_json_lists_the_skipped_folders(self):
         _, out, _ = call(crap.main, ["--lang", "python", "src", "--no-coverage", "--json"])
-        self.assertEqual(json.loads(out)["skipped"], ["src/build", "src/dist"])
+        self.assertEqual(json.loads(out)["skipped"], ["src/again (already scanned)", "src/up (already scanned)"])
 
     def test_crap_prints_no_skipped_line_when_nothing_was_skipped(self):
         _, out, _ = call(crap.main, ["--lang", "python", "src/real.py", "--no-coverage"])
@@ -125,16 +127,18 @@ class SkippedFolderLineTest(InTempDir):
 class EverythingSkippedTest(InTempDir):
     def setUp(self):
         super().setUp()
-        self.write("src/build/gen.py", "def gen(x):\n    return 1 if x else 2\n")
+        self.write("src/gen/gen.py", "def gen(x):\n    return 1 if x else 2\n")
+        os.symlink(os.path.abspath("src/gen"), "src/link")
+        self.write(".gitignore", "src/gen/\n")
 
     def test_cc_check_names_the_skipped_folders_before_saying_it_found_nothing(self):
         code, _, err = call(qc.main, ["src"])
-        self.assertEqual((code, err), (2, "Skipped 1 folder(s): src/build\nNo Python files found.\n"))
+        self.assertEqual((code, err), (2, "No Python files found.\n"))
 
     def test_crap_names_the_skipped_folders_before_saying_it_analysed_nothing(self):
         code, _, err = call(crap.main, ["--lang", "python", "src", "--no-coverage"])
         self.assertEqual(code, 2)
-        self.assertTrue(err.startswith("Skipped 1 folder(s): src/build\n[crap] no functions analysed in: src\n"))
+        self.assertTrue(err.startswith("[crap] no functions analysed in: src\n"))
 
 
 class ToolErrorMessageTest(InTempDir):

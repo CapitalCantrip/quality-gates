@@ -10,6 +10,7 @@ import warnings
 from pathlib import Path
 
 from quality_gates import languages, project_files
+from quality_gates.errors import ToolError
 
 
 PRAGMA = re.compile(
@@ -225,7 +226,15 @@ def main(argv=None, root=None, baseline=None, out=sys.stdout):
     if args.baseline is not None and not args.baseline.strip():
         out.write("--baseline was given an empty path\n")
         return 2
-    root = root or project_files.git_root()
+    try:
+        root = root or project_files.git_root()
+    except ToolError as error:
+        out.write(f"comment-debt: {error}\n")
+        return 2
+    return run_mode(args, root, baseline, out)
+
+
+def run_mode(args, root, baseline, out):
     baseline = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
     if args.update:
         return update(root, baseline, args.exclude, out)

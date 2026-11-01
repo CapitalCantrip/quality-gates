@@ -52,9 +52,9 @@ def section(case, text, heading, next_heading):
 
 SCAN_SKILLS = ("cc-python", "cc-swift", "cc-typescript", "crap")
 KEY_RULE_SKILLS = ("cc-python", "cc-typescript", "crap")
-SKIP_LIST_SENTENCE = (
-    "skips the folders on the [skip list](references/skip-list.md) "
-    "and follows symlinked folders by the [symlink rule](references/symlinked-folders.md)."
+SCOPE_SENTENCE = (
+    "looks only at the [files in scope](references/files-in-scope.md), the files git would commit less the "
+    "choice file's exclusions, and follows symlinked folders by the [symlink rule](references/symlinked-folders.md)."
 )
 REAL_PATH_REFERENCE = "](references/baseline-keys.md)"
 ADR_DIR = ROOT / "docs/adr"
@@ -81,9 +81,9 @@ def reference_links(path):
 
 
 class ScanSkillsLinkTheirRules(unittest.TestCase):
-    def test_each_scan_skill_links_the_skip_list_and_symlink_rule_in_one_sentence(self):
+    def test_each_scan_skill_links_the_files_in_scope_and_symlink_rule_in_one_sentence(self):
         for name in SCAN_SKILLS:
-            self.assertIn(SKIP_LIST_SENTENCE, skill_text(name), name)
+            self.assertIn(SCOPE_SENTENCE, skill_text(name), name)
 
     def test_each_skill_that_gives_baseline_keys_links_the_real_path_key_rule(self):
         for name in KEY_RULE_SKILLS:

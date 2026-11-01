@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -35,6 +36,7 @@ class InTempDir(unittest.TestCase):
         before = os.getcwd()
         os.chdir(tmp.name)
         self.addCleanup(os.chdir, before)
+        subprocess.run(["git", "init", "-q"], check=True)
 
     def write(self, path, text):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -146,24 +148,25 @@ class TestRadonNotInstalled(InTempDir):
 class TestSkippedFolders(InTempDir):
     def setUp(self):
         super().setUp()
-        self.write("src/build/gen.py", branches("gen", 0))
         self.write("src/real.py", branches("real", 0))
+        os.symlink(os.path.abspath("src"), "src/up")
 
-    def test_a_build_folder_is_skipped_and_named_after_the_text_report(self):
+    def test_a_folder_reached_twice_is_named_after_the_text_report(self):
         rc, out, _ = run_main(["src"])
         self.assertEqual(rc, 0)
-        self.assertTrue(out.endswith("Skipped 1 folder(s): src/build\n"))
+        self.assertTrue(out.endswith("Skipped 1 folder(s): src/up (already scanned)\n"))
 
     def test_json_keeps_its_bare_list_and_names_the_skipped_folder_on_stderr(self):
         _, out, err = run_main(["src", "--format", "json"])
         self.assertEqual([r["name"] for r in json.loads(out)], ["real"])
-        self.assertEqual(err, "Skipped 1 folder(s): src/build\n")
+        self.assertEqual(err, "Skipped 1 folder(s): src/up (already scanned)\n")
 
     def test_a_scan_with_nothing_skipped_prints_no_skipped_line(self):
         _, out, _ = run_main(["src/real.py"])
         self.assertNotIn("Skipped", out)
 
-    def test_the_pycache_folder_is_skipped(self):
+    def test_a_folder_the_gitignore_lists_is_not_scanned(self):
+        self.write(".gitignore", "__pycache__/\n")
         self.write("src/__pycache__/cached.py", branches("cached", 0))
         _, out, _ = run_main(["src", "--format", "json"])
         self.assertEqual([r["name"] for r in json.loads(out)], ["real"])

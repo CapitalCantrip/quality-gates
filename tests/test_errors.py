@@ -39,6 +39,7 @@ class AsciiLocaleTest(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.module = Path(tmp.name) / "mod.py"
+        subprocess.run(["git", "init", "-q", tmp.name], check=True)
         self.module.write_text("def f(x):\n    if x:\n        return 1\n    return 2\n", encoding="utf-8")
 
     def run_module(self, module, *argv):

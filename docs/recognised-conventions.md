@@ -2,10 +2,13 @@
 
 Comment forms a language's own community requires, which a project may switch
 on in its choice file as an ordinary choice (ADR-010 § Recognised conventions).
-Each entry gives its full case. An entry without one does not belong here, and
+Each entry gives its id, the name `quality-gates.json` switches it on by
+under `settings` › `no-comments` › `conventions`, and its full case. An entry without one does not belong here, and
 any form not listed is a loosening (ADR-009).
 
 ## Rust: `// SAFETY:` above `unsafe`
+
+**Id.** `rust-safety`.
 
 **Allowed form.** A `//` line comment starting `// SAFETY:` on the line
 directly above an `unsafe` block or `unsafe impl`, and the `//` lines directly

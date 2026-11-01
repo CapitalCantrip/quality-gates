@@ -1,4 +1,5 @@
 import os
+import subprocess
 import tempfile
 import unittest
 from pathlib import Path
@@ -146,6 +147,7 @@ def lizard_rows(text: str) -> list:
         Path(folder, "App.swift").write_text(text, encoding="utf-8")
         here = os.getcwd()
         os.chdir(folder)
+        subprocess.run(["git", "init", "-q"], check=True)
         try:
             found = complexity_scan.scan(["App.swift"], "swift")
         finally:
