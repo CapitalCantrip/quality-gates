@@ -19,6 +19,13 @@ Install the commands, copy the skills into the project, then run
 `/setup-standards`: it does the rest. You can do this on your computer or from
 a cloud session on your phone. To update, install the new version and repeat.
 
+The project must be a git repository. Git keeps its history on your computer
+and needs no cloud copy, so the commit hook and the gates work in a project
+that never leaves your machine. The full feature set also needs GitHub: CI,
+the issue tracker, recorded reasons that wait on an issue, and the route for
+loosening a standard all run there. A local-only route for each is on the
+roadmap ([#150](https://github.com/CapitalCantrip/quality-gates/issues/150)).
+
 ### Set up a project, on your computer
 
 You need [uv](https://docs.astral.sh/uv/) and Claude Code. In the project's
@@ -187,7 +194,7 @@ a named constant, an ADR or an issue. Existing comments are debt, held in
 comment, and also if it loses one without the baseline being lowered, so paid
 debt is always recorded. Python only for now
 ([#3](../../issues/3) adds Rust,
-TypeScript, Swift and shell; decided in
+TypeScript, Swift and shell:
 [ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md)).
 
 ### `cc-check`: cyclomatic complexity
