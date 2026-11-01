@@ -423,6 +423,69 @@ class Status(unittest.TestCase):
         self.write(self.repo / "src" / "app.tsx", "export {}")
         self.assertEqual(self.report(manifest)["components"][0]["status"], "missing")
 
+    def choose(self, languages=("python",), chosen=(), declined=()):
+        choice = project_files.Choice(languages=tuple(languages), chosen=tuple(chosen), declined=tuple(declined))
+        project_files.write_kept(self.repo, project_files.CHOICE_FILE, project_files.choice_text(choice))
+
+    def test_the_choice_files_languages_replace_detection(self):
+        self.set_up()
+        self.write(self.repo / "App.swift", "x")
+        self.choose(languages=("rust",), chosen=("risk", "rust-lint"))
+        report = self.report()
+        self.assertEqual((report["languages"], report["languages_from"]), (["rust"], "choice file"))
+        self.assertEqual(component(report, "risk")["status"], "not applicable")
+        self.assertEqual(component(report, "rust-lint")["status"], "installed")
+
+    def test_without_a_choice_file_the_languages_come_from_detection(self):
+        report = self.report()
+        self.assertEqual((report["languages"], report["languages_from"]), (["python"], "detection"))
+        self.assertEqual(report["unrecorded_languages"], {})
+
+    def test_a_declined_component_shows_offered_declined(self):
+        self.set_up()
+        self.choose(declined=("risk",))
+        self.assertEqual(component(self.report(), "risk")["status"], "offered, declined")
+
+    def test_a_component_the_choice_file_does_not_list_shows_not_yet_offered(self):
+        self.set_up()
+        self.choose()
+        self.assertEqual(component(self.report(), "risk")["status"], "not yet offered")
+
+    def test_a_chosen_component_shows_whether_it_is_installed(self):
+        self.set_up()
+        self.choose(chosen=("risk",))
+        self.assertEqual(component(self.report(), "risk")["status"], "installed")
+        (self.repo / "crap-baseline.json").unlink()
+        self.assertEqual(component(self.report(), "risk")["status"], "partly installed")
+
+    def test_core_components_are_reported_whatever_the_choice_file_lists(self):
+        self.set_up()
+        self.choose()
+        self.assertEqual(component(self.report(), "core")["status"], "installed")
+
+    def test_code_in_a_language_the_choice_file_does_not_record_is_warned_about_with_its_files(self):
+        self.write(self.repo / "bin" / "run", "#!/bin/sh\n")
+        self.choose()
+        self.assertEqual(self.report()["unrecorded_languages"], {"shell": ["bin/run"]})
+        _, out = self.run_status()
+        self.assertIn("Code in a language quality-gates.json does not record: shell (bin/run).", out)
+
+    def test_declined_components_do_not_count_as_nothing_installed(self):
+        self.choose(declined=("risk",))
+        self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "tdd v1")
+        _, out = self.run_status()
+        self.assertNotIn("No quality-gates parts found", out)
+
+    def test_a_broken_choice_file_exits_3_with_one_plain_line(self):
+        self.write(self.repo / project_files.CHOICE_FILE, "{")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = status.main([], root=self.repo, source=self.source, hooks=self.hooks,
+                               manifest=manifests.components_from(admitted(MANIFEST)))
+        self.assertEqual((code, out.getvalue()), (3, ""))
+        self.assertTrue(err.getvalue().startswith("qg status: "), err.getvalue())
+        self.assertEqual(len(err.getvalue().splitlines()), 1)
+
     def test_the_pin_is_read_from_the_python_dev_dependencies(self):
         self.write(self.repo / "pyproject.toml", (
             '[project.optional-dependencies]\ndev = ["quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.1"]\n'))
