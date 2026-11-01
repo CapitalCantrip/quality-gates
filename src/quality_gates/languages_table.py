@@ -5,6 +5,12 @@ from quality_gates import comment_debt, crap, languages, manifest, quality_check
 
 COMMAND = "python -m quality_gates.languages_table"
 DEFAULT_PATH = Path("docs") / "languages-by-gates.md"
+REPO = Path(__file__).resolve().parents[2]
+CHECKOUT_MARK = Path("docs") / "adr" / "ADR-011-code-structure.md"
+NOT_A_CHECKOUT = (f"{COMMAND} writes {DEFAULT_PATH} only inside the quality-gates checkout, and {{repo}} is not one. "
+                  "Run it from a clone of quality-gates installed with `uv pip install -e .`.")
+OUTSIDE = "{path} is outside the quality-gates checkout at {repo}; " + f"{COMMAND} writes only inside it."
+REFUSED = 2
 GATES = {"comment-debt": comment_debt.LANGUAGES, "cc-check": quality_check.LANGUAGES, "crap": crap.LANGUAGES}
 SCORES = "scores"
 NOT_SCORED = "—"
@@ -41,32 +47,47 @@ def render():
     return "\n".join(lines) + "\n"
 
 
-def check(path):
+def check(path, shown=None):
     path = Path(path)
+    shown = shown or path
     if not path.is_file():
-        return [f"{path}: missing; run {COMMAND}"]
+        return [f"{shown}: missing; run {COMMAND}"]
     if path.read_text(encoding="utf-8") != render():
-        return [f"{path}: differs from the gate tables; run {COMMAND}"]
+        return [f"{shown}: differs from the gate tables; run {COMMAND}"]
     return []
+
+
+def refusal(repo, path):
+    if not (repo / CHECKOUT_MARK).is_file():
+        return NOT_A_CHECKOUT.format(repo=repo)
+    target = (repo / path).resolve()
+    if repo.resolve() not in target.parents:
+        return OUTSIDE.format(path=path, repo=repo)
+    return None
 
 
 def build_parser():
     parser = argparse.ArgumentParser(
         prog=COMMAND,
-        description="Write the table of which gates score each registered language. Run from the quality-gates repo root.",
+        description="Write the table of which gates score each registered language, inside the quality-gates checkout.",
     )
-    parser.add_argument("--path", type=Path, default=DEFAULT_PATH, help=f"default: {DEFAULT_PATH}")
+    parser.add_argument("--path", type=Path, default=DEFAULT_PATH, help=f"relative to the quality-gates checkout; default: {DEFAULT_PATH}")
     parser.add_argument("--check", action="store_true", help="exit 1 if the table differs from the gate tables")
     return parser
 
 
-def main(argv=None):
+def main(argv=None, repo=REPO):
     args = build_parser().parse_args(argv)
+    refused = refusal(repo, args.path)
+    if refused:
+        print(refused)
+        return REFUSED
+    target = repo / args.path
     if args.check:
-        problems = check(args.path)
+        problems = check(target, args.path)
         print("\n".join(problems) if problems else MATCHES)
         return 1 if problems else 0
-    args.path.write_text(render(), encoding="utf-8")
+    target.write_text(render(), encoding="utf-8")
     print(f"Wrote {args.path}")
     return 0
 
