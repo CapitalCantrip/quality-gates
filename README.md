@@ -566,6 +566,28 @@ uv venv && uv pip install -e .
 This repo runs its own gates and carries no comment debt: `comment-debt.json` is
 `{}`.
 
+How the code is laid out, and where each new piece belongs:
+[ADR-011](docs/adr/ADR-011-code-structure.md).
+
+## Decisions
+
+Every standard and design choice is recorded in an ADR in
+[docs/adr/](docs/adr/), and changes only through a new ADR or a dated addendum.
+
+| ADR | Decides |
+|---|---|
+| [ADR-001](docs/adr/ADR-001-complexity-standards.md) | The complexity and CRAP thresholds, and the tool that counts them |
+| [ADR-002](docs/adr/ADR-002-engineering-standards.md) | The three layers: workflow, principles, gates |
+| [ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md) | Shipping Matt Pocock's skills through `qg-skills` |
+| [ADR-004](docs/adr/ADR-004-reference-files.md) | Rules shipped with the skills as generated reference files |
+| [ADR-005](docs/adr/ADR-005-direction-idea-to-release.md) | The direction: a guided framework from idea to release |
+| [ADR-006](docs/adr/ADR-006-gates-beyond-complexity.md) | The gates beyond complexity, and the order they ship in |
+| [ADR-007](docs/adr/ADR-007-component-install.md) | Choosing, switching and upgrading components |
+| [ADR-008](docs/adr/ADR-008-project-map-and-checkpoints.md) | The project map and the checkpoints |
+| [ADR-009](docs/adr/ADR-009-recorded-reasons-and-loosening.md) | Recorded reasons and loosening |
+| [ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md) | Admitting outside sources, and the comment gate's new languages |
+| [ADR-011](docs/adr/ADR-011-code-structure.md) | The code's structure |
+
 ## Licence
 
 MIT, in [LICENSE](LICENSE). The package also carries copies of two other MIT
