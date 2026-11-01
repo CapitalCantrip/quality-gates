@@ -362,6 +362,16 @@ class Status(unittest.TestCase):
             '[project.optional-dependencies]\ndev = ["quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.1"]\n'))
         self.assertEqual(self.report()["pin"], "v0.11.1")
 
+    def test_a_pin_found_in_pyproject_stops_the_search_before_any_workflow_is_read(self):
+        self.write(self.repo / "pyproject.toml", (
+            '[project.optional-dependencies]\ndev = ["quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.1"]\n'))
+        self.write(self.repo / ".github" / "workflows" / "ci.yml", "steps: []\n")
+        project = status.Project(self.repo, self.source, self.hooks, frozenset())
+        read = Path.read_text
+        with mock.patch.object(Path, "read_text", autospec=True, side_effect=read) as reads:
+            self.assertEqual(status.read_pin(project), "v0.11.1")
+        self.assertEqual([call.args[0].name for call in reads.call_args_list], ["pyproject.toml"])
+
     def test_the_pin_is_read_from_the_install_line_in_a_ci_workflow(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / ".github" / "workflows" / "ci.yml", (
@@ -450,6 +460,16 @@ class Status(unittest.TestCase):
         self.set_up()
         self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "edited")
         self.assertEqual(self.run_status()[0], 0)
+
+    def test_a_broken_component_list_exits_3_with_one_plain_line_naming_the_problem(self):
+        broken = self.tmp / "broken.json"
+        self.write(broken, "{")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = status.main([], root=self.repo, source=self.source, hooks=self.hooks, components_path=broken)
+        self.assertEqual((code, out.getvalue()), (3, ""))
+        self.assertEqual(len(err.getvalue().splitlines()), 1)
+        self.assertTrue(err.getvalue().startswith(f"qg status: {broken}: not valid JSON: "), err.getvalue())
 
     def test_status_leaves_the_project_unchanged(self):
         self.set_up()

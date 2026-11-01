@@ -119,6 +119,23 @@ class MalformedManifest(unittest.TestCase):
         message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0].update(languages="python")))
         self.assertEqual(message, "components.json: component 'risk': field 'languages' must be a list")
 
+    def test_part_languages_that_are_not_a_list_fail_naming_the_part(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["parts"][1].update(languages="python")))
+        self.assertEqual(message, "components.json: component 'risk', part 'crap-python': field 'languages' must be a list")
+
+    def test_origin_adapts_that_is_not_a_list_fails_naming_the_part(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["parts"][2]["origin"].update(adapts="radon")))
+        self.assertEqual(message, "components.json: component 'risk', part 'radon': field 'adapts' must be a list")
+
+    def test_a_ci_step_without_a_marker_fails_naming_the_part(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["parts"][1].pop("marker")))
+        self.assertEqual(message, "components.json: component 'risk', part 'crap-python': missing field 'marker'")
+
+    def test_a_precommit_step_without_a_marker_fails_naming_the_part(self):
+        step = {"kind": "precommit_step", "id": "comment-debt"}
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["parts"].append(step)))
+        self.assertEqual(message, "components.json: component 'risk', part 'comment-debt': missing field 'marker'")
+
     def test_a_component_language_the_registry_does_not_know_fails_naming_the_language(self):
         message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0].update(languages=["python", "cobol"])))
         self.assertEqual(message, "components.json: component 'risk': unknown language 'cobol'")
@@ -157,6 +174,15 @@ class MalformedManifest(unittest.TestCase):
         broken.write_text("{", encoding="utf-8")
         message = self.rejected(broken, manifest.load_components)
         self.assertTrue(message.startswith(f"{broken}: not valid JSON: "), message)
+
+    def test_a_missing_file_fails_with_a_plain_message_naming_the_file(self):
+        missing = Path(tempfile.mkdtemp()) / "missing.json"
+        self.assertEqual(self.rejected(missing, manifest.load_components), f"{missing}: not found")
+
+    def test_a_file_that_cannot_be_read_fails_with_a_plain_message_naming_the_file(self):
+        folder = Path(tempfile.mkdtemp())
+        message = self.rejected(folder, manifest.load_sources)
+        self.assertTrue(message.startswith(f"{folder}: cannot be read: "), message)
 
 
 if __name__ == "__main__":

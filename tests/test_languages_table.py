@@ -2,7 +2,7 @@ import io
 import os
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from quality_gates import languages_table
@@ -10,10 +10,11 @@ from quality_gates import languages_table
 ROOT = Path(__file__).resolve().parents[1]
 SHIPPED = ROOT / "docs" / "languages-by-gates.md"
 HEADER = "| Language | comment-debt | cc-check | crap | Components installed for it |"
-PYTHON_ROW = "| Python | scores | scores | scores | no-comments, complexity-python, crap |"
-SWIFT_ROW = "| Swift | — | — | scores | complexity-swift, crap |"
-RUST_ROW = "| Rust | — | — | — | complexity-rust |"
-SHELL_ROW = "| Shell | — | — | — | none |"
+EVERY_LANGUAGE = "core, design-helpers, session-helpers"
+PYTHON_ROW = "| Python | scores | scores | scores | core, no-comments, complexity-python, crap, design-helpers, session-helpers |"
+SWIFT_ROW = "| Swift | — | — | scores | core, complexity-swift, crap, design-helpers, session-helpers |"
+RUST_ROW = "| Rust | — | — | — | core, complexity-rust, design-helpers, session-helpers |"
+SHELL_ROW = f"| Shell | — | — | — | {EVERY_LANGUAGE} |"
 
 
 class Rendered(unittest.TestCase):
@@ -23,6 +24,15 @@ class Rendered(unittest.TestCase):
         for row in (PYTHON_ROW, SWIFT_ROW, RUST_ROW, SHELL_ROW):
             with self.subTest(row):
                 self.assertIn(row, lines)
+
+    def test_a_component_for_no_language_in_particular_is_installed_for_every_language(self):
+        rows = [line for line in languages_table.render().splitlines()
+                if line.startswith("| ") and not line.startswith(("| ---", "| Language"))]
+        self.assertEqual(len(rows), 5)
+        for row in rows:
+            installed = row.rstrip(" |").rsplit(" | ", 1)[1].split(", ")
+            with self.subTest(row):
+                self.assertTrue(set(EVERY_LANGUAGE.split(", ")) <= set(installed), row)
 
     def test_the_rows_follow_the_registry_order(self):
         rows = [line.split(" | ")[0] for line in languages_table.render().splitlines()
@@ -97,6 +107,17 @@ class Checked(unittest.TestCase):
     def test_the_check_flag_exits_1_and_names_the_drift(self):
         self.assertEqual(self.run_main("--check"),
                          (1, "docs/languages-by-gates.md: missing; run python -m quality_gates.languages_table\n"))
+
+    def test_a_missing_component_list_exits_3_with_one_plain_line_naming_the_file_for_check_and_write(self):
+        missing = self.repo / "missing.json"
+        for argv in (["--check"], []):
+            with self.subTest(argv=argv):
+                out, err = io.StringIO(), io.StringIO()
+                with redirect_stdout(out), redirect_stderr(err):
+                    code = languages_table.main(argv, repo=self.repo, components_path=missing)
+                self.assertEqual((code, out.getvalue(), err.getvalue()),
+                                 (3, "", f"python -m quality_gates.languages_table: {missing}: not found\n"))
+        self.assertFalse(self.path.exists())
 
     def test_the_check_flag_exits_0_when_the_table_matches(self):
         self.path.write_text(languages_table.render(), encoding="utf-8")

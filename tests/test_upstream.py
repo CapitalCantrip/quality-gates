@@ -42,6 +42,10 @@ class Upstream(unittest.TestCase):
             upstream.main([], self.record, github)
         return stop.exception.code, out.getvalue() + err.getvalue()
 
+    def test_a_missing_record_exits_3_with_one_plain_line_naming_the_file(self):
+        self.record.unlink()
+        self.assertEqual(self.check(FakeGitHub(OLD, {})), (3, f"qg-upstream: {self.record}: not found\n"))
+
     def test_an_upstream_at_the_recorded_commit_reports_nothing(self):
         code, out = self.check(FakeGitHub(OLD, {}))
         self.assertEqual((code, out), (0, "No watched upstream file has changed.\n"))

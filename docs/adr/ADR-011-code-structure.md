@@ -220,4 +220,5 @@ in `[project.scripts]` and no `qg` subcommand. It writes only inside the
 quality-gates checkout that holds the package, whatever folder it runs from.
 A copy installed in a consumer project refuses to write and says why.
 `--check` reads the same page and exits 1 when the page differs from the
-tables.
+tables. A refusal to write exits 2. A missing or malformed `components.json`
+exits 3 with one line on stderr naming the problem, in either mode.

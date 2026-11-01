@@ -1,9 +1,11 @@
 import io
 import json
+import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from quality_gates import comment_debt as cd
 
@@ -178,6 +180,13 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn('## pkg — 1 lines', out)
 
+
+    def test_a_file_git_lists_under_a_case_insensitive_pathspec_is_counted_by_the_checker_it_was_listed_for(self):
+        self.put('Foo.PY', '# a workaround for now\nx = 1\n')
+        with mock.patch.dict(os.environ, {'GIT_ICASE_PATHSPECS': '1'}):
+            code, out = self.run_gate('--status')
+        self.assertEqual(code, 0)
+        self.assertIn('    1    1  Foo.PY', out)
 
 class LiveRepositoryTest(unittest.TestCase):
 
