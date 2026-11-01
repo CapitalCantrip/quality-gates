@@ -42,7 +42,7 @@ REGISTRY_MODULE = "languages"
 WILDCARD = "*"
 ALLOWED_NAMES = {
     "project_files.hook_names": "lists the package's own hooks, which are Python scripts",
-    "status.read_pin": "reads the pin from the Python dependency file, not to detect a language",
+    "project_files.PIN_FILE": "the pin is read from the Python dependency file, not to detect a language",
 }
 
 
@@ -55,10 +55,16 @@ def registered_names():
     return names
 
 
+def place_name(node):
+    if isinstance(node, (ast.FunctionDef, ast.ClassDef)):
+        return node.name
+    targets = node.targets if isinstance(node, ast.Assign) else []
+    return targets[0].id if len(targets) == 1 and isinstance(targets[0], ast.Name) else "<module>"
+
+
 def places(tree):
     for node in tree.body:
-        name = node.name if isinstance(node, (ast.FunctionDef, ast.ClassDef)) else "<module>"
-        yield name, node
+        yield place_name(node), node
 
 
 def names_a_language_file(node, names):
