@@ -529,7 +529,10 @@ the pinned tag in the skills' install lines, run the reference generator
 Push the tag from a local session: a Claude Code cloud session's GitHub proxy
 refuses tag pushes and the API call that creates a tag.
 
-A change that alters no behaviour, such as a README fix, is still released.
+What a consumer receives is released: code, commands, skills, templates and
+reference files. A change only this repo sees (the README, ADRs, CLAUDE.md,
+tests, or a refactor with no change in behaviour) waits for the next release.
+Release at most once a day: tag that day's merged changes together.
 
 The `lizard` workflow checks PyPI every Monday and opens an issue when it
 finds a lizard release newer than the last one checked. A lizard release can

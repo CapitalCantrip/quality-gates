@@ -12,10 +12,10 @@ project that pins it holds agent-written code to. The standards table is in
   tool or what a gate covers means a new ADR in `docs/adr/`, or a dated addendum
   on the one it amends, then the code, the skills and the README in the same PR.
   The skills and the README must never disagree with the ADR.
-- **Every change to behaviour is a release.** Bump the version in the three
-  places `README.md` § Releasing lists, add a `CHANGELOG.md` entry that says what
-  a consumer must do when they bump the pin, and update the skills' install
-  lines. Consumers pin tags, so an unreleased fix reaches nobody.
+- **What a consumer receives is released, at most once a day.** `README.md`
+  § Releasing says what counts and lists the steps. The `CHANGELOG.md` entry
+  says what a consumer must do when they bump the pin. Consumers pin tags, so
+  an unreleased fix reaches nobody.
 - **The repo passes its own gates.** `comment-debt` on every commit (the
   pre-commit hook), `cc-check` at 8 and `crap` at 8 on code you change.
 - **Skills and agent-facing prose follow `writing-for-agents`.** The checklist
@@ -41,7 +41,10 @@ Shell is zsh: an unquoted `$VAR` stays one word, so pass file lists with
 
 ## Issues
 
-The tracker and the five triage labels: see Agent skills below.
+The build plan is #37: sprints, the between-sprints routine and model tiers.
+Its body changes only in the routine's "update the plan" step; any other
+session posts a comment on #37 instead. The tracker and the five triage
+labels: see Agent skills below.
 
 ## Agent skills
 
