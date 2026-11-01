@@ -7,7 +7,7 @@ from quality_gates.json_report import MALFORMED_RECORD, load_json, shaped
 from quality_gates.real_path import real_path
 
 if TYPE_CHECKING:
-    from quality_gates.languages import CoverageOf
+    from quality_gates.crap import CoverageOf
 
 COVERAGE_JSON = "coverage JSON"
 NO_BRANCH_DATA = (

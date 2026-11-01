@@ -8,7 +8,6 @@ from pathlib import Path
 from quality_gates import project_files
 
 SHIPPED = Path(__file__).parent / "skills"
-DEFAULT_DEST = Path(".claude") / "skills"
 SKILL_FILE = "SKILL.md"
 UNKNOWN_VERSION = "unknown"
 
@@ -59,12 +58,8 @@ def sync(dest, source=SHIPPED):
     return names
 
 
-def project_root(dest):
-    return dest.resolve().parent.parent
-
-
 def check(dest, source=SHIPPED, hooks=project_files.HOOKS_SOURCE):
-    found = differences(dest, source) + project_files.differences(dest.parent, project_root(dest), hooks)
+    found = differences(dest, source) + project_files.differences(dest.parent, project_files.root_of_skills_folder(dest), hooks)
     for line in found:
         print(line)
     if found:
@@ -79,17 +74,17 @@ def build_parser():
         prog="qg-skills",
         description="Copy the quality-gates skills and stage guard into a repo, register the guard, and add the asking-rule line to CLAUDE.md, so local and cloud sessions both get them.",
     )
-    parser.add_argument("--dest", type=Path, default=DEFAULT_DEST, help="default: .claude/skills")
+    parser.add_argument("--dest", type=Path, default=project_files.SKILLS_DEST, help="default: .claude/skills")
     parser.add_argument("--check", action="store_true", help="exit 1 if the copies differ from this version's")
     return parser
 
 
 def install(dest, source, hooks):
     names = sync(dest, source)
-    project_files.sync(dest.parent, project_root(dest), hooks)
+    project_files.sync(dest.parent, project_files.root_of_skills_folder(dest), hooks)
     print(f"Copied {', '.join(names)} from quality-gates {installed_version()} to {dest}")
     print(f"Installed the stage guard in {dest.parent} and the asking-rule line in "
-          f"{project_files.instruction_file(project_root(dest)).name}")
+          f"{project_files.instruction_file(project_files.root_of_skills_folder(dest)).name}")
     return 0
 
 

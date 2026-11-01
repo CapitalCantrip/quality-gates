@@ -6,10 +6,7 @@ from pathlib import Path
 from quality_gates import project_files
 
 TEMPLATES = Path(__file__).parent / "agent_doc_templates"
-DOCS_DIR = Path("docs") / "agents"
-BASE_DIR = ".base"
 AGENT_SKILLS_HEADING = "## Agent skills"
-PR_TEMPLATE = Path(".github") / "pull_request_template.md"
 
 TRACKER_SUMMARIES = {
     "github": "GitHub Issues on this repo, through the `gh` CLI",
@@ -43,20 +40,11 @@ Write every PR body with the `pr` skill: Summary, Evidence, Merge Danger. `.gith
 
 def plan(tracker):
     return {
-        DOCS_DIR / "issue-tracker.md": f"issue-tracker-{tracker}.md",
-        DOCS_DIR / "triage-labels.md": "triage-labels.md",
-        DOCS_DIR / "domain.md": "domain.md",
-        PR_TEMPLATE: "pull-request.md",
+        project_files.ISSUE_TRACKER_DOC: f"issue-tracker-{tracker}.md",
+        project_files.TRIAGE_LABELS_DOC: "triage-labels.md",
+        project_files.DOMAIN_DOC: "domain.md",
+        project_files.PR_TEMPLATE: "pull-request.md",
     }
-
-
-def read(path):
-    return path.read_text(encoding="utf-8") if path.is_file() else None
-
-
-def write(path, text):
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
 
 
 def diff(old, new, name):
@@ -76,24 +64,23 @@ def customised(have, base, template, name):
 
 
 def reconcile(root, name, template):
-    path, base_path = root / name, root / DOCS_DIR / BASE_DIR / name.name
-    have, base = read(path), read(base_path)
+    base_name = project_files.template_base(name)
+    have, base = project_files.read_kept(root, name), project_files.read_kept(root, base_name)
     if have is None or have == template or have == base:
         status = "created" if have is None else "already in place" if have == template else "updated to the new template; you had not edited it"
-        write(path, template)
-        write(base_path, template)
+        project_files.write_kept(root, name, template)
+        project_files.write_kept(root, base_name, template)
         return status, ""
     return customised(have, base, template, name.name)
 
 
 def add_agent_skills_block(root, tracker):
-    path = project_files.instruction_file(root)
-    text = read(path) or ""
+    text = project_files.read_instruction_file(root) or ""
     lines = (text.rstrip("\n") + "\n").splitlines(keepends=True) if text else []
     if AGENT_SKILLS_HEADING + "\n" in lines:
-        return add_pull_requests_section(path, lines)
+        return add_pull_requests_section(root, lines)
     block = AGENT_SKILLS_BLOCK.format(tracker=TRACKER_SUMMARIES[tracker], pull_requests=PULL_REQUESTS_SECTION)
-    write(path, (text.rstrip("\n") + "\n\n" if text.strip() else "") + block)
+    project_files.write_instruction_file(root, (text.rstrip("\n") + "\n\n" if text.strip() else "") + block)
     return "added"
 
 
@@ -104,13 +91,13 @@ def block_end(lines, start):
     return len(lines)
 
 
-def add_pull_requests_section(path, lines):
+def add_pull_requests_section(root, lines):
     if PULL_REQUESTS_HEADING + "\n" in lines:
         return "already in place"
     end = block_end(lines, lines.index(AGENT_SKILLS_HEADING + "\n"))
     before = "".join(lines[:end]).rstrip("\n") + "\n\n"
     after = "".join(lines[end:])
-    write(path, before + PULL_REQUESTS_SECTION + ("\n" + after if after else ""))
+    project_files.write_instruction_file(root, before + PULL_REQUESTS_SECTION + ("\n" + after if after else ""))
     return "pull requests section added"
 
 
@@ -132,13 +119,14 @@ def build_parser():
                     "changes instead.",
     )
     parser.add_argument("--tracker", choices=sorted(TRACKER_SUMMARIES), required=True)
-    parser.add_argument("--root", type=Path, default=Path("."), help="default: the current directory")
+    parser.add_argument("--root", type=Path, help="default: the current directory")
     return parser
 
 
 def main(argv=None, templates=TEMPLATES):
     args = build_parser().parse_args(argv)
-    for name, status, detail in run(args.root, args.tracker, templates):
+    root = args.root or project_files.current_folder()
+    for name, status, detail in run(root, args.tracker, templates):
         print(f"{name}: {status}")
         if detail:
             print(detail)

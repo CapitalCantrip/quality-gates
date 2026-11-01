@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import skills_sync, status
+from quality_gates import languages, manifest as manifests, skills_sync, status
 
 OURS = {"type": "ours"}
 POCOCK = {"type": "upstream", "name": "mattpocock/skills"}
@@ -94,7 +94,8 @@ class Status(unittest.TestCase):
     def run_status(self, *flags, manifest=MANIFEST):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main(["status", *flags], root=self.repo, source=self.source, hooks=self.hooks, manifest=manifest)
+            code = status.main([*flags], root=self.repo, source=self.source, hooks=self.hooks,
+                               manifest=manifests.components_from(manifest))
         return code, out.getvalue()
 
     def report(self, manifest=MANIFEST):
@@ -325,6 +326,31 @@ class Status(unittest.TestCase):
         report = self.report({"format_version": 1, "components": components})
         self.assertEqual([c["status"] for c in report["components"]], ["missing", "missing", "missing"])
 
+    def test_rust_and_shell_source_files_do_not_make_a_project_use_a_language(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("src/main.rs", "run.sh", "build.bash", "env.zsh"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(status.used_languages(self.repo), set())
+
+    def test_a_cargo_manifest_makes_a_project_use_rust(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "Cargo.toml", "[package]\n")
+        self.assertEqual(status.used_languages(self.repo), {"rust"})
+
+    def test_every_marker_the_registry_lists_makes_a_project_use_its_language(self):
+        (self.repo / "pyproject.toml").unlink()
+        for language in languages.REGISTERED:
+            for marker in language.markers:
+                with self.subTest(marker), tempfile.TemporaryDirectory() as folder:
+                    (Path(folder) / marker).write_text("x")
+                    self.assertEqual(status.used_languages(Path(folder)), {language.name})
+
+    def test_a_project_with_source_in_every_detected_language_uses_exactly_those(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("app.py", "App.swift", "app.ts", "Cargo.toml", "main.rs", "run.sh"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(status.used_languages(self.repo), {"python", "swift", "typescript", "rust"})
+
     def test_a_language_component_is_applicable_to_a_project_with_typescript_files(self):
         (self.repo / "pyproject.toml").unlink()
         manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["typescript"])]}
@@ -335,6 +361,16 @@ class Status(unittest.TestCase):
         self.write(self.repo / "pyproject.toml", (
             '[project.optional-dependencies]\ndev = ["quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.1"]\n'))
         self.assertEqual(self.report()["pin"], "v0.11.1")
+
+    def test_a_pin_found_in_pyproject_stops_the_search_before_any_workflow_is_read(self):
+        self.write(self.repo / "pyproject.toml", (
+            '[project.optional-dependencies]\ndev = ["quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.1"]\n'))
+        self.write(self.repo / ".github" / "workflows" / "ci.yml", "steps: []\n")
+        project = status.Project(self.repo, self.source, self.hooks, frozenset())
+        read = Path.read_text
+        with mock.patch.object(Path, "read_text", autospec=True, side_effect=read) as reads:
+            self.assertEqual(status.read_pin(project), "v0.11.1")
+        self.assertEqual([call.args[0].name for call in reads.call_args_list], ["pyproject.toml"])
 
     def test_the_pin_is_read_from_the_install_line_in_a_ci_workflow(self):
         (self.repo / "pyproject.toml").unlink()
@@ -415,7 +451,8 @@ class Status(unittest.TestCase):
         empty.mkdir()
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main(["status"], root=empty, source=self.source, hooks=self.hooks, manifest=MANIFEST)
+            code = status.main([], root=empty, source=self.source, hooks=self.hooks,
+                               manifest=manifests.components_from(MANIFEST))
         self.assertEqual(code, 0)
         self.assertIn("No quality-gates parts found", out.getvalue())
 
@@ -423,6 +460,16 @@ class Status(unittest.TestCase):
         self.set_up()
         self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "edited")
         self.assertEqual(self.run_status()[0], 0)
+
+    def test_a_broken_component_list_exits_3_with_one_plain_line_naming_the_problem(self):
+        broken = self.tmp / "broken.json"
+        self.write(broken, "{")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = status.main([], root=self.repo, source=self.source, hooks=self.hooks, components_path=broken)
+        self.assertEqual((code, out.getvalue()), (3, ""))
+        self.assertEqual(len(err.getvalue().splitlines()), 1)
+        self.assertTrue(err.getvalue().startswith(f"qg status: {broken}: not valid JSON: "), err.getvalue())
 
     def test_status_leaves_the_project_unchanged(self):
         self.set_up()
@@ -435,11 +482,11 @@ class Status(unittest.TestCase):
     def test_the_real_manifest_reports_every_component_with_a_status(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main(["status", "--json"], root=self.repo)
+            code = status.main(["--json"], root=self.repo)
         report = json.loads(out.getvalue())
         self.assertEqual(code, 0)
-        self.assertEqual(report["format_version"], status.load_manifest()["format_version"])
-        self.assertEqual(len(report["components"]), len(status.load_manifest()["components"]))
+        self.assertEqual(report["format_version"], manifests.load_components().format_version)
+        self.assertEqual(len(report["components"]), len(manifests.load_components().components))
 
 
 if __name__ == "__main__":

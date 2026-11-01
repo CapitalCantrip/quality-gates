@@ -6,7 +6,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from quality_gates import complexity_scan
+from quality_gates import complexity_scan, project_files
 from quality_gates.errors import ToolError
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -242,11 +242,11 @@ class PythonScanTest(InTempDir):
 
 class SkipListTest(InTempDir):
     def test_every_skip_list_folder_is_skipped_and_named(self):
-        for folder in complexity_scan.SKIPPED_FOLDERS:
+        for folder in project_files.SKIPPED_FOLDERS:
             self.write(f"{folder}/x.py")
         found = complexity_scan.scan(["."], "python")
         self.assertEqual(found.functions, [])
-        self.assertEqual(found.skipped, sorted(complexity_scan.SKIPPED_FOLDERS))
+        self.assertEqual(found.skipped, sorted(project_files.SKIPPED_FOLDERS))
 
     def test_a_typescript_project_inside_a_build_folder_is_scanned_when_given_by_its_full_path(self):
         self.write("build/proj/a.ts", "function a(x) { return x ? 1 : 2; }\n")
@@ -290,12 +290,12 @@ class SkipListTest(InTempDir):
         self.assertEqual(complexity_scan.scan(["."], "python").skipped, [])
 
     def test_lizard_skips_the_same_folders(self):
-        for folder in complexity_scan.SKIPPED_FOLDERS:
+        for folder in project_files.SKIPPED_FOLDERS:
             self.write(f"{folder}/x.ts", "function x(a) { return a ? 1 : 2; }\n")
         self.write(".claude/hooks/h.ts", "function h(a) { return a ? 1 : 2; }\n")
         found = complexity_scan.scan(["."], "typescript")
         self.assertEqual([fn.file for fn in found.functions], [".claude/hooks/h.ts"])
-        self.assertEqual(found.skipped, sorted(complexity_scan.SKIPPED_FOLDERS))
+        self.assertEqual(found.skipped, sorted(project_files.SKIPPED_FOLDERS))
 
 
 class SymlinkedFolderTest(InTempDir):

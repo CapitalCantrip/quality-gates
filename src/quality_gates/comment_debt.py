@@ -4,13 +4,13 @@ import ast
 import io
 import json
 import re
-import subprocess
 import sys
 import tokenize
 import warnings
 from pathlib import Path
 
-DEFAULT_BASELINE = "comment-debt.json"
+from quality_gates import languages, project_files
+
 
 PRAGMA = re.compile(
     r"#\s*(?:"
@@ -67,20 +67,25 @@ def debt_lines(source):
     return sorted(comment_lines(source) | string_lines(source))
 
 
-def tracked(root, excluded=()):
-    listing = subprocess.run(
-        ["git", "ls-files", "*.py"],
-        cwd=root, check=True, capture_output=True, text=True,
-    ).stdout.splitlines()
-    return [p for p in listing if not p.startswith(tuple(excluded))]
+LANGUAGES = {
+    "python": debt_lines,
+}
 
 
-def measure(root, paths):
+def tracked_files(root, excluded):
+    return {
+        path: checker
+        for name, checker in LANGUAGES.items()
+        for path in project_files.tracked_files(root, languages.suffixes_of([name]), excluded)
+    }
+
+
+def measure(root, listed):
     current = {}
-    for path in paths:
+    for path, checker in listed.items():
         file = root / path
         if file.exists():
-            current[path] = debt_lines(file.read_text(encoding="utf-8"))
+            current[path] = checker(file.read_text(encoding="utf-8"))
     return current
 
 
@@ -141,7 +146,7 @@ def check(root, file, excluded, out):
     if baseline is None:
         out.write(f"No baseline at {file}. Run with --update to create one.\n")
         return 2
-    over, under, stale = ratchet(measure(root, tracked(root, excluded)), baseline)
+    over, under, stale = ratchet(measure(root, tracked_files(root, excluded)), baseline)
     if over:
         report_over(over, out)
         return 1
@@ -153,7 +158,7 @@ def check(root, file, excluded, out):
 
 
 def update(root, file, excluded, out):
-    current = measure(root, tracked(root, excluded))
+    current = measure(root, tracked_files(root, excluded))
     baseline = load_baseline(file)
     if baseline is None:
         baseline = {path: len(lines) for path, lines in current.items()}
@@ -193,7 +198,7 @@ def write_area(name, rows, out):
 
 
 def status(root, excluded, out):
-    current = {p: ls for p, ls in measure(root, tracked(root, excluded)).items() if ls}
+    current = {p: ls for p, ls in measure(root, tracked_files(root, excluded)).items() if ls}
     areas = group_by_area(root, current)
     total = sum(len(ls) for ls in current.values())
     out.write(f"# Comment debt: {total} lines in {len(current)} files\n\n")
@@ -203,29 +208,25 @@ def status(root, excluded, out):
     return 0
 
 
-def repo_root():
-    top = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        check=True, capture_output=True, text=True,
-    ).stdout.strip()
-    return Path(top)
+def labels():
+    return " and ".join(languages.LANGUAGES[name].label for name in LANGUAGES)
 
 
 def main(argv=None, root=None, baseline=None, out=sys.stdout):
     parser = argparse.ArgumentParser(
-        description="Ratchet on comment lines in tracked Python files.",
+        description=f"Ratchet on comment lines in tracked {labels()} files.",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
-    parser.add_argument("--baseline", help=f"baseline file (default: {DEFAULT_BASELINE} at the repo root)")
+    parser.add_argument("--baseline", help=f"baseline file (default: {project_files.COMMENT_DEBT_BASELINE} at the repo root)")
     parser.add_argument("--exclude", action="append", default=[], metavar="PREFIX", help="skip tracked paths with this prefix")
     args = parser.parse_args(argv)
     if args.baseline is not None and not args.baseline.strip():
         out.write("--baseline was given an empty path\n")
         return 2
-    root = root or repo_root()
-    baseline = Path(baseline or args.baseline or root / DEFAULT_BASELINE)
+    root = root or project_files.git_root()
+    baseline = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
     if args.update:
         return update(root, baseline, args.exclude, out)
     if args.status:

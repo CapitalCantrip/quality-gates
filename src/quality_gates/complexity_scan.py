@@ -3,7 +3,6 @@ import csv
 import importlib.util
 import io
 import os
-import stat
 import sys
 import tempfile
 from dataclasses import dataclass, replace
@@ -11,7 +10,7 @@ from pathlib import Path
 from subprocess import PIPE, run
 from typing import Optional
 
-from quality_gates import languages
+from quality_gates import languages, project_files
 from quality_gates.errors import ToolError
 
 LIZARD_CCN = 1
@@ -21,17 +20,13 @@ LIZARD_START = 9
 LIZARD_END = 10
 EXIT_0_ON_WARNINGS = ("-i", "-1")
 
-SKIPPED_FOLDERS = (
-    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
-    ".tox", ".mypy_cache", ".pytest_cache", ".worktrees", ".claude/worktrees",
-)
-SKIPPED_PARTS = [tuple(folder.split("/")) for folder in SKIPPED_FOLDERS]
 ORDINAL_MARK = "#"
-ALREADY_SCANNED = " (already scanned)"
 NAME_SEPARATOR = "."
 FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef)
 LIZARD_MISSING = "lizard is missing, though quality-gates depends on it.\n  Reinstall quality-gates in this environment."
 RADON_MISSING = "radon is not installed.\n  Install with: pip3 install radon"
+RADON = "radon"
+LIZARD = "lizard"
 
 
 @dataclass(frozen=True)
@@ -42,6 +37,19 @@ class Function:
     start: int
     end: int
     unlabelled_name: str
+
+
+@dataclass(frozen=True)
+class Counter:
+    tool: str
+    lizard_languages: tuple = ()
+
+
+COUNTERS = {
+    "python": Counter(RADON),
+    "swift": Counter(LIZARD, ("swift",)),
+    "typescript": Counter(LIZARD, ("typescript", "tsx", "javascript", "jsx")),
+}
 
 
 @dataclass(frozen=True)
@@ -60,68 +68,6 @@ class Scan:
 def print_skipped(skipped: list, out) -> None:
     if skipped:
         print(f"Skipped {len(skipped)} folder(s): {', '.join(skipped)}", file=out)
-
-
-def is_skipped(folder: Path) -> bool:
-    return any(folder.parts[-len(parts):] == parts for parts in SKIPPED_PARTS)
-
-
-def _identity(folder: Path) -> tuple:
-    info = os.lstat(folder)
-    is_link = stat.S_ISLNK(info.st_mode)
-    if is_link:
-        info = os.stat(folder)
-    return is_link, (info.st_dev, info.st_ino)
-
-
-def _entry(here: Path, name: str) -> tuple:
-    is_link, identity = _identity(here / name)
-    return is_link, name, identity
-
-
-def _first_visit(identity: tuple, seen: set) -> bool:
-    if identity in seen:
-        return False
-    seen.add(identity)
-    return True
-
-
-def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
-    kept, skipped = [], []
-    for _, name, identity in sorted(_entry(here, name) for name in dirnames):
-        child = here / name
-        if is_skipped(child):
-            skipped.append(os.path.relpath(child))
-        elif _first_visit(identity, seen):
-            kept.append(name)
-        else:
-            skipped.append(os.path.relpath(child) + ALREADY_SCANNED)
-    return kept, skipped
-
-
-def _walk(root: Path, seen: set) -> tuple:
-    if not root.is_dir():
-        return [root], []
-    if not _first_visit(_identity(root)[1], seen):
-        return [], [os.path.relpath(root) + ALREADY_SCANNED]
-    files, skipped = [], []
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
-        here = Path(dirpath)
-        dirnames[:], skipped_here = _subfolders(here, dirnames, seen)
-        skipped.extend(skipped_here)
-        files.extend(here / name for name in filenames)
-    return files, skipped
-
-
-def _walk_all(paths: list) -> tuple:
-    files, skipped, seen = [], set(), set()
-    for path in paths:
-        if not Path(path).exists():
-            raise ToolError(f"path not found: {path}")
-        found, folders = _walk(Path(path), seen)
-        files.extend(found)
-        skipped.update(folders)
-    return sorted(files), sorted(skipped)
 
 
 def parse_row(row: list) -> Optional[Function]:
@@ -229,30 +175,30 @@ def with_labels(functions: list) -> list:
     return labelled
 
 
-def _count_with_radon(sources: list, language: languages.Language, runner) -> tuple:
+def _count_with_radon(sources: list, counter: Counter, runner) -> tuple:
     return with_labels(_python_functions(sources)), [str(f) for f in sources]
 
 
-def _count_with_lizard(sources: list, language: languages.Language, runner) -> tuple:
-    functions = with_labels(_lizard_functions(sources, language.lizard_languages, runner))
+def _count_with_lizard(sources: list, counter: Counter, runner) -> tuple:
+    functions = with_labels(_lizard_functions(sources, counter.lizard_languages, runner))
     return functions, sorted({fn.file for fn in functions})
 
 
 COUNTING_TOOLS = {
-    languages.RADON: _count_with_radon,
-    languages.LIZARD: _count_with_lizard,
+    RADON: _count_with_radon,
+    LIZARD: _count_with_lizard,
 }
 
 
 def find_sources(paths: list, lang: str) -> Sources:
-    files, skipped = _walk_all(paths)
-    suffixes = languages.LANGUAGES[lang].suffixes
+    files, skipped = project_files.scanned_files(paths)
+    suffixes = languages.suffixes_of([lang])
     return Sources([f for f in files if f.suffix in suffixes], skipped)
 
 
 def count_functions(sources: Sources, lang: str, runner=None) -> Scan:
-    language = languages.LANGUAGES[lang]
-    functions, analysed = COUNTING_TOOLS[language.counter](sources.files, language, runner)
+    counter = COUNTERS[lang]
+    functions, analysed = COUNTING_TOOLS[counter.tool](sources.files, counter, runner)
     return Scan(functions, analysed, sources.skipped)
 
 

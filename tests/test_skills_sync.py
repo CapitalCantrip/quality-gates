@@ -1,6 +1,5 @@
 import contextlib
 import io
-import json
 import sys
 import tempfile
 import unittest
@@ -8,7 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import skills_sync, upstream
+from quality_gates import manifest, skills_sync
 
 
 def run(argv, source, hooks):
@@ -143,9 +142,9 @@ class SkillsSync(unittest.TestCase):
                                  "to-spec", "to-tickets", "triage", "wayfinder", "writing-for-agents"])
 
     def test_every_skill_copied_from_matt_pocock_carries_his_licence(self):
-        copied = {Path(local).parts[3] for source in json.loads(upstream.RECORD.read_text())["sources"]
-                  if source["repo"] == "mattpocock/skills"
-                  for local in source["files"].values() if "/skills/" in local}
+        copied = {Path(local).parts[3] for source in manifest.load_sources()
+                  if source.repo == "mattpocock/skills"
+                  for local in source.files.values() if "/skills/" in local}
         copied.discard("setup-standards")
         self.assertEqual(len(copied), 17)
         for name in copied:
