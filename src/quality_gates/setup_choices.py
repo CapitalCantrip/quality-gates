@@ -98,13 +98,13 @@ def shown_choice(component, used, made):
     return made if component.applies_to(used) else NOT_APPLICABLE
 
 
-def recorded_choice(root, choice, used, made):
+def recorded_choice(root, choice, used, made, scope):
     comment_gate_exclude = set(choice.comment_gate_exclude if choice else ()) | project_files.comment_gate_exclusions(root)
     return project_files.Choice(
         languages=used,
         chosen=tuple(sorted(name for name, kind in made.items() if kind == CHOSEN)),
         declined=tuple(sorted(name for name, kind in made.items() if kind == DECLINED)),
-        exclude=project_files.scope_of(root).excluded,
+        exclude=scope.excluded,
         commit_time_limit_seconds=choice.commit_time_limit_seconds if choice else project_files.DEFAULT_COMMIT_TIME_LIMIT_SECONDS,
         comment_gate_exclude=tuple(sorted(comment_gate_exclude)),
         conventions=choice.conventions if choice else (),
@@ -119,7 +119,8 @@ def component_row(component, made):
 def propose(project, manifest, flags):
     root = project.root
     choice = project_files.read_choice(root)
-    detected = project_files.detected_languages(root)
+    scope = project_files.scope_of(root, choice.exclude if choice else None)
+    detected = project_files.detected_languages(root, scope)
     used = proposed_languages(choice, detected, flags.add_language, flags.remove_language)
     check_component_names(manifest, flags.choose + flags.decline)
     project_files.check_not_both(flags.choose, flags.decline, BOTH_FLAGS)
@@ -128,7 +129,7 @@ def propose(project, manifest, flags):
     made = {c.id: made_choice(c, choice, installed, flags) for c in manifest.components if not c.core}
     rows = tuple(component_row(c, shown_choice(c, set(used), made.get(c.id))) for c in manifest.components)
     by_hand = tuple(name for name in used if name not in detected)
-    return Proposal(used, by_hand, rows, recorded_choice(root, choice, used, made))
+    return Proposal(used, by_hand, rows, recorded_choice(root, choice, used, made, scope))
 
 
 def names_with(proposal, *made):

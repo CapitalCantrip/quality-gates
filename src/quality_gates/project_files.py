@@ -312,7 +312,7 @@ def _first_visit(identity: tuple, seen: set) -> bool:
 class Scope:
     root: str
     listed: frozenset
-    folders: frozenset
+    walkable: frozenset
     excluded: tuple = ()
 
     def location(self, here, name):
@@ -325,7 +325,7 @@ class Scope:
 
     def keeps_folder(self, here, name):
         location = self.location(here, name)
-        return self.keeps(location, self.folders | self.listed)
+        return self.keeps(location, self.walkable)
 
     def keeps_file(self, here, name):
         return self.keeps(self.location(here, name), self.listed)
@@ -376,7 +376,7 @@ def scope_exclusions(root, listed):
 def scope_of(root, excluded=None):
     listed = committable_files(root)
     excluded = scope_exclusions(root, listed) if excluded is None else tuple(excluded)
-    return Scope(os.path.realpath(root), listed, parent_folders(listed), excluded)
+    return Scope(os.path.realpath(root), listed, listed | parent_folders(listed), excluded)
 
 
 def first_line(path):
@@ -401,8 +401,8 @@ def marker_files(root, scope):
             if marker in scope.listed and not excluded_by(marker, scope.excluded) and (Path(root) / marker).exists()]
 
 
-def detected_languages(root, excluded=None):
-    scope = scope_of(root, excluded)
+def detected_languages(root, scope=None):
+    scope = scope_of(root) if scope is None else scope
     found = {}
     for name in sorted(scope.listed):
         language = None if excluded_by(name, scope.excluded + KEPT_BY_QUALITY_GATES) else language_of_listed(root, name)

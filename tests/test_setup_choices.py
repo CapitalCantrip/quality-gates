@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
@@ -301,6 +302,14 @@ class Setup(unittest.TestCase):
                    "steps:\n  - run: comment-debt --exclude=vendor/ --exclude 'docs/old/'\n  - run: other --exclude x/\n")
         self.run_setup("--go")
         self.assertEqual(self.recorded().comment_gate_exclude, ("docs/old/", "vendor/"))
+
+    def test_one_setup_run_asks_git_for_the_files_in_scope_once_and_reads_the_choice_file_once(self):
+        self.set_up_at_v0_12_0()
+        self.run_setup("--go")
+        with patch.object(project_files, "committable_files", wraps=project_files.committable_files) as listing, \
+                patch.object(project_files, "choice_from", wraps=project_files.choice_from) as reading:
+            self.run_setup("--go")
+        self.assertEqual((listing.call_count, reading.call_count), (1, 1))
 
     def test_the_table_shows_each_components_description_and_cost(self):
         self.set_up_at_v0_12_0()
