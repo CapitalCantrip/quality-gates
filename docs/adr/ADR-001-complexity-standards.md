@@ -1492,8 +1492,12 @@ current folder as the project root.
 
 **Now:**
 
-- **Git is required.** Outside a git repo every command stops with exit 2 and
-  one line saying it looks at the files git would commit.
+- **Git is required.** Outside a git repo every command that looks for the
+  project's root stops with exit 2 and one line saying it looks at the files
+  git would commit: the gates, `comment-debt`, `qg status`, `qg setup`,
+  `qg-skills` without `--dest` and `qg-agent-docs` without `--root`.
+  `qg explain`, `qg-upstream` and `qg-references` read no project, so they run
+  anywhere.
 - **The files in scope are the files git would commit:** tracked files plus
   untracked files that are not ignored. The project's own `.gitignore` replaces
   the skip list. A tracked file inside an ignored folder is in scope, because
@@ -1530,8 +1534,8 @@ Amends: [Current rule, restated 2026-10-12: the skip list](#current-rule-restate
 <!-- rule:files-in-scope -->
 **The files in scope** are the files git would commit: tracked files plus
 untracked files that the project's `.gitignore` does not ignore. Both gates and
-language detection use them; outside a git repo, every command stops with exit 2
-and one line saying so. The paths given on the command line narrow the set,
+language detection use them; outside a git repo, every command that looks for
+the project's root stops with exit 2 and one line saying so. The paths given on the command line narrow the set,
 and `exclude` in `quality-gates.json` applies on top: each entry is a path
 prefix from the repo root, such as `tests/fixtures/`.
 

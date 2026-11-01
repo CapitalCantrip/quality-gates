@@ -270,7 +270,9 @@ project's own `.gitignore` leaves out generated and installed folders, less the
 `exclude` prefixes in `quality-gates.json` (test fixtures by default). Each file
 is scored once, and a symlinked folder is scanned once, by the
 [symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). Outside a git repo, both stop with
-exit 2 and say so.
+exit 2 and say so. They also stop with exit 2 when `quality-gates.json` is
+malformed, with one line naming the problem, such as `cc-check`'s
+`ERROR: quality-gates.json: missing field 'languages'`.
 
 A Python function's line range runs from its `def` line to the end of its last
 statement, taken from the syntax tree, so a function whose body ends in a nested
@@ -476,7 +478,8 @@ in the subject. The worked example is
 `qg explain <name>` prints a component's explainer from the installed package,
 with no network access. It exits 0 when it printed one; 1 for a name that is not
 a component, or one with no explainer yet; 2 for a usage error; and 3 when the
-manifest or the explainer cannot be read.
+manifest or the explainer cannot be read. It reads no project, so it works
+outside a git repo too.
 
 The setup skill never writes an explanation of its own. It runs `qg explain`,
 reads what it prints and says what that means for this project. Under its
@@ -496,7 +499,9 @@ the builder chose ([ADR-007](docs/adr/ADR-007-component-install.md)), and
 `qg setup` writes it. It is a contract for `qg status`, setup and the planned
 runner. Loading fails, and `qg status` and `qg setup` exit 3 with one line
 naming the problem, when a field is missing, has the wrong type or names
-something quality-gates does not know.
+something quality-gates does not know. The gates (`crap`, `cc-check`) read the
+file for `exclude`, so a malformed file stops them with exit 2 and the same
+line, like any other tool error.
 
 ```json
 {
@@ -512,7 +517,10 @@ something quality-gates does not know.
 - `format_version`: a whole number, 1. A change to the shape raises it and
   gets a CHANGELOG note.
 - `languages`: the project's languages, each a name the language registry
-  knows: `python`, `typescript`, `swift`, `rust` or `shell`. It replaces
+  knows: `python`, `typescript`, `swift`, `rust` or `shell`. Setup proposes
+  them from the files git would commit: test folders count, and only the
+  `exclude` prefixes, fixture folders by default, are left out (ADR-007
+  addendum 2026-11-01). It replaces
   detection as the source of truth; `qg status` warns about code in a language
   the list leaves out. A language may be listed before it has code.
 - `exclude`: path prefixes from the repo root that detection and the gates
@@ -618,7 +626,10 @@ something quality-gates does not know.
   proposal with `--add-language`, `--remove-language`, `--choose` and
   `--decline`, each repeatable. It refuses, with exit 1 and nothing written,
   to switch off the core or a gate the project has, or to remove a language
-  that still has code: both wait on recorded reasons (#115). It copies the
+  that still has code: both wait on recorded reasons (#115). A language name
+  quality-gates does not know exits 3 with the same line a choice file
+  holding it gives, such as `qg setup: --add-language: unknown language
+  'Python'; quality-gates knows python, rust, shell, swift, typescript`. It copies the
   `--exclude` prefixes of the `comment-debt` lines in `.githooks/pre-commit`
   and the CI workflows into `settings` › `no-comments` › `exclude`, and leaves
   the flags in place. Run again, it changes nothing. `--json` prints the
@@ -626,7 +637,9 @@ something quality-gates does not know.
 
 - `qg-skills` copies from the installed package, not from GitHub, so the
   version you installed decides which skills a project gets. It writes
-  `.claude/skills/`, the stage guard and the asking-rule line in `CLAUDE.md`. It touches only the skills it ships; the project's own
+  `.claude/skills/` at the top of the git repo, or in the folder `--dest`
+  names, plus the stage guard and the asking-rule line in `CLAUDE.md`.
+  Outside a git repo and without `--dest`, it stops with exit 2 and says so. It touches only the skills it ships; the project's own
   skills are left alone. `qg-skills --check` exits 1 if any copy differs from
   the installed version, and `/setup-standards` adds a test that runs it, so CI
   catches a stale copy.

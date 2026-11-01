@@ -44,7 +44,7 @@ this project; it never writes an explanation fresh (ADR-005, Understanding).
 
 ### The choice file
 
-Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md)
+Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md), [Addendum 2026-11-01: test folders count toward the languages](#addendum-2026-11-01-test-folders-count-toward-the-languages)
 
 A committed `quality-gates.json` at the project root records the chosen
 components, the ones offered and declined, the project's languages, and its
@@ -185,3 +185,17 @@ Switching off a gate is built with #115.
   being corrected.
 - **A link column in the table, or no explainers.** The first clutters the
   table; the second is the fresh-each-time teaching ADR-005 rejects.
+
+## Addendum 2026-11-01: test folders count toward the languages
+
+Amends: [The choice file](#the-choice-file)
+
+*The choice file* says setup proposes languages from "source files outside test
+and fixture folders". ADR-011 § 1 decided otherwise, and it governs: tests are
+gated, so a file in a test folder counts toward the project's languages, and
+only fixture folders (the default exclusions written into the choice file,
+plus any path in its `exclude`) are left out. A project whose only TypeScript
+is `tests/sample.ts` is proposed `typescript`. The reason is ADR-011's: test
+code is agent-written code the gates hold to the standard, so its language is
+one the project uses, while a fixture is sample input in whatever language the
+test needs.
