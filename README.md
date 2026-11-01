@@ -267,10 +267,13 @@ exception: its branches count in the function that holds it, and its untested
 lines do not lower that function's coverage (#53). Both look only at the
 [files in scope](src/quality_gates/skills/crap/references/files-in-scope.md): the files git would commit, so the
 project's own `.gitignore` leaves out generated and installed folders, less the
-`exclude` prefixes in `quality-gates.json` (test fixtures by default). Each file
+`exclude` entries in `quality-gates.json` (test fixtures by default). Each file
 is scored once, and a symlinked folder is scanned once, by the
-[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). Outside a git repo, both stop with
-exit 2 and say so. They also stop with exit 2 when `quality-gates.json` is
+[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). The git repo is the one that
+holds the first path given, so `crap --lang python ~/other-repo/src` follows
+that repo's `.gitignore` and choice file wherever it runs; a path in no repo
+falls back to the repo the command runs in. Outside any git repo, both stop
+with exit 2 and say so. They also stop with exit 2 when `quality-gates.json` is
 malformed, with one line naming the problem, such as `cc-check`'s
 `ERROR: quality-gates.json: missing field 'languages'`.
 
@@ -519,12 +522,17 @@ line, like any other tool error.
 - `languages`: the project's languages, each a name the language registry
   knows: `python`, `typescript`, `swift`, `rust` or `shell`. Setup proposes
   them from the files git would commit: test folders count, and only the
-  `exclude` prefixes, fixture folders by default, are left out (ADR-007
+  `exclude` entries, fixture folders by default, are left out (ADR-007
   addendum 2026-11-01). It replaces
   detection as the source of truth; `qg status` warns about code in a language
   the list leaves out. A language may be listed before it has code.
-- `exclude`: path prefixes from the repo root that detection and the gates
-  leave out, on top of what `.gitignore` ignores. Setup writes the default
+- `exclude`: folders and files, each by its path from the repo root, that
+  detection and the gates leave out, on top of what `.gitignore` ignores.
+  Entries match whole segments, by the
+  [files in scope](src/quality_gates/skills/crap/references/files-in-scope.md)
+  rule: `vendor` covers `vendor/` and nothing called `vendored`. Root marker
+  files such as `package.json` count only when they are in scope, so an
+  excluded or ignored one adds no language. Setup writes the default
   fixture folders here (every outermost `fixtures`, `fixture`, `__fixtures__`
   or `testdata` folder).
 - `components`: `chosen` and `declined`, each a list of component ids from

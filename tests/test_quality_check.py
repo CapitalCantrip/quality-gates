@@ -205,5 +205,32 @@ class HelpTest(unittest.TestCase):
         self.assertIn("Cyclomatic complexity reporter for Python and TypeScript code", self.flat_help())
 
 
+class ScannedRepoTest(unittest.TestCase):
+    def setUp(self):
+        before = os.getcwd()
+        self.addCleanup(os.chdir, before)
+        self.repo = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        (self.repo / ".gitignore").write_text("build/\n", encoding="utf-8")
+        for name in ("src/mod.py", "src/build/made.py"):
+            (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo / name).write_text(branches("f", 1), encoding="utf-8")
+
+    def scanned_files(self):
+        rc, out, err = run_main([str(self.repo / "src"), "--format", "json"])
+        self.assertEqual(rc, 0, err)
+        return sorted(Path(r["file"]).name for r in json.loads(out))
+
+    def test_a_repo_scanned_from_outside_any_repo_is_scanned_by_its_own_git(self):
+        os.chdir(tempfile.mkdtemp())
+        self.assertEqual(self.scanned_files(), ["mod.py"])
+
+    def test_a_repo_scanned_from_inside_another_repo_follows_the_scanned_repos_gitignore(self):
+        other = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        os.chdir(other)
+        self.assertEqual(self.scanned_files(), ["mod.py"])
+
+
 if __name__ == "__main__":
     unittest.main()

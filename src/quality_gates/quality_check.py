@@ -113,7 +113,7 @@ def parse_args(argv):
 
 def gate(argv, root):
     args = parse_args(argv)
-    found = complexity_scan.scan(args.paths, args.lang)
+    found = complexity_scan.scan(args.paths, args.lang, root=root)
     if not found.files:
         complexity_scan.print_skipped(found.skipped, sys.stderr)
         print(LANGUAGES[args.lang], file=sys.stderr)

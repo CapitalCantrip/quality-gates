@@ -74,7 +74,14 @@
   `--dest`, which now writes `.claude/skills` at the top of the git repo even
   when run from a subfolder. `qg explain`, `qg-upstream` and `qg-references`
   read no project and run anywhere. A malformed `quality-gates.json` stops the
-  gates with exit 2 and one line naming the problem.
+  gates with exit 2 and one line naming the problem. The gates take the repo
+  from the first path given, so scanning another repo's folder follows that
+  repo's `.gitignore` and `quality-gates.json`.
+- **`exclude` entries match whole path segments.** `build` leaves out the
+  folder or file `build`, never `buildscripts/` or `build_utils.py`; a
+  trailing `/` changes nothing. Root marker files such as `package.json` go
+  through the same scope, so an excluded or git-ignored one adds no language.
+  `comment-debt --exclude` keeps matching plain prefixes.
 - **The `qg` entry point moved** from `quality_gates.status:main` to
   `quality_gates.qg:main` (sprint 1, ADR-011).
 - **Manifests are validated on load** (sprint 1, ADR-011): a malformed

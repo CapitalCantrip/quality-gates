@@ -563,5 +563,21 @@ class HelpTest(unittest.TestCase):
                 self.assertIn(f"CC from {complexity_scan.COUNTERS[language.name].tool} ({language.suffix_text})", flat)
 
 
+class ScannedRepoTest(unittest.TestCase):
+    def test_a_repo_scanned_from_outside_any_repo_is_scanned_by_its_own_git(self):
+        before = os.getcwd()
+        self.addCleanup(os.chdir, before)
+        repo = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        (repo / ".gitignore").write_text("build/\n", encoding="utf-8")
+        for name in ("src/mod.py", "src/build/made.py"):
+            (repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (repo / name).write_text("def f(x):\n    if x:\n        return 1\n    return 2\n", encoding="utf-8")
+        os.chdir(tempfile.mkdtemp())
+        code, out, err = call(["--lang", "python", str(repo / "src"), "--json"])
+        self.assertEqual(code, 0, err)
+        self.assertEqual([Path(f["file"]).name for f in json.loads(out)["functions"]], ["mod.py"])
+
+
 if __name__ == "__main__":
     unittest.main()

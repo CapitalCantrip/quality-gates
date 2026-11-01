@@ -1,6 +1,7 @@
 import io
 import json
 import os
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -88,6 +89,7 @@ class CcCheckRatchetTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         (self.root / "pkg").mkdir()
         self.module = self.root / "pkg" / "mod.py"
         self.file = self.root / "cc-baseline.json"
@@ -243,6 +245,7 @@ class CrapRatchetTest(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
         self.root = Path(self.tmp.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
         self.module = self.root / "mod.py"
         self.coverage = self.root / "coverage.json"
         self.file = self.root / "crap-baseline.json"

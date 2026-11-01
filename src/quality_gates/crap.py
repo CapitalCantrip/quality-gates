@@ -468,7 +468,7 @@ def gate(argv, root) -> int:
     _check_coverage_source(args, report)
     _check_baseline_args(args, report)
     coverage_of = _coverage_of(report)
-    sources = complexity_scan.find_sources(args.paths, args.lang)
+    sources = complexity_scan.find_sources(args.paths, args.lang, root)
     _maybe_check_staleness(args, report, sources.files)
     found = complexity_scan.count_functions(sources, args.lang)
     results = score(found.functions, coverage_of, Limits(args.min_cc, args.warn, args.threshold))

@@ -271,6 +271,15 @@ class Setup(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("nothing-like-it", err)
 
+    def test_a_marker_file_the_choice_file_excludes_or_git_ignores_adds_no_language(self):
+        self.set_up_at_v0_12_0()
+        self.write(self.repo / "package.json", "{}")
+        self.write(self.repo / "Cargo.toml", "")
+        self.write(self.repo / ".gitignore", "Cargo.toml\n")
+        choice = project_files.Choice(languages=("python",), chosen=("risk",), exclude=("package.json",))
+        project_files.write_kept(self.repo, project_files.CHOICE_FILE, project_files.choice_text(choice))
+        self.assertEqual(self.proposal()["languages"], ["python"])
+
     def test_code_in_a_language_the_file_does_not_record_is_proposed_for_adding(self):
         self.set_up_at_v0_12_0()
         self.run_setup("--go")

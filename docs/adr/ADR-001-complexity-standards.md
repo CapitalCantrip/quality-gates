@@ -1536,8 +1536,10 @@ Amends: [Current rule, restated 2026-10-12: the skip list](#current-rule-restate
 untracked files that the project's `.gitignore` does not ignore. Both gates and
 language detection use them; outside a git repo, every command that looks for
 the project's root stops with exit 2 and one line saying so. The paths given on the command line narrow the set,
-and `exclude` in `quality-gates.json` applies on top: each entry is a path
-prefix from the repo root, such as `tests/fixtures/`.
+and `exclude` in `quality-gates.json` applies on top: each entry names a
+folder or file by its path from the repo root, such as `tests/fixtures/`, and
+matches whole path segments, so `build` leaves out the folder or file `build`
+and never `buildscripts/` or `build_utils.py`. A trailing `/` changes nothing.
 
 Without a choice file, every outermost folder named `fixtures`, `fixture`,
 `__fixtures__` or `testdata` is excluded, and setup writes that default into
