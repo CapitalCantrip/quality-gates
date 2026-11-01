@@ -99,6 +99,15 @@ class AdmissionRecords(unittest.TestCase):
                          ("dependency", "MIT", "2023-03-26", "6", "6.0.1"))
 
 
+class ExplainerRecords(unittest.TestCase):
+    def test_a_component_that_names_its_explainer_hands_out_the_path_it_names(self):
+        named = changed(COMPONENTS, lambda d: d["components"][0].update(explainer="explainers/crap.md"))
+        self.assertEqual(manifest.components_from(named).components[0].explainer, "explainers/crap.md")
+
+    def test_a_component_that_names_no_explainer_hands_out_none(self):
+        self.assertIsNone(manifest.components_from(COMPONENTS).components[0].explainer)
+
+
 def admission(edit):
     return changed(COMPONENTS, lambda d: edit(d["admissions"]))
 
@@ -272,6 +281,12 @@ class MalformedManifest(unittest.TestCase):
         for description in ("Flags tangled code", "Flags tangled.\nUntested code."):
             message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0].update(description=description)))
             self.assertEqual(message, "components.json: component 'risk': the description must be one line ending in a full stop")
+
+    def test_an_explainer_that_is_not_the_path_of_a_markdown_file_fails_naming_the_component(self):
+        for explainer in ("explainers/crap.txt", 3):
+            with self.subTest(explainer=explainer):
+                message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0].update(explainer=explainer)))
+                self.assertEqual(message, "components.json: component 'risk': field 'explainer' must name a Markdown file")
 
     def test_two_components_with_one_id_fail(self):
         message = self.rejected(changed(COMPONENTS, lambda d: d["components"].append(copy.deepcopy(d["components"][0]))))
