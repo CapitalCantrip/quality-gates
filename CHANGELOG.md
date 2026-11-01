@@ -19,7 +19,48 @@
 - **If you read `components.json`:** accept `format_version` 2 and read
   `admissions` (README § The component manifest). `components` and every part
   are unchanged, so `qg status` prints the same origins and its `--json` differs
-  only in `format_version` being 2. Nothing else to do on bumping the pin.
+  only in `format_version` being 2.
+- **The choice file (#137, ADR-007, ADR-010).** A committed
+  `quality-gates.json` at the project root records the languages, the chosen
+  and declined components, the excluded paths, the commit time limit
+  (2 seconds) and the comment gate's `exclude` and `conventions`
+  (README § The choice file). The new `qg setup` proposes them in one table
+  (component, description, cost) and writes the file on `--go`, and nothing
+  else. It refuses to switch off the core or a gate the project has, or to
+  remove a language that still has code, until recorded reasons ship (#115).
+  It copies `--exclude` prefixes from the `comment-debt` lines of the hook and
+  CI into the file and leaves the flags.
+- **`qg status` reads the choice file.** Languages come from the file, with a
+  warning naming the files in any language it does not record; without the
+  file, from detection. A component the file declines shows *offered,
+  declined*; one it does not list shows *not yet offered*. `--json` adds
+  `languages`, `languages_from` and `unrecorded_languages`. A malformed choice
+  file exits 3.
+- **Shell and Rust are detected from files** (#137, ADR-010): `.sh`, `.bash`,
+  `.zsh` and a shell first line such as `#!/bin/sh`, and `.rs`. Detection
+  leaves out the skills, hooks and pre-commit hook quality-gates keeps.
+- **The gates look at the files git would commit (#87, #120, ADR-011,
+  ADR-001 addendum 2026-11-01).** Tracked files plus untracked files the
+  `.gitignore` does not ignore; the skip list is gone. Each file is scored
+  once, even when named twice or reached through a link. Fixture folders
+  (`fixtures`, `fixture`, `__fixtures__`, `testdata`) are excluded by default,
+  and setup writes that default into the choice file. Outside a git repo every
+  command exits 2 with one line saying so, instead of using the current folder.
+- **The `qg` entry point moved** from `quality_gates.status:main` to
+  `quality_gates.qg:main` (sprint 1, ADR-011).
+- **Manifests are validated on load** (sprint 1, ADR-011): a malformed
+  `components.json` or `upstream.json` stops `qg status` and `qg-upstream`
+  with one plain line and a non-zero exit, never a traceback.
+- **When you bump the pin:**
+  1. Reinstall the commands with `uv tool install --force` and the new install
+     line, so `qg` points at its new entry point.
+  2. Run `/setup-standards`. Its new step shows the table; say "go" and it
+     writes `quality-gates.json` from what is installed. Commit it.
+  3. Run the gates. A file that was scored twice or a fixture folder that was
+     scanned now shows `PAID`: lower the baseline with `--update` and commit
+     it. A build or vendored folder that git would commit is now scored: add
+     it to `.gitignore` or to `exclude` in `quality-gates.json`.
+  4. Run the gates inside the git repo; outside one they stop with exit 2.
 
 ## 0.12.0 — 2026-10-25
 
