@@ -321,6 +321,11 @@ class Status(unittest.TestCase):
         self.write(self.repo / ".claude" / "hooks" / "stage_guard.py", "x = 1\n")
         self.assertEqual(self.used(), set())
 
+    def test_the_pre_commit_hook_setup_keeps_does_not_make_a_project_a_shell_project(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".githooks" / "pre-commit", "#!/bin/sh\ncomment-debt\n")
+        self.assertEqual(self.used(), set())
+
     def test_the_copied_stage_guard_does_not_make_a_project_a_python_project(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "src" / "app.ts", "export {}")

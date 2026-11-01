@@ -67,13 +67,15 @@ class QgDispatcherTest(unittest.TestCase):
     def test_qg_help_lists_every_subcommand(self):
         code, out, _ = run(qg.main, ["--help"])
         self.assertEqual(code, 0)
+        words = " ".join(out.split())
         for name, module in qg.COMMANDS.items():
-            self.assertRegex(out, rf"\n    {name}\s+{module.SUMMARY}\n")
+            self.assertIn(f" {name} {module.SUMMARY} ", words)
 
     def test_qg_with_no_subcommand_stops_with_usage_and_exit_2(self):
         code, _, err = run(qg.main, [])
         self.assertEqual(code, 2)
-        self.assertEqual(err, "usage: qg [-h] {status} ...\nqg: error: the following arguments are required: command\n")
+        commands = ",".join(qg.COMMANDS)
+        self.assertEqual(err, f"usage: qg [-h] {{{commands}}} ...\nqg: error: the following arguments are required: command\n")
 
     def test_an_unknown_subcommand_stops_with_exit_2(self):
         code, _, err = run(qg.main, ["bogus"])

@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from quality_gates import agent_docs, languages, skills_sync, status
+from quality_gates import agent_docs, languages, setup_choices, skills_sync, status
 from quality_gates import project_files as pf
 from quality_gates.errors import ToolError
 from quality_gates.manifest import ManifestError
@@ -293,6 +293,7 @@ class ProjectModuleOwnsTheRootAndTheWalks(unittest.TestCase):
 KEPT_NAMES = {
     "CLAUDE.md", "AGENTS.md", "agents", "pull_request_template.md", ".github", "workflows",
     ".githooks", "pre-commit", ".claude", "settings.json", "comment-debt.json",
+    "quality-gates.json",
 }
 
 
@@ -501,6 +502,31 @@ class ChoiceFile(unittest.TestCase):
         self.assertIn(pf.CHOICE_FILE, str(raised.exception))
 
 
+class PlannedChanges(unittest.TestCase):
+    def setUp(self):
+        self.root = git_repo(tempfile.mkdtemp())
+        self.change = pf.PlannedChange(pf.CHOICE_FILE, pf.choice_text(pf.Choice(languages=("python",))))
+
+    def test_a_planned_file_that_does_not_exist_will_be_created(self):
+        self.assertEqual(pf.planned_state(self.root, self.change), "will be created")
+
+    def test_a_planned_file_with_other_text_will_change(self):
+        pf.write_kept(self.root, pf.CHOICE_FILE, "{}\n")
+        self.assertEqual(pf.planned_state(self.root, self.change), "will change")
+
+    def test_a_planned_file_with_the_same_text_is_unchanged(self):
+        pf.write_kept(self.root, pf.CHOICE_FILE, self.change.text)
+        self.assertEqual(pf.planned_state(self.root, self.change), "unchanged")
+
+    def test_applying_writes_each_changed_file_and_leaves_the_others_untouched(self):
+        pf.write_kept(self.root, "kept.txt", "same")
+        before = (self.root / "kept.txt").stat().st_mtime_ns
+        written = pf.apply_planned(self.root, [self.change, pf.PlannedChange("kept.txt", "same")])
+        self.assertEqual(written, [pf.CHOICE_FILE])
+        self.assertEqual(pf.read_kept(self.root, pf.CHOICE_FILE), self.change.text)
+        self.assertEqual((self.root / "kept.txt").stat().st_mtime_ns, before)
+
+
 class OneRootFinder(unittest.TestCase):
     def test_inside_a_git_repo_the_root_is_the_top_of_the_repo_wherever_the_command_runs(self):
         repo = git_repo(tempfile.mkdtemp())
@@ -518,6 +544,7 @@ class OneRootFinder(unittest.TestCase):
         from quality_gates import comment_debt, crap, quality_check
         commands = {
             "qg status": lambda: status.main([]),
+            "qg setup": lambda: setup_choices.main([]),
             "comment-debt": lambda: comment_debt.main([], out=sys.stderr),
             "cc-check": lambda: quality_check.main(["."]),
             "crap": lambda: crap.main(["--lang", "python", "."]),

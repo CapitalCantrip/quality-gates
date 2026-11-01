@@ -53,9 +53,12 @@ COMMENT_GATE = "no-comments"
 COMMENT_GATE_REQUIRED = ("exclude", "conventions")
 RECOGNISED_CONVENTIONS = frozenset({"rust-safety"})
 DEFAULT_COMMIT_TIME_LIMIT_SECONDS = 2
-COPIED_BY_QUALITY_GATES = (".claude/skills/", ".claude/hooks/")
+KEPT_BY_QUALITY_GATES = (".claude/skills/", ".claude/hooks/", PRE_COMMIT_HOOK)
 FIXTURE_FOLDERS = ("fixtures", "fixture", "__fixtures__", "testdata")
 FIRST_LINE_BYTES = 256
+WILL_CREATE = "will be created"
+WILL_CHANGE = "will change"
+UNCHANGED = "unchanged"
 UNSHIPPED, MISSING, DIFFERS, SAME = "unshipped", "missing", "differs", "same"
 READABLE, UNREADABLE = "readable", "unreadable"
 
@@ -391,7 +394,7 @@ def detected_languages(root, excluded=None):
     scope = scope_of(root, excluded)
     found = {}
     for name in sorted(scope.listed):
-        language = None if excluded_by(name, scope.excluded + COPIED_BY_QUALITY_GATES) else language_of_listed(root, name)
+        language = None if excluded_by(name, scope.excluded + KEPT_BY_QUALITY_GATES) else language_of_listed(root, name)
         if language and os.path.lexists(Path(root) / name):
             found.setdefault(language, set()).add(name)
     for language, marker in marker_files(root):
@@ -525,3 +528,27 @@ def choice_text(choice):
         "settings": {COMMENT_GATE: {"exclude": list(choice.comment_exclude), "conventions": list(choice.conventions)}},
     }
     return json.dumps(data, indent=2) + "\n"
+
+
+@dataclass(frozen=True)
+class PlannedChange:
+    name: str
+    text: str
+
+
+def planned_state(root, change):
+    found = read_kept(Path(root), change.name)
+    if found is None:
+        return WILL_CREATE
+    return UNCHANGED if found == change.text else WILL_CHANGE
+
+
+def apply_planned(root, changes):
+    written = [change for change in changes if planned_state(root, change) != UNCHANGED]
+    for change in written:
+        write_kept(Path(root), change.name, change.text)
+    return [change.name for change in written]
+
+
+def choice_change(choice):
+    return PlannedChange(CHOICE_FILE, choice_text(choice))
