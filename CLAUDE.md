@@ -20,6 +20,11 @@ project that pins it holds agent-written code to. The standards table is in
   pre-commit hook), `cc-check` at 8 and `crap` at 8 on code you change.
 - **Skills and agent-facing prose follow `writing-for-agents`.** The checklist
   is in ADR-002 § Writing for agents; review a new or changed skill against it.
+- **New code goes in the module ADR-011 names.** Project files and the root
+  through the project module, languages through the registry, the manifest
+  through the manifest module, baselines and reasons through the ratchet,
+  coverage pairing through the matcher. When the module you need does not
+  exist yet, stop and ask rather than add a second copy.
 - **Python 3.9 is the floor.** CI runs 3.9 and 3.12; the consumers include
   system Python on macOS.
 
