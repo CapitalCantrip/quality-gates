@@ -148,8 +148,8 @@ their own release.
 
 | Lands before | Refactor, no behaviour change | Ships as a release |
 |---|---|---|
-| #137 (choice file) | 1, 2, and 5's manifest module, dispatcher and `qg status` module | — |
-| #138 (runner) | 3: gate interface and ratchet module | with #138: the old names fold into `qg`, and the common baseline format with conversion |
+| #137 (choice file) | 1, 2, and 5's manifest module, dispatcher and `qg status` module | with #137: candidate 1's new file rules (git required, the files git would commit, each listed once, closing #87; the default fixture exclusion, closing #120) |
+| #138 (runner) | 3: gate interface and ratchet module | with #138: code edits the hook and CI between markers, the old names fold into `qg`, and the common baseline format with conversion |
 | side-lane batch 2 (#149) | 4: readers parse, and the matcher reproduces today's rules exactly | the new matching rule, fixing #124, #83 and #90, with an ADR-001 addendum |
 
 ## Consequences
@@ -159,7 +159,9 @@ their own release.
   the track record and exit codes come from the ratchet module.
 - `qg run` (#138) calls gates through the gate interface, not by running their
   commands.
-- Consumers act twice. On the #138 release they re-run setup, which rewrites
+- On the #137 release, a file that was scored twice (#87) or a fixture folder
+  that was scanned (#120) shows as PAID, and the consumer lowers the baseline.
+- Consumers act twice more. On the #138 release they re-run setup, which rewrites
   the hook and CI to `qg <name>` and converts the baselines. On the matching
   release, TypeScript and Swift scores move where pairing was wrong, the
   ratchet reports them as PAID or FAIL, and the consumer re-records.
