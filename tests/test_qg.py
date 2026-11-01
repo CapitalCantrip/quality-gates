@@ -60,7 +60,7 @@ class QgDispatcherTest(unittest.TestCase):
                 imported.update(alias.name for alias in node.names)
             elif isinstance(node, ast.ImportFrom):
                 imported.update(f"{node.module}.{alias.name}" for alias in node.names)
-        expected = {"argparse"} | {module.__name__ for module in qg.COMMANDS.values()}
+        expected = {"argparse", "sys"} | {module.__name__ for module in qg.COMMANDS.values()}
         self.assertEqual(imported, expected)
 
     def test_qg_help_lists_every_subcommand(self):
@@ -78,6 +78,11 @@ class QgDispatcherTest(unittest.TestCase):
         code, _, err = run(qg.main, ["bogus"])
         self.assertEqual(code, 2)
         self.assertIn("invalid choice: 'bogus'", err)
+
+    def test_a_flag_before_the_subcommand_stops_with_usage_and_exit_2(self):
+        code, out, err = run(qg.main, ["--json", "status"])
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn("unrecognized arguments: --json", err)
 
     def test_qg_status_help_shows_the_status_options(self):
         code, out, _ = run(qg.main, ["status", "--help"])
