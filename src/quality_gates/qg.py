@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from quality_gates import status
 
@@ -15,5 +16,7 @@ def build_parser():
 
 
 def main(argv=None):
-    args, rest = build_parser().parse_known_args(argv)
-    return COMMANDS[args.command].main(rest)
+    argv = sys.argv[1:] if argv is None else list(argv)
+    split = next((at + 1 for at, word in enumerate(argv) if word in COMMANDS), len(argv))
+    args = build_parser().parse_args(argv[:split])
+    return COMMANDS[args.command].main(argv[split:])

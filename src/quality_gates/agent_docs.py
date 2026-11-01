@@ -119,13 +119,14 @@ def build_parser():
                     "changes instead.",
     )
     parser.add_argument("--tracker", choices=sorted(TRACKER_SUMMARIES), required=True)
-    parser.add_argument("--root", type=Path, default=project_files.current_folder(), help="default: the current directory")
+    parser.add_argument("--root", type=Path, help="default: the current directory")
     return parser
 
 
 def main(argv=None, templates=TEMPLATES):
     args = build_parser().parse_args(argv)
-    for name, status, detail in run(args.root, args.tracker, templates):
+    root = args.root or project_files.current_folder()
+    for name, status, detail in run(root, args.tracker, templates):
         print(f"{name}: {status}")
         if detail:
             print(detail)

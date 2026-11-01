@@ -15,7 +15,7 @@ PARTLY = "partly installed"
 NOT_APPLICABLE = "not applicable"
 PROVIDED = "provided by quality-gates"
 
-DETECTED_BY_MARKER = ("python", "swift", "rust", "typescript")
+DETECTED_BY_MARKER = tuple(language.name for language in languages.REGISTERED if language.markers)
 DETECTED_BY_FILE = ("python", "swift", "typescript")
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"

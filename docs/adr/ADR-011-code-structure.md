@@ -65,6 +65,8 @@ look at, and reading and writing every file quality-gates keeps in a project.
 
 ### 2. One language registry
 
+Amended by: [Addendum 2026-11-01: the languages-by-gates generator has its own module](#addendum-2026-11-01-the-languages-by-gates-generator-has-its-own-module)
+
 - **The registry holds what makes a language, and nothing about gates:** name,
   label, file suffixes, project markers, and the `.xcodeproj` rule. Each gate
   keeps its own table, keyed by language name, of what it supports and how
@@ -200,3 +202,22 @@ their own release.
   did this and hid real untested functions, a false pass.
 - **Changing the matcher and the rule in one step.** A reviewer could not tell
   moved code from changed scores.
+
+## Addendum 2026-11-01: the languages-by-gates generator has its own module
+
+Amends: [2. One language registry](#2-one-language-registry)
+
+`src/quality_gates/languages_table.py` generates
+`docs/languages-by-gates.md`, the table § 2 calls for. It reads the registry,
+every gate's language table and `components.json`, so it depends on all of
+them. It cannot live in the registry, which imports no gate (Rejected: a
+registry entry that holds every gate's facts). It cannot live in the manifest
+module either, which would then depend on every gate (Rejected: deriving the
+manifest's languages from the gate tables). The generator sits above both.
+
+It is a tool for this repo's own docs, not a consumer command. It has no entry
+in `[project.scripts]` and no `qg` subcommand. It writes only inside the
+quality-gates checkout that holds the package, whatever folder it runs from.
+A copy installed in a consumer project refuses to write and says why.
+`--check` reads the same page and exits 1 when the page differs from the
+tables.

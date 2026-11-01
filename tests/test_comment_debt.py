@@ -171,6 +171,13 @@ class RepositoryTest(unittest.TestCase):
         self.assertIn('# Comment debt: 1 lines in 1 files', out)
         self.assertIn('    1    1  a.py', out)
 
+    def test_a_file_named_only_by_its_suffix_is_counted_as_git_lists_it(self):
+        (self.root / 'pkg').mkdir()
+        self.put('pkg/.py', '# a workaround for now\nx = 1\n')
+        code, out = self.run_gate('--status')
+        self.assertEqual(code, 0)
+        self.assertIn('## pkg — 1 lines', out)
+
 
 class LiveRepositoryTest(unittest.TestCase):
 

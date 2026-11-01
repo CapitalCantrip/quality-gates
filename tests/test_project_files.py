@@ -152,38 +152,72 @@ class DocumentedSuffixes(unittest.TestCase):
 
 PACKAGE = ROOT / "src/quality_gates"
 PROJECT_MODULE = "project_files"
-OS_CALLS = {"walk", "scandir", "listdir", "getcwd"}
+OS_LOOKUPS = {"os.walk", "os.scandir", "os.listdir", "os.getcwd"}
+CWD_LOOKUP = "Path.cwd"
 PATH_CALLS = {"glob", "rglob", "iterdir"}
 GIT_LOOKUPS = ("rev-parse", "ls-files", "--show-toplevel")
 ALLOWED = {
-    "references.read_rules": "reads the package's own ADRs",
-    "references.skill_documents": "reads the package's own skills",
-    "references.write": "tidies the package's own skill references",
-    "references.strays": "reads the package's own skill references",
-    "skills_sync.skill_names": "lists the shipped skills",
-    "skills_sync.files_under": "lists a shipped skill's files and its installed copy",
-    "quality_check.display_path": "shows a path relative to where the command ran, not a root",
-    "stage_guard.main": "the shipped hook runs alone in a project and cannot import the package",
+    ("references.read_rules", "glob"): "reads the package's own ADRs",
+    ("references.skill_documents", "rglob"): "reads the package's own skills",
+    ("references.write", "iterdir"): "tidies the package's own skill references",
+    ("references.strays", "glob"): "reads the package's own skill references",
+    ("skills_sync.skill_names", "iterdir"): "lists the shipped skills",
+    ("skills_sync.files_under", "rglob"): "lists a shipped skill's files and its installed copy",
+    ("quality_check.display_path", CWD_LOOKUP): "shows a path relative to where the command ran, not a root",
+    ("stage_guard.main", "os.getcwd"): "the shipped hook runs alone in a project and cannot import the package",
 }
 
 
-def asks_git(node):
-    return isinstance(node, ast.Constant) and isinstance(node.value, str) and any(w in node.value for w in GIT_LOOKUPS)
+def git_lookup(node):
+    if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+        return None
+    return next((word for word in GIT_LOOKUPS if word in node.value), None)
 
 
-def is_lookup_call(owner, name):
-    if owner == "os":
-        return name in OS_CALLS
-    return name in PATH_CALLS or (owner, name) == ("Path", "cwd")
+def import_names(node):
+    if isinstance(node, ast.ImportFrom) and node.module:
+        return {alias.asname or alias.name: f"{node.module}.{alias.name}" for alias in node.names}
+    if isinstance(node, ast.Import):
+        return {alias.asname: alias.name for alias in node.names if alias.asname}
+    return {}
 
 
-def is_root_or_walk(node):
-    if asks_git(node):
-        return True
-    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
-        return False
-    owner = node.func.value.id if isinstance(node.func.value, ast.Name) else None
-    return is_lookup_call(owner, node.func.attr)
+def imported_as(tree):
+    return {name: full for node in ast.walk(tree) for name, full in import_names(node).items()}
+
+
+def dotted_name(func):
+    parts = []
+    while isinstance(func, ast.Attribute):
+        parts.insert(0, func.attr)
+        func = func.value
+    return ".".join([func.id, *parts]) if isinstance(func, ast.Name) else ""
+
+
+def resolved(name, imports):
+    head, dot, rest = name.partition(".")
+    return imports.get(head, head) + dot + rest
+
+
+def call_lookup(node, imports):
+    if not isinstance(node, ast.Call):
+        return None
+    name = resolved(dotted_name(node.func), imports)
+    if name in OS_LOOKUPS:
+        return name
+    if name.split(".")[-2:] == CWD_LOOKUP.split("."):
+        return CWD_LOOKUP
+    method = getattr(node.func, "attr", None)
+    return method if method in PATH_CALLS else None
+
+
+def lookups_in(tree):
+    imports = imported_as(tree)
+    for name, top in places(tree):
+        for node in ast.walk(top):
+            label = git_lookup(node) or call_lookup(node, imports)
+            if label:
+                yield name, node.lineno, label
 
 
 def places(tree):
@@ -195,10 +229,8 @@ def places(tree):
 def root_lookups_and_walks(module_paths):
     found = {}
     for path in module_paths:
-        for name, top in places(ast.parse(path.read_text(encoding="utf-8"))):
-            for node in ast.walk(top):
-                if is_root_or_walk(node):
-                    found.setdefault(f"{path.stem}.{name}", node.lineno)
+        for name, line, label in lookups_in(ast.parse(path.read_text(encoding="utf-8"))):
+            found.setdefault((f"{path.stem}.{name}", label), line)
     return found
 
 
@@ -223,13 +255,28 @@ class ProjectModuleOwnsTheRootAndTheWalks(unittest.TestCase):
             "root.rglob('*')",
             "root.glob('*.py')",
             "root.iterdir()",
+            "pathlib.Path.cwd()",
+            "from os import walk\nwalk(root)",
+            "from os import listdir as ls\nls(root)",
+            "import os as o\no.scandir(root)",
+            "from pathlib import Path as P\nP.cwd()",
         ]
         for source in sources:
             with self.subTest(source):
-                self.assertTrue(any(is_root_or_walk(node) for node in ast.walk(ast.parse(source))))
+                self.assertTrue(any(lookups_in(ast.parse(source))))
 
     def test_the_check_ignores_walking_a_syntax_tree(self):
-        self.assertFalse(any(is_root_or_walk(node) for node in ast.walk(ast.parse("ast.walk(tree)"))))
+        for source in ("ast.walk(tree)", "from ast import walk\nwalk(tree)"):
+            with self.subTest(source):
+                self.assertFalse(any(lookups_in(ast.parse(source))))
+
+    def test_an_allowed_place_is_allowed_only_the_lookup_it_lists(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "references.py"
+            path.write_text("import os\n\ndef read_rules(adr_dir):\n    return adr_dir.glob('ADR-*.md'), os.walk(adr_dir)\n",
+                            encoding="utf-8")
+            found = root_lookups_and_walks([path])
+        self.assertEqual({where for where in found if where not in ALLOWED}, {("references.read_rules", "os.walk")})
 
     def test_every_allowed_place_still_looks_up_or_walks_so_the_list_holds_no_dead_entry(self):
         self.assertEqual(set(ALLOWED) - set(root_lookups_and_walks(package_modules())), set())

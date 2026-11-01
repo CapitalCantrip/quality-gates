@@ -36,6 +36,10 @@ def language_of_file(name: str) -> Optional[str]:
     return next((language.name for language in REGISTERED if suffix in language.suffixes), None)
 
 
+def language_of_tracked_file(name: str) -> Optional[str]:
+    return next((language.name for language in REGISTERED if name.endswith(language.suffixes)), None)
+
+
 def language_of_folder(name: str) -> Optional[str]:
     return next((language.name for language in REGISTERED if name.endswith(language.folder_suffixes)), None)
 
