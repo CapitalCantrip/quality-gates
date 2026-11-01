@@ -1,6 +1,5 @@
 import json
 import os
-import subprocess
 from pathlib import Path
 
 from quality_gates.real_path import real_path
@@ -10,16 +9,6 @@ UNMEASURED_ADVICE = (
     "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
     "the baseline keeps any entry they already have and records none for them."
 )
-
-
-def repo_root():
-    found = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        capture_output=True, text=True,
-    )
-    if found.returncode == 0 and found.stdout.strip():
-        return Path(found.stdout.strip())
-    return Path.cwd()
 
 
 def key(root, file, name):

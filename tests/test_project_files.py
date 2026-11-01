@@ -1,3 +1,4 @@
+import ast
 import json
 import re
 import tempfile
@@ -141,6 +142,91 @@ class DocumentedSuffixes(unittest.TestCase):
                 self.assertIn("](references/function-names.md)", text)
                 for restated in ("K.Inner.deep", "outer.inner"):
                     self.assertNotIn(restated, text)
+
+
+PACKAGE = ROOT / "src/quality_gates"
+PROJECT_MODULE = "project_files"
+OS_CALLS = {"walk", "scandir", "listdir", "getcwd"}
+PATH_CALLS = {"glob", "rglob", "iterdir"}
+GIT_LOOKUPS = ("rev-parse", "ls-files", "--show-toplevel")
+ALLOWED = {
+    "references.read_rules": "reads the package's own ADRs",
+    "references.skill_documents": "reads the package's own skills",
+    "references.write": "tidies the package's own skill references",
+    "references.strays": "reads the package's own skill references",
+    "skills_sync.skill_names": "lists the shipped skills",
+    "skills_sync.files_under": "lists a shipped skill's files and its installed copy",
+    "quality_check.display_path": "shows a path relative to where the command ran, not a root",
+    "stage_guard.main": "the shipped hook runs alone in a project and cannot import the package",
+}
+
+
+def asks_git(node):
+    return isinstance(node, ast.Constant) and isinstance(node.value, str) and any(w in node.value for w in GIT_LOOKUPS)
+
+
+def is_lookup_call(owner, name):
+    if owner == "os":
+        return name in OS_CALLS
+    return name in PATH_CALLS or (owner, name) == ("Path", "cwd")
+
+
+def is_root_or_walk(node):
+    if asks_git(node):
+        return True
+    if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+        return False
+    owner = node.func.value.id if isinstance(node.func.value, ast.Name) else None
+    return is_lookup_call(owner, node.func.attr)
+
+
+def places(tree):
+    for node in tree.body:
+        name = node.name if isinstance(node, (ast.FunctionDef, ast.ClassDef)) else "<module>"
+        yield name, node
+
+
+def root_lookups_and_walks(module_paths):
+    found = {}
+    for path in module_paths:
+        for name, top in places(ast.parse(path.read_text(encoding="utf-8"))):
+            for node in ast.walk(top):
+                if is_root_or_walk(node):
+                    found.setdefault(f"{path.stem}.{name}", node.lineno)
+    return found
+
+
+def package_modules():
+    return sorted(PACKAGE.rglob("*.py"))
+
+
+class ProjectModuleOwnsTheRootAndTheWalks(unittest.TestCase):
+    def test_outside_the_project_module_no_code_asks_git_for_the_root_lists_tracked_files_or_walks_the_project(self):
+        outside = [path for path in package_modules() if path.stem != PROJECT_MODULE]
+        found = root_lookups_and_walks(outside)
+        self.assertEqual({where: line for where, line in found.items() if where not in ALLOWED}, {})
+
+    def test_the_check_recognises_every_kind_of_root_lookup_and_walk(self):
+        sources = [
+            'run(["git", "rev-parse", "--show-toplevel"])',
+            'run(["git", "ls-files", "*.py"])',
+            "os.walk(root)",
+            "os.listdir(root)",
+            "os.getcwd()",
+            "Path.cwd()",
+            "root.rglob('*')",
+            "root.glob('*.py')",
+            "root.iterdir()",
+        ]
+        for source in sources:
+            with self.subTest(source):
+                self.assertTrue(any(is_root_or_walk(node) for node in ast.walk(ast.parse(source))))
+
+    def test_the_check_ignores_walking_a_syntax_tree(self):
+        self.assertFalse(any(is_root_or_walk(node) for node in ast.walk(ast.parse("ast.walk(tree)"))))
+
+    def test_every_allowed_place_still_looks_up_or_walks_so_the_list_holds_no_dead_entry(self):
+        self.assertEqual(set(ALLOWED) - set(root_lookups_and_walks(package_modules())), set())
 
 
 if __name__ == "__main__":
