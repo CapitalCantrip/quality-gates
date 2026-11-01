@@ -182,6 +182,9 @@ them. Why each number is what it is: [ADR-001](docs/adr/ADR-001-complexity-stand
 
 Human-maintained code targets CC 5.
 
+Which gates score each language, and which components install for it:
+[the languages-by-gates table](docs/languages-by-gates.md).
+
 ## The gates
 
 ### `comment-debt`: no new comments
@@ -569,6 +572,11 @@ This repo runs its own gates and carries no comment debt: `comment-debt.json` is
 
 How the code is laid out, and where each new piece belongs:
 [ADR-011](docs/adr/ADR-011-code-structure.md).
+
+[docs/languages-by-gates.md](docs/languages-by-gates.md) is generated from the
+language registry and each gate's language table. After changing either, run
+`.venv/bin/python -m quality_gates.languages_table`; a test fails while the
+table is out of date, and `--check` reports the drift without writing.
 
 ## Decisions
 

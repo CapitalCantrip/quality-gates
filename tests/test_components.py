@@ -7,7 +7,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
 from quality_gates import manifest  # noqa: E402
-from quality_gates.languages import CC_CHECK_LANGUAGES  # noqa: E402
+from quality_gates import quality_check  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "src/quality_gates"
@@ -130,7 +130,7 @@ class ComponentManifest(unittest.TestCase):
 
     def test_a_component_names_cc_check_only_for_languages_cc_check_counts(self):
         for component, _ in (pair for pair in parts("command") if pair[1].id == "cc-check"):
-            self.assertLessEqual(set(component.languages), set(CC_CHECK_LANGUAGES), component.id)
+            self.assertLessEqual(set(component.languages), set(quality_check.LANGUAGES), component.id)
 
     def test_the_comment_gate_names_only_the_languages_comment_debt_reads(self):
         for component, _ in (pair for pair in parts("command") if pair[1].id == "comment-debt"):

@@ -20,7 +20,7 @@ ASKING_LINE = (
     "would notice, and a recommendation with its reason (`standards` skill, *ask the builder*)."
 )
 GIT_ROOT = ("git", "rev-parse", "--show-toplevel")
-TRACKED_PYTHON = ("git", "ls-files", "*.py")
+TRACKED_FILES = ("git", "ls-files")
 SKIPPED_FOLDERS = (
     ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
     ".tox", ".mypy_cache", ".pytest_cache", ".worktrees", ".claude/worktrees",
@@ -156,9 +156,9 @@ def root_of_skills_folder(dest):
     return dest.resolve().parent.parent
 
 
-def tracked_python_files(root, excluded=()):
+def tracked_files(root, suffixes, excluded=()):
     listing = subprocess.run(
-        list(TRACKED_PYTHON),
+        [*TRACKED_FILES, *(f"*{suffix}" for suffix in suffixes)],
         cwd=root, check=True, capture_output=True, text=True,
     ).stdout.splitlines()
     return [p for p in listing if not p.startswith(tuple(excluded))]

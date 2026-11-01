@@ -119,6 +119,19 @@ class MalformedManifest(unittest.TestCase):
         message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0].update(languages="python")))
         self.assertEqual(message, "components.json: component 'risk': field 'languages' must be a list")
 
+    def test_a_component_language_the_registry_does_not_know_fails_naming_the_language(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0].update(languages=["python", "cobol"])))
+        self.assertEqual(message, "components.json: component 'risk': unknown language 'cobol'")
+
+    def test_a_part_language_the_registry_does_not_know_fails_naming_the_part(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["parts"][1].update(languages=["cobol"])))
+        self.assertEqual(message, "components.json: component 'risk', part 'crap-python': unknown language 'cobol'")
+
+    def test_every_registered_language_is_accepted_including_rust_and_shell(self):
+        loaded = manifest.components_from(changed(COMPONENTS, lambda d: d["components"][0].update(
+            languages=["python", "swift", "typescript", "rust", "shell"])))
+        self.assertEqual(loaded.components[0].languages, ("python", "swift", "typescript", "rust", "shell"))
+
     def test_a_description_that_is_not_one_line_ending_in_a_full_stop_fails(self):
         for description in ("Flags tangled code", "Flags tangled.\nUntested code."):
             message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0].update(description=description)))

@@ -326,6 +326,23 @@ class Status(unittest.TestCase):
         report = self.report({"format_version": 1, "components": components})
         self.assertEqual([c["status"] for c in report["components"]], ["missing", "missing", "missing"])
 
+    def test_rust_and_shell_source_files_do_not_make_a_project_use_a_language(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("src/main.rs", "run.sh", "build.bash", "env.zsh"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(status.used_languages(self.repo), set())
+
+    def test_a_cargo_manifest_makes_a_project_use_rust(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "Cargo.toml", "[package]\n")
+        self.assertEqual(status.used_languages(self.repo), {"rust"})
+
+    def test_a_project_with_source_in_every_detected_language_uses_exactly_those(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("app.py", "App.swift", "app.ts", "Cargo.toml", "main.rs", "run.sh"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(status.used_languages(self.repo), {"python", "swift", "typescript", "rust"})
+
     def test_a_language_component_is_applicable_to_a_project_with_typescript_files(self):
         (self.repo / "pyproject.toml").unlink()
         manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["typescript"])]}

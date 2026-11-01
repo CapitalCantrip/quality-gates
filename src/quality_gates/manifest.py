@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Mapping, Optional, Tuple
 
+from quality_gates import languages as registry
+
 PACKAGE = Path(__file__).parent
 COMPONENTS_PATH = PACKAGE / "components.json"
 UPSTREAM_PATH = PACKAGE / "upstream.json"
@@ -117,6 +119,14 @@ def labelled(data, noun, number):
     return f"{noun} {number}"
 
 
+def known_languages(values, where):
+    return tuple(known(value, registry.LANGUAGES, "language", where) for value in values)
+
+
+def optional_languages(value, where):
+    return None if value is None else known_languages(value, where)
+
+
 def optional_tuple(value):
     return None if value is None else tuple(value)
 
@@ -131,7 +141,7 @@ def part_from(data, where):
     require(data, PART_REQUIRED, where)
     origin = data.get("origin")
     return Part(known(data["kind"], PART_KINDS, "part kind", where), data["id"],
-                None if origin is None else origin_from(origin, where), optional_tuple(data.get("languages")),
+                None if origin is None else origin_from(origin, where), optional_languages(data.get("languages"), where),
                 data.get("marker"), data.get("found_in"), data.get("file"))
 
 
@@ -146,7 +156,7 @@ def check_component_fields(data, where):
 def component_from(data, where):
     check_component_fields(data, where)
     found = enumerate(data["parts"], 1)
-    component = Component(data["id"], data["name"], data["description"], data["core"], tuple(data["languages"]),
+    component = Component(data["id"], data["name"], data["description"], data["core"], known_languages(data["languages"], where),
                           origin_from(data["origin"], where),
                           tuple(part_from(p, f"{where}, {labelled(p, 'part', n)}") for n, p in found))
     unique(((p.kind, p.id) for p in component.parts), where, lambda key: f"part {key[0]} '{key[1]}'")
