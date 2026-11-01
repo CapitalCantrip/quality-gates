@@ -1,13 +1,12 @@
 import argparse
 import difflib
-import json
 import os
 import sys
 import urllib.error
 import urllib.request
-from pathlib import Path
 
-RECORD = Path(__file__).parent / "upstream.json"
+from quality_gates.manifest import UPSTREAM_PATH, load_sources
+
 RAW = "https://raw.githubusercontent.com/{repo}/{ref}/{path}"
 HEAD = "https://api.github.com/repos/{repo}/commits/HEAD"
 NOT_FOUND = 404
@@ -63,29 +62,29 @@ def file_change(repo, path, old_ref, new_ref, fetch):
 
 
 def source_changes(source, fetch):
-    head = head_commit(source["repo"], fetch)
-    if head == source["commit"]:
+    head = head_commit(source.repo, fetch)
+    if head == source.commit:
         return head, []
     changes = []
-    for path, local in source["files"].items():
-        change = file_change(source["repo"], path, source["commit"], head, fetch)
+    for path, local in source.files.items():
+        change = file_change(source.repo, path, source.commit, head, fetch)
         if change:
             changes.append((path, local, change))
     return head, changes
 
 
 def section(source, head, changes):
-    repo, old = source["repo"], source["commit"][:SHORT_SHA]
+    repo, old = source.repo, source.commit[:SHORT_SHA]
     lines = [f"## {repo}: {len(changes)} watched file(s) changed, {old} → {head[:SHORT_SHA]}", ""]
-    lines.append(f"Our copy is {source['copied']}.")
+    lines.append(f"Our copy is {source.copied}.")
     for path, local, change in changes:
         lines += ["", f"### `{path}` → `{local}`", "", "```diff", change.rstrip("\n"), "```"]
     return "\n".join(lines)
 
 
-def report(record, fetch):
+def report(sources, fetch):
     sections = []
-    for source in record["sources"]:
+    for source in sources:
         head, changes = source_changes(source, fetch)
         if changes:
             sections.append(section(source, head, changes))
@@ -101,11 +100,11 @@ def build_parser():
     )
 
 
-def main(argv=None, record_path=RECORD, fetch=github_fetch):
+def main(argv=None, record_path=UPSTREAM_PATH, fetch=github_fetch):
     build_parser().parse_args(argv)
-    record = json.loads(Path(record_path).read_text(encoding="utf-8"))
+    sources = load_sources(record_path)
     try:
-        sections = report(record, fetch)
+        sections = report(sources, fetch)
     except FetchError as error:
         print(f"qg-upstream: {error}", file=sys.stderr)
         sys.exit(2)

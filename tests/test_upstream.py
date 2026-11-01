@@ -8,7 +8,7 @@ import urllib.error
 from pathlib import Path
 from unittest import mock
 
-from quality_gates import upstream
+from quality_gates import manifest, upstream
 
 OLD, NEW = "a" * 40, "b" * 40
 
@@ -30,7 +30,7 @@ class FakeGitHub:
 
 class Upstream(unittest.TestCase):
     def setUp(self):
-        self.record = Path(tempfile.mkdtemp()) / "upstream.json"
+        self.record = Path(tempfile.mkdtemp()) / "record.json"
         self.record.write_text(json.dumps({"sources": [{
             "repo": "someone/skills", "commit": OLD, "copied": "verbatim",
             "files": {"skills/domain.md": "src/domain.md", "skills/labels.md": "src/labels.md"},
@@ -75,9 +75,8 @@ class Upstream(unittest.TestCase):
 
     def test_the_shipped_record_names_only_files_that_exist_here(self):
         repo = Path(__file__).resolve().parents[1]
-        record = json.loads(upstream.RECORD.read_text())
-        for source in record["sources"]:
-            for local in source["files"].values():
+        for source in manifest.load_sources():
+            for local in source.files.values():
                 self.assertTrue((repo / local).is_file(), local)
 
 
