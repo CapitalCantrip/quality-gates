@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import manifest as manifests, skills_sync, status
+from quality_gates import languages, manifest as manifests, skills_sync, status
 
 OURS = {"type": "ours"}
 POCOCK = {"type": "upstream", "name": "mattpocock/skills"}
@@ -336,6 +336,14 @@ class Status(unittest.TestCase):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "Cargo.toml", "[package]\n")
         self.assertEqual(status.used_languages(self.repo), {"rust"})
+
+    def test_every_marker_the_registry_lists_makes_a_project_use_its_language(self):
+        (self.repo / "pyproject.toml").unlink()
+        for language in languages.REGISTERED:
+            for marker in language.markers:
+                with self.subTest(marker), tempfile.TemporaryDirectory() as folder:
+                    (Path(folder) / marker).write_text("x")
+                    self.assertEqual(status.used_languages(Path(folder)), {language.name})
 
     def test_a_project_with_source_in_every_detected_language_uses_exactly_those(self):
         (self.repo / "pyproject.toml").unlink()
