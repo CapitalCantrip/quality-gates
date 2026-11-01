@@ -306,6 +306,16 @@ class GitScopeTest(InTempDir):
         self.assertEqual(sorted(fn.file for fn in complexity_scan.scan(["."], "python").functions),
                          ["src/mod.py", "tests/fixtures/sample.py"])
 
+    def test_an_exclude_entry_names_a_whole_folder_or_file_and_never_a_longer_name_that_starts_with_it(self):
+        for name in ("build/x.py", "buildscripts/deploy.py", "build_utils.py", "gen.py", "gen_tools.py"):
+            self.write(name)
+        choice = project_files.Choice(languages=("python",), exclude=("build", "gen.py"))
+        project_files.write_kept(Path.cwd(), project_files.CHOICE_FILE, project_files.choice_text(choice))
+        self.assertEqual(sorted(fn.file for fn in complexity_scan.scan(["."], "python").functions),
+                         ["build_utils.py", "buildscripts/deploy.py", "gen_tools.py"])
+        self.assertEqual(project_files.detected_languages(Path.cwd())["python"],
+                         ["build_utils.py", "buildscripts/deploy.py", "gen_tools.py"])
+
     def test_lizard_reads_the_same_files_git_would_commit(self):
         self.write(".gitignore", "node_modules/\n")
         self.write("node_modules/dep/x.ts", "function x(a) { return a ? 1 : 2; }\n")

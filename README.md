@@ -267,10 +267,13 @@ exception: its branches count in the function that holds it, and its untested
 lines do not lower that function's coverage (#53). Both look only at the
 [files in scope](src/quality_gates/skills/crap/references/files-in-scope.md): the files git would commit, so the
 project's own `.gitignore` leaves out generated and installed folders, less the
-`exclude` prefixes in `quality-gates.json` (test fixtures by default). Each file
+`exclude` entries in `quality-gates.json` (test fixtures by default). Each file
 is scored once, and a symlinked folder is scanned once, by the
-[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). Outside a git repo, both stop with
-exit 2 and say so. They also stop with exit 2 when `quality-gates.json` is
+[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). The git repo is the one that
+holds the first path given, so `crap --lang python ~/other-repo/src` follows
+that repo's `.gitignore` and choice file wherever it runs; a path in no repo
+falls back to the repo the command runs in. Outside any git repo, both stop
+with exit 2 and say so. They also stop with exit 2 when `quality-gates.json` is
 malformed, with one line naming the problem, such as `cc-check`'s
 `ERROR: quality-gates.json: missing field 'languages'`.
 
@@ -519,12 +522,17 @@ line, like any other tool error.
 - `languages`: the project's languages, each a name the language registry
   knows: `python`, `typescript`, `swift`, `rust` or `shell`. Setup proposes
   them from the files git would commit: test folders count, and only the
-  `exclude` prefixes, fixture folders by default, are left out (ADR-007
+  `exclude` entries, fixture folders by default, are left out (ADR-007
   addendum 2026-11-01). It replaces
   detection as the source of truth; `qg status` warns about code in a language
   the list leaves out. A language may be listed before it has code.
-- `exclude`: path prefixes from the repo root that detection and the gates
-  leave out, on top of what `.gitignore` ignores. Setup writes the default
+- `exclude`: folders and files, each by its path from the repo root, that
+  detection and the gates leave out, on top of what `.gitignore` ignores.
+  Entries match whole segments, by the
+  [files in scope](src/quality_gates/skills/crap/references/files-in-scope.md)
+  rule: `vendor` covers `vendor/` and nothing called `vendored`. Root marker
+  files such as `package.json` count only when they are in scope, so an
+  excluded or ignored one adds no language. Setup writes the default
   fixture folders here (every outermost `fixtures`, `fixture`, `__fixtures__`
   or `testdata` folder).
 - `components`: `chosen` and `declined`, each a list of component ids from
@@ -621,10 +629,15 @@ line, like any other tool error.
   its description, its cost (commit delay, CI time, outside tools) and a tick
   on the recommended set, and lists the files it would change. It writes
   nothing until `--go`, and then only `quality-gates.json`. Without a choice
-  file it ticks what is installed, or every component that applies when
-  nothing is. A component the file does not list is offered, ticked. Change the
+  file it records what is installed as chosen. Every other component that
+  applies, and any component the file does not list, is *offered*: ticked as
+  recommended, and recorded only when `--choose` or `--decline` names it. A
+  choice or decline already recorded is kept while its component does not
+  apply, which shows as *not applicable*, and `--choose` and `--decline` work
+  on such a component. Change the
   proposal with `--add-language`, `--remove-language`, `--choose` and
-  `--decline`, each repeatable. It refuses, with exit 1 and nothing written,
+  `--decline`, each repeatable. One component given to both `--choose` and
+  `--decline` exits 3 with the line a choice file listing it in both gives. It refuses, with exit 1 and nothing written,
   to switch off the core or a gate the project has, or to remove a language
   that still has code: both wait on recorded reasons (#115). A language name
   quality-gates does not know exits 3 with the same line a choice file
@@ -632,7 +645,8 @@ line, like any other tool error.
   'Python'; quality-gates knows python, rust, shell, swift, typescript`. It copies the
   `--exclude` prefixes of the `comment-debt` lines in `.githooks/pre-commit`
   and the CI workflows into `settings` › `no-comments` › `exclude`, and leaves
-  the flags in place. Run again, it changes nothing. `--json` prints the
+  the flags in place. Run again, it changes nothing, and `--go` says the file
+  is up to date. `--json` prints the
   proposal for an agent.
 
 - `qg-skills` copies from the installed package, not from GitHub, so the

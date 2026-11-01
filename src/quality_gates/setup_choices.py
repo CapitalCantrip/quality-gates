@@ -19,6 +19,9 @@ STEP_COSTS = (("precommit_step", "commit delay"), ("ci_step", "CI time"))
 OUTSIDE_TOOLS = "outside tools: "
 NO_COST = "none"
 LOOSENING_ISSUE = "#115"
+BOTH_FLAGS = "--choose and --decline"
+UP_TO_DATE = f"{project_files.CHOICE_FILE} is up to date."
+RUN_GO = "Run `qg setup --go` to record these choices."
 
 
 class Refused(Exception):
@@ -81,11 +84,7 @@ def previous_choice(component, choice, installed):
     return RECORDED_CHOICES[choice.recorded(component.id)]
 
 
-def component_choice(component, used, choice, installed, flags):
-    if component.core:
-        return CORE
-    if not component.applies_to(used):
-        return NOT_APPLICABLE
+def made_choice(component, choice, installed, flags):
     if component.id in flags.decline:
         return DECLINED
     if component.id in flags.choose:
@@ -93,13 +92,19 @@ def component_choice(component, used, choice, installed, flags):
     return previous_choice(component, choice, installed)
 
 
-def recorded_choice(root, choice, used, components):
+def shown_choice(component, used, made):
+    if component.core:
+        return CORE
+    return made if component.applies_to(used) else NOT_APPLICABLE
+
+
+def recorded_choice(root, choice, used, made, scope):
     comment_gate_exclude = set(choice.comment_gate_exclude if choice else ()) | project_files.comment_gate_exclusions(root)
     return project_files.Choice(
         languages=used,
-        chosen=tuple(sorted(c["id"] for c in components if c["choice"] in (CHOSEN, OFFERED))),
-        declined=tuple(sorted(c["id"] for c in components if c["choice"] == DECLINED)),
-        exclude=project_files.scope_of(root).excluded,
+        chosen=tuple(sorted(name for name, kind in made.items() if kind == CHOSEN)),
+        declined=tuple(sorted(name for name, kind in made.items() if kind == DECLINED)),
+        exclude=scope.excluded,
         commit_time_limit_seconds=choice.commit_time_limit_seconds if choice else project_files.DEFAULT_COMMIT_TIME_LIMIT_SECONDS,
         comment_gate_exclude=tuple(sorted(comment_gate_exclude)),
         conventions=choice.conventions if choice else (),
@@ -114,14 +119,17 @@ def component_row(component, made):
 def propose(project, manifest, flags):
     root = project.root
     choice = project_files.read_choice(root)
-    detected = project_files.detected_languages(root)
+    scope = project_files.scope_of(root, choice.exclude if choice else None)
+    detected = project_files.detected_languages(root, scope)
     used = proposed_languages(choice, detected, flags.add_language, flags.remove_language)
     check_component_names(manifest, flags.choose + flags.decline)
+    project_files.check_not_both(flags.choose, flags.decline, BOTH_FLAGS)
     installed = status.components_present(project, manifest, set(used))
     check_declines(manifest, flags.decline, installed | set(choice.chosen if choice else ()))
-    rows = tuple(component_row(c, component_choice(c, set(used), choice, installed, flags)) for c in manifest.components)
+    made = {c.id: made_choice(c, choice, installed, flags) for c in manifest.components if not c.core}
+    rows = tuple(component_row(c, shown_choice(c, set(used), made.get(c.id))) for c in manifest.components)
     by_hand = tuple(name for name in used if name not in detected)
-    return Proposal(used, by_hand, rows, recorded_choice(root, choice, used, rows))
+    return Proposal(used, by_hand, rows, recorded_choice(root, choice, used, made, scope))
 
 
 def names_with(proposal, *made):
@@ -158,14 +166,20 @@ def your_components(proposal):
             + listed("Languages added by hand", list(proposal.added_by_hand)))
 
 
-def render(proposal, planned, written):
+def closing_line(written, went):
+    if written:
+        return "Recorded: " + ", ".join(written)
+    return UP_TO_DATE if went else RUN_GO
+
+
+def render(proposal, planned, written, went):
     lines = ["Languages: " + (", ".join(proposal.languages) or "none"), "", "Components"]
     lines += [line for row in proposal.components for line in row_lines(row)]
     lines += ["", "Excluded from detection and the gates: " + (", ".join(proposal.choice.exclude) or "nothing")]
     lines += ["Comment gate exclusions: " + (", ".join(proposal.choice.comment_gate_exclude) or "none")]
     lines += your_components(proposal)
     lines += ["", "Planned changes"] + [f"  {change.name}: {state}" for change, state in planned]
-    lines += ["", "Recorded: " + ", ".join(written) if written else "Run `qg setup --go` to record these choices."]
+    lines += ["", closing_line(written, went)]
     return "\n".join(lines)
 
 
@@ -191,7 +205,7 @@ def run(args, project, manifest):
     changes = [project_files.choice_change(proposal.choice)]
     planned = [(change, project_files.planned_state(project.root, change)) for change in changes]
     written = project_files.apply_planned(project.root, changes) if args.go else []
-    print(json.dumps(report_of(proposal, planned), indent=2) if args.json else render(proposal, planned, written))
+    print(json.dumps(report_of(proposal, planned), indent=2) if args.json else render(proposal, planned, written, args.go))
     return 0
 
 

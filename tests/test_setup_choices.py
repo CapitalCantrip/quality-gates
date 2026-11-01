@@ -6,6 +6,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
@@ -29,6 +30,8 @@ RUST = {"id": "rust-lint", "name": "Rust lint", "description": "Lints Rust.", "c
         "origin": OURS, "parts": [{"kind": "skill", "id": "cc-rust"}]}
 FRESH = {"id": "fresh", "name": "Fresh gate", "description": "A gate a later release adds.", "core": False,
          "languages": ["python"], "origin": OURS, "parts": [{"kind": "skill", "id": "fresh-skill"}]}
+ABSENT = {"id": "absent", "name": "Absent", "description": "A component nothing installed.", "core": False,
+          "languages": [], "origin": OURS, "parts": [{"kind": "baseline", "id": "absent-baseline.json"}]}
 
 
 def manifest_of(*components):
@@ -157,12 +160,52 @@ class Setup(unittest.TestCase):
         self.assertEqual(self.choice_of(self.proposal(manifest=with_fresh), "fresh"), "offered, declined")
         self.assertEqual(self.status_of("fresh", with_fresh), "offered, declined")
 
-    def test_an_accepted_offer_is_recorded_as_chosen(self):
+    def test_an_offer_is_recorded_as_chosen_only_when_it_is_chosen(self):
         self.set_up_at_v0_12_0()
         self.run_setup("--go")
         with_fresh = manifest_of(CORE, RISK, HELPERS, RUST, FRESH)
         self.run_setup("--go", manifest=with_fresh)
+        self.assertNotIn("fresh", self.recorded().chosen)
+        self.run_setup("--choose", "fresh", "--go", manifest=with_fresh)
         self.assertIn("fresh", self.recorded().chosen)
+
+    def test_without_a_choice_file_go_records_only_what_is_installed_and_leaves_the_rest_offered(self):
+        self.set_up_at_v0_12_0()
+        with_absent = manifest_of(CORE, RISK, HELPERS, RUST, ABSENT)
+        self.assertEqual(self.choice_of(self.proposal(manifest=with_absent), "absent"), "offered")
+        self.run_setup("--go", manifest=with_absent)
+        self.assertEqual((self.recorded().chosen, self.recorded().declined), (("helpers", "risk"), ()))
+        self.assertEqual(self.choice_of(self.proposal(manifest=with_absent), "absent"), "offered")
+
+    def test_a_recorded_choice_survives_while_its_component_does_not_apply(self):
+        self.set_up_at_v0_12_0()
+        self.run_setup("--add-language", "rust", "--choose", "rust-lint", "--go")
+        self.run_setup("--remove-language", "rust", "--go")
+        self.assertEqual(self.choice_of(self.proposal(), "rust-lint"), "not applicable")
+        self.assertIn("rust-lint", self.recorded().chosen)
+        self.assertEqual(self.status_of("rust-lint"), "not applicable")
+
+    def test_a_component_that_does_not_apply_can_be_declined_and_the_decline_is_kept(self):
+        self.set_up_at_v0_12_0()
+        code, _, err = self.run_setup("--decline", "rust-lint", "--go")
+        self.assertEqual(code, 0, err)
+        self.run_setup("--go")
+        self.assertEqual(self.recorded().declined, ("rust-lint",))
+        self.assertEqual(self.choice_of(self.proposal(), "rust-lint"), "not applicable")
+
+    def test_one_component_given_to_both_choose_and_decline_exits_3_with_the_line_a_choice_file_would_give(self):
+        self.set_up_at_v0_12_0()
+        code, _, err = self.run_setup("--choose", "helpers", "--decline", "helpers", "--go")
+        self.assertEqual(code, 3)
+        self.assertEqual(err, "qg setup: --choose and --decline: component 'helpers' is both chosen and declined\n")
+        self.assertIsNone(self.recorded())
+
+    def test_go_with_nothing_to_change_says_the_file_is_up_to_date(self):
+        self.set_up_at_v0_12_0()
+        self.run_setup("--go")
+        _, out, _ = self.run_setup("--go")
+        self.assertIn("quality-gates.json is up to date.", out)
+        self.assertNotIn("Run `qg setup --go`", out)
 
     def test_switching_off_a_gate_the_project_has_is_refused(self):
         self.set_up_at_v0_12_0()
@@ -229,6 +272,15 @@ class Setup(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("nothing-like-it", err)
 
+    def test_a_marker_file_the_choice_file_excludes_or_git_ignores_adds_no_language(self):
+        self.set_up_at_v0_12_0()
+        self.write(self.repo / "package.json", "{}")
+        self.write(self.repo / "Cargo.toml", "")
+        self.write(self.repo / ".gitignore", "Cargo.toml\n")
+        choice = project_files.Choice(languages=("python",), chosen=("risk",), exclude=("package.json",))
+        project_files.write_kept(self.repo, project_files.CHOICE_FILE, project_files.choice_text(choice))
+        self.assertEqual(self.proposal()["languages"], ["python"])
+
     def test_code_in_a_language_the_file_does_not_record_is_proposed_for_adding(self):
         self.set_up_at_v0_12_0()
         self.run_setup("--go")
@@ -250,6 +302,14 @@ class Setup(unittest.TestCase):
                    "steps:\n  - run: comment-debt --exclude=vendor/ --exclude 'docs/old/'\n  - run: other --exclude x/\n")
         self.run_setup("--go")
         self.assertEqual(self.recorded().comment_gate_exclude, ("docs/old/", "vendor/"))
+
+    def test_one_setup_run_asks_git_for_the_files_in_scope_once_and_reads_the_choice_file_once(self):
+        self.set_up_at_v0_12_0()
+        self.run_setup("--go")
+        with patch.object(project_files, "committable_files", wraps=project_files.committable_files) as listing, \
+                patch.object(project_files, "choice_from", wraps=project_files.choice_from) as reading:
+            self.run_setup("--go")
+        self.assertEqual((listing.call_count, reading.call_count), (1, 1))
 
     def test_the_table_shows_each_components_description_and_cost(self):
         self.set_up_at_v0_12_0()

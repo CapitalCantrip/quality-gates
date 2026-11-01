@@ -78,14 +78,16 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    fixture folders left out (shell
    counts by suffix or by a shell first line such as `#!/bin/sh`), and one
    row per component: its description, its cost (commit delay, CI time,
-   outside tools) and a tick on the recommended set. A component the choice
-   file `quality-gates.json` does not list yet is **offered**, ticked. On a
-   project set up before the choice file existed, what is installed is
-   ticked, so "go" changes nothing else.
+   outside tools) and a tick on the recommended set. What is installed is
+   **chosen**. Any other component that applies, or that the choice file
+   `quality-gates.json` does not list yet, is **offered**, ticked: it is
+   recorded only when `--choose` or `--decline` names it.
 3. Show the builder that table as it stands, and ask them to say "go" or name
    changes. Under the table, end with one line: *Ask me about any row, or run
    `qg explain <name>`.*
-4. Turn each change into a flag on `qg setup`: `--add-language <name>` (a
+4. "Go" accepts every ticked row: add `--choose <id>` for each **offered** row
+   the builder did not turn down. Turn each change into a flag on `qg setup`:
+   `--add-language <name>` (a
    language may be added before it has code), `--remove-language <name>`,
    `--choose <id>`, `--decline <id>`. When it refuses (the core, a gate the
    project has, or a language that still has code), tell the builder plainly:

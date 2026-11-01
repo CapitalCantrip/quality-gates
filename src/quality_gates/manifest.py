@@ -32,7 +32,8 @@ OSI_LICENCES = UPSTREAM_LICENCES | frozenset({
     "Python-2.0", "Unlicense", "Zlib",
 })
 ADMISSION_REQUIRED = ("name", "kind", "licence", "practice")
-ADMISSION_FIELDS = ADMISSION_REQUIRED + ("last_release", "stable", "minimum_version", "tested_version")
+VERSION_FIELDS = ("minimum_version", "tested_version")
+ADMISSION_FIELDS = ADMISSION_REQUIRED + ("last_release", "stable") + VERSION_FIELDS
 ONE_SENTENCE = r"^[^\n]+\.$"
 VERSION_FLOOR = ">="
 MARKDOWN_SUFFIX = ".md"
@@ -258,6 +259,8 @@ def check_upkeep(data, where):
 def check_versions(data, where):
     fail_unless((data.get("minimum_version") is None) == (data.get("tested_version") is None),
                 f"{where}: give 'minimum_version' and 'tested_version' together")
+    for field in VERSION_FIELDS:
+        fail_unless(data.get(field) is None or isinstance(data[field], str), f"{where}: field '{field}' must be text")
 
 
 def admission_from(data, where):

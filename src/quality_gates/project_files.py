@@ -312,7 +312,7 @@ def _first_visit(identity: tuple, seen: set) -> bool:
 class Scope:
     root: str
     listed: frozenset
-    folders: frozenset
+    walkable: frozenset
     excluded: tuple = ()
 
     def location(self, here, name):
@@ -325,14 +325,14 @@ class Scope:
 
     def keeps_folder(self, here, name):
         location = self.location(here, name)
-        return self.keeps(location, self.folders | self.listed) and not excluded_by(location + "/", self.excluded)
+        return self.keeps(location, self.walkable)
 
     def keeps_file(self, here, name):
         return self.keeps(self.location(here, name), self.listed)
 
     def given(self, path):
         location = os.path.relpath(os.path.realpath(path), self.root)
-        kept = tuple(prefix for prefix in self.excluded if not excluded_by(location + "/", (prefix,)))
+        kept = tuple(entry for entry in self.excluded if not covers(entry, location))
         return replace(self, excluded=kept)
 
 
@@ -340,8 +340,13 @@ def is_outside(location):
     return location == os.pardir or location.startswith(os.pardir + os.sep)
 
 
-def excluded_by(location, prefixes):
-    return any(location.startswith(prefix) for prefix in prefixes)
+def covers(entry, location):
+    named = entry.rstrip("/")
+    return location == named or location.startswith(named + "/")
+
+
+def excluded_by(location, entries):
+    return any(covers(entry, location) for entry in entries)
 
 
 def parent_folders(names):
@@ -371,7 +376,7 @@ def scope_exclusions(root, listed):
 def scope_of(root, excluded=None):
     listed = committable_files(root)
     excluded = scope_exclusions(root, listed) if excluded is None else tuple(excluded)
-    return Scope(os.path.realpath(root), listed, parent_folders(listed), excluded)
+    return Scope(os.path.realpath(root), listed, listed | parent_folders(listed), excluded)
 
 
 def first_line(path):
@@ -391,19 +396,19 @@ def language_of_listed(root, name):
     return languages.language_of_first_line(first_line(Path(root) / name))
 
 
-def marker_files(root):
+def marker_files(root, scope):
     return [(language.name, marker) for language in languages.REGISTERED for marker in language.markers
-            if (Path(root) / marker).exists()]
+            if marker in scope.listed and not excluded_by(marker, scope.excluded) and (Path(root) / marker).exists()]
 
 
-def detected_languages(root, excluded=None):
-    scope = scope_of(root, excluded)
+def detected_languages(root, scope=None):
+    scope = scope_of(root) if scope is None else scope
     found = {}
     for name in sorted(scope.listed):
         language = None if excluded_by(name, scope.excluded + KEPT_BY_QUALITY_GATES) else language_of_listed(root, name)
         if language and os.path.lexists(Path(root) / name):
             found.setdefault(language, set()).add(name)
-    for language, marker in marker_files(root):
+    for language, marker in marker_files(root, scope):
         found.setdefault(language, set()).add(marker)
     return {language: sorted(names) for language, names in found.items()}
 
@@ -444,12 +449,20 @@ def once_each(files):
     return kept
 
 
+def root_of_scanned(path):
+    try:
+        return git_root(start=path if path.is_dir() else path.parent)
+    except ToolError:
+        return git_root()
+
+
 def files_in_scope(paths: list, root=None) -> tuple:
-    scope = scope_of(git_root() if root is None else root)
-    files, skipped, seen = [], set(), set()
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
+    scope = scope_of(root_of_scanned(Path(paths[0])) if root is None else root)
+    files, skipped, seen = [], set(), set()
+    for path in paths:
         found, folders = _walk(Path(path), seen, scope.given(path))
         files.extend(found)
         skipped.update(folders)
@@ -526,11 +539,15 @@ def check_limit(value, where):
     return value
 
 
+def check_not_both(chosen, declined, where):
+    for both in sorted(set(chosen) & set(declined)):
+        raise BrokenFileError(f"{where}: component '{both}' is both chosen and declined")
+
+
 def components_of(data, where):
     require(data, COMPONENTS_REQUIRED, f"{where}: components")
     chosen, declined = text_list(data, "chosen", where), text_list(data, "declined", where)
-    for both in set(chosen) & set(declined):
-        raise BrokenFileError(f"{where}: component '{both}' is both chosen and declined")
+    check_not_both(chosen, declined, where)
     return chosen, declined
 
 
