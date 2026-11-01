@@ -42,6 +42,11 @@
   (component, description, cost) and writes the file on `--go`, and nothing
   else. It refuses to switch off the core or a gate the project has, or to
   remove a language that still has code, until recorded reasons ship (#115).
+  Without a choice file, `--go` records only what is installed as chosen;
+  anything else that applies is offered, and an offer is recorded only when
+  `--choose` or `--decline` names it. A recorded choice or decline is kept
+  while its component does not apply. One id given to both `--choose` and
+  `--decline` exits 3.
   It copies `--exclude` prefixes from the `comment-debt` lines of the hook and
   CI into the file and leaves the flags. A language name it does not know,
   given to `--add-language` or `--remove-language` or written in the file,

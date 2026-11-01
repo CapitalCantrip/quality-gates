@@ -526,11 +526,15 @@ def check_limit(value, where):
     return value
 
 
+def check_not_both(chosen, declined, where):
+    for both in sorted(set(chosen) & set(declined)):
+        raise BrokenFileError(f"{where}: component '{both}' is both chosen and declined")
+
+
 def components_of(data, where):
     require(data, COMPONENTS_REQUIRED, f"{where}: components")
     chosen, declined = text_list(data, "chosen", where), text_list(data, "declined", where)
-    for both in set(chosen) & set(declined):
-        raise BrokenFileError(f"{where}: component '{both}' is both chosen and declined")
+    check_not_both(chosen, declined, where)
     return chosen, declined
 
 
