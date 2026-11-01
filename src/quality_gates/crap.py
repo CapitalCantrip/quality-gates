@@ -5,11 +5,13 @@ import sys
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import TYPE_CHECKING, Callable, Optional
 
-from quality_gates import complexity_scan, project_files, ratchet
+from quality_gates import complexity_scan, coverage_json, istanbul, languages, llvm_cov, project_files, ratchet, xccov
 from quality_gates.errors import ToolError, given_path, run_gate
-from quality_gates.languages import COVERAGE_FORMATS, LANGUAGES, CoverageFormat, CoverageOf, Language
+
+if TYPE_CHECKING:
+    from quality_gates.complexity_scan import Function
 
 FAIL_THRESHOLD = 8.0
 WARN_THRESHOLD = 5.0
@@ -24,9 +26,69 @@ USAGE_WIDTH = 79
 USAGE_INDENT = "  "
 LANGUAGE_NAME_WIDTH = 12
 
+CoverageOf = Callable[["Function"], Optional[float]]
 
-def _language_entry(name: str, language: Language) -> str:
-    detail = f"CC from {language.counter} ({language.suffix_text}), coverage from {language.coverage_from}"
+
+@dataclass(frozen=True)
+class CoverageFormat:
+    flag: str
+    source: str
+    help: str
+    read: Callable[[str], CoverageOf]
+
+    @property
+    def dest(self) -> str:
+        return self.flag.lstrip("-").replace("-", "_")
+
+
+@dataclass(frozen=True)
+class Scored:
+    coverage_from: str
+    coverage: tuple
+
+
+LANGUAGES = {
+    "python": Scored(
+        coverage_from="`coverage json`",
+        coverage=(CoverageFormat(
+            flag="--coverage-json",
+            source="coverage-json",
+            help="Python: output of `coverage json`",
+            read=coverage_json.read,
+        ),),
+    ),
+    "swift": Scored(
+        coverage_from="an Xcode .xcresult bundle via xcrun xccov, or the llvm-cov export JSON a SwiftPM package's tests write",
+        coverage=(CoverageFormat(
+            flag="--xcresult",
+            source="xcresult",
+            help="Swift: .xcresult bundle from xcodebuild",
+            read=xccov.read,
+        ), CoverageFormat(
+            flag="--llvm-cov-json",
+            source="llvm-cov-json",
+            help="Swift: llvm-cov export JSON from SwiftPM's `swift test --enable-code-coverage`"
+                 " (path from `swift test --show-codecov-path`), measured in this checkout",
+            read=llvm_cov.read,
+        )),
+    ),
+    "typescript": Scored(
+        coverage_from="Istanbul's coverage-final.json, written by Vitest and Jest",
+        coverage=(CoverageFormat(
+            flag="--istanbul-json",
+            source="istanbul-json",
+            help="TypeScript: Istanbul coverage-final.json from Vitest or Jest",
+            read=istanbul.read,
+        ),),
+    ),
+}
+
+COVERAGE_FORMATS = [coverage for scored in LANGUAGES.values() for coverage in scored.coverage]
+
+
+def _language_entry(name: str, scored: Scored) -> str:
+    counter = complexity_scan.COUNTERS[name].tool
+    detail = f"CC from {counter} ({languages.LANGUAGES[name].suffix_text}), coverage from {scored.coverage_from}"
     return textwrap.fill(
         detail,
         width=USAGE_WIDTH,
@@ -37,7 +99,7 @@ def _language_entry(name: str, language: Language) -> str:
 
 
 def _languages_usage() -> str:
-    entries = [_language_entry(name, language) for name, language in LANGUAGES.items()]
+    entries = [_language_entry(name, scored) for name, scored in LANGUAGES.items()]
     return "Languages:\n" + "\n".join(entries)
 
 
@@ -262,10 +324,10 @@ def build_parser() -> argparse.ArgumentParser:
 
 def _check_coverage_flag(args) -> None:
     own = " or ".join(coverage.flag for coverage in LANGUAGES[args.lang].coverage)
-    for lang, language in LANGUAGES.items():
-        for coverage in language.coverage:
+    for lang, scored in LANGUAGES.items():
+        for coverage in scored.coverage:
             if lang != args.lang and getattr(args, coverage.dest) is not None:
-                raise ToolError(f"{coverage.flag} is {language.scope}; use {own} for {args.lang}")
+                raise ToolError(f"{coverage.flag} is {languages.LANGUAGES[lang].label}-only; use {own} for {args.lang}")
 
 
 def _validate_args(args) -> None:

@@ -25,6 +25,8 @@ NAME_SEPARATOR = "."
 FUNCTION_NODES = (ast.FunctionDef, ast.AsyncFunctionDef)
 LIZARD_MISSING = "lizard is missing, though quality-gates depends on it.\n  Reinstall quality-gates in this environment."
 RADON_MISSING = "radon is not installed.\n  Install with: pip3 install radon"
+RADON = "radon"
+LIZARD = "lizard"
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,19 @@ class Function:
     start: int
     end: int
     unlabelled_name: str
+
+
+@dataclass(frozen=True)
+class Counter:
+    tool: str
+    lizard_languages: tuple = ()
+
+
+COUNTERS = {
+    "python": Counter(RADON),
+    "swift": Counter(LIZARD, ("swift",)),
+    "typescript": Counter(LIZARD, ("typescript", "tsx", "javascript", "jsx")),
+}
 
 
 @dataclass(frozen=True)
@@ -160,30 +175,30 @@ def with_labels(functions: list) -> list:
     return labelled
 
 
-def _count_with_radon(sources: list, language: languages.Language, runner) -> tuple:
+def _count_with_radon(sources: list, counter: Counter, runner) -> tuple:
     return with_labels(_python_functions(sources)), [str(f) for f in sources]
 
 
-def _count_with_lizard(sources: list, language: languages.Language, runner) -> tuple:
-    functions = with_labels(_lizard_functions(sources, language.lizard_languages, runner))
+def _count_with_lizard(sources: list, counter: Counter, runner) -> tuple:
+    functions = with_labels(_lizard_functions(sources, counter.lizard_languages, runner))
     return functions, sorted({fn.file for fn in functions})
 
 
 COUNTING_TOOLS = {
-    languages.RADON: _count_with_radon,
-    languages.LIZARD: _count_with_lizard,
+    RADON: _count_with_radon,
+    LIZARD: _count_with_lizard,
 }
 
 
 def find_sources(paths: list, lang: str) -> Sources:
     files, skipped = project_files.scanned_files(paths)
-    suffixes = languages.LANGUAGES[lang].suffixes
+    suffixes = languages.suffixes_of([lang])
     return Sources([f for f in files if f.suffix in suffixes], skipped)
 
 
 def count_functions(sources: Sources, lang: str, runner=None) -> Scan:
-    language = languages.LANGUAGES[lang]
-    functions, analysed = COUNTING_TOOLS[language.counter](sources.files, language, runner)
+    counter = COUNTERS[lang]
+    functions, analysed = COUNTING_TOOLS[counter.tool](sources.files, counter, runner)
     return Scan(functions, analysed, sources.skipped)
 
 

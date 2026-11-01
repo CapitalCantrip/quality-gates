@@ -7,7 +7,7 @@ import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
-from quality_gates import crap, languages, llvm_cov
+from quality_gates import crap, llvm_cov
 from quality_gates.complexity_scan import Function
 from quality_gates.errors import ToolError
 
@@ -23,7 +23,7 @@ BUILT_AT = "/build/Pkg/Sources/App/Main.swift"
 
 
 def llvm_cov_reader():
-    formats = {coverage.flag: coverage for coverage in languages.LANGUAGES["swift"].coverage}
+    formats = {coverage.flag: coverage for coverage in crap.LANGUAGES["swift"].coverage}
     return formats["--llvm-cov-json"].read
 
 

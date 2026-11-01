@@ -11,20 +11,21 @@ AGENT_CC_CEILING = 8
 ERROR_TAG = "ERROR: "
 DEFAULT_LANG = "python"
 
-
-def _cc_check_items():
-    return [(name, languages.LANGUAGES[name]) for name in languages.CC_CHECK_LANGUAGES]
+LANGUAGES = {
+    "python": "No Python files found.",
+    "typescript": "No TypeScript or JavaScript functions found.",
+}
 
 
 def _description() -> str:
-    labels = " and ".join(language.label for _, language in _cc_check_items())
+    labels = " and ".join(languages.LANGUAGES[name].label for name in LANGUAGES)
     return f"Cyclomatic complexity reporter for {labels} code"
 
 
 def _lang_help() -> str:
     counts = "; ".join(
-        f"{name} counts {language.suffix_text} with {language.counter}"
-        for name, language in _cc_check_items()
+        f"{name} counts {languages.LANGUAGES[name].suffix_text} with {complexity_scan.COUNTERS[name].tool}"
+        for name in LANGUAGES
     )
     return f"{counts} (default: {DEFAULT_LANG})"
 
@@ -32,7 +33,7 @@ def _lang_help() -> str:
 def build_parser():
     parser = argparse.ArgumentParser(description=_description())
     parser.add_argument(
-        "--lang", choices=languages.CC_CHECK_LANGUAGES, default=DEFAULT_LANG,
+        "--lang", choices=list(LANGUAGES), default=DEFAULT_LANG,
         help=_lang_help(),
     )
     parser.add_argument("paths", nargs="+", metavar="path", help="files or directories to analyse")
@@ -115,7 +116,7 @@ def gate(argv, root):
     found = complexity_scan.scan(args.paths, args.lang)
     if not found.files:
         complexity_scan.print_skipped(found.skipped, sys.stderr)
-        print(languages.LANGUAGES[args.lang].cc_check_nothing_found, file=sys.stderr)
+        print(LANGUAGES[args.lang], file=sys.stderr)
         return 2
     results = [to_result(fn, args.threshold) for fn in found.functions]
     code = report(results, found.files, args)

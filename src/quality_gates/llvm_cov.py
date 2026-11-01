@@ -7,7 +7,7 @@ from quality_gates.json_report import load_json
 from quality_gates.real_path import real_path
 
 if TYPE_CHECKING:
-    from quality_gates.languages import CoverageOf
+    from quality_gates.crap import CoverageOf
 
 EXPORT_TYPE = "llvm.coverage.json.export"
 REGION_FIELDS = 8

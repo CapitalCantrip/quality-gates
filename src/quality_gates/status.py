@@ -15,13 +15,8 @@ PARTLY = "partly installed"
 NOT_APPLICABLE = "not applicable"
 PROVIDED = "provided by quality-gates"
 
-PROJECT_MARKERS = {
-    "python": ("pyproject.toml", "setup.py"),
-    "swift": ("Package.swift",),
-    "rust": ("Cargo.toml",),
-    "typescript": ("package.json",),
-}
-XCODE_PROJECT_SUFFIX = ".xcodeproj"
+DETECTED_BY_MARKER = ("python", "swift", "rust", "typescript")
+DETECTED_BY_FILE = ("python", "swift", "typescript")
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
@@ -141,24 +136,21 @@ def roll_up(statuses):
 
 
 def marker_languages(root):
-    return {name for name, markers in PROJECT_MARKERS.items() if any((root / marker).exists() for marker in markers)}
+    return {name for name in DETECTED_BY_MARKER if any((root / marker).exists() for marker in languages.markers_of(name))}
 
 
 def used_languages(root):
-    suffixes = {suffix: name for name, language in languages.LANGUAGES.items() for suffix in language.suffixes}
     found = marker_languages(root)
     for directories, files in project_files.detection_walk(root):
-        if found >= set(languages.LANGUAGES):
+        if found >= set(DETECTED_BY_FILE):
             break
-        found |= project_suffix_languages(directories, files, suffixes)
+        found |= project_file_languages(directories, files)
     return found
 
 
-def project_suffix_languages(directories, files, suffixes):
-    found = {suffixes[Path(f).suffix] for f in files if Path(f).suffix in suffixes}
-    if any(d.endswith(XCODE_PROJECT_SUFFIX) for d in directories):
-        found.add("swift")
-    return found
+def project_file_languages(directories, files):
+    named = {languages.language_of_file(f) for f in files} | {languages.language_of_folder(d) for d in directories}
+    return named & set(DETECTED_BY_FILE)
 
 
 def applies(languages_wanted, used):

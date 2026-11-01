@@ -346,7 +346,7 @@ class FreshnessScopeTest(unittest.TestCase):
         def counted(*args):
             raise AssertionError("functions were counted")
 
-        with patch.dict(complexity_scan.COUNTING_TOOLS, {languages.RADON: counted}):
+        with patch.dict(complexity_scan.COUNTING_TOOLS, {complexity_scan.RADON: counted}):
             code, _, err = self.gate("--strict-freshness")
         self.assertEqual((code, "coverage file may be stale" in err), (2, True))
 
@@ -398,7 +398,7 @@ class EmptyCoverageFlagTest(unittest.TestCase):
     LANGUAGE_OF = {"--coverage-json": "python", "--xcresult": "swift", "--llvm-cov-json": "swift", "--istanbul-json": "typescript"}
 
     def test_every_coverage_flag_is_covered_by_these_tests(self):
-        self.assertEqual({coverage.flag for coverage in languages.COVERAGE_FORMATS}, set(self.LANGUAGE_OF))
+        self.assertEqual({coverage.flag for coverage in crap.COVERAGE_FORMATS}, set(self.LANGUAGE_OF))
 
     def test_an_empty_value_for_each_coverage_flag_is_a_tool_error_naming_the_flag(self):
         for flag, lang in self.LANGUAGE_OF.items():
@@ -554,16 +554,16 @@ class HelpTest(unittest.TestCase):
 
     def test_help_lists_every_suffix_of_every_language(self):
         flat = self.flat_help()
-        for language in languages.LANGUAGES.values():
+        for language in (languages.LANGUAGES[name] for name in crap.LANGUAGES):
             for suffix in language.suffixes:
                 with self.subTest(suffix):
                     self.assertRegex(flat, re.escape(suffix) + r"\b")
 
     def test_help_names_each_language_counter_with_the_suffixes_it_reads(self):
         flat = self.flat_help()
-        for language in languages.LANGUAGES.values():
+        for language in (languages.LANGUAGES[name] for name in crap.LANGUAGES):
             with self.subTest(language.label):
-                self.assertIn(f"CC from {language.counter} ({language.suffix_text})", flat)
+                self.assertIn(f"CC from {complexity_scan.COUNTERS[language.name].tool} ({language.suffix_text})", flat)
 
 
 if __name__ == "__main__":
