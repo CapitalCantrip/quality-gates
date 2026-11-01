@@ -1,5 +1,6 @@
 import contextlib
 import io
+import os
 import tempfile
 import unittest
 from pathlib import Path
@@ -35,6 +36,15 @@ class AgentDocs(unittest.TestCase):
         self.assertEqual((self.docs / "triage-labels.md").read_text(), "triage-labels.md v1\n")
         self.assertEqual((self.docs / "domain.md").read_text(), "domain.md v1\n")
         self.assertIn("docs/agents/issue-tracker.md: created", out)
+
+    def test_a_root_flag_works_from_a_working_folder_that_was_deleted(self):
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        gone = self.root / "gone"
+        gone.mkdir()
+        os.chdir(gone)
+        gone.rmdir()
+        self.assertIn("docs/agents/issue-tracker.md: created", self.run_tool())
 
     def test_a_local_tracker_gets_the_local_template_and_summary(self):
         self.run_tool("local")
