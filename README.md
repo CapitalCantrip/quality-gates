@@ -348,7 +348,7 @@ file-level record `qg-upstream` reads.
 
 - `format_version`: a whole number. A change to the shape below raises it and
   gets a CHANGELOG note; adding a component or a part does not. It is 2; version 2
-  added `admissions`.
+  added `admissions` and each component's optional `explainer`.
 - `admissions`: a list with one record per outside source ([ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md)),
   each with `name` (the repo or tool name, as a component's `origin` spells it),
   `kind` (`upstream`, `dependency` or `test-only`), `licence` (an SPDX id: an
@@ -383,6 +383,9 @@ file-level record `qg-upstream` reads.
   component's languages lists them in `languages`; in a project that uses none
   of them the part is *not applicable* and does not count toward the
   component's status.
+- `explainer`: optional. The path, relative to `components.json`, of the
+  component's explainer, a Markdown file ending in `.md`. Each explainer must
+  ship in the package, and [Explainers](#explainers) says what it holds.
 
 **Set up and standards**
 
@@ -456,6 +459,34 @@ Three more commands support them:
   It runs in this repo at each release; a consumer gets the files through
   `qg-skills`.
 
+#### Explainers
+
+Each component ships an explainer: a short Markdown page, versioned with the
+release, in [src/quality_gates/explainers](src/quality_gates/explainers). It
+opens with the component's name and has four sections, in order: what it
+catches, why it matters to someone who cannot read the code, what it asks of
+the builder, and *Want to go deeper?*. That last one holds one to three
+outside links. Each link has a line on why it is worth reading and the date it
+was checked, and it is free to view and written by someone with real practice
+in the subject. The worked example is
+[crap.md](src/quality_gates/explainers/crap.md).
+
+`qg explain <name>` prints a component's explainer from the installed package,
+with no network access. It exits 0 when it printed one; 1 for a name that is not
+a component, or one with no explainer yet; 2 for a usage error; and 3 when the
+manifest or the explainer cannot be read.
+
+The setup skill never writes an explanation of its own. It runs `qg explain`,
+reads what it prints and says what that means for this project. Under its
+component table it ends with the line *Ask me about any row, or run
+`qg explain <name>`.*
+
+The tests check the sections and link lines of every explainer, and that each
+explainer a component names ships in the package. A component with no explainer
+yet is named on a known-gap list in the tests, which shrinks as each one is
+written. The release checklist runs a link check, described under
+[Releasing](#releasing).
+
 ### The choice file
 
 `quality-gates.json` sits at the project root and is committed. It records what
@@ -520,6 +551,7 @@ something quality-gates does not know.
   | `qg` | [src/quality_gates/qg.py](src/quality_gates/qg.py), which hands each subcommand to its own file |
   | `qg status` | [src/quality_gates/status.py](src/quality_gates/status.py) |
   | `qg setup` | [src/quality_gates/setup_choices.py](src/quality_gates/setup_choices.py) |
+  | `qg explain` | [src/quality_gates/explain.py](src/quality_gates/explain.py) |
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
   | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |
@@ -614,7 +646,17 @@ Bump `version` in `pyproject.toml`, `.claude-plugin/plugin.json` and
 `.claude-plugin/marketplace.json` together, add a `CHANGELOG.md` entry, update
 the pinned tag in the skills' install lines, run the reference generator
 (`.venv/bin/qg-references`, then `.venv/bin/qg-skills` to refresh
-`.claude/skills`), tag `vX.Y.Z`, then bump the pin in each consuming project.
+`.claude/skills`), run the explainer link check below, tag `vX.Y.Z`, then bump
+the pin in each consuming project.
+
+The explainer link check follows every link in the explainers and prints the
+status of each. It needs network access. Every line it prints must begin with
+`200`. Replace a link that does not, then set the `Checked` date on every link
+to the day of the check:
+
+```sh
+grep -rhoE 'https://[^)[:space:]]+' src/quality_gates/explainers | sort -u | xargs -n1 curl -s -o /dev/null -L -w '%{http_code} %{url_effective}\n'
+```
 
 Push the tag from a local session: a Claude Code cloud session's GitHub proxy
 refuses tag pushes and the API call that creates a tag.

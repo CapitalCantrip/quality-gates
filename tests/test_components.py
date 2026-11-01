@@ -1,3 +1,4 @@
+import fnmatch
 import re
 import sys
 import unittest
@@ -21,6 +22,8 @@ COMMENT_DEBT_LANGUAGES = {"python"}
 HOOK_SECTION = "\n## 4. Hooks\n"
 UPSTREAM_LABELS = {"mattpocock/skills": "Pocock"}
 SKILLS_PREFIX = "src/quality_gates/skills/"
+EXPLAINER_GAPS = frozenset({"core", "no-comments", "complexity-python", "complexity-typescript", "complexity-swift",
+                            "complexity-rust", "design-helpers", "session-helpers"})
 
 
 def admissions_of(kind):
@@ -231,10 +234,32 @@ class ComponentManifestAgreesWithTheReadme(unittest.TestCase):
         self.assertEqual(sorted(names), shipped_skills())
 
 
+class ComponentExplainers(unittest.TestCase):
+    def test_every_component_without_an_explainer_is_on_the_known_gap_list(self):
+        missing = [c.id for c in MANIFEST.components if c.explainer is None and c.id not in EXPLAINER_GAPS]
+        self.assertEqual(missing, [])
+
+    def test_every_known_gap_names_a_component_that_still_has_no_explainer(self):
+        explained = {c.id for c in MANIFEST.components if c.explainer is not None}
+        self.assertEqual(EXPLAINER_GAPS & explained, set())
+        self.assertLessEqual(EXPLAINER_GAPS, {c.id for c in MANIFEST.components})
+
+    def test_every_explainer_a_component_names_is_a_file_in_the_package(self):
+        for component in MANIFEST.components:
+            if component.explainer is not None:
+                self.assertTrue((PACKAGE / component.explainer).is_file(), component.id)
+
+
 class ComponentManifestShips(unittest.TestCase):
     def test_the_manifest_is_listed_in_the_package_data(self):
         package_data = re.search(r"(?m)^quality_gates = \[(.*)\]$", PYPROJECT).group(1)
         self.assertIn('"components.json"', package_data)
+
+    def test_every_explainer_a_component_names_matches_a_pattern_in_the_package_data(self):
+        patterns = re.findall(r'"([^"]+)"', re.search(r"(?m)^quality_gates = \[(.*)\]$", PYPROJECT).group(1))
+        for component in MANIFEST.components:
+            if component.explainer is not None:
+                self.assertTrue(any(fnmatch.fnmatch(component.explainer, pattern) for pattern in patterns), component.id)
 
 
 if __name__ == "__main__":

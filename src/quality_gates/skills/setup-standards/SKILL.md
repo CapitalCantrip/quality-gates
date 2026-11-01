@@ -27,6 +27,10 @@ default in the report.
 Keep a running list as you go: for each step, **done**, **already in place**,
 or **not done** with the reason. Step 7 reads from it.
 
+When the builder asks what a component does, run `qg explain <name>`, read the
+explainer it prints, and say what it means for this project. Never write an
+explanation fresh.
+
 ## 1. Agent docs and the glossary
 
 1. Pick the issue tracker from `git remote -v`: GitHub for github.com, GitLab
@@ -78,7 +82,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    project set up before the choice file existed, what is installed is
    ticked, so "go" changes nothing else.
 3. Show the builder that table as it stands, and ask them to say "go" or name
-   changes.
+   changes. Under the table, end with one line: *Ask me about any row, or run
+   `qg explain <name>`.*
 4. Turn each change into a flag on `qg setup`: `--add-language <name>` (a
    language may be added before it has code), `--remove-language <name>`,
    `--choose <id>`, `--decline <id>`. When it refuses (the core, a gate the
@@ -256,7 +261,8 @@ Then two blocks:
   it had code. If `qg status` warns about code in a language the file does not
   record, say so here.
 - **Next:** at most three actions for the builder, most useful first, each in
-  one line they can act on.
+  one line they can act on, then the line *Ask me about any row, or run
+  `qg explain <name>`.*
 
 Then commit the changes, staging files by name.
 

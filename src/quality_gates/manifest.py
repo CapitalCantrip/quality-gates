@@ -34,6 +34,7 @@ OSI_LICENCES = UPSTREAM_LICENCES | frozenset({
 ADMISSION_REQUIRED = ("name", "kind", "licence", "practice")
 ADMISSION_FIELDS = ADMISSION_REQUIRED + ("last_release", "stable", "minimum_version", "tested_version")
 ONE_SENTENCE =r"^[^\n]+\.$"
+MARKDOWN_SUFFIX = ".md"
 BROKEN_EXIT = 3
 
 
@@ -74,6 +75,7 @@ class Component:
     languages: Tuple[str, ...]
     origin: Origin
     parts: Tuple[Part, ...]
+    explainer: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -186,12 +188,20 @@ def check_component_fields(data, where):
                 f"{where}: the description must be one line ending in a full stop")
 
 
+def optional_explainer(data, where):
+    value = data.get("explainer")
+    fail_unless(value is None or (isinstance(value, str) and value.endswith(MARKDOWN_SUFFIX)),
+                f"{where}: field 'explainer' must name a Markdown file")
+    return value
+
+
 def component_from(data, where):
     check_component_fields(data, where)
     found = enumerate(data["parts"], 1)
     component = Component(data["id"], data["name"], data["description"], data["core"], known_languages(data["languages"], where),
                           origin_from(data["origin"], where),
-                          tuple(part_from(p, f"{where}, {labelled(p, 'part', n)}") for n, p in found))
+                          tuple(part_from(p, f"{where}, {labelled(p, 'part', n)}") for n, p in found),
+                          optional_explainer(data, where))
     unique(((p.kind, p.id) for p in component.parts), where, lambda key: f"part {key[0]} '{key[1]}'")
     return component
 

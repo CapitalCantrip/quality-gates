@@ -17,9 +17,17 @@
   source with no release in 12 months that is not marked stable, and the
   monthly `upstream` workflow opens or updates one issue for them.
 - **If you read `components.json`:** accept `format_version` 2 and read
-  `admissions` (README § The component manifest). `components` and every part
-  are unchanged, so `qg status` prints the same origins and its `--json` differs
-  only in `format_version` being 2.
+  `admissions` and each component's optional `explainer` (README § The component
+  manifest). Otherwise `components` and every part are unchanged, so `qg status`
+  prints the same origins and its `--json` differs only in `format_version`
+  being 2.
+- **`qg explain <name>` prints a component's explainer (#139, ADR-007).**
+  `qg explain crap` prints the plain-words page for the `crap` gate from the
+  installed package, offline (README § Explainers). A component names its
+  explainer in `components.json`. Exit 0 when it printed one; 1 for a name that
+  is not a component, or a component with no explainer yet; 2 for a usage error;
+  3 when the manifest or the explainer cannot be read. Nothing to do beyond the
+  pin bump steps below.
 - **The choice file (#137, ADR-007, ADR-010).** A committed
   `quality-gates.json` at the project root records the languages, the chosen
   and declined components, the excluded paths, the commit time limit
