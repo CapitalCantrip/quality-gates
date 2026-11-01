@@ -8,7 +8,6 @@ from pathlib import Path
 from quality_gates import project_files
 
 SHIPPED = Path(__file__).parent / "skills"
-DEFAULT_DEST = Path(".claude") / "skills"
 SKILL_FILE = "SKILL.md"
 UNKNOWN_VERSION = "unknown"
 
@@ -75,7 +74,7 @@ def build_parser():
         prog="qg-skills",
         description="Copy the quality-gates skills and stage guard into a repo, register the guard, and add the asking-rule line to CLAUDE.md, so local and cloud sessions both get them.",
     )
-    parser.add_argument("--dest", type=Path, default=DEFAULT_DEST, help="default: .claude/skills")
+    parser.add_argument("--dest", type=Path, default=project_files.SKILLS_DEST, help="default: .claude/skills")
     parser.add_argument("--check", action="store_true", help="exit 1 if the copies differ from this version's")
     return parser
 

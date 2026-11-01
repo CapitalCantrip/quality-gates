@@ -1,11 +1,17 @@
 import ast
+import builtins
+import contextlib
+import io
 import json
+import os
 import re
+import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from quality_gates import languages
+from quality_gates import agent_docs, languages, skills_sync, status
 from quality_gates import project_files as pf
 
 
@@ -227,6 +233,127 @@ class ProjectModuleOwnsTheRootAndTheWalks(unittest.TestCase):
 
     def test_every_allowed_place_still_looks_up_or_walks_so_the_list_holds_no_dead_entry(self):
         self.assertEqual(set(ALLOWED) - set(root_lookups_and_walks(package_modules())), set())
+
+
+KEPT_NAMES = {
+    "CLAUDE.md", "AGENTS.md", "agents", "pull_request_template.md", ".github", "workflows",
+    ".githooks", "pre-commit", ".claude", "settings.json", "comment-debt.json",
+}
+
+
+def names_kept_file(node):
+    if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+        return False
+    text = node.value
+    return not any(c.isspace() for c in text) and bool(KEPT_NAMES & set(text.split("/")))
+
+
+def kept_file_names(module_paths):
+    found = {}
+    for path in module_paths:
+        for name, top in places(ast.parse(path.read_text(encoding="utf-8"))):
+            for node in ast.walk(top):
+                if names_kept_file(node):
+                    found.setdefault(f"{path.stem}.{name}", node.lineno)
+    return found
+
+
+class ProjectModuleOwnsTheKeptFiles(unittest.TestCase):
+    def test_outside_the_project_module_no_code_names_a_file_quality_gates_keeps_in_a_project(self):
+        outside = [path for path in package_modules() if path.stem != PROJECT_MODULE]
+        self.assertEqual(kept_file_names(outside), {})
+
+    def test_the_check_recognises_every_kept_file_however_its_path_is_spelled(self):
+        sources = [
+            'root / "CLAUDE.md"',
+            'root / "AGENTS.md"',
+            'Path("docs") / "agents"',
+            '"docs/agents/domain.md"',
+            'Path(".github") / "pull_request_template.md"',
+            'root / ".github" / "workflows"',
+            '".githooks/pre-commit"',
+            'root / ".claude"',
+            'claude_dir / "settings.json"',
+            'Path(".claude") / "skills"',
+            'root / "comment-debt.json"',
+        ]
+        for source in sources:
+            with self.subTest(source):
+                self.assertTrue(any(names_kept_file(node) for node in ast.walk(ast.parse(source))))
+
+    def test_the_check_ignores_prose_that_mentions_a_kept_file(self):
+        prose = '"Add the asking-rule line to CLAUDE.md. See `docs/agents/domain.md`."'
+        self.assertFalse(any(names_kept_file(node) for node in ast.walk(ast.parse(prose))))
+
+
+OPENS_ALLOWED = {
+    "skills_sync.sync": "copies the shipped skills into the project's skills folder",
+    "skills_sync.skill_differences": "compares the skill copies with the shipped skills",
+}
+
+
+COMPREHENSION_FRAMES = {"<listcomp>", "<setcomp>", "<dictcomp>", "<genexpr>"}
+
+
+def package_caller():
+    frame = sys._getframe(2)
+    while frame is not None:
+        path, name = Path(frame.f_code.co_filename), frame.f_code.co_name
+        if PACKAGE in path.parents and name not in COMPREHENSION_FRAMES:
+            return f"{path.stem}.{name}"
+        frame = frame.f_back
+    return None
+
+
+@contextlib.contextmanager
+def opens_inside(root):
+    found = {}
+    original = builtins.open
+
+    def recording_open(file, *args, **kwargs):
+        if isinstance(file, (str, os.PathLike)) and root in Path(os.path.abspath(file)).parents:
+            found.setdefault(package_caller(), Path(file).relative_to(root).as_posix())
+        return original(file, *args, **kwargs)
+
+    with mock.patch("builtins.open", recording_open), mock.patch("io.open", recording_open):
+        yield found
+
+
+class ProjectModuleReadsAndWritesTheKeptFiles(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(tempfile.mkdtemp()).resolve()
+        (self.root / ".github" / "workflows").mkdir(parents=True)
+        (self.root / ".github" / "workflows" / "ci.yml").write_text("run: crap --lang python\n")
+        (self.root / ".githooks").mkdir()
+        (self.root / ".githooks" / "pre-commit").write_text("comment-debt\n")
+        (self.root / "pyproject.toml").write_text("[project]\n")
+        (self.root / "a.py").write_text("x = 1\n")
+
+    def run_commands(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            for command in (
+                lambda: agent_docs.main(["--tracker", "github", "--root", str(self.root)]),
+                lambda: skills_sync.main(["--dest", str(self.root / ".claude" / "skills")]),
+                lambda: skills_sync.main(["--check", "--dest", str(self.root / ".claude" / "skills")]),
+            ):
+                with self.assertRaises(SystemExit):
+                    command()
+            status.main([], root=self.root)
+
+    def test_outside_the_project_module_qg_agent_docs_qg_skills_and_qg_status_open_no_file_in_the_project(self):
+        with opens_inside(self.root) as found:
+            self.run_commands()
+        self.assertEqual({caller: path for caller, path in found.items() if caller.split(".")[0] != PROJECT_MODULE and caller not in OPENS_ALLOWED}, {})
+
+    def test_the_commands_do_open_the_kept_files_so_the_recording_sees_them(self):
+        with opens_inside(self.root) as found:
+            self.run_commands()
+        self.assertTrue(any(caller.startswith(PROJECT_MODULE + ".") for caller in found))
+
+    def test_every_allowed_opener_still_opens_a_file_in_the_project_so_the_list_holds_no_dead_entry(self):
+        with opens_inside(self.root) as found:
+            self.run_commands()
+        self.assertEqual(set(OPENS_ALLOWED) - set(found), set())
 
 
 if __name__ == "__main__":

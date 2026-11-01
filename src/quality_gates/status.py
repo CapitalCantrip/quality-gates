@@ -1,7 +1,5 @@
 import argparse
-import filecmp
 import json
-import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -24,7 +22,6 @@ PROJECT_MARKERS = {
     "typescript": ("package.json",),
 }
 XCODE_PROJECT_SUFFIX = ".xcodeproj"
-PRE_COMMIT_HOOK = ".githooks/pre-commit"
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
@@ -32,6 +29,17 @@ PIN_VERDICTS = {
     True: "matches",
     False: "differs from the installed version",
     None: "could not tell whether it matches",
+}
+HOOK_STATES = {
+    project_files.UNSHIPPED: UNKNOWN,
+    project_files.MISSING: MISSING,
+    project_files.DIFFERS: DIFFERENT,
+    project_files.SAME: INSTALLED,
+}
+FILE_STATES = {
+    project_files.MISSING: MISSING,
+    project_files.READABLE: INSTALLED,
+    project_files.UNREADABLE: UNKNOWN,
 }
 SUMMARY = "show each component, whether this project has it, and the pin"
 NO_PARTS_NOTICE ="No quality-gates parts found in this folder. Run /setup-standards to add them."
@@ -46,28 +54,20 @@ class Project:
 
     @property
     def claude_dir(self):
-        return self.root / ".claude"
-
-    def workflows(self):
-        return project_files.workflow_files(self.root)
+        return project_files.claude_dir(self.root)
 
 
 def skill_status(project, part):
     if part.id not in project.shipped_skills:
         return UNKNOWN
-    dest = project.claude_dir / "skills"
+    dest = project_files.skills_dir(project.root)
     if not skills_sync.files_under(dest / part.id):
         return MISSING
     return DIFFERENT if skills_sync.skill_differences(part.id, project.source, dest) else INSTALLED
 
 
 def copied_hook_status(project, name):
-    shipped, copy = project.hooks / name, project.claude_dir / "hooks" / name
-    if not shipped.is_file():
-        return UNKNOWN
-    if not copy.is_file():
-        return MISSING
-    return INSTALLED if filecmp.cmp(shipped, copy, shallow=False) else DIFFERENT
+    return HOOK_STATES[project_files.copied_hook(project_files.hooks_dir(project.claude_dir), name, project.hooks)]
 
 
 def hook_status(project, part):
@@ -75,7 +75,7 @@ def hook_status(project, part):
     if found != INSTALLED or part.id != project_files.STAGE_GUARD:
         return found
     try:
-        registered = project_files.stage_guard_registered(project.claude_dir / "settings.json")
+        registered = project_files.stage_guard_registered(project_files.settings_file(project.claude_dir))
     except (project_files.SettingsError, OSError, UnicodeDecodeError):
         return UNKNOWN
     return INSTALLED if registered else MISSING
@@ -91,40 +91,25 @@ def claude_md_line_status(project, part):
 
 
 def file_status(project, part):
-    path = project.root / part.id
-    if not path.exists():
-        return MISSING
-    return INSTALLED if path.is_file() and os.access(path, os.R_OK) else UNKNOWN
+    return FILE_STATES[project_files.file_state(project.root, part.id)]
 
 
 def runs_command(text, command):
     return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
 
 
-def ci_step_files(project, found_in):
-    if found_in is None:
-        return project.workflows()
-    path = project.root / found_in
-    return [path] if path.is_file() else []
-
-
-def marker_status(paths, marker):
-    unreadable = False
-    for path in paths:
-        try:
-            if runs_command(path.read_text(encoding="utf-8"), marker):
-                return INSTALLED
-        except (OSError, UnicodeDecodeError):
-            unreadable = True
-    return UNKNOWN if unreadable else MISSING
+def step_status(texts, marker):
+    if any(text is not None and runs_command(text, marker) for text in texts):
+        return INSTALLED
+    return UNKNOWN if None in texts else MISSING
 
 
 def ci_step_status(project, part):
-    return marker_status(ci_step_files(project, part.found_in), part.marker)
+    return step_status(project_files.ci_texts(project.root, part.found_in), part.marker)
 
 
 def precommit_step_status(project, part):
-    return marker_status(ci_step_files(project, PRE_COMMIT_HOOK), part.marker)
+    return step_status(project_files.pre_commit_texts(project.root), part.marker)
 
 
 PART_STATUS = {
@@ -211,12 +196,8 @@ def component_report(project, component, used):
 
 
 def read_pin(project):
-    candidates = [project.root / "pyproject.toml"] + project.workflows()
-    for path in candidates:
-        try:
-            found = PIN_PATTERN.search(path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError):
-            continue
+    for text in project_files.pin_texts(project.root):
+        found = PIN_PATTERN.search(text)
         if found:
             return found.group(1)
     return None
