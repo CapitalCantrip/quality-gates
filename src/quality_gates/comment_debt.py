@@ -11,7 +11,6 @@ from pathlib import Path
 
 from quality_gates import project_files
 
-DEFAULT_BASELINE = "comment-debt.json"
 
 PRAGMA = re.compile(
     r"#\s*(?:"
@@ -203,14 +202,14 @@ def main(argv=None, root=None, baseline=None, out=sys.stdout):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
-    parser.add_argument("--baseline", help=f"baseline file (default: {DEFAULT_BASELINE} at the repo root)")
+    parser.add_argument("--baseline", help=f"baseline file (default: {project_files.COMMENT_DEBT_BASELINE} at the repo root)")
     parser.add_argument("--exclude", action="append", default=[], metavar="PREFIX", help="skip tracked paths with this prefix")
     args = parser.parse_args(argv)
     if args.baseline is not None and not args.baseline.strip():
         out.write("--baseline was given an empty path\n")
         return 2
     root = root or project_files.git_root()
-    baseline = Path(baseline or args.baseline or root / DEFAULT_BASELINE)
+    baseline = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
     if args.update:
         return update(root, baseline, args.exclude, out)
     if args.status:
