@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
-from quality_gates import complexity_scan, ratchet
+from quality_gates import complexity_scan, project_files, ratchet
 from quality_gates.errors import ToolError, given_path, run_gate
 from quality_gates.languages import COVERAGE_FORMATS, LANGUAGES, CoverageFormat, CoverageOf, Language
 
@@ -393,7 +393,7 @@ def _failing_scores(results: list, root) -> dict:
 
 def _enforce_baseline(results: list, args, root) -> int:
     out = sys.stderr if args.json_output else sys.stdout
-    root = root or ratchet.repo_root()
+    root = root or project_files.git_root_or_current_folder()
     current = _failing_scores(results, root)
     unmeasured = {ratchet.key(root, r.file, r.name) for r in _unmeasured(results)}
     return ratchet.enforce(current, Path(args.baseline), args.update, out, unmeasured)

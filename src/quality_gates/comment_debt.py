@@ -4,11 +4,12 @@ import ast
 import io
 import json
 import re
-import subprocess
 import sys
 import tokenize
 import warnings
 from pathlib import Path
+
+from quality_gates import project_files
 
 DEFAULT_BASELINE = "comment-debt.json"
 
@@ -65,14 +66,6 @@ def string_lines(source):
 
 def debt_lines(source):
     return sorted(comment_lines(source) | string_lines(source))
-
-
-def tracked(root, excluded=()):
-    listing = subprocess.run(
-        ["git", "ls-files", "*.py"],
-        cwd=root, check=True, capture_output=True, text=True,
-    ).stdout.splitlines()
-    return [p for p in listing if not p.startswith(tuple(excluded))]
 
 
 def measure(root, paths):
@@ -141,7 +134,7 @@ def check(root, file, excluded, out):
     if baseline is None:
         out.write(f"No baseline at {file}. Run with --update to create one.\n")
         return 2
-    over, under, stale = ratchet(measure(root, tracked(root, excluded)), baseline)
+    over, under, stale = ratchet(measure(root, project_files.tracked_python_files(root, excluded)), baseline)
     if over:
         report_over(over, out)
         return 1
@@ -153,7 +146,7 @@ def check(root, file, excluded, out):
 
 
 def update(root, file, excluded, out):
-    current = measure(root, tracked(root, excluded))
+    current = measure(root, project_files.tracked_python_files(root, excluded))
     baseline = load_baseline(file)
     if baseline is None:
         baseline = {path: len(lines) for path, lines in current.items()}
@@ -193,7 +186,7 @@ def write_area(name, rows, out):
 
 
 def status(root, excluded, out):
-    current = {p: ls for p, ls in measure(root, tracked(root, excluded)).items() if ls}
+    current = {p: ls for p, ls in measure(root, project_files.tracked_python_files(root, excluded)).items() if ls}
     areas = group_by_area(root, current)
     total = sum(len(ls) for ls in current.values())
     out.write(f"# Comment debt: {total} lines in {len(current)} files\n\n")
@@ -201,14 +194,6 @@ def status(root, excluded, out):
     for name in sorted(areas, key=lambda a: -sum(n for _, n, _ in areas[a])):
         write_area(name, areas[name], out)
     return 0
-
-
-def repo_root():
-    top = subprocess.run(
-        ["git", "rev-parse", "--show-toplevel"],
-        check=True, capture_output=True, text=True,
-    ).stdout.strip()
-    return Path(top)
 
 
 def main(argv=None, root=None, baseline=None, out=sys.stdout):
@@ -224,7 +209,7 @@ def main(argv=None, root=None, baseline=None, out=sys.stdout):
     if args.baseline is not None and not args.baseline.strip():
         out.write("--baseline was given an empty path\n")
         return 2
-    root = root or repo_root()
+    root = root or project_files.git_root()
     baseline = Path(baseline or args.baseline or root / DEFAULT_BASELINE)
     if args.update:
         return update(root, baseline, args.exclude, out)

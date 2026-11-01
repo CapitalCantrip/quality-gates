@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from quality_gates import complexity_scan, languages, project_files, skills_sync
+from quality_gates import languages, project_files, skills_sync
 from quality_gates.manifest import load_components
 
 INSTALLED = "installed"
@@ -17,8 +17,6 @@ PARTLY = "partly installed"
 NOT_APPLICABLE = "not applicable"
 PROVIDED = "provided by quality-gates"
 
-BUILD_OUTPUT_FOLDERS = {"target", "Pods", "DerivedData", "site-packages"}
-HIDDEN_PREFIX = "."
 PROJECT_MARKERS = {
     "python": ("pyproject.toml", "setup.py"),
     "swift": ("Package.swift",),
@@ -26,7 +24,6 @@ PROJECT_MARKERS = {
     "typescript": ("package.json",),
 }
 XCODE_PROJECT_SUFFIX = ".xcodeproj"
-WORKFLOW_SUFFIXES = (".yml", ".yaml")
 PRE_COMMIT_HOOK = ".githooks/pre-commit"
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
@@ -52,10 +49,7 @@ class Project:
         return self.root / ".claude"
 
     def workflows(self):
-        folder = self.root / ".github" / "workflows"
-        if not folder.is_dir():
-            return []
-        return sorted(p for p in folder.iterdir() if p.suffix in WORKFLOW_SUFFIXES)
+        return project_files.workflow_files(self.root)
 
 
 def skill_status(project, part):
@@ -165,18 +159,12 @@ def marker_languages(root):
     return {name for name, markers in PROJECT_MARKERS.items() if any((root / marker).exists() for marker in markers)}
 
 
-def is_detection_skipped(folder):
-    name = folder.name
-    return name.startswith(HIDDEN_PREFIX) or name in BUILD_OUTPUT_FOLDERS or complexity_scan.is_skipped(folder)
-
-
 def used_languages(root):
     suffixes = {suffix: name for name, language in languages.LANGUAGES.items() for suffix in language.suffixes}
     found = marker_languages(root)
-    for folder, directories, files in os.walk(root):
+    for directories, files in project_files.detection_walk(root):
         if found >= set(languages.LANGUAGES):
             break
-        directories[:] = [d for d in directories if not is_detection_skipped(Path(folder) / d)]
         found |= project_suffix_languages(directories, files, suffixes)
     return found
 
@@ -315,7 +303,7 @@ def build_parser():
 
 def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None):
     args = build_parser().parse_args(argv)
-    project = Project(Path.cwd() if root is None else root, source, hooks, frozenset(skills_sync.skill_names(source)))
+    project = Project(project_files.current_folder() if root is None else root, source, hooks, frozenset(skills_sync.skill_names(source)))
     report = build_report(project, manifest or load_components())
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0
