@@ -22,7 +22,7 @@ LINK = re.compile(r"^- \[[^\]]+\]\(https://[^)\s]+\): .+ Checked (\d{4}-\d{2}-\d
 def explainers():
     for component in COMPONENTS.components:
         if component.explainer is not None:
-            yield component, (PACKAGE / component.explainer).read_text(encoding="utf-8")
+            yield component, COMPONENTS.explainer_path(component).read_text(encoding="utf-8")
 
 
 def sections(text):
@@ -35,7 +35,7 @@ def links(text):
 
 class ExplainerFormat(unittest.TestCase):
     def test_the_crap_component_has_an_explainer_as_the_worked_example(self):
-        crap = next(c for c in COMPONENTS.components if c.id == "crap")
+        crap = COMPONENTS.component("crap")
         self.assertIsNotNone(crap.explainer)
 
     def test_an_explainer_opens_with_the_name_of_its_component(self):

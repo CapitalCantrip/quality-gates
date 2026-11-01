@@ -1,6 +1,6 @@
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import Mapping, Optional, Tuple
@@ -33,13 +33,18 @@ OSI_LICENCES = UPSTREAM_LICENCES | frozenset({
 })
 ADMISSION_REQUIRED = ("name", "kind", "licence", "practice")
 ADMISSION_FIELDS = ADMISSION_REQUIRED + ("last_release", "stable", "minimum_version", "tested_version")
-ONE_SENTENCE =r"^[^\n]+\.$"
+ONE_SENTENCE = r"^[^\n]+\.$"
+VERSION_FLOOR = ">="
 MARKDOWN_SUFFIX = ".md"
 BROKEN_EXIT = 3
 
 
-class ManifestError(Exception):
+class BrokenFileError(Exception):
     pass
+
+
+def applies(languages, used):
+    return not languages or bool(set(languages) & used)
 
 
 @dataclass(frozen=True)
@@ -65,6 +70,9 @@ class Part:
     found_in: Optional[str] = None
     file: Optional[str] = None
 
+    def applies_to(self, used):
+        return applies(self.languages, used)
+
 
 @dataclass(frozen=True)
 class Component:
@@ -77,6 +85,9 @@ class Component:
     parts: Tuple[Part, ...]
     explainer: Optional[str] = None
 
+    def applies_to(self, used):
+        return applies(self.languages, used)
+
 
 @dataclass(frozen=True)
 class Admission:
@@ -84,7 +95,7 @@ class Admission:
     kind: str
     licence: str
     practice: str
-    last_release: Optional[str] = None
+    last_release: Optional[date] = None
     stable: Optional[str] = None
     minimum_version: Optional[str] = None
     tested_version: Optional[str] = None
@@ -95,6 +106,13 @@ class Manifest:
     format_version: int
     components: Tuple[Component, ...]
     admissions: Tuple[Admission, ...] = ()
+    folder: Path = PACKAGE
+
+    def component(self, component_id):
+        return next((c for c in self.components if c.id == component_id), None)
+
+    def explainer_path(self, component):
+        return None if component.explainer is None else self.folder / component.explainer
 
 
 @dataclass(frozen=True)
@@ -109,16 +127,16 @@ def read_json(path):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError as error:
-        raise ManifestError(f"{path}: not found") from error
+        raise BrokenFileError(f"{path}: not found") from error
     except OSError as error:
-        raise ManifestError(f"{path}: cannot be read: {error.strerror}") from error
+        raise BrokenFileError(f"{path}: cannot be read: {error.strerror}") from error
     except ValueError as error:
-        raise ManifestError(f"{path}: not valid JSON: {error}") from error
+        raise BrokenFileError(f"{path}: not valid JSON: {error}") from error
 
 
 def fail_unless(holds, message):
     if not holds:
-        raise ManifestError(message)
+        raise BrokenFileError(message)
 
 
 def unique(keys, where, what):
@@ -130,16 +148,16 @@ def unique(keys, where, what):
 
 def require(data, fields, where):
     if not isinstance(data, dict):
-        raise ManifestError(f"{where}: expected an object")
+        raise BrokenFileError(f"{where}: expected an object")
     for field in fields:
         if field not in data:
-            raise ManifestError(f"{where}: missing field '{field}'")
+            raise BrokenFileError(f"{where}: missing field '{field}'")
     return data
 
 
 def known(value, allowed, what, where):
     if value not in allowed:
-        raise ManifestError(f"{where}: unknown {what} '{value}'")
+        raise BrokenFileError(f"{where}: unknown {what} '{value}'")
     return value
 
 
@@ -150,7 +168,10 @@ def labelled(data, noun, number, key="id"):
 
 
 def known_languages(values, where):
-    return tuple(known(value, registry.LANGUAGES, "language", where) for value in values)
+    for value in values:
+        fail_unless(value in registry.LANGUAGES, f"{where}: unknown language '{value}'; quality-gates knows "
+                                                 + ", ".join(sorted(registry.LANGUAGES)))
+    return tuple(values)
 
 
 def optional_tuple(data, field, where):
@@ -215,21 +236,23 @@ def check_licence(kind, licence, where):
         fail_unless(licence in OSI_LICENCES, f"{where}: a dependency needs an OSI-approved licence, not '{licence}'")
 
 
-def is_date(value):
+def release_date(value, where):
+    if value is None:
+        return None
     try:
-        date.fromisoformat(value)
+        return date.fromisoformat(value)
     except (TypeError, ValueError):
-        return False
-    return True
+        raise BrokenFileError(f"{where}: field 'last_release' must be a date like 2026-10-29") from None
 
 
 def check_upkeep(data, where):
     last, stable = data.get("last_release"), data.get("stable")
     fail_unless(last is not None or stable is not None, f"{where}: give either 'last_release' or 'stable'")
     fail_unless(last is None or stable is None, f"{where}: give either 'last_release' or 'stable', not both")
-    fail_unless(last is None or is_date(last), f"{where}: field 'last_release' must be a date like 2026-10-29")
+    released = release_date(last, where)
     fail_unless(stable is None or (isinstance(stable, str) and stable.strip() != ""),
                 f"{where}: field 'stable' must give the reason")
+    return released
 
 
 def check_versions(data, where):
@@ -243,9 +266,9 @@ def admission_from(data, where):
     check_licence(data["kind"], data["licence"], where)
     fail_unless(isinstance(data["practice"], str) and re.search(ONE_SENTENCE, data["practice"]) is not None,
                 f"{where}: the practice must be one line ending in a full stop")
-    check_upkeep(data, where)
+    released = check_upkeep(data, where)
     check_versions(data, where)
-    return Admission(*(data.get(field) for field in ADMISSION_FIELDS))
+    return replace(Admission(*(data.get(field) for field in ADMISSION_FIELDS)), last_release=released)
 
 
 def admissions_from(data, name):
@@ -260,7 +283,7 @@ def check_origin_admitted(origin, kinds, where):
     for source in named:
         fail_unless(source in kinds, f"{where}: origin names '{source}', which has no admission")
     if origin.name and kinds[origin.name] != origin.type:
-        raise ManifestError(f"{where}: origin type '{origin.type}' names '{origin.name}', a {kinds[origin.name]}")
+        raise BrokenFileError(f"{where}: origin type '{origin.type}' names '{origin.name}', a {kinds[origin.name]}")
 
 
 def check_component_admitted(component, kinds, name):
@@ -269,6 +292,17 @@ def check_component_admitted(component, kinds, name):
     for part in component.parts:
         if part.origin is not None:
             check_origin_admitted(part.origin, kinds, f"{where}, part '{part.id}'")
+
+
+def versioned(origin, minimums):
+    if origin is None or origin.version is not None or minimums.get(origin.name) is None:
+        return origin
+    return replace(origin, version=VERSION_FLOOR + minimums[origin.name])
+
+
+def with_versions(component, minimums):
+    parts = tuple(replace(part, origin=versioned(part.origin, minimums)) for part in component.parts)
+    return replace(component, origin=versioned(component.origin, minimums), parts=parts)
 
 
 def components_from(data, name=COMPONENTS_PATH.name):
@@ -283,7 +317,8 @@ def components_from(data, name=COMPONENTS_PATH.name):
     kinds = {a.name: a.kind for a in admissions}
     for component in components:
         check_component_admitted(component, kinds, name)
-    return Manifest(version, components, admissions)
+    minimums = {a.name: a.minimum_version for a in admissions}
+    return Manifest(version, tuple(with_versions(c, minimums) for c in components), admissions)
 
 
 def source_from(data, where):
@@ -297,7 +332,7 @@ def sources_from(data, name=UPSTREAM_PATH.name):
 
 
 def load_components(path=COMPONENTS_PATH):
-    return components_from(read_json(path), Path(path).name)
+    return replace(components_from(read_json(path), Path(path).name), folder=Path(path).parent)
 
 
 def load_sources(path=UPSTREAM_PATH):

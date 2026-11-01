@@ -106,8 +106,12 @@ class Upkeep(unittest.TestCase):
     def test_a_source_whose_last_release_is_13_months_old_and_not_stable_is_reported_with_how_to_renew_it(self):
         code, out = self.check(admission("radon", last_release="2025-10-01"))
         self.assertEqual(code, 1)
-        self.assertIn("radon: no release since 2025-10-01 (13 months)", out)
+        self.assertIn("radon: no release recorded since 2025-10-01 (13 months)", out)
         self.assertIn("mark it stable with the reason", out)
+
+    def test_the_upkeep_report_says_it_read_the_recorded_date_and_not_the_source(self):
+        _, out = self.check(admission("radon", last_release="2025-10-01"))
+        self.assertIn("This check reads the `last_release` recorded in `components.json`; it does not ask the source.", out)
 
     def test_a_source_marked_stable_is_not_reported(self):
         code, out = self.check(admission("radon", stable="A finished algorithm."))

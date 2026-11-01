@@ -6,8 +6,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from quality_gates import project_files, skills_sync
-from quality_gates.errors import ToolError
-from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, ManifestError, load_components
+from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, BrokenFileError, load_components
 
 INSTALLED = "installed"
 MISSING = "missing"
@@ -20,8 +20,7 @@ DECLINED = "offered, declined"
 NOT_OFFERED = "not yet offered"
 FROM_CHOICE = "choice file"
 FROM_DETECTION = "detection"
-UNRECORDED_FILES_SHOWN = 3
-NO_REPO_EXIT = 2
+HAS_SOMETHING = (INSTALLED, PARTLY, DIFFERENT)
 
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
@@ -56,6 +55,10 @@ class Project:
     @property
     def claude_dir(self):
         return project_files.claude_dir(self.root)
+
+
+def project_at(root, source, hooks):
+    return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)))
 
 
 def skill_status(project, part):
@@ -95,12 +98,8 @@ def file_status(project, part):
     return FILE_STATES[project_files.file_state(project.root, part.id)]
 
 
-def runs_command(text, command):
-    return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
-
-
 def step_status(texts, marker):
-    if any(text is not None and runs_command(text, marker) for text in texts):
+    if any(text is not None and project_files.runs_command(text, marker) for text in texts):
         return INSTALLED
     return UNKNOWN if None in texts else MISSING
 
@@ -140,14 +139,10 @@ def roll_up(statuses):
     return MISSING if found == {MISSING} else PARTLY
 
 
-def applies(languages_wanted, used):
-    return not languages_wanted or bool(set(languages_wanted) & used)
-
-
 def part_report(project, part, used):
     if part.kind in PROVIDED_BY_PACKAGE:
         found = PROVIDED
-    elif applies(part.languages, used):
+    elif part.applies_to(used):
         found = part_status(project, part)
     else:
         found = NOT_APPLICABLE
@@ -158,12 +153,13 @@ def counts_toward_status(part):
     return part["status"] not in (PROVIDED, NOT_APPLICABLE)
 
 
+CHOICE_STATUSES = {project_files.DECLINED: DECLINED, project_files.CHOSEN: None, project_files.UNLISTED: NOT_OFFERED}
+
+
 def choice_status(component, choice):
     if choice is None or component.core:
         return None
-    if component.id in choice.declined:
-        return DECLINED
-    return None if component.id in choice.chosen else NOT_OFFERED
+    return CHOICE_STATUSES[choice.recorded(component.id)]
 
 
 def component_status(component, parts, applicable, choice):
@@ -179,12 +175,17 @@ def component_report(project, component, used, choice=None):
         "id": component.id,
         "name": component.name,
         "core": component.core,
-        "status": component_status(component, parts, applies(wanted, used), choice),
+        "status": component_status(component, parts, component.applies_to(used), choice),
         "description": component.description,
         "origin": component.origin.as_dict(),
         "languages": wanted,
         "parts": parts,
     }
+
+
+def components_present(project, manifest, used):
+    reports = (component_report(project, component, used) for component in manifest.components)
+    return {report["id"] for report in reports if report["status"] in HAS_SOMETHING}
 
 
 def read_pin(project):
@@ -234,17 +235,11 @@ def pin_line(report):
     return f"Pin: {report['pin']}. Installed quality-gates: {installed} ({PIN_VERDICTS[report['pin_matches']]})."
 
 
-def files_shown(files):
-    shown = ", ".join(files[:UNRECORDED_FILES_SHOWN])
-    more = len(files) - UNRECORDED_FILES_SHOWN
-    return f"{shown} and {more} more" if more > 0 else shown
-
-
 def unrecorded_lines(report):
     found = report["unrecorded_languages"]
     if not found:
         return []
-    named = "; ".join(f"{language} ({files_shown(files)})" for language, files in sorted(found.items()))
+    named = "; ".join(f"{language} ({project_files.files_named(files)})" for language, files in sorted(found.items()))
     return ["", f"Code in a language {project_files.CHOICE_FILE} does not record: {named}.",
             "Run `qg setup` to record it, or exclude those files in the choice file."]
 
@@ -304,20 +299,20 @@ def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.H
     args = build_parser().parse_args(argv)
     try:
         manifest = manifest or load_components(components_path)
-    except ManifestError as error:
+    except BrokenFileError as error:
         print(f"qg status: {error}", file=sys.stderr)
         return BROKEN_EXIT
     try:
         root = project_files.git_root() if root is None else root
     except ToolError as error:
         print(f"qg status: {error}", file=sys.stderr)
-        return NO_REPO_EXIT
+        return TOOL_ERROR_EXIT
     try:
         choice = project_files.read_choice(root)
-    except ManifestError as error:
+    except BrokenFileError as error:
         print(f"qg status: {error}", file=sys.stderr)
         return BROKEN_EXIT
-    project = Project(root, source, hooks, frozenset(skills_sync.skill_names(source)))
+    project = project_at(root, source, hooks)
     report = build_report(project, manifest, choice)
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0

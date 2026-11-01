@@ -74,7 +74,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    to the CI install step (others), replacing any older `quality-gates` pin,
    and install it.
 2. Run `qg setup`. It writes nothing. It proposes the languages, from project
-   markers and from the files git would commit outside fixture folders (shell
+   markers and from the files git would commit, test folders included and
+   fixture folders left out (shell
    counts by suffix or by a shell first line such as `#!/bin/sh`), and one
    row per component: its description, its cost (commit delay, CI time,
    outside tools) and a tick on the recommended set. A component the choice

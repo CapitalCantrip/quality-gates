@@ -10,7 +10,7 @@ import warnings
 from pathlib import Path
 
 from quality_gates import languages, project_files
-from quality_gates.errors import ToolError
+from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
 
 
 PRAGMA = re.compile(
@@ -146,7 +146,7 @@ def check(root, file, excluded, out):
     baseline = load_baseline(file)
     if baseline is None:
         out.write(f"No baseline at {file}. Run with --update to create one.\n")
-        return 2
+        return TOOL_ERROR_EXIT
     over, under, stale = ratchet(measure(root, tracked_files(root, excluded)), baseline)
     if over:
         report_over(over, out)
@@ -225,12 +225,12 @@ def main(argv=None, root=None, baseline=None, out=sys.stdout):
     args = parser.parse_args(argv)
     if args.baseline is not None and not args.baseline.strip():
         out.write("--baseline was given an empty path\n")
-        return 2
+        return TOOL_ERROR_EXIT
     try:
         root = root or project_files.git_root()
     except ToolError as error:
         out.write(f"comment-debt: {error}\n")
-        return 2
+        return TOOL_ERROR_EXIT
     return run_mode(args, root, baseline, out)
 
 

@@ -15,7 +15,7 @@ from unittest import mock
 from quality_gates import agent_docs, languages, setup_choices, skills_sync, status
 from quality_gates import project_files as pf
 from quality_gates.errors import ToolError
-from quality_gates.manifest import ManifestError
+from quality_gates.manifest import BrokenFileError
 
 
 def git_repo(folder):
@@ -435,7 +435,7 @@ class ChoiceFile(unittest.TestCase):
 
     def broken(self, data):
         self.write(data)
-        with self.assertRaises(ManifestError) as raised:
+        with self.assertRaises(BrokenFileError) as raised:
             pf.read_choice(self.root)
         return str(raised.exception)
 
@@ -446,18 +446,18 @@ class ChoiceFile(unittest.TestCase):
         self.write(self.valid())
         self.assertEqual(pf.read_choice(self.root), pf.Choice(
             languages=("python",), chosen=("crap",), declined=("design-helpers",), exclude=("tests/fixtures/",),
-            commit_time_limit_seconds=2, comment_exclude=("gen/",), conventions=()))
+            commit_time_limit_seconds=2, comment_gate_exclude=("gen/",), conventions=()))
 
     def test_a_written_choice_reads_back_the_same_and_ends_in_a_newline(self):
         choice = pf.Choice(languages=("python", "shell"), chosen=("crap",), exclude=("tests/fixtures/",),
-                           comment_exclude=("gen/",), conventions=("rust-safety",))
+                           comment_gate_exclude=("gen/",), conventions=("rust-safety",))
         pf.write_kept(self.root, pf.CHOICE_FILE, pf.choice_text(choice))
         self.assertEqual(pf.read_choice(self.root), choice)
         self.assertTrue((self.root / pf.CHOICE_FILE).read_text(encoding="utf-8").endswith("}\n"))
 
     def test_a_new_choice_defaults_to_a_two_second_commit_limit_and_empty_comment_gate_settings(self):
         choice = pf.Choice(languages=("python",))
-        self.assertEqual((choice.commit_time_limit_seconds, choice.comment_exclude, choice.conventions), (2, (), ()))
+        self.assertEqual((choice.commit_time_limit_seconds, choice.comment_gate_exclude, choice.conventions), (2, (), ()))
         self.assertEqual(json.loads(pf.choice_text(choice))["settings"], {"no-comments": {"exclude": [], "conventions": []}})
 
     def test_a_language_the_registry_does_not_know_is_refused(self):
@@ -497,7 +497,7 @@ class ChoiceFile(unittest.TestCase):
 
     def test_a_file_that_is_not_json_names_the_file(self):
         (self.root / pf.CHOICE_FILE).write_text("{", encoding="utf-8")
-        with self.assertRaises(ManifestError) as raised:
+        with self.assertRaises(BrokenFileError) as raised:
             pf.read_choice(self.root)
         self.assertIn(pf.CHOICE_FILE, str(raised.exception))
 

@@ -1,6 +1,8 @@
 import filecmp
 import json
 import os
+import re
+import shlex
 import shutil
 import stat
 import subprocess
@@ -9,7 +11,7 @@ from pathlib import Path, PurePosixPath
 
 from quality_gates import languages
 from quality_gates.errors import ToolError
-from quality_gates.manifest import ManifestError, fail_unless, known, known_languages, read_json, require, unique
+from quality_gates.manifest import BrokenFileError, fail_unless, known, known_languages, read_json, require, unique
 
 HOOKS_SOURCE = Path(__file__).parent / "hooks"
 STAGE_GUARD = "stage_guard.py"
@@ -59,6 +61,10 @@ FIRST_LINE_BYTES = 256
 WILL_CREATE = "will be created"
 WILL_CHANGE = "will change"
 UNCHANGED = "unchanged"
+CHOSEN, DECLINED, UNLISTED = "chosen", "declined", "unlisted"
+FILES_SHOWN = 3
+COMMENT_GATE_COMMAND = "comment-debt"
+EXCLUDE_FLAG = "--exclude"
 UNSHIPPED, MISSING, DIFFERS, SAME = "unshipped", "missing", "differs", "same"
 READABLE, UNREADABLE = "readable", "unreadable"
 
@@ -357,7 +363,7 @@ def default_exclusions(listed):
 def scope_exclusions(root, listed):
     try:
         choice = read_choice(root)
-    except ManifestError as error:
+    except BrokenFileError as error:
         raise ToolError(str(error)) from error
     return default_exclusions(listed) if choice is None else choice.exclude
 
@@ -450,6 +456,40 @@ def files_in_scope(paths: list, root=None) -> tuple:
     return sorted(once_each(files)), sorted(skipped)
 
 
+def files_named(files):
+    shown = ", ".join(files[:FILES_SHOWN])
+    more = len(files) - FILES_SHOWN
+    return f"{shown} and {more} more" if more > 0 else shown
+
+
+def runs_command(text, command):
+    return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
+
+
+def words_of(line):
+    try:
+        return shlex.split(line, comments=True)
+    except ValueError:
+        return line.split()
+
+
+def exclude_flags(words):
+    for at, word in enumerate(words):
+        if word == EXCLUDE_FLAG and at + 1 < len(words):
+            yield words[at + 1]
+        elif word.startswith(EXCLUDE_FLAG + "="):
+            yield word[len(EXCLUDE_FLAG) + 1:]
+
+
+def comment_gate_exclusions(root):
+    found = set()
+    for text in pre_commit_texts(root) + ci_texts(root):
+        for line in (text or "").splitlines():
+            if runs_command(line, COMMENT_GATE_COMMAND):
+                found.update(exclude_flags(words_of(line)))
+    return found
+
+
 @dataclass(frozen=True)
 class Choice:
     languages: tuple
@@ -457,8 +497,13 @@ class Choice:
     declined: tuple = ()
     exclude: tuple = ()
     commit_time_limit_seconds: float = DEFAULT_COMMIT_TIME_LIMIT_SECONDS
-    comment_exclude: tuple = ()
+    comment_gate_exclude: tuple = ()
     conventions: tuple = ()
+
+    def recorded(self, component_id):
+        if component_id in self.declined:
+            return DECLINED
+        return CHOSEN if component_id in self.chosen else UNLISTED
 
 
 def text_list(data, field, where):
@@ -485,7 +530,7 @@ def components_of(data, where):
     require(data, COMPONENTS_REQUIRED, f"{where}: components")
     chosen, declined = text_list(data, "chosen", where), text_list(data, "declined", where)
     for both in set(chosen) & set(declined):
-        raise ManifestError(f"{where}: component '{both}' is both chosen and declined")
+        raise BrokenFileError(f"{where}: component '{both}' is both chosen and declined")
     return chosen, declined
 
 
@@ -505,10 +550,10 @@ def choice_from(data, where=CHOICE_FILE):
     require(data, CHOICE_REQUIRED, where)
     check_version(data, where)
     chosen, declined = components_of(data["components"], where)
-    comment_exclude, conventions = comment_gate_settings(data["settings"], where)
+    comment_gate_exclude, conventions = comment_gate_settings(data["settings"], where)
     return Choice(known_languages(text_list(data, "languages", where), where), chosen, declined,
                   text_list(data, "exclude", where), check_limit(data["commit_time_limit_seconds"], where),
-                  comment_exclude, conventions)
+                  comment_gate_exclude, conventions)
 
 
 def read_choice(root):
@@ -525,7 +570,7 @@ def choice_text(choice):
         "exclude": list(choice.exclude),
         "components": {"chosen": list(choice.chosen), "declined": list(choice.declined)},
         "commit_time_limit_seconds": choice.commit_time_limit_seconds,
-        "settings": {COMMENT_GATE: {"exclude": list(choice.comment_exclude), "conventions": list(choice.conventions)}},
+        "settings": {COMMENT_GATE: {"exclude": list(choice.comment_gate_exclude),"conventions": list(choice.conventions)}},
     }
     return json.dumps(data, indent=2) + "\n"
 

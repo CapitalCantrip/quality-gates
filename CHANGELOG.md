@@ -14,13 +14,19 @@
   licence is not OSI-approved, when an `origin` or `adapts` entry names a
   source with no admission, or when a source in `upstream.json` has none.
 - **Quiet sources are flagged (#114).** `qg-upstream --upkeep` reports any
-  source with no release in 12 months that is not marked stable, and the
-  monthly `upstream` workflow opens or updates one issue for them.
+  source whose recorded `last_release` is over 12 months old and that is not
+  marked stable, and the monthly `upstream` workflow opens or updates one issue
+  for them. It reads the recorded date and never asks the source, so renewing
+  means looking up the real newest release and updating `last_release`.
 - **If you read `components.json`:** accept `format_version` 2 and read
   `admissions` and each component's optional `explainer` (README § The component
-  manifest). Otherwise `components` and every part are unchanged, so `qg status`
-  prints the same origins and its `--json` differs only in `format_version`
-  being 2.
+  manifest). A dependency part's `origin` no longer carries `version`: take it
+  from its admission's `minimum_version`, as `>=` that version. Read through
+  quality-gates, the origin still has `version`, so `qg status` prints the same
+  origins.
+- **If you read `qg status --json`:** `format_version` is 2; the report adds
+  `languages`, `languages_from` and `unrecorded_languages`; and a component's
+  `status` may now be `offered, declined` or `not yet offered` (below).
 - **`qg explain <name>` prints a component's explainer (#139, ADR-007).**
   `qg explain crap` prints the plain-words page for the `crap` gate from the
   installed package, offline (README § Explainers). A component names its
@@ -37,7 +43,11 @@
   else. It refuses to switch off the core or a gate the project has, or to
   remove a language that still has code, until recorded reasons ship (#115).
   It copies `--exclude` prefixes from the `comment-debt` lines of the hook and
-  CI into the file and leaves the flags.
+  CI into the file and leaves the flags. A language name it does not know,
+  given to `--add-language` or `--remove-language` or written in the file,
+  exits 3 with one line listing the names it knows. Test folders count toward
+  the proposed languages; fixture folders do not (ADR-007 addendum
+  2026-11-01).
 - **`qg status` reads the choice file.** Languages come from the file, with a
   warning naming the files in any language it does not record; without the
   file, from detection. A component the file declines shows *offered,
@@ -53,7 +63,13 @@
   once, even when named twice or reached through a link. Fixture folders
   (`fixtures`, `fixture`, `__fixtures__`, `testdata`) are excluded by default,
   and setup writes that default into the choice file. Outside a git repo every
-  command exits 2 with one line saying so, instead of using the current folder.
+  command that looks for the project's root exits 2 with one line saying so,
+  instead of using the current folder: the gates, `comment-debt`, `qg status`,
+  `qg setup`, `qg-agent-docs` without `--root`, and `qg-skills` without
+  `--dest`, which now writes `.claude/skills` at the top of the git repo even
+  when run from a subfolder. `qg explain`, `qg-upstream` and `qg-references`
+  read no project and run anywhere. A malformed `quality-gates.json` stops the
+  gates with exit 2 and one line naming the problem.
 - **The `qg` entry point moved** from `quality_gates.status:main` to
   `quality_gates.qg:main` (sprint 1, ADR-011).
 - **Manifests are validated on load** (sprint 1, ADR-011): a malformed

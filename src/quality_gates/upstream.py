@@ -6,7 +6,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, UPSTREAM_PATH, ManifestError, load_components, load_sources
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, UPSTREAM_PATH, BrokenFileError, load_components, load_sources
 
 RAW = "https://raw.githubusercontent.com/{repo}/{ref}/{path}"
 HEAD = "https://api.github.com/repos/{repo}/commits/HEAD"
@@ -23,8 +23,10 @@ ADOPT = (
 )
 
 RENEW = (
-    "To keep a source: confirm its licence and practice still hold, then set `last_release` for it in "
-    "`src/quality_gates/components.json` to its newest release date. If it needs no releases, mark it stable "
+    "This check reads the `last_release` recorded in `components.json`; it does not ask the source. A source "
+    "listed here may have released since the record was written. To keep a source: look up its real newest "
+    "release on its repo or package index, confirm its licence and practice still hold, then set `last_release` "
+    "for it in `src/quality_gates/components.json` to that date. If it needs no releases, mark it stable "
     "with the reason instead. To drop it, remove its parts and its admission."
 )
 
@@ -105,20 +107,20 @@ def quiet_sources(admissions, today):
     for admission in admissions:
         if admission.last_release is None:
             continue
-        age = (today - datetime.date.fromisoformat(admission.last_release)).days
+        age = (today - admission.last_release).days
         if age > QUIET_AFTER_DAYS:
             quiet.append((admission, age // DAYS_PER_MONTH))
     return quiet
 
 
 def upkeep_section(admission, months):
-    return f"## {admission.name}: no release since {admission.last_release} ({months} months)"
+    return f"## {admission.name}: no release recorded since {admission.last_release.isoformat()} ({months} months)"
 
 
 def upkeep(components_path, today):
     try:
         quiet = quiet_sources(load_components(components_path).admissions, today)
-    except ManifestError as error:
+    except BrokenFileError as error:
         print(f"qg-upstream: {error}", file=sys.stderr)
         sys.exit(BROKEN_EXIT)
     if not quiet:
@@ -137,8 +139,8 @@ def build_parser():
                     "Exit 3: upstream.json is missing or malformed.",
     )
     parser.add_argument("--upkeep", action="store_true",
-                        help="instead, report each outside source in components.json with no release in 12 months "
-                             "that is not marked stable (exit 1 when there is one)")
+                        help="instead, report each outside source in components.json whose recorded last_release "
+                             "is over 12 months old and that is not marked stable (exit 1 when there is one)")
     return parser
 
 
@@ -148,7 +150,7 @@ def main(argv=None, record_path=UPSTREAM_PATH, fetch=github_fetch, components_pa
         upkeep(components_path, today or datetime.date.today())
     try:
         sources = load_sources(record_path)
-    except ManifestError as error:
+    except BrokenFileError as error:
         print(f"qg-upstream: {error}", file=sys.stderr)
         sys.exit(BROKEN_EXIT)
     try:

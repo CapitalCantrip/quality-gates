@@ -8,6 +8,7 @@ class ToolError(Exception):
 
 
 OUTPUT_ENCODING = "utf-8"
+TOOL_ERROR_EXIT = 2
 
 
 def _write_utf8(stream) -> None:
@@ -23,7 +24,7 @@ def run_gate(gate: Callable, argv, root, tag: str) -> int:
         return gate(argv, root)
     except ToolError as error:
         print(f"{tag}{error}", file=sys.stderr)
-        return 2
+        return TOOL_ERROR_EXIT
 
 
 def given_path(flag: str, value: str) -> str:
