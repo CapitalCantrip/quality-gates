@@ -14,9 +14,15 @@ from quality_gates import languages, manifest as manifests, skills_sync, status
 
 OURS = {"type": "ours"}
 POCOCK = {"type": "upstream", "name": "mattpocock/skills"}
+ADMISSIONS = [{"name": "mattpocock/skills", "kind": "upstream", "licence": "MIT", "practice": "Tagged releases.",
+               "last_release": "2026-10-29"}]
+
+
+def admitted(manifest):
+    return dict(manifest, admissions=ADMISSIONS)
 
 MANIFEST = {
-    "format_version": 1,
+    "format_version": 2,
     "components": [
         {
             "id": "core",
@@ -95,7 +101,7 @@ class Status(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = status.main([*flags], root=self.repo, source=self.source, hooks=self.hooks,
-                               manifest=manifests.components_from(manifest))
+                               manifest=manifests.components_from(admitted(manifest)))
         return code, out.getvalue()
 
     def report(self, manifest=MANIFEST):
@@ -111,7 +117,7 @@ class Status(unittest.TestCase):
 
     def test_json_carries_the_manifest_format_version_and_the_installed_version(self):
         report = self.report()
-        self.assertEqual(report["format_version"], 1)
+        self.assertEqual(report["format_version"], 2)
         self.assertEqual(report["installed_version"], skills_sync.installed_version())
 
     def test_json_carries_each_components_id_description_origin_and_core_flag(self):
@@ -192,7 +198,7 @@ class Status(unittest.TestCase):
         self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "missing")
 
     def test_a_ci_step_that_runs_inside_a_named_file_is_installed_when_that_file_has_its_marker(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], parts=[
             {"kind": "ci_step", "id": "cc-check-python", "marker": "quality_check.main",
              "found_in": "tests/test_quality_gates.py"}])]}
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
@@ -200,7 +206,7 @@ class Status(unittest.TestCase):
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
 
     def test_a_precommit_step_is_installed_when_the_pre_commit_hook_runs_its_marker(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], parts=[
             {"kind": "precommit_step", "id": "comment-debt", "marker": "comment-debt"}])]}
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
         self.write(self.repo / ".githooks" / "pre-commit", "#!/bin/sh\ncomment-debt-report\n")
@@ -209,13 +215,13 @@ class Status(unittest.TestCase):
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
 
     def test_a_precommit_step_is_not_found_in_a_ci_workflow(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], parts=[
             {"kind": "precommit_step", "id": "crap", "marker": "crap --lang python"}])]}
         self.set_up()
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
 
     def test_a_config_file_is_installed_when_present_and_missing_when_absent(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], parts=[
             {"kind": "config", "id": ".swiftlint.yml"}])]}
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
         self.write(self.repo / ".swiftlint.yml", "cyclomatic_complexity:\n  error: 8\n")
@@ -268,7 +274,7 @@ class Status(unittest.TestCase):
         self.assertEqual(part(report, "risk", "dependency", "radon")["status"], "provided by quality-gates")
 
     def test_a_skill_the_release_does_not_ship_is_unknown(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][2], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][2], parts=[
             {"kind": "skill", "id": "not-shipped"}])]}
         self.write(self.repo / "Cargo.toml", "[package]\n")
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "unknown")
@@ -283,7 +289,7 @@ class Status(unittest.TestCase):
     def test_a_swift_only_project_shows_a_python_only_component_as_not_applicable(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "Package.swift", "// package")
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
         self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
 
     def test_an_xcode_project_counts_as_a_swift_project(self):
@@ -305,7 +311,7 @@ class Status(unittest.TestCase):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "src" / "app.ts", "export {}")
         self.set_up()
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
         self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
 
     def test_source_files_in_build_and_vendored_output_do_not_count_as_a_language(self):
@@ -313,7 +319,7 @@ class Status(unittest.TestCase):
         for folder in ("dist", "build", "target", "Pods", "DerivedData", ".tox", "lib/site-packages", ".build",
                        "node_modules", ".cache"):
             self.write(self.repo / folder / "vendored.py", "x = 1")
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
         self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
 
     def test_a_project_with_source_in_every_language_gets_every_language_component(self):
@@ -323,7 +329,7 @@ class Status(unittest.TestCase):
         self.write(self.repo / "src" / "more" / "deeper.py", "x = 1")
         components = [dict(MANIFEST["components"][1], id=language, languages=[language])
                       for language in ("python", "swift", "typescript")]
-        report = self.report({"format_version": 1, "components": components})
+        report = self.report({"format_version": 2, "components": components})
         self.assertEqual([c["status"] for c in report["components"]], ["missing", "missing", "missing"])
 
     def test_rust_and_shell_source_files_do_not_make_a_project_use_a_language(self):
@@ -353,7 +359,7 @@ class Status(unittest.TestCase):
 
     def test_a_language_component_is_applicable_to_a_project_with_typescript_files(self):
         (self.repo / "pyproject.toml").unlink()
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["typescript"])]}
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["typescript"])]}
         self.write(self.repo / "src" / "app.tsx", "export {}")
         self.assertEqual(self.report(manifest)["components"][0]["status"], "missing")
 
@@ -452,7 +458,7 @@ class Status(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = status.main([], root=empty, source=self.source, hooks=self.hooks,
-                               manifest=manifests.components_from(MANIFEST))
+                               manifest=manifests.components_from(admitted(MANIFEST)))
         self.assertEqual(code, 0)
         self.assertIn("No quality-gates parts found", out.getvalue())
 

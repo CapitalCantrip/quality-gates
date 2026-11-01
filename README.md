@@ -346,7 +346,21 @@ when it disagrees with [upstream.json](src/quality_gates/upstream.json), the
 file-level record `qg-upstream` reads.
 
 - `format_version`: a whole number. A change to the shape below raises it and
-  gets a CHANGELOG note; adding a component or a part does not.
+  gets a CHANGELOG note; adding a component or a part does not. It is 2; version 2
+  added `admissions`.
+- `admissions`: a list with one record per outside source ([ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md)),
+  each with `name` (the repo or tool name, as a component's `origin` spells it),
+  `kind` (`upstream`, `dependency` or `test-only`), `licence` (an SPDX id: an
+  upstream needs MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause or ISC, a
+  dependency any OSI-approved licence, a test-only tool any), `practice` (one
+  sentence on the author's practice, ending in a full stop), and either
+  `last_release` (a date like `2026-10-29`) or `stable` (the reason it needs no
+  releases), never both. A Python package this package installs also has
+  `minimum_version` and `tested_version`, the version CI ran. An admission holds no repo
+  or commit: those stay in `upstream.json`, whose `sources` each need an
+  `upstream` admission. Loading fails when any is missing or breaks the rule,
+  and when an `origin` name or an `adapts` entry has no admission, or an
+  `origin` `type` differs from the `kind` of the source it names.
 - `components`: a list. Each has `id`, `name`, `description` (one line, plain
   words), `core` (true for the parts every project has and cannot switch off),
   `languages` (empty when the component has none), `origin` and `parts`.
@@ -431,6 +445,9 @@ Three more commands support them:
   [Keeping the copied skills current](#keeping-the-copied-skills-current).
   Exit 0: nothing changed. Exit 1: changes, printed as Markdown. Exit 2:
   GitHub unreachable. Exit 3: `upstream.json` is missing or malformed.
+  `--upkeep` instead checks `components.json` for outside sources with no
+  release in 12 months that are not marked stable: exit 0 none, exit 1 some,
+  exit 3 the manifest is malformed.
 - `qg-references` writes the rules the skills cite into each skill's
   `references/` folder, from the restated rules tagged in the ADRs
   ([ADR-004](docs/adr/ADR-004-reference-files.md)). `qg-references --check` also
@@ -555,7 +572,11 @@ updates reach a project only through a release here
 ([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)).
 
 1. On the 1st of each month the `upstream` workflow runs `qg-upstream` and, if
-   a copied file changed upstream, opens an issue with the changes.
+   a copied file changed upstream, opens an issue with the changes. It also
+   runs `qg-upstream --upkeep`, which opens or updates one issue naming every
+   outside source in `components.json` with no release in 12 months that is
+   not marked `stable`; renew its `last_release` or mark it stable with the
+   reason.
 2. Replace each word-for-word copy with the new upstream file.
 3. For each changed file, take the new upstream version and redo every change
    [docs/upstream-adaptations.md](docs/upstream-adaptations.md) lists for it.

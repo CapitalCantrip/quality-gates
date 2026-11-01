@@ -1,6 +1,7 @@
 import json
 import re
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import Mapping, Optional, Tuple
 
@@ -14,7 +15,7 @@ ORIGIN_FIELDS = ("type", "name", "version", "changed", "adapts")
 ORIGIN_TYPES = frozenset({"ours", "upstream", "dependency"})
 PART_KINDS = frozenset({"skill", "hook", "baseline", "config", "ci_step", "precommit_step", "claude_md_line",
                         "command", "dependency"})
-MANIFEST_REQUIRED = ("format_version", "components")
+MANIFEST_REQUIRED = ("format_version", "admissions", "components")
 COMPONENT_REQUIRED = ("id", "name", "description", "core", "languages", "origin", "parts")
 PART_REQUIRED = ("kind", "id")
 STEP_KINDS = frozenset({"ci_step", "precommit_step"})
@@ -22,7 +23,17 @@ STEP_REQUIRED = ("marker",)
 ORIGIN_REQUIRED = ("type",)
 RECORD_REQUIRED = ("sources",)
 SOURCE_REQUIRED = ("repo", "commit", "copied", "files")
-ONE_SENTENCE = r"^[^\n]+\.$"
+SOURCE_KINDS = frozenset({"upstream", "dependency", "test-only"})
+UPSTREAM_LICENCES = frozenset({"MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC"})
+OSI_LICENCES = UPSTREAM_LICENCES | frozenset({
+    "0BSD", "AFL-3.0", "AGPL-3.0-only", "AGPL-3.0-or-later", "Artistic-2.0", "BSL-1.0", "CDDL-1.0", "EPL-1.0", "EPL-2.0",
+    "EUPL-1.2", "GPL-2.0-only", "GPL-2.0-or-later", "GPL-3.0-only", "GPL-3.0-or-later", "LGPL-2.1-only",
+    "LGPL-2.1-or-later", "LGPL-3.0-only", "LGPL-3.0-or-later", "MPL-2.0", "NCSA", "OFL-1.1", "OSL-3.0", "PostgreSQL",
+    "Python-2.0", "Unlicense", "Zlib",
+})
+ADMISSION_REQUIRED = ("name", "kind", "licence", "practice")
+ADMISSION_FIELDS = ADMISSION_REQUIRED + ("last_release", "stable", "minimum_version", "tested_version")
+ONE_SENTENCE =r"^[^\n]+\.$"
 BROKEN_EXIT = 3
 
 
@@ -66,9 +77,22 @@ class Component:
 
 
 @dataclass(frozen=True)
+class Admission:
+    name: str
+    kind: str
+    licence: str
+    practice: str
+    last_release: Optional[str] = None
+    stable: Optional[str] = None
+    minimum_version: Optional[str] = None
+    tested_version: Optional[str] = None
+
+
+@dataclass(frozen=True)
 class Manifest:
     format_version: int
     components: Tuple[Component, ...]
+    admissions: Tuple[Admission, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -117,9 +141,9 @@ def known(value, allowed, what, where):
     return value
 
 
-def labelled(data, noun, number):
-    if isinstance(data, dict) and isinstance(data.get("id"), str):
-        return f"{noun} '{data['id']}'"
+def labelled(data, noun, number, key="id"):
+    if isinstance(data, dict) and isinstance(data.get(key), str):
+        return f"{noun} '{data[key]}'"
     return f"{noun} {number}"
 
 
@@ -172,15 +196,84 @@ def component_from(data, where):
     return component
 
 
+def check_licence(kind, licence, where):
+    fail_unless(isinstance(licence, str) and licence.strip() != "", f"{where}: field 'licence' must be a licence id")
+    if kind == "upstream":
+        fail_unless(licence in UPSTREAM_LICENCES,
+                    f"{where}: an upstream needs one of {', '.join(sorted(UPSTREAM_LICENCES))}, not '{licence}'")
+    if kind == "dependency":
+        fail_unless(licence in OSI_LICENCES, f"{where}: a dependency needs an OSI-approved licence, not '{licence}'")
+
+
+def is_date(value):
+    try:
+        date.fromisoformat(value)
+    except (TypeError, ValueError):
+        return False
+    return True
+
+
+def check_upkeep(data, where):
+    last, stable = data.get("last_release"), data.get("stable")
+    fail_unless(last is not None or stable is not None, f"{where}: give either 'last_release' or 'stable'")
+    fail_unless(last is None or stable is None, f"{where}: give either 'last_release' or 'stable', not both")
+    fail_unless(last is None or is_date(last), f"{where}: field 'last_release' must be a date like 2026-10-29")
+    fail_unless(stable is None or (isinstance(stable, str) and stable.strip() != ""),
+                f"{where}: field 'stable' must give the reason")
+
+
+def check_versions(data, where):
+    fail_unless((data.get("minimum_version") is None) == (data.get("tested_version") is None),
+                f"{where}: give 'minimum_version' and 'tested_version' together")
+
+
+def admission_from(data, where):
+    require(data, ADMISSION_REQUIRED, where)
+    known(data["kind"], SOURCE_KINDS, "source kind", where)
+    check_licence(data["kind"], data["licence"], where)
+    fail_unless(isinstance(data["practice"], str) and re.search(ONE_SENTENCE, data["practice"]) is not None,
+                f"{where}: the practice must be one line ending in a full stop")
+    check_upkeep(data, where)
+    check_versions(data, where)
+    return Admission(*(data.get(field) for field in ADMISSION_FIELDS))
+
+
+def admissions_from(data, name):
+    found = enumerate(data, 1)
+    admissions = tuple(admission_from(a, f"{name}: {labelled(a, 'admission', n, 'name')}") for n, a in found)
+    unique((a.name for a in admissions), name, lambda key: f"admission name '{key}'")
+    return admissions
+
+
+def check_origin_admitted(origin, kinds, where):
+    named = ((origin.name,) if origin.name else ()) + (origin.adapts or ())
+    for source in named:
+        fail_unless(source in kinds, f"{where}: origin names '{source}', which has no admission")
+    if origin.name and kinds[origin.name] != origin.type:
+        raise ManifestError(f"{where}: origin type '{origin.type}' names '{origin.name}', a {kinds[origin.name]}")
+
+
+def check_component_admitted(component, kinds, name):
+    where = f"{name}: component '{component.id}'"
+    check_origin_admitted(component.origin, kinds, where)
+    for part in component.parts:
+        if part.origin is not None:
+            check_origin_admitted(part.origin, kinds, f"{where}, part '{part.id}'")
+
+
 def components_from(data, name=COMPONENTS_PATH.name):
     require(data, MANIFEST_REQUIRED, name)
     version = data["format_version"]
     fail_unless(isinstance(version, int) and not isinstance(version, bool),
                 f"{name}: field 'format_version' must be a whole number")
+    admissions = admissions_from(data["admissions"], name)
     found = enumerate(data["components"], 1)
     components = tuple(component_from(c, f"{name}: {labelled(c, 'component', n)}") for n, c in found)
     unique((c.id for c in components), name, lambda key: f"component id '{key}'")
-    return Manifest(version, components)
+    kinds = {a.name: a.kind for a in admissions}
+    for component in components:
+        check_component_admitted(component, kinds, name)
+    return Manifest(version, components, admissions)
 
 
 def source_from(data, where):

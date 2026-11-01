@@ -1,5 +1,26 @@
 # Changelog
 
+## Unreleased (0.13.0)
+
+- **Admission records (#114, ADR-010).** `components.json` is now
+  `format_version` 2. A new top-level `admissions` list records each outside
+  source once: radon, lizard, `mattpocock/skills`, `cursor/plugins`, and the
+  test-only ruff, ESLint and SwiftLint. Each has a name, a kind (`upstream`,
+  `dependency` or `test-only`), a licence, one sentence on the author's
+  practice, and either a last release date or a `stable` reason; radon and
+  lizard also keep the minimum version and the version CI tested. Loading
+  fails, on every run, when a record lacks a field, when an upstream is not
+  MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause or ISC, when a dependency's
+  licence is not OSI-approved, when an `origin` or `adapts` entry names a
+  source with no admission, or when a source in `upstream.json` has none.
+- **Quiet sources are flagged (#114).** `qg-upstream --upkeep` reports any
+  source with no release in 12 months that is not marked stable, and the
+  monthly `upstream` workflow opens or updates one issue for them.
+- **If you read `components.json`:** accept `format_version` 2 and read
+  `admissions` (README § The component manifest). `components` and every part
+  are unchanged, so `qg status` prints the same origins and its `--json` differs
+  only in `format_version` being 2. Nothing else to do on bumping the pin.
+
 ## 0.12.0 — 2026-10-25
 
 No threshold or scanned file changes. `crap` now grades a function with no

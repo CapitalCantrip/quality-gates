@@ -11,8 +11,15 @@ from quality_gates import manifest  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_FILES = ("components.json", "upstream.json")
+RADON = {"name": "radon", "kind": "dependency", "licence": "MIT", "practice": "One maintainer who ships rarely.",
+         "last_release": "2023-03-26", "minimum_version": "6", "tested_version": "6.0.1"}
+SKILLS = {"name": "someone/skills", "kind": "upstream", "licence": "MIT", "practice": "Publishes skills he uses daily.",
+          "last_release": "2026-10-29"}
+RUFF = {"name": "ruff", "kind": "test-only", "licence": "GPL-3.0-only", "practice": "A funded team ships weekly.",
+        "last_release": "2026-10-27"}
 COMPONENTS = {
-    "format_version": 1,
+    "format_version": 2,
+    "admissions": [RADON, SKILLS, RUFF],
     "components": [{
         "id": "risk",
         "name": "Risk gate",
@@ -41,10 +48,16 @@ class ShippedManifest(unittest.TestCase):
     def test_the_shipped_components_load_as_records_with_parts_and_origins(self):
         loaded = manifest.load_components()
         core = next(c for c in loaded.components if c.id == "core")
-        self.assertEqual(loaded.format_version, 1)
+        self.assertEqual(loaded.format_version, 2)
         self.assertTrue(core.core)
         self.assertEqual(core.origin.type, "upstream")
         self.assertIn(("skill", "tdd"), [(p.kind, p.id) for p in core.parts])
+
+    def test_the_shipped_admissions_cover_every_source_in_use_and_every_test_only_tool(self):
+        kinds = {a.name: a.kind for a in manifest.load_components().admissions}
+        self.assertEqual(kinds, {"radon": "dependency", "lizard": "dependency", "mattpocock/skills": "upstream",
+                                 "cursor/plugins": "upstream", "ruff": "test-only", "eslint": "test-only",
+                                 "swiftlint": "test-only"})
 
     def test_the_shipped_upstream_record_loads_as_sources(self):
         sources = manifest.load_sources()
@@ -76,6 +89,112 @@ class OnlyTheManifestModuleReadsTheManifests(unittest.TestCase):
             tree = ast.parse(path.read_text(encoding="utf-8"))
             found += [f"{path.relative_to(ROOT)}:{line}" for line in manifest_paths_built(tree)]
         self.assertEqual(found, [])
+
+
+class AdmissionRecords(unittest.TestCase):
+    def test_a_manifest_hands_out_its_admission_records_by_name(self):
+        loaded = manifest.components_from(COMPONENTS)
+        radon = next(a for a in loaded.admissions if a.name == "radon")
+        self.assertEqual((radon.kind, radon.licence, radon.last_release, radon.minimum_version, radon.tested_version),
+                         ("dependency", "MIT", "2023-03-26", "6", "6.0.1"))
+
+
+def admission(edit):
+    return changed(COMPONENTS, lambda d: edit(d["admissions"]))
+
+
+class MalformedAdmission(unittest.TestCase):
+    def rejected(self, data):
+        with self.assertRaises(manifest.ManifestError) as failure:
+            manifest.components_from(data)
+        return str(failure.exception)
+
+    def test_a_source_missing_its_licence_fails_naming_the_source_and_the_field(self):
+        message = self.rejected(admission(lambda a: a[0].pop("licence")))
+        self.assertEqual(message, "components.json: admission 'radon': missing field 'licence'")
+
+    def test_a_source_missing_its_practice_fails_naming_the_field(self):
+        message = self.rejected(admission(lambda a: a[1].pop("practice")))
+        self.assertEqual(message, "components.json: admission 'someone/skills': missing field 'practice'")
+
+    def test_a_manifest_without_admissions_fails(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d.pop("admissions")))
+        self.assertEqual(message, "components.json: missing field 'admissions'")
+
+    def test_a_source_of_an_unknown_kind_fails_naming_the_kind(self):
+        message = self.rejected(admission(lambda a: a[0].update(kind="plugin")))
+        self.assertEqual(message, "components.json: admission 'radon': unknown source kind 'plugin'")
+
+    def test_an_upstream_with_a_copyleft_licence_fails_naming_the_licence(self):
+        message = self.rejected(admission(lambda a: a[1].update(licence="GPL-3.0-only")))
+        self.assertEqual(message, "components.json: admission 'someone/skills': an upstream needs one of "
+                                  "Apache-2.0, BSD-2-Clause, BSD-3-Clause, ISC, MIT, not 'GPL-3.0-only'")
+
+    def test_an_upstream_with_a_permissive_licence_is_accepted(self):
+        for licence in ("MIT", "Apache-2.0", "BSD-2-Clause", "BSD-3-Clause", "ISC"):
+            manifest.components_from(admission(lambda a: a[1].update(licence=licence)))
+
+    def test_a_dependency_with_a_copyleft_osi_licence_is_accepted(self):
+        loaded = manifest.components_from(admission(lambda a: a[0].update(licence="GPL-3.0-only")))
+        self.assertEqual(loaded.admissions[0].licence, "GPL-3.0-only")
+
+    def test_a_dependency_with_a_licence_that_is_not_osi_approved_fails(self):
+        message = self.rejected(admission(lambda a: a[0].update(licence="Proprietary")))
+        self.assertEqual(message, "components.json: admission 'radon': a dependency needs an OSI-approved licence, not 'Proprietary'")
+
+    def test_a_test_only_tool_may_have_any_licence_but_not_an_empty_one(self):
+        manifest.components_from(admission(lambda a: a[2].update(licence="Proprietary")))
+        message = self.rejected(admission(lambda a: a[2].update(licence="")))
+        self.assertEqual(message, "components.json: admission 'ruff': field 'licence' must be a licence id")
+
+    def test_a_source_with_neither_a_last_release_nor_a_stable_reason_fails(self):
+        message = self.rejected(admission(lambda a: a[1].pop("last_release")))
+        self.assertEqual(message, "components.json: admission 'someone/skills': give either 'last_release' or 'stable'")
+
+    def test_a_source_with_both_a_last_release_and_a_stable_reason_fails(self):
+        message = self.rejected(admission(lambda a: a[1].update(stable="Prompts only.")))
+        self.assertEqual(message, "components.json: admission 'someone/skills': give either 'last_release' or 'stable', not both")
+
+    def test_a_source_marked_stable_with_no_reason_fails(self):
+        message = self.rejected(admission(lambda a: (a[1].pop("last_release"), a[1].update(stable=" "))))
+        self.assertEqual(message, "components.json: admission 'someone/skills': field 'stable' must give the reason")
+
+    def test_a_source_marked_stable_with_a_reason_is_accepted(self):
+        loaded = manifest.components_from(admission(lambda a: (a[1].pop("last_release"), a[1].update(stable="Prompts only."))))
+        self.assertEqual(loaded.admissions[1].stable, "Prompts only.")
+
+    def test_a_last_release_that_is_not_a_date_fails(self):
+        message = self.rejected(admission(lambda a: a[1].update(last_release="October")))
+        self.assertEqual(message, "components.json: admission 'someone/skills': field 'last_release' must be a date like 2026-10-29")
+
+    def test_a_practice_that_is_not_one_sentence_fails(self):
+        message = self.rejected(admission(lambda a: a[1].update(practice="Daily commits")))
+        self.assertEqual(message, "components.json: admission 'someone/skills': the practice must be one line ending in a full stop")
+
+    def test_a_minimum_version_without_a_tested_version_fails(self):
+        message = self.rejected(admission(lambda a: a[0].pop("tested_version")))
+        self.assertEqual(message, "components.json: admission 'radon': give 'minimum_version' and 'tested_version' together")
+
+    def test_two_sources_with_one_name_fail(self):
+        message = self.rejected(admission(lambda a: a.append(copy.deepcopy(a[0]))))
+        self.assertEqual(message, "components.json: admission name 'radon' is listed twice")
+
+    def test_a_component_origin_naming_a_source_with_no_admission_fails(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["origin"].update(type="upstream", name="other/skills")))
+        self.assertEqual(message, "components.json: component 'risk': origin names 'other/skills', which has no admission")
+
+    def test_a_part_origin_naming_a_source_with_no_admission_fails_naming_the_part(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["parts"][2]["origin"].update(name="radan")))
+        self.assertEqual(message, "components.json: component 'risk', part 'radon': origin names 'radan', which has no admission")
+
+    def test_an_adapted_source_with_no_admission_fails_naming_the_part(self):
+        part = {"kind": "skill", "id": "adapted", "origin": {"type": "ours", "adapts": ["other/skills"]}}
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["parts"].append(part)))
+        self.assertEqual(message, "components.json: component 'risk', part 'adapted': origin names 'other/skills', which has no admission")
+
+    def test_an_origin_whose_type_differs_from_the_kind_of_the_source_it_names_fails(self):
+        message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0]["parts"][2]["origin"].update(type="upstream")))
+        self.assertEqual(message, "components.json: component 'risk', part 'radon': origin type 'upstream' names 'radon', a dependency")
 
 
 class MalformedManifest(unittest.TestCase):
