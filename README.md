@@ -360,9 +360,9 @@ file-level record `qg-upstream` reads.
   component. The kinds are `skill`, `hook`, `command`, `baseline`, `config`,
   `ci_step`, `precommit_step`, `claude_md_line` and `dependency`. A `config` is
   a settings file the gate reads, such as `.swiftlint.yml`, and is present or
-  absent like a baseline. A `precommit_step` has `marker`, the command
+  absent like a baseline. A `precommit_step` must have `marker`, the command
   `/setup-standards` puts in `.githooks/pre-commit`. A `ci_step` has `file`, the setup example
-  it comes from, and `marker`, the text that example puts in a CI workflow; with
+  it comes from, and must have `marker`, the text that example puts in a CI workflow; with
   `found_in`, the marker is looked for in that project file instead, such as the
   test file `cc-check` runs inside for Python. A part for only some of its
   component's languages lists them in `languages`; in a project that uses none
@@ -429,6 +429,8 @@ Three more commands support them:
 - `qg-upstream` reports what changed upstream in the files this repo copies
   from Pocock and pstack; see
   [Keeping the copied skills current](#keeping-the-copied-skills-current).
+  Exit 0: nothing changed. Exit 1: changes, printed as Markdown. Exit 2:
+  GitHub unreachable. Exit 3: `upstream.json` is missing or malformed.
 - `qg-references` writes the rules the skills cite into each skill's
   `references/` folder, from the restated rules tagged in the ADRs
   ([ADR-004](docs/adr/ADR-004-reference-files.md)). `qg-references --check` also
@@ -474,8 +476,10 @@ Three more commands support them:
   (it could not read something) or *not applicable* (the component is for a
   language the project does not use). Core components come first. It also shows
   the version the project pins next to the version installed, or *pin not
-  found*. It only reads, works offline and always exits 0, so it never blocks a
-  commit; `qg-skills --check` stays the check that fails. `qg status --json`
+  found*. It only reads, works offline and exits 0 whatever it finds, so it
+  never blocks a commit; `qg-skills --check` stays the check that fails. It
+  exits 3, with one line on stderr naming the problem, only when the
+  `components.json` shipped inside quality-gates is missing or malformed. `qg status --json`
   prints the same report for an agent, with the component list's format
   version, and for each component its id, status and parts. The commands and
   tools quality-gates itself installs, such as `cc-check` or `radon`, have no
@@ -576,7 +580,9 @@ How the code is laid out, and where each new piece belongs:
 [docs/languages-by-gates.md](docs/languages-by-gates.md) is generated from the
 language registry and each gate's language table. After changing either, run
 `.venv/bin/python -m quality_gates.languages_table`; a test fails while the
-table is out of date, and `--check` reports the drift without writing.
+table is out of date, and `--check` reports the drift without writing. It exits
+1 on drift, 2 when asked to write outside the quality-gates checkout, and 3
+when `components.json` is missing or malformed.
 
 ## Decisions
 

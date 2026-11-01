@@ -58,8 +58,12 @@ def readme_from_column():
     return dict(rows), [name for name, _ in rows]
 
 
+def origin_of(component, part):
+    return part.origin or component.origin
+
+
 def expected_from_label(component, part):
-    origin = component.origin_of(part)
+    origin = origin_of(component, part)
     if origin.type == "ours":
         return "ours"
     label = UPSTREAM_LABELS[origin.name]
@@ -148,7 +152,7 @@ class ComponentManifest(unittest.TestCase):
 
     def test_a_component_has_the_origin_most_of_its_parts_have(self):
         for component in MANIFEST.components:
-            counts = Counter((o.type, o.name) for o in (component.origin_of(p) for p in component.parts))
+            counts = Counter((o.type, o.name) for o in (origin_of(component, p) for p in component.parts))
             (top, top_count), *rest = counts.most_common()
             self.assertTrue(not rest or rest[0][1] < top_count, component.id)
             self.assertEqual((component.origin.type, component.origin.name), top, component.id)
@@ -158,7 +162,7 @@ class ComponentManifestAgreesWithTheUpstreamRecord(unittest.TestCase):
     def test_a_skill_has_upstream_files_exactly_when_the_manifest_says_it_comes_from_or_adapts_that_upstream(self):
         recorded = upstream_repos_by_skill()
         for component, part in parts("skill"):
-            origin = component.origin_of(part)
+            origin = origin_of(component, part)
             named = set(origin.adapts or ())
             if origin.type == "upstream":
                 named.add(origin.name)
@@ -166,7 +170,7 @@ class ComponentManifestAgreesWithTheUpstreamRecord(unittest.TestCase):
 
     def test_an_upstream_skill_is_marked_changed_exactly_when_its_skill_file_is_adapted(self):
         for component, part in parts("skill"):
-            origin = component.origin_of(part)
+            origin = origin_of(component, part)
             if origin.type == "upstream":
                 self.assertEqual(bool(origin.changed), skill_md_is_adapted(part.id), part.id)
 

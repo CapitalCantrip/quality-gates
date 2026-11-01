@@ -17,10 +17,13 @@ PART_KINDS = frozenset({"skill", "hook", "baseline", "config", "ci_step", "preco
 MANIFEST_REQUIRED = ("format_version", "components")
 COMPONENT_REQUIRED = ("id", "name", "description", "core", "languages", "origin", "parts")
 PART_REQUIRED = ("kind", "id")
+STEP_KINDS = frozenset({"ci_step", "precommit_step"})
+STEP_REQUIRED = ("marker",)
 ORIGIN_REQUIRED = ("type",)
 RECORD_REQUIRED = ("sources",)
 SOURCE_REQUIRED = ("repo", "commit", "copied", "files")
 ONE_SENTENCE = r"^[^\n]+\.$"
+BROKEN_EXIT = 3
 
 
 class ManifestError(Exception):
@@ -61,9 +64,6 @@ class Component:
     origin: Origin
     parts: Tuple[Part, ...]
 
-    def origin_of(self, part):
-        return part.origin or self.origin
-
 
 @dataclass(frozen=True)
 class Manifest:
@@ -82,6 +82,10 @@ class Source:
 def read_json(path):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
+    except FileNotFoundError as error:
+        raise ManifestError(f"{path}: not found") from error
+    except OSError as error:
+        raise ManifestError(f"{path}: cannot be read: {error.strerror}") from error
     except ValueError as error:
         raise ManifestError(f"{path}: not valid JSON: {error}") from error
 
@@ -123,25 +127,30 @@ def known_languages(values, where):
     return tuple(known(value, registry.LANGUAGES, "language", where) for value in values)
 
 
-def optional_languages(value, where):
-    return None if value is None else known_languages(value, where)
-
-
-def optional_tuple(value):
+def optional_tuple(data, field, where):
+    value = data.get(field)
+    fail_unless(value is None or isinstance(value, list), f"{where}: field '{field}' must be a list")
     return None if value is None else tuple(value)
+
+
+def optional_languages(data, where):
+    values = optional_tuple(data, "languages", where)
+    return None if values is None else known_languages(values, where)
 
 
 def origin_from(data, where):
     require(data, ORIGIN_REQUIRED, where)
     return Origin(known(data["type"], ORIGIN_TYPES, "origin type", where), data.get("name"), data.get("version"),
-                  data.get("changed"), optional_tuple(data.get("adapts")))
+                  data.get("changed"), optional_tuple(data, "adapts", where))
 
 
 def part_from(data, where):
     require(data, PART_REQUIRED, where)
+    kind = known(data["kind"], PART_KINDS, "part kind", where)
+    if kind in STEP_KINDS:
+        require(data, STEP_REQUIRED, where)
     origin = data.get("origin")
-    return Part(known(data["kind"], PART_KINDS, "part kind", where), data["id"],
-                None if origin is None else origin_from(origin, where), optional_languages(data.get("languages"), where),
+    return Part(kind, data["id"], None if origin is None else origin_from(origin, where), optional_languages(data, where),
                 data.get("marker"), data.get("found_in"), data.get("file"))
 
 

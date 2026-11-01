@@ -1,7 +1,8 @@
 import argparse
+import sys
 from pathlib import Path
 
-from quality_gates import comment_debt, crap, languages, manifest, quality_check
+from quality_gates import comment_debt, crap, languages, manifest, quality_check, status
 
 COMMAND = "python -m quality_gates.languages_table"
 DEFAULT_PATH = Path("docs") / "languages-by-gates.md"
@@ -23,7 +24,7 @@ def row(cells):
 
 
 def installed(name, components):
-    return ", ".join(c.id for c in components if name in c.languages) or NONE_INSTALLED
+    return ", ".join(c.id for c in components if status.applies(c.languages, {name})) or NONE_INSTALLED
 
 
 def language_row(language, components):
@@ -31,8 +32,8 @@ def language_row(language, components):
     return row([language.label, *scored, installed(language.name, components)])
 
 
-def render():
-    components = manifest.load_components().components
+def render(components_path=manifest.COMPONENTS_PATH):
+    components = manifest.load_components(components_path).components
     header = ["Language", *GATES, "Components installed for it"]
     lines = [
         "# Languages by gates",
@@ -47,12 +48,13 @@ def render():
     return "\n".join(lines) + "\n"
 
 
-def check(path, shown=None):
+def check(path, shown=None, components_path=manifest.COMPONENTS_PATH):
     path = Path(path)
     shown = shown or path
+    expected = render(components_path)
     if not path.is_file():
         return [f"{shown}: missing; run {COMMAND}"]
-    if path.read_text(encoding="utf-8") != render():
+    if path.read_text(encoding="utf-8") != expected:
         return [f"{shown}: differs from the gate tables; run {COMMAND}"]
     return []
 
@@ -76,20 +78,27 @@ def build_parser():
     return parser
 
 
-def main(argv=None, repo=REPO):
+def run(args, target, components_path):
+    if args.check:
+        problems = check(target, args.path, components_path)
+        print("\n".join(problems) if problems else MATCHES)
+        return 1 if problems else 0
+    target.write_text(render(components_path), encoding="utf-8")
+    print(f"Wrote {args.path}")
+    return 0
+
+
+def main(argv=None, repo=REPO, components_path=manifest.COMPONENTS_PATH):
     args = build_parser().parse_args(argv)
     refused = refusal(repo, args.path)
     if refused:
         print(refused)
         return REFUSED
-    target = repo / args.path
-    if args.check:
-        problems = check(target, args.path)
-        print("\n".join(problems) if problems else MATCHES)
-        return 1 if problems else 0
-    target.write_text(render(), encoding="utf-8")
-    print(f"Wrote {args.path}")
-    return 0
+    try:
+        return run(args, repo / args.path, components_path)
+    except manifest.ManifestError as error:
+        print(f"{COMMAND}: {error}", file=sys.stderr)
+        return manifest.BROKEN_EXIT
 
 
 if __name__ == "__main__":

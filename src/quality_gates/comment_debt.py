@@ -73,15 +73,19 @@ LANGUAGES = {
 
 
 def tracked_files(root, excluded):
-    return project_files.tracked_files(root, languages.suffixes_of(LANGUAGES), excluded)
+    return {
+        path: checker
+        for name, checker in LANGUAGES.items()
+        for path in project_files.tracked_files(root, languages.suffixes_of([name]), excluded)
+    }
 
 
-def measure(root, paths):
+def measure(root, listed):
     current = {}
-    for path in paths:
+    for path, checker in listed.items():
         file = root / path
         if file.exists():
-            current[path] = LANGUAGES[languages.language_of_tracked_file(path)](file.read_text(encoding="utf-8"))
+            current[path] = checker(file.read_text(encoding="utf-8"))
     return current
 
 

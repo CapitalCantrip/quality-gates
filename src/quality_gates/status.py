@@ -1,11 +1,12 @@
 import argparse
 import json
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 from quality_gates import languages, project_files, skills_sync
-from quality_gates.manifest import load_components
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, ManifestError, load_components
 
 INSTALLED = "installed"
 MISSING = "missing"
@@ -119,8 +120,7 @@ PART_STATUS = {
 
 
 def part_status(project, part):
-    reader = PART_STATUS.get(part.kind)
-    return reader(project, part) if reader else UNKNOWN
+    return PART_STATUS[part.kind](project, part)
 
 
 def roll_up(statuses):
@@ -274,9 +274,15 @@ def build_parser():
     return parser
 
 
-def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None):
+def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None,
+         components_path=COMPONENTS_PATH):
     args = build_parser().parse_args(argv)
+    try:
+        manifest = manifest or load_components(components_path)
+    except ManifestError as error:
+        print(f"qg status: {error}", file=sys.stderr)
+        return BROKEN_EXIT
     project = Project(project_files.current_folder() if root is None else root, source, hooks, frozenset(skills_sync.skill_names(source)))
-    report = build_report(project, manifest or load_components())
+    report = build_report(project, manifest)
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0

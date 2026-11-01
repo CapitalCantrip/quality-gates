@@ -5,7 +5,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from quality_gates.manifest import UPSTREAM_PATH, load_sources
+from quality_gates.manifest import BROKEN_EXIT, UPSTREAM_PATH, ManifestError, load_sources
 
 RAW = "https://raw.githubusercontent.com/{repo}/{ref}/{path}"
 HEAD = "https://api.github.com/repos/{repo}/commits/HEAD"
@@ -96,13 +96,18 @@ def build_parser():
         prog="qg-upstream",
         description="Report what changed upstream (Matt Pocock's skills, pstack) in the files this "
                     "repo copies or adapts, since the commits recorded in upstream.json. Exit 0: "
-                    "nothing changed. Exit 1: changes, printed as Markdown. Exit 2: GitHub unreachable.",
+                    "nothing changed. Exit 1: changes, printed as Markdown. Exit 2: GitHub unreachable. "
+                    "Exit 3: upstream.json is missing or malformed.",
     )
 
 
 def main(argv=None, record_path=UPSTREAM_PATH, fetch=github_fetch):
     build_parser().parse_args(argv)
-    sources = load_sources(record_path)
+    try:
+        sources = load_sources(record_path)
+    except ManifestError as error:
+        print(f"qg-upstream: {error}", file=sys.stderr)
+        sys.exit(BROKEN_EXIT)
     try:
         sections = report(sources, fetch)
     except FetchError as error:

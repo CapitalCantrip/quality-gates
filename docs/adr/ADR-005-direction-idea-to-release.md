@@ -177,6 +177,8 @@ this ADR adds is tracked in quality-gates#112 to quality-gates#115.
 
 Amends: [Rollout](#rollout)
 
+Amended by: [Addendum 2026-11-01: `qg status` when the shipped manifest is broken](#addendum-2026-11-01-qg-status-when-the-shipped-manifest-is-broken)
+
 Settled with the builder while specifying quality-gates#104 and `qg status`.
 
 **Two files, two questions.** A new `components.json` ships with the package
@@ -198,3 +200,16 @@ it reports the consumer's pin against the installed version, or "pin not found".
 Only copied files can be different; baselines, CI steps and the asking-rule line
 are present or absent. When it cannot tell, it says unknown. `--json` gives the
 same data for agents and the UI.
+
+## Addendum 2026-11-01: `qg status` when the shipped manifest is broken
+
+Amends: [Addendum 2026-10-25: the component manifest and `qg status`](#addendum-2026-10-25-the-component-manifest-and-qg-status)
+
+`qg status` still exits 0 whatever it finds in the project. The one exception
+is a fault in quality-gates itself: when the `components.json` shipped in the
+package is missing, unreadable or malformed, there is no report to give, so it
+prints one line on stderr naming the problem and exits 3. It does not exit 2,
+which the argument parser uses for a usage error. `qg-upstream` and the
+languages-by-gates generator use the same exit 3 when the manifest they read
+is broken, since 2 already means something else to each of them (GitHub
+unreachable; a refusal to write outside the checkout).

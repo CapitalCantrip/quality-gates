@@ -194,14 +194,16 @@ def file_state(root, name):
     return READABLE if path.is_file() and os.access(path, os.R_OK) else UNREADABLE
 
 
-def readable_texts(paths):
-    texts = []
+def each_text(paths):
     for path in paths:
         try:
-            texts.append(path.read_text(encoding="utf-8"))
+            yield path.read_text(encoding="utf-8")
         except (OSError, UnicodeDecodeError):
-            texts.append(None)
-    return texts
+            yield None
+
+
+def readable_texts(paths):
+    return list(each_text(paths))
 
 
 def ci_texts(root, found_in=None):
@@ -215,8 +217,13 @@ def pre_commit_texts(root):
     return ci_texts(root, PRE_COMMIT_HOOK)
 
 
+def pin_paths(root):
+    yield root / PIN_FILE
+    yield from workflow_files(root)
+
+
 def pin_texts(root):
-    return [text for text in readable_texts([root / PIN_FILE] + workflow_files(root)) if text is not None]
+    return (text for text in each_text(pin_paths(root)) if text is not None)
 
 
 def differences(claude_dir, root, source=HOOKS_SOURCE):
