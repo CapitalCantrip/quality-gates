@@ -43,3 +43,30 @@ jobs:
             cp report.md body.md
           fi
           gh issue create --title "$TITLE" --label needs-triage --body-file body.md
+
+  upkeep:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      TITLE: "Outside source gone quiet: no release in 12 months"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -e .
+      - name: Flag a source with no release in 12 months
+        run: |
+          set +e
+          qg-upstream --upkeep > report.md
+          code=$?
+          set -e
+          cat report.md
+          if [ "$code" -eq 0 ]; then exit 0; fi
+          if [ "$code" -ne 1 ]; then exit "$code"; fi
+          open=$(gh issue list --state open --search "in:title \"$TITLE\"" --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh issue edit "$open" --body-file report.md
+            exit 0
+          fi
+          gh issue create --title "$TITLE" --label needs-triage --body-file report.md

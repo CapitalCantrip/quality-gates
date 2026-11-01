@@ -23,6 +23,19 @@ UPSTREAM_LABELS = {"mattpocock/skills": "Pocock"}
 SKILLS_PREFIX = "src/quality_gates/skills/"
 
 
+def admissions_of(kind):
+    return {a.name: a for a in MANIFEST.admissions if a.kind == kind}
+
+
+def version_tuple(version):
+    return tuple(int(number) for number in version.split("."))
+
+
+def pyproject_requirements():
+    listed = re.search(r"(?m)^dependencies = \[(.*)\]$", PYPROJECT).group(1)
+    return dict(re.findall(r'"([\w-]+)>=([\d.]+)"', listed))
+
+
 def parts(kind=None):
     for component in MANIFEST.components:
         for part in component.parts:
@@ -173,6 +186,38 @@ class ComponentManifestAgreesWithTheUpstreamRecord(unittest.TestCase):
             origin = origin_of(component, part)
             if origin.type == "upstream":
                 self.assertEqual(bool(origin.changed), skill_md_is_adapted(part.id), part.id)
+
+
+class AdmissionsAgreeWithWhatShips(unittest.TestCase):
+    def test_every_source_in_the_upstream_record_has_an_upstream_admission(self):
+        upstreams = admissions_of("upstream")
+        for source in SOURCES:
+            self.assertIn(source.repo, upstreams)
+
+    def test_every_upstream_admission_is_a_source_in_the_upstream_record(self):
+        self.assertEqual(set(admissions_of("upstream")), {source.repo for source in SOURCES})
+
+    def test_every_python_requirement_of_the_package_has_a_dependency_admission_at_the_same_minimum(self):
+        dependencies = admissions_of("dependency")
+        requirements = pyproject_requirements()
+        self.assertEqual(sorted(requirements), sorted(dependencies))
+        for name, minimum in requirements.items():
+            self.assertEqual(dependencies[name].minimum_version, minimum, name)
+
+    def test_the_version_ci_tested_is_at_or_above_the_minimum_for_every_dependency(self):
+        for name, admission in admissions_of("dependency").items():
+            self.assertGreaterEqual(version_tuple(admission.tested_version), version_tuple(admission.minimum_version), name)
+
+    def test_a_dependency_part_states_the_minimum_its_admission_records(self):
+        dependencies = admissions_of("dependency")
+        for _, part in parts("dependency"):
+            self.assertEqual(part.origin.version, f">={dependencies[part.origin.name].minimum_version}", part.id)
+
+    def test_every_test_only_tool_has_a_licence_and_no_part_installs_it(self):
+        named = {origin_of(c, p).name for c, p in parts()}
+        for name, admission in admissions_of("test-only").items():
+            self.assertTrue(admission.licence, name)
+            self.assertNotIn(name, named)
 
 
 class ComponentManifestAgreesWithTheReadme(unittest.TestCase):

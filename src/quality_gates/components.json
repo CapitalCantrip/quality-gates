@@ -1,5 +1,60 @@
 {
-  "format_version": 1,
+  "format_version": 2,
+  "admissions": [
+    {
+      "name": "radon",
+      "kind": "dependency",
+      "licence": "MIT",
+      "practice": "A long-standing complexity and maintainability counter that Michele Lacchia started and volunteers keep working.",
+      "stable": "Cyclomatic complexity is a finished algorithm; the last release is 2023-03-26, the last commit 2024-10-20, and 6.0.1 passes every test here on Python 3.9 to 3.13.",
+      "minimum_version": "6",
+      "tested_version": "6.0.1"
+    },
+    {
+      "name": "lizard",
+      "kind": "dependency",
+      "licence": "MIT",
+      "practice": "Terry Yin's multi-language complexity counter, on PyPI for many years and still releasing.",
+      "last_release": "2026-10-24",
+      "minimum_version": "1.24.2",
+      "tested_version": "1.24.2"
+    },
+    {
+      "name": "mattpocock/skills",
+      "kind": "upstream",
+      "licence": "MIT",
+      "practice": "Matt Pocock's engineering skills, published under his name with tagged releases and a licence file.",
+      "last_release": "2026-10-29"
+    },
+    {
+      "name": "cursor/plugins",
+      "kind": "upstream",
+      "licence": "MIT",
+      "practice": "Lauren Tan's pstack sits in Cursor's plugin repository, which is committed to daily and tags no releases, so the date is its last change to pstack, whose folder holds the MIT licence.",
+      "last_release": "2026-10-27"
+    },
+    {
+      "name": "ruff",
+      "kind": "test-only",
+      "licence": "MIT",
+      "practice": "Astral's Python linter, built by a funded company team and released often.",
+      "last_release": "2026-10-27"
+    },
+    {
+      "name": "eslint",
+      "kind": "test-only",
+      "licence": "MIT",
+      "practice": "The OpenJS Foundation's JavaScript linter, run by a team of maintainers with regular releases.",
+      "last_release": "2026-10-30"
+    },
+    {
+      "name": "swiftlint",
+      "kind": "test-only",
+      "licence": "MIT",
+      "practice": "A Swift linter kept up by a community team of maintainers with a release every few months.",
+      "last_release": "2026-08-21"
+    }
+  ],
   "components": [
     {
       "id": "core",
