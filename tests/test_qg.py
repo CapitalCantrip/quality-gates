@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "src"))
 
-from quality_gates import qg, status
+from quality_gates import explain, qg, status
 
 DISPATCHER_SOURCE = ROOT / "src" / "quality_gates" / "qg.py"
 DISPATCHER_NAMES = {"COMMANDS", "DESCRIPTION", "build_parser", "main"}
@@ -66,13 +66,14 @@ class QgDispatcherTest(unittest.TestCase):
     def test_qg_help_lists_every_subcommand(self):
         code, out, _ = run(qg.main, ["--help"])
         self.assertEqual(code, 0)
+        flat = " ".join(out.split())
         for name, module in qg.COMMANDS.items():
-            self.assertRegex(out, rf"\n    {name}\s+{module.SUMMARY}\n")
+            self.assertIn(f"{name} {module.SUMMARY}", flat)
 
     def test_qg_with_no_subcommand_stops_with_usage_and_exit_2(self):
         code, _, err = run(qg.main, [])
         self.assertEqual(code, 2)
-        self.assertEqual(err, "usage: qg [-h] {status} ...\nqg: error: the following arguments are required: command\n")
+        self.assertEqual(err, "usage: qg [-h] {status,explain} ...\nqg: error: the following arguments are required: command\n")
 
     def test_an_unknown_subcommand_stops_with_exit_2(self):
         code, _, err = run(qg.main, ["bogus"])
@@ -98,6 +99,9 @@ class QgDispatcherTest(unittest.TestCase):
                 with self.subTest(flags=flags):
                     self.assertEqual(run(qg.main, ["status", *flags]), run(status.main, flags))
             os.chdir(here)
+
+    def test_qg_explain_prints_what_the_explain_module_prints_for_a_component(self):
+        self.assertEqual(run(qg.main, ["explain", "crap"]), run(explain.main, ["crap"]))
 
 
 if __name__ == "__main__":
