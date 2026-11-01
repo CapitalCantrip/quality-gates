@@ -10,7 +10,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import skills_sync, status
+from quality_gates import manifest as manifests, skills_sync, status
 
 OURS = {"type": "ours"}
 POCOCK = {"type": "upstream", "name": "mattpocock/skills"}
@@ -94,7 +94,8 @@ class Status(unittest.TestCase):
     def run_status(self, *flags, manifest=MANIFEST):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main([*flags], root=self.repo, source=self.source, hooks=self.hooks, manifest=manifest)
+            code = status.main([*flags], root=self.repo, source=self.source, hooks=self.hooks,
+                               manifest=manifests.components_from(manifest))
         return code, out.getvalue()
 
     def report(self, manifest=MANIFEST):
@@ -415,7 +416,8 @@ class Status(unittest.TestCase):
         empty.mkdir()
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main([], root=empty, source=self.source, hooks=self.hooks, manifest=MANIFEST)
+            code = status.main([], root=empty, source=self.source, hooks=self.hooks,
+                               manifest=manifests.components_from(MANIFEST))
         self.assertEqual(code, 0)
         self.assertIn("No quality-gates parts found", out.getvalue())
 
@@ -438,8 +440,8 @@ class Status(unittest.TestCase):
             code = status.main(["--json"], root=self.repo)
         report = json.loads(out.getvalue())
         self.assertEqual(code, 0)
-        self.assertEqual(report["format_version"], status.load_manifest()["format_version"])
-        self.assertEqual(len(report["components"]), len(status.load_manifest()["components"]))
+        self.assertEqual(report["format_version"], manifests.load_components().format_version)
+        self.assertEqual(len(report["components"]), len(manifests.load_components().components))
 
 
 if __name__ == "__main__":
