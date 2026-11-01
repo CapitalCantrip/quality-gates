@@ -190,8 +190,8 @@ COUNTING_TOOLS = {
 }
 
 
-def find_sources(paths: list, lang: str) -> Sources:
-    files, skipped = project_files.scanned_files(paths)
+def find_sources(paths: list, lang: str, root=None) -> Sources:
+    files, skipped = project_files.files_in_scope(paths, root)
     suffixes = languages.suffixes_of([lang])
     return Sources([f for f in files if f.suffix in suffixes], skipped)
 
@@ -202,5 +202,5 @@ def count_functions(sources: Sources, lang: str, runner=None) -> Scan:
     return Scan(functions, analysed, sources.skipped)
 
 
-def scan(paths: list, lang: str, runner=None) -> Scan:
-    return count_functions(find_sources(paths, lang), lang, runner)
+def scan(paths: list, lang: str, runner=None, root=None) -> Scan:
+    return count_functions(find_sources(paths, lang, root), lang, runner)

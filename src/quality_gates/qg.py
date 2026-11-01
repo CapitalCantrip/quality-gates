@@ -1,10 +1,10 @@
 import argparse
 import sys
 
-from quality_gates import explain, status
+from quality_gates import explain, setup_choices, status
 
 DESCRIPTION = "Report on what quality-gates has installed in this project."
-COMMANDS = {"status": status, "explain": explain}
+COMMANDS = {"status": status, "setup": setup_choices, "explain": explain}
 
 
 def build_parser():

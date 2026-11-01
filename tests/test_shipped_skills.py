@@ -33,11 +33,8 @@ NESTED_FUNC_REASON = (
     "A nested `func`: the CRAP gate scores it on its own and fails an untested one with two or more branches. "
     "A small one (a single branch, CRAP 6) can still pass untested, which is why the rule asks for a test for it too."
 )
-EXPLAINER_PHRASES = (
-    "Ask me about any row, or run `qg explain <name>`.",
-    "run `qg explain <name>`, read the explainer",
-    "Never write an explanation fresh",
-)
+EXPLAINER_LINE = "Ask me about any row, or run `qg explain <name>`."
+EXPLAINER_RULES = ("run `qg explain <name>`, read the explainer", "Never write an explanation fresh")
 
 PIN = re.compile(r"quality-gates@v(\d+\.\d+\.\d+)")
 PIN_HOMES = ("setup-standards/SKILL.md", "setup-standards/ci-typescript.md")
@@ -57,9 +54,9 @@ def section(case, text, heading, next_heading):
 
 SCAN_SKILLS = ("cc-python", "cc-swift", "cc-typescript", "crap")
 KEY_RULE_SKILLS = ("cc-python", "cc-typescript", "crap")
-SKIP_LIST_SENTENCE = (
-    "skips the folders on the [skip list](references/skip-list.md) "
-    "and follows symlinked folders by the [symlink rule](references/symlinked-folders.md)."
+SCOPE_SENTENCE = (
+    "looks only at the [files in scope](references/files-in-scope.md), the files git would commit less the "
+    "choice file's exclusions, and follows symlinked folders by the [symlink rule](references/symlinked-folders.md)."
 )
 REAL_PATH_REFERENCE = "](references/baseline-keys.md)"
 ADR_DIR = ROOT / "docs/adr"
@@ -86,9 +83,9 @@ def reference_links(path):
 
 
 class ScanSkillsLinkTheirRules(unittest.TestCase):
-    def test_each_scan_skill_links_the_skip_list_and_symlink_rule_in_one_sentence(self):
+    def test_each_scan_skill_links_the_files_in_scope_and_symlink_rule_in_one_sentence(self):
         for name in SCAN_SKILLS:
-            self.assertIn(SKIP_LIST_SENTENCE, skill_text(name), name)
+            self.assertIn(SCOPE_SENTENCE, skill_text(name), name)
 
     def test_each_skill_that_gives_baseline_keys_links_the_real_path_key_rule(self):
         for name in KEY_RULE_SKILLS:
@@ -197,10 +194,14 @@ class SetupStandards(unittest.TestCase):
     def test_the_baselines_step_can_finish_with_crap_reported_not_done(self):
         self.assertIn(BASELINES_CAN_FINISH, self.baselines())
 
-    def test_the_setup_guide_gives_the_explainer_line_and_has_the_agent_read_the_explainer(self):
+    def test_the_setup_guide_has_the_agent_read_the_explainer_and_never_write_one(self):
         intro = section(self, SETUP_STANDARDS, "Keep a running list", "## 1. Agent docs and the glossary")
-        for phrase in EXPLAINER_PHRASES:
+        for phrase in EXPLAINER_RULES:
             self.assertIn(phrase, intro)
+
+    def test_the_setup_guide_puts_the_explainer_line_under_the_table_and_in_the_report(self):
+        self.assertIn(EXPLAINER_LINE, section(self, SETUP_STANDARDS, "## 2. Languages and components", "## 3. Baselines"))
+        self.assertIn(EXPLAINER_LINE, flat(SETUP_STANDARDS.split("## 7. Report", 1)[1]))
 
 
 class ClosureReviewRule(unittest.TestCase):

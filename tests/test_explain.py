@@ -69,7 +69,7 @@ def run(entry, argv):
     return code, out.getvalue(), err.getvalue()
 
 
-def manifest_of(**changes):
+def manifest_with(**changes):
     component = {"id": "demo", "name": "Demo", "description": "A demo component.", "core": False, "languages": [],
                  "origin": {"type": "ours"}, "parts": []}
     return {"format_version": 2, "admissions": [], "components": [dict(component, **changes)]}
@@ -94,14 +94,14 @@ class ExplainCommand(unittest.TestCase):
 
     def test_a_component_with_no_explainer_yet_stops_with_exit_1_naming_it(self):
         with tempfile.TemporaryDirectory() as folder:
-            entry = partial(explain.main, components_path=manifest_in(folder, manifest_of()))
+            entry = partial(explain.main, components_path=manifest_in(folder, manifest_with()))
             code, out, err = run(entry, ["demo"])
         self.assertEqual((code, out), (1, ""))
         self.assertEqual(err, "qg explain: 'demo' has no explainer yet\n")
 
     def test_an_explainer_file_that_is_missing_stops_with_exit_3_naming_the_file(self):
         with tempfile.TemporaryDirectory() as folder:
-            entry = partial(explain.main, components_path=manifest_in(folder, manifest_of(explainer="explainers/demo.md")))
+            entry = partial(explain.main, components_path=manifest_in(folder, manifest_with(explainer="explainers/demo.md")))
             code, out, err = run(entry, ["demo"])
         self.assertEqual((code, out), (3, ""))
         self.assertIn("demo.md", err)

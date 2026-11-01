@@ -4,9 +4,12 @@ import os
 import shutil
 import stat
 import subprocess
-from pathlib import Path
+from dataclasses import dataclass, replace
+from pathlib import Path, PurePosixPath
 
+from quality_gates import languages
 from quality_gates.errors import ToolError
+from quality_gates.manifest import ManifestError, fail_unless, known, known_languages, read_json, require, unique
 
 HOOKS_SOURCE = Path(__file__).parent / "hooks"
 STAGE_GUARD = "stage_guard.py"
@@ -21,14 +24,12 @@ ASKING_LINE = (
 )
 GIT_ROOT = ("git", "rev-parse", "--show-toplevel")
 TRACKED_FILES = ("git", "ls-files")
-SKIPPED_FOLDERS = (
-    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
-    ".tox", ".mypy_cache", ".pytest_cache", ".worktrees", ".claude/worktrees",
+FILES_GIT_WOULD_COMMIT = ("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+NOT_A_GIT_REPO = (
+    "not inside a git repository: quality-gates looks at the files git would commit, so run it inside the "
+    "project's repository, or run `git init` there first"
 )
-SKIPPED_PARTS = [tuple(folder.split("/")) for folder in SKIPPED_FOLDERS]
 ALREADY_SCANNED = " (already scanned)"
-BUILD_OUTPUT_FOLDERS = {"target", "Pods", "DerivedData", "site-packages"}
-HIDDEN_PREFIX = "."
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 WORKFLOWS = Path(".github") / "workflows"
 CLAUDE_DIR = ".claude"
@@ -44,6 +45,20 @@ TRIAGE_LABELS_DOC = AGENT_DOCS / "triage-labels.md"
 DOMAIN_DOC = AGENT_DOCS / "domain.md"
 PR_TEMPLATE = Path(".github") / "pull_request_template.md"
 COMMENT_DEBT_BASELINE = "comment-debt.json"
+CHOICE_FILE = "quality-gates.json"
+CHOICE_FORMAT_VERSION = 1
+CHOICE_REQUIRED = ("format_version", "languages", "exclude", "components", "commit_time_limit_seconds", "settings")
+COMPONENTS_REQUIRED = ("chosen", "declined")
+COMMENT_GATE = "no-comments"
+COMMENT_GATE_REQUIRED = ("exclude", "conventions")
+RECOGNISED_CONVENTIONS = frozenset({"rust-safety"})
+DEFAULT_COMMIT_TIME_LIMIT_SECONDS = 2
+KEPT_BY_QUALITY_GATES = (".claude/skills/", ".claude/hooks/", PRE_COMMIT_HOOK)
+FIXTURE_FOLDERS = ("fixtures", "fixture", "__fixtures__", "testdata")
+FIRST_LINE_BYTES = 256
+WILL_CREATE = "will be created"
+WILL_CHANGE = "will change"
+UNCHANGED = "unchanged"
 UNSHIPPED, MISSING, DIFFERS, SAME = "unshipped", "missing", "differs", "same"
 READABLE, UNREADABLE = "readable", "unreadable"
 
@@ -241,20 +256,11 @@ def sync(claude_dir, root, source=HOOKS_SOURCE):
     add_asking_line(root)
 
 
-def git_root():
-    top = subprocess.run(list(GIT_ROOT), check=True, capture_output=True, text=True).stdout.strip()
-    return Path(top)
-
-
-def git_root_or_current_folder():
-    found = subprocess.run(list(GIT_ROOT), capture_output=True, text=True)
-    if found.returncode == 0 and found.stdout.strip():
-        return Path(found.stdout.strip())
-    return Path.cwd()
-
-
-def current_folder():
-    return Path.cwd()
+def git_root(start=None):
+    found = subprocess.run(list(GIT_ROOT), cwd=start, capture_output=True, text=True)
+    if found.returncode != 0 or not found.stdout.strip():
+        raise ToolError(NOT_A_GIT_REPO)
+    return Path(found.stdout.strip())
 
 
 def root_of_skills_folder(dest):
@@ -274,21 +280,6 @@ def workflow_files(root):
     if not folder.is_dir():
         return []
     return sorted(p for p in folder.iterdir() if p.suffix in WORKFLOW_SUFFIXES)
-
-
-def is_skipped(folder: Path) -> bool:
-    return any(folder.parts[-len(parts):] == parts for parts in SKIPPED_PARTS)
-
-
-def is_detection_skipped(folder):
-    name = folder.name
-    return name.startswith(HIDDEN_PREFIX) or name in BUILD_OUTPUT_FOLDERS or is_skipped(folder)
-
-
-def detection_walk(root):
-    for folder, directories, files in os.walk(root):
-        directories[:] = [d for d in directories if not is_detection_skipped(Path(folder) / d)]
-        yield directories, files
 
 
 def _identity(folder: Path) -> tuple:
@@ -311,39 +302,253 @@ def _first_visit(identity: tuple, seen: set) -> bool:
     return True
 
 
-def _subfolders(here: Path, dirnames: list, seen: set) -> tuple:
+@dataclass(frozen=True)
+class Scope:
+    root: str
+    listed: frozenset
+    folders: frozenset
+    excluded: tuple = ()
+
+    def location(self, here, name):
+        return os.path.relpath(os.path.join(os.path.realpath(here), name), self.root)
+
+    def keeps(self, location, names):
+        if is_outside(location):
+            return True
+        return location in names and not excluded_by(location, self.excluded)
+
+    def keeps_folder(self, here, name):
+        location = self.location(here, name)
+        return self.keeps(location, self.folders | self.listed) and not excluded_by(location + "/", self.excluded)
+
+    def keeps_file(self, here, name):
+        return self.keeps(self.location(here, name), self.listed)
+
+    def given(self, path):
+        location = os.path.relpath(os.path.realpath(path), self.root)
+        kept = tuple(prefix for prefix in self.excluded if not excluded_by(location + "/", (prefix,)))
+        return replace(self, excluded=kept)
+
+
+def is_outside(location):
+    return location == os.pardir or location.startswith(os.pardir + os.sep)
+
+
+def excluded_by(location, prefixes):
+    return any(location.startswith(prefix) for prefix in prefixes)
+
+
+def parent_folders(names):
+    return frozenset(str(parent) for name in names for parent in PurePosixPath(name).parents if str(parent) != ".")
+
+
+def committable_files(root):
+    listing = subprocess.run(list(FILES_GIT_WOULD_COMMIT), cwd=root, capture_output=True)
+    if listing.returncode != 0:
+        raise ToolError(NOT_A_GIT_REPO)
+    return frozenset(name for name in os.fsdecode(listing.stdout).split("\0") if name)
+
+
+def default_exclusions(listed):
+    found = sorted(f"{folder}/" for folder in parent_folders(listed) if PurePosixPath(folder).name in FIXTURE_FOLDERS)
+    return tuple(prefix for prefix in found if not excluded_by(prefix, tuple(other for other in found if other != prefix)))
+
+
+def scope_exclusions(root, listed):
+    try:
+        choice = read_choice(root)
+    except ManifestError as error:
+        raise ToolError(str(error)) from error
+    return default_exclusions(listed) if choice is None else choice.exclude
+
+
+def scope_of(root, excluded=None):
+    listed = committable_files(root)
+    excluded = scope_exclusions(root, listed) if excluded is None else tuple(excluded)
+    return Scope(os.path.realpath(root), listed, parent_folders(listed), excluded)
+
+
+def first_line(path):
+    try:
+        with open(path, "rb") as handle:
+            return handle.readline(FIRST_LINE_BYTES).decode("utf-8", "replace").strip()
+    except OSError:
+        return ""
+
+
+def language_of_listed(root, name):
+    path = PurePosixPath(name)
+    found = languages.language_of_file(name) or next(
+        (language for language in map(languages.language_of_folder, path.parent.parts) if language), None)
+    if found or path.suffix:
+        return found
+    return languages.language_of_first_line(first_line(Path(root) / name))
+
+
+def marker_files(root):
+    return [(language.name, marker) for language in languages.REGISTERED for marker in language.markers
+            if (Path(root) / marker).exists()]
+
+
+def detected_languages(root, excluded=None):
+    scope = scope_of(root, excluded)
+    found = {}
+    for name in sorted(scope.listed):
+        language = None if excluded_by(name, scope.excluded + KEPT_BY_QUALITY_GATES) else language_of_listed(root, name)
+        if language and os.path.lexists(Path(root) / name):
+            found.setdefault(language, set()).add(name)
+    for language, marker in marker_files(root):
+        found.setdefault(language, set()).add(marker)
+    return {language: sorted(names) for language, names in found.items()}
+
+
+def _subfolders(here: Path, dirnames: list, seen: set, scope: Scope) -> tuple:
     kept, skipped = [], []
     for _, name, identity in sorted(_entry(here, name) for name in dirnames):
-        child = here / name
-        if is_skipped(child):
-            skipped.append(os.path.relpath(child))
-        elif _first_visit(identity, seen):
+        if not scope.keeps_folder(here, name):
+            continue
+        if _first_visit(identity, seen):
             kept.append(name)
         else:
-            skipped.append(os.path.relpath(child) + ALREADY_SCANNED)
+            skipped.append(os.path.relpath(here / name) + ALREADY_SCANNED)
     return kept, skipped
 
 
-def _walk(root: Path, seen: set) -> tuple:
+def _walk(root: Path, seen: set, scope: Scope) -> tuple:
     if not root.is_dir():
-        return [root], []
+        return ([root] if scope.keeps_file(root.parent, root.name) else []), []
     if not _first_visit(_identity(root)[1], seen):
         return [], [os.path.relpath(root) + ALREADY_SCANNED]
     files, skipped = [], []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
         here = Path(dirpath)
-        dirnames[:], skipped_here = _subfolders(here, dirnames, seen)
+        dirnames[:], skipped_here = _subfolders(here, dirnames, seen, scope)
         skipped.extend(skipped_here)
-        files.extend(here / name for name in filenames)
+        files.extend(here / name for name in sorted(filenames) if scope.keeps_file(here, name))
     return files, skipped
 
 
-def scanned_files(paths: list) -> tuple:
+def once_each(files):
+    seen, kept = set(), []
+    for file in files:
+        real = os.path.realpath(file)
+        if real not in seen:
+            seen.add(real)
+            kept.append(file)
+    return kept
+
+
+def files_in_scope(paths: list, root=None) -> tuple:
+    scope = scope_of(git_root() if root is None else root)
     files, skipped, seen = [], set(), set()
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
-        found, folders = _walk(Path(path), seen)
+        found, folders = _walk(Path(path), seen, scope.given(path))
         files.extend(found)
         skipped.update(folders)
-    return sorted(files), sorted(skipped)
+    return sorted(once_each(files)), sorted(skipped)
+
+
+@dataclass(frozen=True)
+class Choice:
+    languages: tuple
+    chosen: tuple = ()
+    declined: tuple = ()
+    exclude: tuple = ()
+    commit_time_limit_seconds: float = DEFAULT_COMMIT_TIME_LIMIT_SECONDS
+    comment_exclude: tuple = ()
+    conventions: tuple = ()
+
+
+def text_list(data, field, where):
+    values = data[field]
+    fail_unless(isinstance(values, list) and all(isinstance(v, str) for v in values),
+                f"{where}: field '{field}' must be a list of text")
+    unique(values, where, lambda value: f"'{value}' in '{field}'")
+    return tuple(values)
+
+
+def check_version(data, where):
+    version = data["format_version"]
+    fail_unless(version == CHOICE_FORMAT_VERSION and not isinstance(version, bool),
+                f"{where}: field 'format_version' must be {CHOICE_FORMAT_VERSION}; this quality-gates cannot read {version!r}")
+
+
+def check_limit(value, where):
+    fail_unless(isinstance(value, (int, float)) and not isinstance(value, bool) and value > 0,
+                f"{where}: field 'commit_time_limit_seconds' must be a number of seconds above 0")
+    return value
+
+
+def components_of(data, where):
+    require(data, COMPONENTS_REQUIRED, f"{where}: components")
+    chosen, declined = text_list(data, "chosen", where), text_list(data, "declined", where)
+    for both in set(chosen) & set(declined):
+        raise ManifestError(f"{where}: component '{both}' is both chosen and declined")
+    return chosen, declined
+
+
+def comment_gate_settings(settings, where):
+    fail_unless(isinstance(settings, dict), f"{where}: field 'settings' must be an object")
+    for name in settings:
+        known(name, {COMMENT_GATE}, "settings", where)
+    gate = require(settings.get(COMMENT_GATE, {"exclude": [], "conventions": []}), COMMENT_GATE_REQUIRED,
+                   f"{where}: settings '{COMMENT_GATE}'")
+    conventions = text_list(gate, "conventions", where)
+    for convention in conventions:
+        known(convention, RECOGNISED_CONVENTIONS, "convention", where)
+    return text_list(gate, "exclude", where), conventions
+
+
+def choice_from(data, where=CHOICE_FILE):
+    require(data, CHOICE_REQUIRED, where)
+    check_version(data, where)
+    chosen, declined = components_of(data["components"], where)
+    comment_exclude, conventions = comment_gate_settings(data["settings"], where)
+    return Choice(known_languages(text_list(data, "languages", where), where), chosen, declined,
+                  text_list(data, "exclude", where), check_limit(data["commit_time_limit_seconds"], where),
+                  comment_exclude, conventions)
+
+
+def read_choice(root):
+    path = Path(root) / CHOICE_FILE
+    if not path.exists():
+        return None
+    return choice_from(read_json(path))
+
+
+def choice_text(choice):
+    data = {
+        "format_version": CHOICE_FORMAT_VERSION,
+        "languages": list(choice.languages),
+        "exclude": list(choice.exclude),
+        "components": {"chosen": list(choice.chosen), "declined": list(choice.declined)},
+        "commit_time_limit_seconds": choice.commit_time_limit_seconds,
+        "settings": {COMMENT_GATE: {"exclude": list(choice.comment_exclude), "conventions": list(choice.conventions)}},
+    }
+    return json.dumps(data, indent=2) + "\n"
+
+
+@dataclass(frozen=True)
+class PlannedChange:
+    name: str
+    text: str
+
+
+def planned_state(root, change):
+    found = read_kept(Path(root), change.name)
+    if found is None:
+        return WILL_CREATE
+    return UNCHANGED if found == change.text else WILL_CHANGE
+
+
+def apply_planned(root, changes):
+    written = [change for change in changes if planned_state(root, change) != UNCHANGED]
+    for change in written:
+        write_kept(Path(root), change.name, change.text)
+    return [change.name for change in written]
+
+
+def choice_change(choice):
+    return PlannedChange(CHOICE_FILE, choice_text(choice))

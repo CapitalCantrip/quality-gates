@@ -264,12 +264,13 @@ Both gates take their functions from one scan, so they always list the same
 functions under the same names. A function, method, closure or method of a
 nested class is scored on its own; a class is not. A Swift closure is the
 exception: its branches count in the function that holds it, and its untested
-lines do not lower that function's coverage (#53). Both leave out generated
-and installed folders such as `node_modules` and `build`, by one
-[skip list](src/quality_gates/skills/crap/references/skip-list.md), and scan a symlinked folder once, by the
-[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). Each gate ends its report with a line
-naming the skipped folders it found, so no source folder is dropped without a
-word.
+lines do not lower that function's coverage (#53). Both look only at the
+[files in scope](src/quality_gates/skills/crap/references/files-in-scope.md): the files git would commit, so the
+project's own `.gitignore` leaves out generated and installed folders, less the
+`exclude` prefixes in `quality-gates.json` (test fixtures by default). Each file
+is scored once, and a symlinked folder is scanned once, by the
+[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). Outside a git repo, both stop with
+exit 2 and say so.
 
 A Python function's line range runs from its `def` line to the end of its last
 statement, taken from the syntax tree, so a function whose body ends in a nested
@@ -486,6 +487,46 @@ yet is named on a known-gap list in the tests, which shrinks as each one is
 written. The release checklist runs a link check, described under
 [Releasing](#releasing).
 
+### The choice file
+
+`quality-gates.json` sits at the project root and is committed. It records what
+the builder chose ([ADR-007](docs/adr/ADR-007-component-install.md)), and
+`qg setup` writes it. It is a contract for `qg status`, setup and the planned
+runner. Loading fails, and `qg status` and `qg setup` exit 3 with one line
+naming the problem, when a field is missing, has the wrong type or names
+something quality-gates does not know.
+
+```json
+{
+  "format_version": 1,
+  "languages": ["python", "shell"],
+  "exclude": ["tests/fixtures/"],
+  "components": {"chosen": ["crap", "no-comments"], "declined": ["design-helpers"]},
+  "commit_time_limit_seconds": 2,
+  "settings": {"no-comments": {"exclude": ["gen/"], "conventions": ["rust-safety"]}}
+}
+```
+
+- `format_version`: a whole number, 1. A change to the shape raises it and
+  gets a CHANGELOG note.
+- `languages`: the project's languages, each a name the language registry
+  knows: `python`, `typescript`, `swift`, `rust` or `shell`. It replaces
+  detection as the source of truth; `qg status` warns about code in a language
+  the list leaves out. A language may be listed before it has code.
+- `exclude`: path prefixes from the repo root that detection and the gates
+  leave out, on top of what `.gitignore` ignores. Setup writes the default
+  fixture folders here (every outermost `fixtures`, `fixture`, `__fixtures__`
+  or `testdata` folder).
+- `components`: `chosen` and `declined`, each a list of component ids from
+  `components.json`; no id may be in both. A component in neither list has
+  not been offered yet. The core is never listed: every project has it.
+- `commit_time_limit_seconds`: a number above 0, 2 by default (ADR-006).
+- `settings`: per-component settings. Only `no-comments` has any so far:
+  `exclude`, path prefixes the comment gate leaves out, and `conventions`, the
+  ids of the [recognised conventions](docs/recognised-conventions.md) the
+  project has switched on. Both default to empty. `comment-debt` does not read
+  them yet (#3), so keep its `--exclude` flags until then.
+
 ## Setup details
 
 [Get started](#get-started) covers the steps. The details behind them:
@@ -509,6 +550,7 @@ written. The release checklist runs a link check, described under
   |---|---|
   | `qg` | [src/quality_gates/qg.py](src/quality_gates/qg.py), which hands each subcommand to its own file |
   | `qg status` | [src/quality_gates/status.py](src/quality_gates/status.py) |
+  | `qg setup` | [src/quality_gates/setup_choices.py](src/quality_gates/setup_choices.py) |
   | `qg explain` | [src/quality_gates/explain.py](src/quality_gates/explain.py) |
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
@@ -522,15 +564,23 @@ written. The release checklist runs a link check, described under
   It lists every component with one of these words, a line on what it does and
   where it came from: *installed*, *missing*, *different* (a copied file was
   edited, so it no longer matches the release), *partly installed*, *unknown*
-  (it could not read something) or *not applicable* (the component is for a
-  language the project does not use). Core components come first. It also shows
+  (it could not read something), *not applicable* (the component is for a
+  language the project does not use), *offered, declined* or *not yet offered*
+  (the choice file lists the component as declined, or not at all). Core
+  components come first. The project's languages come from the
+  [choice file](#the-choice-file); without one, from detection over the files
+  git would commit. With a choice file, it warns about code in a language the
+  file does not record, naming the files. It also shows
   the version the project pins next to the version installed, or *pin not
   found*. It only reads, works offline and exits 0 whatever it finds, so it
   never blocks a commit; `qg-skills --check` stays the check that fails. It
   exits 3, with one line on stderr naming the problem, only when the
-  `components.json` shipped inside quality-gates is missing or malformed. `qg status --json`
+  `components.json` shipped inside quality-gates or the project's
+  `quality-gates.json` is malformed, and 2 outside a git repo. `qg status --json`
   prints the same report for an agent, with the component list's format
-  version, and for each component its id, status and parts. The commands and
+  version, `languages`, `languages_from` (`choice file` or `detection`),
+  `unrecorded_languages` (each with its files), and for each component its id,
+  status and parts. The commands and
   tools quality-gates itself installs, such as `cc-check` or `radon`, have no
   status of their own: they are listed as *provided by quality-gates* and do
   not count toward a component's status, and neither does a part for a language
@@ -556,6 +606,21 @@ written. The release checklist runs a link check, described under
     complexity-swift         not applicable     ours
       Flags Swift functions that are too tangled to follow, ...
   ```
+
+- `qg setup` proposes the project's languages and one row per component, with
+  its description, its cost (commit delay, CI time, outside tools) and a tick
+  on the recommended set, and lists the files it would change. It writes
+  nothing until `--go`, and then only `quality-gates.json`. Without a choice
+  file it ticks what is installed, or every component that applies when
+  nothing is. A component the file does not list is offered, ticked. Change the
+  proposal with `--add-language`, `--remove-language`, `--choose` and
+  `--decline`, each repeatable. It refuses, with exit 1 and nothing written,
+  to switch off the core or a gate the project has, or to remove a language
+  that still has code: both wait on recorded reasons (#115). It copies the
+  `--exclude` prefixes of the `comment-debt` lines in `.githooks/pre-commit`
+  and the CI workflows into `settings` › `no-comments` › `exclude`, and leaves
+  the flags in place. Run again, it changes nothing. `--json` prints the
+  proposal for an agent.
 
 - `qg-skills` copies from the installed package, not from GitHub, so the
   version you installed decides which skills a project gets. It writes

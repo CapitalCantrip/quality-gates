@@ -2,6 +2,7 @@ import ast
 import contextlib
 import io
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -66,14 +67,15 @@ class QgDispatcherTest(unittest.TestCase):
     def test_qg_help_lists_every_subcommand(self):
         code, out, _ = run(qg.main, ["--help"])
         self.assertEqual(code, 0)
-        flat = " ".join(out.split())
+        words = " ".join(out.split())
         for name, module in qg.COMMANDS.items():
-            self.assertIn(f"{name} {module.SUMMARY}", flat)
+            self.assertIn(f" {name} {module.SUMMARY} ", words)
 
     def test_qg_with_no_subcommand_stops_with_usage_and_exit_2(self):
         code, _, err = run(qg.main, [])
         self.assertEqual(code, 2)
-        self.assertEqual(err, "usage: qg [-h] {status,explain} ...\nqg: error: the following arguments are required: command\n")
+        commands = ",".join(qg.COMMANDS)
+        self.assertEqual(err, f"usage: qg [-h] {{{commands}}} ...\nqg: error: the following arguments are required: command\n")
 
     def test_an_unknown_subcommand_stops_with_exit_2(self):
         code, _, err = run(qg.main, ["bogus"])
@@ -95,6 +97,7 @@ class QgDispatcherTest(unittest.TestCase):
         self.addCleanup(os.chdir, here)
         with tempfile.TemporaryDirectory() as folder:
             os.chdir(folder)
+            subprocess.run(["git", "init", "-q"], check=True)
             for flags in ([], ["--json"]):
                 with self.subTest(flags=flags):
                     self.assertEqual(run(qg.main, ["status", *flags]), run(status.main, flags))
