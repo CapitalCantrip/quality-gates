@@ -1,5 +1,6 @@
 import argparse
 import ast
+import importlib
 import os
 import tempfile
 import unittest
@@ -40,9 +41,10 @@ def reader(flag):
 PACKAGE = ROOT / "src/quality_gates"
 REGISTRY_MODULE = "languages"
 WILDCARD = "*"
+TABLE_NAME = "LANGUAGES"
 ALLOWED_NAMES = {
-    "project_files.hook_names": "lists the package's own hooks, which are Python scripts",
-    "project_files.PIN_FILE": "the pin is read from the Python dependency file, not to detect a language",
+    ("project_files.hook_names", "*.py"): "lists the package's own hooks, which are Python scripts",
+    ("project_files.PIN_FILE", "pyproject.toml"): "the pin is read from the Python dependency file, not to detect a language",
 }
 
 
@@ -67,8 +69,14 @@ def places(tree):
         yield place_name(node), node
 
 
+def suffix_globs():
+    return tuple(WILDCARD + suffix for language in languages.REGISTERED for suffix in language.suffixes)
+
+
 def names_a_language_file(node, names):
-    return isinstance(node, ast.Constant) and isinstance(node.value, str) and node.value in names
+    if not (isinstance(node, ast.Constant) and isinstance(node.value, str)):
+        return False
+    return node.value in names or node.value.endswith(suffix_globs())
 
 
 def language_names_outside_the_registry(module_paths):
@@ -77,7 +85,7 @@ def language_names_outside_the_registry(module_paths):
         for place, top in places(ast.parse(path.read_text(encoding="utf-8"))):
             for node in ast.walk(top):
                 if names_a_language_file(node, names):
-                    found.setdefault(f"{path.stem}.{place}", node.lineno)
+                    found.setdefault((f"{path.stem}.{place}", node.value), node.lineno)
     return found
 
 
@@ -95,10 +103,27 @@ def outside_the_registry():
     return [path for path in sorted(PACKAGE.rglob("*.py")) if path.stem != REGISTRY_MODULE]
 
 
-GATES = {"comment-debt": comment_debt.LANGUAGES, "cc-check": qc.LANGUAGES, "crap": crap.LANGUAGES}
+def declares_a_language_table(node):
+    targets = node.targets if isinstance(node, ast.Assign) else [getattr(node, "target", None)]
+    return any(isinstance(target, ast.Name) and target.id == TABLE_NAME for target in targets)
+
+
+def declares_one_in(path):
+    return any(declares_a_language_table(node) for node in ast.parse(path.read_text(encoding="utf-8")).body)
+
+
+def module_name(path):
+    return ".".join((PACKAGE.name, *path.relative_to(PACKAGE).with_suffix("").parts))
+
+
+def module_language_tables(module_paths):
+    return {f"{path.stem}.{TABLE_NAME}": getattr(importlib.import_module(module_name(path)), TABLE_NAME)
+            for path in module_paths if declares_one_in(path)}
+
+
+GATES = languages_table.GATES
 LANGUAGE_TABLES = {
-    **GATES,
-    **{f"languages_table.GATES[{name}]": table for name, table in languages_table.GATES.items()},
+    **module_language_tables(outside_the_registry()),
     "complexity_scan.COUNTERS": complexity_scan.COUNTERS,
     "status.DETECTED_BY_MARKER": status.DETECTED_BY_MARKER,
     "status.DETECTED_BY_FILE": status.DETECTED_BY_FILE,
@@ -111,6 +136,20 @@ def installed_for(command, components):
 
 
 class GateTables(unittest.TestCase):
+    def test_every_gate_table_the_languages_page_shows_is_found_by_the_package_scan(self):
+        found = [id(table) for table in LANGUAGE_TABLES.values()]
+        for name, table in GATES.items():
+            with self.subTest(name):
+                self.assertIn(id(table), found)
+
+    def test_the_package_scan_finds_a_language_table_declared_in_any_module(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "planted.py"
+            for source in ("LANGUAGES = {}\n", "LANGUAGES: dict = {}\n"):
+                with self.subTest(source):
+                    path.write_text(source, encoding="utf-8")
+                    self.assertTrue(declares_one_in(path))
+
     def test_every_gate_table_names_only_registered_languages(self):
         for name, table in LANGUAGE_TABLES.items():
             with self.subTest(name):
@@ -131,9 +170,18 @@ class RegistryOwnsSuffixesAndMarkers(unittest.TestCase):
         found = language_names_outside_the_registry(outside_the_registry())
         self.assertEqual({where: line for where, line in found.items() if where not in ALLOWED_NAMES}, {})
 
+    def test_an_allowed_place_is_allowed_only_the_name_it_lists(self):
+        with tempfile.TemporaryDirectory() as folder:
+            path = Path(folder) / "project_files.py"
+            path.write_text('def hook_names(source):\n    return source.glob("*.py"), source.name.endswith(".rs")\n',
+                            encoding="utf-8")
+            found = language_names_outside_the_registry([path])
+        self.assertEqual({where for where in found if where not in ALLOWED_NAMES}, {("project_files.hook_names", ".rs")})
+
     def test_the_check_recognises_a_suffix_a_suffix_pattern_a_marker_and_a_project_folder(self):
         for source in ('f.endswith(".rs")', 'run(["git", "ls-files", "*.sh"])', '(root / "Cargo.toml").exists()',
-                       'name.endswith(".xcodeproj")'):
+                       'name.endswith(".xcodeproj")', 'root.glob("**/*.py")', 'root.glob("*.rs")',
+                       'root.glob("src/*.tsx")'):
             with self.subTest(source):
                 self.assertTrue(any(names_a_language_file(node, registered_names())
                                     for node in ast.walk(ast.parse(source))))
