@@ -156,30 +156,50 @@ def counts_toward_status(part):
 CHOICE_STATUSES = {project_files.DECLINED: DECLINED, project_files.CHOSEN: None, project_files.UNLISTED: NOT_OFFERED}
 
 
-def choice_status(component, choice):
+def choice_status(component, choice, rolled):
     if choice is None or component.core:
         return None
-    return CHOICE_STATUSES[choice.recorded(component.id)]
+    return CHOICE_STATUSES[project_files.standing(choice, component.id, rolled in HAS_SOMETHING)]
 
 
-def component_status(component, parts, applicable, choice):
-    if not applicable:
+def component_status(component, rolled, choice):
+    if rolled == NOT_APPLICABLE:
         return NOT_APPLICABLE
-    return choice_status(component, choice) or roll_up([p["status"] for p in parts if counts_toward_status(p)])
+    return choice_status(component, choice, rolled) or rolled
+
+
+def wants_attention(component, choice, rolled):
+    chosen = choice is not None and choice.recorded(component.id) == project_files.CHOSEN
+    return component.core or chosen or rolled in HAS_SOMETHING
+
+
+def needs_attention(component, parts, choice, rolled):
+    if rolled == NOT_APPLICABLE or not wants_attention(component, choice, rolled):
+        return []
+    return [f"{p['kind']} {p['id']}: {p['status']}" for p in parts if counts_toward_status(p) and p["status"] != INSTALLED]
+
+
+def installed_state(component, parts, used):
+    if not component.applies_to(used):
+        return NOT_APPLICABLE
+    return roll_up([p["status"] for p in parts if counts_toward_status(p)])
 
 
 def component_report(project, component, used, choice=None):
     wanted = list(component.languages)
     parts = [part_report(project, p, used) for p in component.parts]
+    rolled = installed_state(component, parts, used)
     return {
         "id": component.id,
         "name": component.name,
         "core": component.core,
-        "status": component_status(component, parts, component.applies_to(used), choice),
+        "status": component_status(component, rolled, choice),
+        "install_status": rolled,
         "description": component.description,
         "origin": component.origin.as_dict(),
         "languages": wanted,
         "parts": parts,
+        "needs_attention": needs_attention(component, parts, choice, rolled),
     }
 
 
@@ -244,11 +264,16 @@ def unrecorded_lines(report):
             "Run `qg setup` to record it, or exclude those files in the choice file."]
 
 
+def status_text(item):
+    if item["status"] == DECLINED and item["install_status"] != MISSING:
+        return f"{DECLINED} ({item['install_status']})"
+    return item["status"]
+
+
 def component_lines(item):
-    lines = [f"  {item['id']:<24} {item['status']:<18} {origin_text(item['origin'])}", f"    {item['description']}"]
-    needs = [f"{p['kind']} {p['id']}: {p['status']}" for p in item["parts"] if counts_toward_status(p) and p["status"] != INSTALLED]
-    if is_applicable(item) and needs:
-        lines.append("    Needs attention: " + "; ".join(needs))
+    lines = [f"  {item['id']:<24} {status_text(item):<18} {origin_text(item['origin'])}", f"    {item['description']}"]
+    if item["needs_attention"]:
+        lines.append("    Needs attention: " + "; ".join(item["needs_attention"]))
     return lines
 
 

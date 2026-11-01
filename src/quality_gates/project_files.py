@@ -65,6 +65,8 @@ CHOSEN, DECLINED, UNLISTED = "chosen", "declined", "unlisted"
 FILES_SHOWN = 3
 COMMENT_GATE_COMMAND = "comment-debt"
 EXCLUDE_FLAG = "--exclude"
+COMMAND_SEPARATORS = frozenset({"&&", "||", "|", ";"})
+CONTINUATION = "\\"
 UNSHIPPED, MISSING, DIFFERS, SAME = "unshipped", "missing", "differs", "same"
 READABLE, UNREADABLE = "readable", "unreadable"
 
@@ -479,11 +481,36 @@ def runs_command(text, command):
     return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
 
 
+def logical_lines(text):
+    pending = ""
+    for line in text.splitlines():
+        if line.rstrip().endswith(CONTINUATION):
+            pending += line.rstrip()[:-len(CONTINUATION)] + " "
+            continue
+        yield pending + line
+        pending = ""
+    if pending:
+        yield pending
+
+
 def words_of(line):
+    lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
     try:
-        return shlex.split(line, comments=True)
+        return list(lexer)
     except ValueError:
         return line.split()
+
+
+def command_segments(words):
+    segment = []
+    for word in words:
+        if word in COMMAND_SEPARATORS:
+            yield segment
+            segment = []
+        else:
+            segment.append(word)
+    yield segment
 
 
 def exclude_flags(words):
@@ -497,9 +524,9 @@ def exclude_flags(words):
 def comment_gate_exclusions(root):
     found = set()
     for text in pre_commit_texts(root) + ci_texts(root):
-        for line in (text or "").splitlines():
-            if runs_command(line, COMMENT_GATE_COMMAND):
-                found.update(exclude_flags(words_of(line)))
+        for line in logical_lines(text or ""):
+            found.update(flag for segment in command_segments(words_of(line))
+                         if runs_command(" ".join(segment), COMMENT_GATE_COMMAND) for flag in exclude_flags(segment))
     return found
 
 
@@ -517,6 +544,11 @@ class Choice:
         if component_id in self.declined:
             return DECLINED
         return CHOSEN if component_id in self.chosen else UNLISTED
+
+
+def standing(choice, component_id, has_something):
+    recorded = UNLISTED if choice is None else choice.recorded(component_id)
+    return CHOSEN if recorded == UNLISTED and has_something else recorded
 
 
 def text_list(data, field, where):
