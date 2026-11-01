@@ -103,6 +103,12 @@ class QgDispatcherTest(unittest.TestCase):
     def test_qg_explain_prints_what_the_explain_module_prints_for_a_component(self):
         self.assertEqual(run(qg.main, ["explain", "crap"]), run(explain.main, ["crap"]))
 
+    def test_the_readme_command_table_lists_every_subcommand_with_its_code_file(self):
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        for name, module in qg.COMMANDS.items():
+            code = Path(module.__file__).relative_to(ROOT).as_posix()
+            self.assertIn(f"| `qg {name}` | [{code}]({code}) |", readme)
+
 
 if __name__ == "__main__":
     unittest.main()
