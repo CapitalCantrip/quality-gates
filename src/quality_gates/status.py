@@ -37,7 +37,8 @@ PIN_VERDICTS = {
     False: "differs from the installed version",
     None: "could not tell whether it matches",
 }
-NO_PARTS_NOTICE = "No quality-gates parts found in this folder. Run /setup-standards to add them."
+SUMMARY = "show each component, whether this project has it, and the pin"
+NO_PARTS_NOTICE ="No quality-gates parts found in this folder. Run /setup-standards to add them."
 
 
 @dataclass(frozen=True)
@@ -308,10 +309,8 @@ def render_table(report):
 
 
 def build_parser():
-    parser = argparse.ArgumentParser(prog="qg", description="Report on what quality-gates has installed in this project.")
-    commands = parser.add_subparsers(dest="command", required=True)
-    report = commands.add_parser("status", help="show each component, whether this project has it, and the pin")
-    report.add_argument("--json", action="store_true", help="print the same report as JSON")
+    parser = argparse.ArgumentParser(prog="qg status")
+    parser.add_argument("--json", action="store_true", help="print the same report as JSON")
     return parser
 
 
