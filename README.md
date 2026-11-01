@@ -187,7 +187,8 @@ a named constant, an ADR or an issue. Existing comments are debt, held in
 comment, and also if it loses one without the baseline being lowered, so paid
 debt is always recorded. Python only for now
 ([#3](../../issues/3) adds Rust,
-TypeScript and shell).
+TypeScript, Swift and shell:
+[ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md)).
 
 ### `cc-check`: cyclomatic complexity
 
