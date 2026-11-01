@@ -33,6 +33,11 @@ NESTED_FUNC_REASON = (
     "A nested `func`: the CRAP gate scores it on its own and fails an untested one with two or more branches. "
     "A small one (a single branch, CRAP 6) can still pass untested, which is why the rule asks for a test for it too."
 )
+EXPLAINER_PHRASES = (
+    "Ask me about any row, or run `qg explain <name>`.",
+    "run `qg explain <name>`, read the explainer",
+    "Never write an explanation fresh",
+)
 
 PIN = re.compile(r"quality-gates@v(\d+\.\d+\.\d+)")
 PIN_HOMES = ("setup-standards/SKILL.md", "setup-standards/ci-typescript.md")
@@ -191,6 +196,11 @@ class SetupStandards(unittest.TestCase):
 
     def test_the_baselines_step_can_finish_with_crap_reported_not_done(self):
         self.assertIn(BASELINES_CAN_FINISH, self.baselines())
+
+    def test_the_setup_guide_gives_the_explainer_line_and_has_the_agent_read_the_explainer(self):
+        intro = section(self, SETUP_STANDARDS, "Keep a running list", "## 1. Agent docs and the glossary")
+        for phrase in EXPLAINER_PHRASES:
+            self.assertIn(phrase, intro)
 
 
 class ClosureReviewRule(unittest.TestCase):

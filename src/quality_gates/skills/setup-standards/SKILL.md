@@ -27,6 +27,11 @@ default in the report.
 Keep a running list as you go: for each step, **done**, **already in place**,
 or **not done** with the reason. Step 7 reads from it.
 
+When the builder asks what a component does, run `qg explain <name>`, read the
+explainer it prints, and say what it means for this project. Never write an
+explanation fresh. Under the components table, end with one line: *Ask me about
+any row, or run `qg explain <name>`.*
+
 ## 1. Agent docs and the glossary
 
 1. Pick the issue tracker from `git remote -v`: GitHub for github.com, GitLab
