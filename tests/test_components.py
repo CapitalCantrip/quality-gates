@@ -21,6 +21,8 @@ COMMENT_DEBT_LANGUAGES = {"python"}
 HOOK_SECTION = "\n## 4. Hooks\n"
 UPSTREAM_LABELS = {"mattpocock/skills": "Pocock"}
 SKILLS_PREFIX = "src/quality_gates/skills/"
+EXPLAINER_GAPS = frozenset({"core", "no-comments", "complexity-python", "complexity-typescript", "complexity-swift",
+                            "complexity-rust", "design-helpers", "session-helpers"})
 
 
 def admissions_of(kind):
@@ -229,6 +231,22 @@ class ComponentManifestAgreesWithTheReadme(unittest.TestCase):
     def test_the_readme_lists_every_shipped_skill_once(self):
         _, names = readme_from_column()
         self.assertEqual(sorted(names), shipped_skills())
+
+
+class ComponentExplainers(unittest.TestCase):
+    def test_every_component_without_an_explainer_is_on_the_known_gap_list(self):
+        missing = [c.id for c in MANIFEST.components if c.explainer is None and c.id not in EXPLAINER_GAPS]
+        self.assertEqual(missing, [])
+
+    def test_every_known_gap_names_a_component_that_still_has_no_explainer(self):
+        explained = {c.id for c in MANIFEST.components if c.explainer is not None}
+        self.assertEqual(EXPLAINER_GAPS & explained, set())
+        self.assertLessEqual(EXPLAINER_GAPS, {c.id for c in MANIFEST.components})
+
+    def test_every_explainer_a_component_names_is_a_file_in_the_package(self):
+        for component in MANIFEST.components:
+            if component.explainer is not None:
+                self.assertTrue((PACKAGE / component.explainer).is_file(), component.id)
 
 
 class ComponentManifestShips(unittest.TestCase):

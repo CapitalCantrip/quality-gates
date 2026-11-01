@@ -422,6 +422,7 @@
       "origin": {
         "type": "ours"
       },
+      "explainer": "explainers/crap.md",
       "parts": [
         {
           "kind": "skill",
