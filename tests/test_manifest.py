@@ -1,5 +1,6 @@
 import ast
 import copy
+import datetime
 import sys
 import tempfile
 import unittest
@@ -30,7 +31,7 @@ COMPONENTS = {
         "parts": [
             {"kind": "skill", "id": "crap"},
             {"kind": "ci_step", "id": "crap-python", "marker": "crap --lang python", "languages": ["python"]},
-            {"kind": "dependency", "id": "radon", "origin": {"type": "dependency", "name": "radon", "version": ">=6"}},
+            {"kind": "dependency", "id": "radon", "origin": {"type": "dependency", "name": "radon"}},
         ],
     }],
 }
@@ -96,7 +97,7 @@ class AdmissionRecords(unittest.TestCase):
         loaded = manifest.components_from(COMPONENTS)
         radon = next(a for a in loaded.admissions if a.name == "radon")
         self.assertEqual((radon.kind, radon.licence, radon.last_release, radon.minimum_version, radon.tested_version),
-                         ("dependency", "MIT", "2023-03-26", "6", "6.0.1"))
+                         ("dependency", "MIT", datetime.date(2023, 3, 26), "6", "6.0.1"))
 
 
 class ExplainerRecords(unittest.TestCase):
@@ -106,6 +107,16 @@ class ExplainerRecords(unittest.TestCase):
 
     def test_a_component_that_names_no_explainer_hands_out_none(self):
         self.assertIsNone(manifest.components_from(COMPONENTS).components[0].explainer)
+
+
+class DependencyVersions(unittest.TestCase):
+    def test_a_dependency_origin_takes_its_version_from_the_minimum_its_admission_records(self):
+        origin = manifest.components_from(COMPONENTS).components[0].parts[2].origin
+        self.assertEqual(origin.as_dict(), {"type": "dependency", "name": "radon", "version": ">=6"})
+
+    def test_an_origin_whose_admission_records_no_minimum_has_no_version(self):
+        origin = manifest.components_from(COMPONENTS).components[0].origin
+        self.assertIsNone(origin.version)
 
 
 def admission(edit):

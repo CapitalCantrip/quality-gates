@@ -287,8 +287,7 @@
           "id": "radon",
           "origin": {
             "type": "dependency",
-            "name": "radon",
-            "version": ">=6"
+            "name": "radon"
           }
         }
       ]
@@ -333,8 +332,7 @@
           "id": "lizard",
           "origin": {
             "type": "dependency",
-            "name": "lizard",
-            "version": ">=1.24.2"
+            "name": "lizard"
           }
         }
       ]
@@ -375,8 +373,7 @@
           "id": "lizard",
           "origin": {
             "type": "dependency",
-            "name": "lizard",
-            "version": ">=1.24.2"
+            "name": "lizard"
           }
         }
       ]
@@ -471,8 +468,7 @@
           ],
           "origin": {
             "type": "dependency",
-            "name": "radon",
-            "version": ">=6"
+            "name": "radon"
           }
         },
         {
@@ -484,8 +480,7 @@
           ],
           "origin": {
             "type": "dependency",
-            "name": "lizard",
-            "version": ">=1.24.2"
+            "name": "lizard"
           }
         }
       ]

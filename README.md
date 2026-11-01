@@ -367,7 +367,9 @@ file-level record `qg-upstream` reads.
   `languages` (empty when the component has none), `origin` and `parts`.
 - `origin`: `{"type": "ours"}`, `{"type": "upstream", "name": "<repo>"}` (with
   `"changed": true` when the copy is adapted), or `{"type": "dependency",
-  "name": "<tool>", "version": "<requirement>"}`. A component's origin is the
+  "name": "<tool>"}`. A dependency's version is not repeated in its origin:
+  loading fills `version` with `>=` and the `minimum_version` its admission
+  records, so `qg status` and its `--json` show it. A component's origin is the
   one most of its parts have; a part with a different one carries its own. An
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.
@@ -681,9 +683,11 @@ updates reach a project only through a release here
 1. On the 1st of each month the `upstream` workflow runs `qg-upstream` and, if
    a copied file changed upstream, opens an issue with the changes. It also
    runs `qg-upstream --upkeep`, which opens or updates one issue naming every
-   outside source in `components.json` with no release in 12 months that is
-   not marked `stable`; renew its `last_release` or mark it stable with the
-   reason.
+   outside source in `components.json` whose recorded `last_release` is over
+   12 months old and that is not marked `stable`. It reads the recorded date
+   and never asks the source, so it flags a record not renewed in 12 months.
+   Renewing means looking up the source's real newest release and setting
+   `last_release` to it, or marking the source stable with the reason.
 2. Replace each word-for-word copy with the new upstream file.
 3. For each changed file, take the new upstream version and redo every change
    [docs/upstream-adaptations.md](docs/upstream-adaptations.md) lists for it.

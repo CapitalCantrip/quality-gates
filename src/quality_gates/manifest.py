@@ -1,6 +1,6 @@
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import date
 from pathlib import Path
 from typing import Mapping, Optional, Tuple
@@ -33,7 +33,8 @@ OSI_LICENCES = UPSTREAM_LICENCES | frozenset({
 })
 ADMISSION_REQUIRED = ("name", "kind", "licence", "practice")
 ADMISSION_FIELDS = ADMISSION_REQUIRED + ("last_release", "stable", "minimum_version", "tested_version")
-ONE_SENTENCE =r"^[^\n]+\.$"
+ONE_SENTENCE = r"^[^\n]+\.$"
+VERSION_FLOOR = ">="
 MARKDOWN_SUFFIX = ".md"
 BROKEN_EXIT = 3
 
@@ -84,7 +85,7 @@ class Admission:
     kind: str
     licence: str
     practice: str
-    last_release: Optional[str] = None
+    last_release: Optional[date] = None
     stable: Optional[str] = None
     minimum_version: Optional[str] = None
     tested_version: Optional[str] = None
@@ -215,21 +216,23 @@ def check_licence(kind, licence, where):
         fail_unless(licence in OSI_LICENCES, f"{where}: a dependency needs an OSI-approved licence, not '{licence}'")
 
 
-def is_date(value):
+def release_date(value, where):
+    if value is None:
+        return None
     try:
-        date.fromisoformat(value)
+        return date.fromisoformat(value)
     except (TypeError, ValueError):
-        return False
-    return True
+        raise ManifestError(f"{where}: field 'last_release' must be a date like 2026-10-29") from None
 
 
 def check_upkeep(data, where):
     last, stable = data.get("last_release"), data.get("stable")
     fail_unless(last is not None or stable is not None, f"{where}: give either 'last_release' or 'stable'")
     fail_unless(last is None or stable is None, f"{where}: give either 'last_release' or 'stable', not both")
-    fail_unless(last is None or is_date(last), f"{where}: field 'last_release' must be a date like 2026-10-29")
+    released = release_date(last, where)
     fail_unless(stable is None or (isinstance(stable, str) and stable.strip() != ""),
                 f"{where}: field 'stable' must give the reason")
+    return released
 
 
 def check_versions(data, where):
@@ -243,9 +246,9 @@ def admission_from(data, where):
     check_licence(data["kind"], data["licence"], where)
     fail_unless(isinstance(data["practice"], str) and re.search(ONE_SENTENCE, data["practice"]) is not None,
                 f"{where}: the practice must be one line ending in a full stop")
-    check_upkeep(data, where)
+    released = check_upkeep(data, where)
     check_versions(data, where)
-    return Admission(*(data.get(field) for field in ADMISSION_FIELDS))
+    return replace(Admission(*(data.get(field) for field in ADMISSION_FIELDS)), last_release=released)
 
 
 def admissions_from(data, name):
@@ -271,6 +274,17 @@ def check_component_admitted(component, kinds, name):
             check_origin_admitted(part.origin, kinds, f"{where}, part '{part.id}'")
 
 
+def versioned(origin, minimums):
+    if origin is None or origin.version is not None or minimums.get(origin.name) is None:
+        return origin
+    return replace(origin, version=VERSION_FLOOR + minimums[origin.name])
+
+
+def with_versions(component, minimums):
+    parts = tuple(replace(part, origin=versioned(part.origin, minimums)) for part in component.parts)
+    return replace(component, origin=versioned(component.origin, minimums), parts=parts)
+
+
 def components_from(data, name=COMPONENTS_PATH.name):
     require(data, MANIFEST_REQUIRED, name)
     version = data["format_version"]
@@ -283,7 +297,8 @@ def components_from(data, name=COMPONENTS_PATH.name):
     kinds = {a.name: a.kind for a in admissions}
     for component in components:
         check_component_admitted(component, kinds, name)
-    return Manifest(version, components, admissions)
+    minimums = {a.name: a.minimum_version for a in admissions}
+    return Manifest(version, tuple(with_versions(c, minimums) for c in components), admissions)
 
 
 def source_from(data, where):

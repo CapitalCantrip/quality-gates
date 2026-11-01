@@ -211,11 +211,6 @@ class AdmissionsAgreeWithWhatShips(unittest.TestCase):
         for name, admission in admissions_of("dependency").items():
             self.assertGreaterEqual(version_tuple(admission.tested_version), version_tuple(admission.minimum_version), name)
 
-    def test_a_dependency_part_states_the_minimum_its_admission_records(self):
-        dependencies = admissions_of("dependency")
-        for _, part in parts("dependency"):
-            self.assertEqual(part.origin.version, f">={dependencies[part.origin.name].minimum_version}", part.id)
-
     def test_every_test_only_tool_has_a_licence_and_no_part_installs_it(self):
         named = {origin_of(c, p).name for c, p in parts()}
         for name, admission in admissions_of("test-only").items():
