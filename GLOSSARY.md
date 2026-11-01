@@ -169,6 +169,11 @@ Each one is admitted with a written case for and against it, with sources;
 anything else a project wants is a loosening.
 _Avoid_: exemption, exception, allowed comment
 
+**Finding**:
+One thing a gate reports at one place: where it is, how much (a score or a
+count) and what kind. A finding becomes a catch only when it stops the gate.
+_Avoid_: violation, result, issue
+
 **Catch**:
 A problem a gate stopped, counted once and ended as fixed, given a reason, or
 accepted as debt. Not a proven bug.
