@@ -1,30 +1,24 @@
 import argparse
 import json
-import shlex
 import sys
 from dataclasses import dataclass
 
-from quality_gates import languages, project_files, skills_sync, status
-from quality_gates.errors import ToolError
-from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, STEP_KINDS, ManifestError, load_components
+from quality_gates import project_files, skills_sync, status
+from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, STEP_KINDS, BrokenFileError, known_languages, load_components
 
 SUMMARY = "propose the languages and components, and record them in quality-gates.json with --go"
 REFUSED_EXIT = 1
-NO_REPO_EXIT = 2
 CORE = "core"
 CHOSEN = "chosen"
 OFFERED = "offered"
 DECLINED = status.DECLINED
 NOT_APPLICABLE = status.NOT_APPLICABLE
 TICKED = (CORE, CHOSEN, OFFERED)
-HAS_SOMETHING = (status.INSTALLED, status.PARTLY, status.DIFFERENT)
 STEP_COSTS = (("precommit_step", "commit delay"), ("ci_step", "CI time"))
 OUTSIDE_TOOLS = "outside tools: "
 NO_COST = "none"
-COMMENT_GATE_COMMAND = "comment-debt"
-EXCLUDE_FLAG = "--exclude"
 LOOSENING_ISSUE = "#115"
-FILES_SHOWN = 3
 
 
 class Refused(Exception):
@@ -39,27 +33,12 @@ class Proposal:
     choice: object
 
 
-def registered_names():
-    return {language.name for language in languages.REGISTERED}
-
-
-def files_named(files):
-    shown = ", ".join(files[:FILES_SHOWN])
-    return shown + (f" and {len(files) - FILES_SHOWN} more" if len(files) > FILES_SHOWN else "")
-
-
-def check_language_names(names):
-    for name in names:
-        if name not in registered_names():
-            raise Refused(f"'{name}' is not a language quality-gates knows; it knows "
-                          + ", ".join(sorted(registered_names())))
-
-
 def proposed_languages(choice, detected, add, remove):
-    check_language_names(add + remove)
+    known_languages(add, "--add-language")
+    known_languages(remove, "--remove-language")
     for name in remove:
         if name in detected:
-            raise Refused(f"removing {name} is refused while it still has code ({files_named(detected[name])}); "
+            raise Refused(f"removing {name} is refused while it still has code ({project_files.files_named(detected[name])}); "
                           f"removing a language with code is loosening, which waits on {LOOSENING_ISSUE}")
     wanted = set(choice.languages if choice else ()) | set(detected) | set(add)
     return tuple(sorted(wanted - set(remove)))
@@ -77,9 +56,8 @@ def is_gate(component):
 
 
 def check_component_names(manifest, names):
-    known_ids = {component.id for component in manifest.components}
     for name in names:
-        if name not in known_ids:
+        if manifest.component(name) is None:
             raise Refused(f"'{name}' is not a component in this release's components.json")
 
 
@@ -94,18 +72,19 @@ def check_declines(manifest, declines, has):
                           f"it is refused until recorded loosening ({LOOSENING_ISSUE}) ships")
 
 
+RECORDED_CHOICES = {project_files.DECLINED: DECLINED, project_files.CHOSEN: CHOSEN, project_files.UNLISTED: OFFERED}
+
+
 def previous_choice(component, choice, installed):
     if choice is None:
         return CHOSEN if component.id in installed else OFFERED
-    if component.id in choice.declined:
-        return DECLINED
-    return CHOSEN if component.id in choice.chosen else OFFERED
+    return RECORDED_CHOICES[choice.recorded(component.id)]
 
 
 def component_choice(component, used, choice, installed, flags):
     if component.core:
         return CORE
-    if not status.applies(component.languages, used):
+    if not component.applies_to(used):
         return NOT_APPLICABLE
     if component.id in flags.decline:
         return DECLINED
@@ -114,48 +93,15 @@ def component_choice(component, used, choice, installed, flags):
     return previous_choice(component, choice, installed)
 
 
-def installed_components(project, manifest, used):
-    reports = (status.component_report(project, component, used) for component in manifest.components)
-    return {report["id"] for report in reports if report["status"] in HAS_SOMETHING}
-
-
-def comment_gate_exclusions(texts):
-    found = set()
-    for text in texts:
-        for line in (text or "").splitlines():
-            if status.runs_command(line, COMMENT_GATE_COMMAND):
-                found.update(exclude_flags(words_of(line)))
-    return found
-
-
-def words_of(line):
-    try:
-        return shlex.split(line, comments=True)
-    except ValueError:
-        return line.split()
-
-
-def exclude_flags(words):
-    for at, word in enumerate(words):
-        if word == EXCLUDE_FLAG and at + 1 < len(words):
-            yield words[at + 1]
-        elif word.startswith(EXCLUDE_FLAG + "="):
-            yield word[len(EXCLUDE_FLAG) + 1:]
-
-
-def hook_and_ci_texts(root):
-    return project_files.pre_commit_texts(root) + project_files.ci_texts(root)
-
-
 def recorded_choice(root, choice, used, components):
-    comment_exclude = set(choice.comment_exclude if choice else ()) | comment_gate_exclusions(hook_and_ci_texts(root))
+    comment_gate_exclude = set(choice.comment_gate_exclude if choice else ()) | project_files.comment_gate_exclusions(root)
     return project_files.Choice(
         languages=used,
         chosen=tuple(sorted(c["id"] for c in components if c["choice"] in (CHOSEN, OFFERED))),
         declined=tuple(sorted(c["id"] for c in components if c["choice"] == DECLINED)),
         exclude=project_files.scope_of(root).excluded,
         commit_time_limit_seconds=choice.commit_time_limit_seconds if choice else project_files.DEFAULT_COMMIT_TIME_LIMIT_SECONDS,
-        comment_exclude=tuple(sorted(comment_exclude)),
+        comment_gate_exclude=tuple(sorted(comment_gate_exclude)),
         conventions=choice.conventions if choice else (),
     )
 
@@ -171,7 +117,7 @@ def propose(project, manifest, flags):
     detected = project_files.detected_languages(root)
     used = proposed_languages(choice, detected, flags.add_language, flags.remove_language)
     check_component_names(manifest, flags.choose + flags.decline)
-    installed = installed_components(project, manifest, set(used))
+    installed = status.components_present(project, manifest, set(used))
     check_declines(manifest, flags.decline, installed | set(choice.chosen if choice else ()))
     rows = tuple(component_row(c, component_choice(c, set(used), choice, installed, flags)) for c in manifest.components)
     by_hand = tuple(name for name in used if name not in detected)
@@ -187,7 +133,7 @@ def report_of(proposal, planned):
         "languages": list(proposal.languages),
         "languages_added_by_hand": list(proposal.added_by_hand),
         "exclude": list(proposal.choice.exclude),
-        "comment_gate_exclude": list(proposal.choice.comment_exclude),
+        "comment_gate_exclude": list(proposal.choice.comment_gate_exclude),
         "components": list(proposal.components),
         "planned_changes": [{"file": change.name, "state": state} for change, state in planned],
     }
@@ -216,7 +162,7 @@ def render(proposal, planned, written):
     lines = ["Languages: " + (", ".join(proposal.languages) or "none"), "", "Components"]
     lines += [line for row in proposal.components for line in row_lines(row)]
     lines += ["", "Excluded from detection and the gates: " + (", ".join(proposal.choice.exclude) or "nothing")]
-    lines += ["Comment gate exclusions: " + (", ".join(proposal.choice.comment_exclude) or "none")]
+    lines += ["Comment gate exclusions: " + (", ".join(proposal.choice.comment_gate_exclude) or "none")]
     lines += your_components(proposal)
     lines += ["", "Planned changes"] + [f"  {change.name}: {state}" for change, state in planned]
     lines += ["", "Recorded: " + ", ".join(written) if written else "Run `qg setup --go` to record these choices."]
@@ -255,10 +201,10 @@ def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.H
     try:
         manifest = manifest or load_components(components_path)
         root = project_files.git_root() if root is None else root
-        return run(args, status.Project(root, source, hooks, frozenset(skills_sync.skill_names(source))), manifest)
-    except ManifestError as error:
+        return run(args, status.project_at(root, source, hooks), manifest)
+    except BrokenFileError as error:
         return failed(error, BROKEN_EXIT)
     except ToolError as error:
-        return failed(error, NO_REPO_EXIT)
+        return failed(error, TOOL_ERROR_EXIT)
     except Refused as error:
         return failed(error, REFUSED_EXIT)

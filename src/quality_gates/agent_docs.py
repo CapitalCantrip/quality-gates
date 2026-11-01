@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 from quality_gates import project_files
-from quality_gates.errors import ToolError
+from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
 
 TEMPLATES = Path(__file__).parent / "agent_doc_templates"
 AGENT_SKILLS_HEADING = "## Agent skills"
@@ -130,7 +130,7 @@ def main(argv=None, templates=TEMPLATES):
         root = args.root or project_files.git_root()
     except ToolError as error:
         print(f"qg-agent-docs: {error}", file=sys.stderr)
-        sys.exit(2)
+        sys.exit(TOOL_ERROR_EXIT)
     for name, status, detail in run(root, args.tracker, templates):
         print(f"{name}: {status}")
         if detail:

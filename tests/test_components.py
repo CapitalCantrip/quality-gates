@@ -242,7 +242,7 @@ class ComponentExplainers(unittest.TestCase):
     def test_every_explainer_a_component_names_is_a_file_in_the_package(self):
         for component in MANIFEST.components:
             if component.explainer is not None:
-                self.assertTrue((PACKAGE / component.explainer).is_file(), component.id)
+                self.assertTrue(MANIFEST.explainer_path(component).is_file(), component.id)
 
 
 class ComponentManifestShips(unittest.TestCase):

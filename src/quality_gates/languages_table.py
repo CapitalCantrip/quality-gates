@@ -2,7 +2,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from quality_gates import comment_debt, crap, languages, manifest, quality_check, status
+from quality_gates import comment_debt, crap, languages, manifest, quality_check
 
 COMMAND = "python -m quality_gates.languages_table"
 DEFAULT_PATH = Path("docs") / "languages-by-gates.md"
@@ -24,7 +24,7 @@ def row(cells):
 
 
 def installed(name, components):
-    return ", ".join(c.id for c in components if status.applies(c.languages, {name})) or NONE_INSTALLED
+    return ", ".join(c.id for c in components if c.applies_to({name})) or NONE_INSTALLED
 
 
 def language_row(language, components):
@@ -96,7 +96,7 @@ def main(argv=None, repo=REPO, components_path=manifest.COMPONENTS_PATH):
         return REFUSED
     try:
         return run(args, repo / args.path, components_path)
-    except manifest.ManifestError as error:
+    except manifest.BrokenFileError as error:
         print(f"{COMMAND}: {error}", file=sys.stderr)
         return manifest.BROKEN_EXIT
 

@@ -211,10 +211,20 @@ class Setup(unittest.TestCase):
         self.run_setup("--remove-language", "rust", "--go")
         self.assertEqual(self.recorded().languages, ("python",))
 
-    def test_an_unknown_language_or_component_is_refused_by_name(self):
-        code, _, err = self.run_setup("--add-language", "cobol")
-        self.assertEqual(code, 1)
-        self.assertIn("cobol", err)
+    def test_a_language_quality_gates_does_not_know_exits_3_with_the_line_a_choice_file_would_give(self):
+        code, _, err = self.run_setup("--add-language", "Python")
+        self.assertEqual(code, 3)
+        self.assertEqual(err, "qg setup: --add-language: unknown language 'Python'; quality-gates knows "
+                              "python, rust, shell, swift, typescript\n")
+        self.write(self.repo / project_files.CHOICE_FILE, json.dumps({
+            "format_version": 1, "languages": ["Python"], "exclude": [], "components": {"chosen": [], "declined": []},
+            "commit_time_limit_seconds": 2, "settings": {}}))
+        code, _, err = self.run_setup()
+        self.assertEqual(code, 3)
+        self.assertEqual(err, "qg setup: quality-gates.json: unknown language 'Python'; quality-gates knows "
+                              "python, rust, shell, swift, typescript\n")
+
+    def test_an_unknown_component_is_refused_by_name(self):
         code, _, err = self.run_setup("--choose", "nothing-like-it")
         self.assertEqual(code, 1)
         self.assertIn("nothing-like-it", err)
@@ -229,7 +239,7 @@ class Setup(unittest.TestCase):
         self.write(self.repo / ".githooks" / "pre-commit",
                    "#!/bin/sh\nset -e\ncomment-debt --exclude gen/ --exclude fixtures/\n")
         self.run_setup("--go")
-        self.assertEqual(self.recorded().comment_exclude, ("fixtures/", "gen/"))
+        self.assertEqual(self.recorded().comment_gate_exclude, ("fixtures/", "gen/"))
         before = tree(self.repo)
         self.run_setup("--go")
         self.assertEqual(tree(self.repo), before)
@@ -239,7 +249,7 @@ class Setup(unittest.TestCase):
         self.write(self.repo / ".github" / "workflows" / "ci.yml",
                    "steps:\n  - run: comment-debt --exclude=vendor/ --exclude 'docs/old/'\n  - run: other --exclude x/\n")
         self.run_setup("--go")
-        self.assertEqual(self.recorded().comment_exclude, ("docs/old/", "vendor/"))
+        self.assertEqual(self.recorded().comment_gate_exclude, ("docs/old/", "vendor/"))
 
     def test_the_table_shows_each_components_description_and_cost(self):
         self.set_up_at_v0_12_0()

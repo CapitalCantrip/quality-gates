@@ -6,7 +6,7 @@ import sys
 import urllib.error
 import urllib.request
 
-from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, UPSTREAM_PATH, ManifestError, load_components, load_sources
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, UPSTREAM_PATH, BrokenFileError, load_components, load_sources
 
 RAW = "https://raw.githubusercontent.com/{repo}/{ref}/{path}"
 HEAD = "https://api.github.com/repos/{repo}/commits/HEAD"
@@ -120,7 +120,7 @@ def upkeep_section(admission, months):
 def upkeep(components_path, today):
     try:
         quiet = quiet_sources(load_components(components_path).admissions, today)
-    except ManifestError as error:
+    except BrokenFileError as error:
         print(f"qg-upstream: {error}", file=sys.stderr)
         sys.exit(BROKEN_EXIT)
     if not quiet:
@@ -150,7 +150,7 @@ def main(argv=None, record_path=UPSTREAM_PATH, fetch=github_fetch, components_pa
         upkeep(components_path, today or datetime.date.today())
     try:
         sources = load_sources(record_path)
-    except ManifestError as error:
+    except BrokenFileError as error:
         print(f"qg-upstream: {error}", file=sys.stderr)
         sys.exit(BROKEN_EXIT)
     try:

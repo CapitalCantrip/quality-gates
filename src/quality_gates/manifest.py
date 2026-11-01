@@ -39,8 +39,12 @@ MARKDOWN_SUFFIX = ".md"
 BROKEN_EXIT = 3
 
 
-class ManifestError(Exception):
+class BrokenFileError(Exception):
     pass
+
+
+def applies(languages, used):
+    return not languages or bool(set(languages) & used)
 
 
 @dataclass(frozen=True)
@@ -66,6 +70,9 @@ class Part:
     found_in: Optional[str] = None
     file: Optional[str] = None
 
+    def applies_to(self, used):
+        return applies(self.languages, used)
+
 
 @dataclass(frozen=True)
 class Component:
@@ -77,6 +84,9 @@ class Component:
     origin: Origin
     parts: Tuple[Part, ...]
     explainer: Optional[str] = None
+
+    def applies_to(self, used):
+        return applies(self.languages, used)
 
 
 @dataclass(frozen=True)
@@ -96,6 +106,13 @@ class Manifest:
     format_version: int
     components: Tuple[Component, ...]
     admissions: Tuple[Admission, ...] = ()
+    folder: Path = PACKAGE
+
+    def component(self, component_id):
+        return next((c for c in self.components if c.id == component_id), None)
+
+    def explainer_path(self, component):
+        return None if component.explainer is None else self.folder / component.explainer
 
 
 @dataclass(frozen=True)
@@ -110,16 +127,16 @@ def read_json(path):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except FileNotFoundError as error:
-        raise ManifestError(f"{path}: not found") from error
+        raise BrokenFileError(f"{path}: not found") from error
     except OSError as error:
-        raise ManifestError(f"{path}: cannot be read: {error.strerror}") from error
+        raise BrokenFileError(f"{path}: cannot be read: {error.strerror}") from error
     except ValueError as error:
-        raise ManifestError(f"{path}: not valid JSON: {error}") from error
+        raise BrokenFileError(f"{path}: not valid JSON: {error}") from error
 
 
 def fail_unless(holds, message):
     if not holds:
-        raise ManifestError(message)
+        raise BrokenFileError(message)
 
 
 def unique(keys, where, what):
@@ -131,16 +148,16 @@ def unique(keys, where, what):
 
 def require(data, fields, where):
     if not isinstance(data, dict):
-        raise ManifestError(f"{where}: expected an object")
+        raise BrokenFileError(f"{where}: expected an object")
     for field in fields:
         if field not in data:
-            raise ManifestError(f"{where}: missing field '{field}'")
+            raise BrokenFileError(f"{where}: missing field '{field}'")
     return data
 
 
 def known(value, allowed, what, where):
     if value not in allowed:
-        raise ManifestError(f"{where}: unknown {what} '{value}'")
+        raise BrokenFileError(f"{where}: unknown {what} '{value}'")
     return value
 
 
@@ -151,7 +168,10 @@ def labelled(data, noun, number, key="id"):
 
 
 def known_languages(values, where):
-    return tuple(known(value, registry.LANGUAGES, "language", where) for value in values)
+    for value in values:
+        fail_unless(value in registry.LANGUAGES, f"{where}: unknown language '{value}'; quality-gates knows "
+                                                 + ", ".join(sorted(registry.LANGUAGES)))
+    return tuple(values)
 
 
 def optional_tuple(data, field, where):
@@ -222,7 +242,7 @@ def release_date(value, where):
     try:
         return date.fromisoformat(value)
     except (TypeError, ValueError):
-        raise ManifestError(f"{where}: field 'last_release' must be a date like 2026-10-29") from None
+        raise BrokenFileError(f"{where}: field 'last_release' must be a date like 2026-10-29") from None
 
 
 def check_upkeep(data, where):
@@ -263,7 +283,7 @@ def check_origin_admitted(origin, kinds, where):
     for source in named:
         fail_unless(source in kinds, f"{where}: origin names '{source}', which has no admission")
     if origin.name and kinds[origin.name] != origin.type:
-        raise ManifestError(f"{where}: origin type '{origin.type}' names '{origin.name}', a {kinds[origin.name]}")
+        raise BrokenFileError(f"{where}: origin type '{origin.type}' names '{origin.name}', a {kinds[origin.name]}")
 
 
 def check_component_admitted(component, kinds, name):
@@ -312,7 +332,7 @@ def sources_from(data, name=UPSTREAM_PATH.name):
 
 
 def load_components(path=COMPONENTS_PATH):
-    return components_from(read_json(path), Path(path).name)
+    return replace(components_from(read_json(path), Path(path).name), folder=Path(path).parent)
 
 
 def load_sources(path=UPSTREAM_PATH):
