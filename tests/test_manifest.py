@@ -195,6 +195,12 @@ class MalformedAdmission(unittest.TestCase):
         message = self.rejected(admission(lambda a: a[0].pop("tested_version")))
         self.assertEqual(message, "components.json: admission 'radon': give 'minimum_version' and 'tested_version' together")
 
+    def test_a_minimum_or_tested_version_that_is_not_text_fails_naming_the_field(self):
+        for field in ("minimum_version", "tested_version"):
+            with self.subTest(field):
+                message = self.rejected(admission(lambda a: a[0].update({field: 6})))
+                self.assertEqual(message, f"components.json: admission 'radon': field '{field}' must be text")
+
     def test_two_sources_with_one_name_fail(self):
         message = self.rejected(admission(lambda a: a.append(copy.deepcopy(a[0]))))
         self.assertEqual(message, "components.json: admission name 'radon' is listed twice")
