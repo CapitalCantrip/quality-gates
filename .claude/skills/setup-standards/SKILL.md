@@ -78,11 +78,11 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    fixture folders left out (shell
    counts by suffix or by a shell first line such as `#!/bin/sh`), and one
    row per component: its description, its cost (commit delay, CI time,
-   outside tools) and a tick on the recommended set. A component the choice
-   file `quality-gates.json` does not list yet is **chosen** when any part of
-   it is installed. Any other component that applies and that the file does
-   not list is **offered**, ticked: it is recorded only when `--choose` or
-   `--decline` names it.
+   outside tools) and a tick on the recommended set. With no choice file
+   `quality-gates.json` yet, what is installed is **chosen**. Any other
+   component that applies and that the file does not list is **offered**,
+   ticked, even when `qg-skills` already copied its skill: it is recorded
+   only when `--choose` or `--decline` names it.
 3. Show the builder that table as it stands, and ask them to say "go" or name
    changes. Under the table, end with one line: *Ask me about any row, or run
    `qg explain <name>`.*

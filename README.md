@@ -539,9 +539,9 @@ line, like any other tool error.
   or `testdata` folder, in any case, so `Fixtures` too).
 - `components`: `chosen` and `declined`, each a list of component ids from
   `components.json`; no id may be in both. A component in neither list has
-  not been offered yet, unless something of it is installed: then it counts
-  as chosen, and `qg setup --go` records it. The core is never listed: every
-  project has it.
+  not been offered yet, whatever of it is installed: `qg setup` offers it,
+  and it is recorded only when `--choose` or `--decline` names it. The core
+  is never listed: every project has it.
 - `commit_time_limit_seconds`: a number above 0, 2 by default (ADR-006).
 - `settings`: per-component settings. Only `no-comments` has any so far:
   `exclude`, path prefixes the comment gate leaves out, and `conventions`, the
@@ -588,11 +588,10 @@ line, like any other tool error.
   edited, so it no longer matches the release), *partly installed*, *unknown*
   (it could not read something), *not applicable* (the component is for a
   language the project does not use), *offered, declined* or *not yet offered*
-  (the choice file declines the component, or does not list it and nothing of
-  it is installed). A component the file does not list that has something
-  installed counts as chosen and shows what is installed. A declined component
-  stays declined; when some of it is installed anyway, the table shows that
-  beside the decline, such as *offered, declined (partly installed)*. Core
+  (the choice file declines the component, or does not list it). Either stays
+  as it is whatever is installed; when some of it is installed, the table
+  shows that beside it, such as *offered, declined (partly installed)* or
+  *not yet offered (installed)*. Core
   components come first. The project's languages come from the
   [choice file](#the-choice-file); without one, from detection over the files
   git would commit. With a choice file, it warns about code in a language the
@@ -639,12 +638,12 @@ line, like any other tool error.
 - `qg setup` proposes the project's languages and one row per component, with
   its description, its cost (commit delay, CI time, outside tools) and a tick
   on the recommended set, and lists the files it would change. It writes
-  nothing until `--go`, and then only `quality-gates.json`. It records as
-  chosen any component that has something installed and that the choice file
-  does not list, or every such component when there is no file yet, so the
-  skills `qg-skills` copied are recorded. Every other component that applies
-  and that the file does not list is *offered*: ticked as
-  recommended, and recorded only when `--choose` or `--decline` names it. A
+  nothing until `--go`, and then only `quality-gates.json`. Without a choice
+  file it records what is installed as chosen. Every other component that
+  applies and that the file does not list is *offered*, whatever is
+  installed, so a component a release adds stays off after `qg-skills`
+  copies its skill: ticked as recommended, and recorded only when `--choose`
+  or `--decline` names it. Its last line names the offers not yet answered. A
   choice or decline already recorded is kept while its component does not
   apply, which shows as *not applicable*, and `--choose` and `--decline` work
   on such a component. Change the
@@ -660,8 +659,8 @@ line, like any other tool error.
   and the CI workflows into `settings` › `no-comments` › `exclude`, and leaves
   the flags in place. Only `comment-debt`'s own flags count, not those of a
   command joined to it by `&&`, `||`, `|` or `;`, and a flag on a `\`
-  continuation line counts. Run again, it changes nothing and says the file is
-  up to date, with or without `--go`. `--json` prints the
+  continuation line counts. Run again with every offer answered, it changes
+  nothing and says the file is up to date, with or without `--go`. `--json` prints the
   proposal for an agent.
 
 - `qg-skills` copies from the installed package, not from GitHub, so the
