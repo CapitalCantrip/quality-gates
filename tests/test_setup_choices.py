@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -29,7 +30,7 @@ HELPERS = {"id": "helpers", "name": "Helpers", "description": "Design helpers.",
 RUST = {"id": "rust-lint", "name": "Rust lint", "description": "Lints Rust.", "core": False, "languages": ["rust"],
         "origin": OURS, "parts": [{"kind": "skill", "id": "cc-rust"}]}
 FRESH = {"id": "fresh", "name": "Fresh gate", "description": "A gate a later release adds.", "core": False,
-         "languages": ["python"], "origin": OURS, "parts": [{"kind": "skill", "id": "fresh-skill"}]}
+         "languages": ["python"], "origin": OURS, "parts": [{"kind": "baseline", "id": "fresh-baseline.json"}]}
 ABSENT = {"id": "absent", "name": "Absent", "description": "A component nothing installed.", "core": False,
           "languages": [], "origin": OURS, "parts": [{"kind": "baseline", "id": "absent-baseline.json"}]}
 
@@ -54,7 +55,7 @@ class Setup(unittest.TestCase):
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.source = self.tmp / "shipped"
-        for name in ("tdd", "crap", "codebase-design", "cc-rust", "fresh-skill"):
+        for name in ("tdd", "crap", "codebase-design", "cc-rust"):
             self.write(self.source / name / "SKILL.md", f"{name} v1")
         self.hooks = self.tmp / "shipped-hooks"
         self.write(self.hooks / "stage_guard.py", "guard")
@@ -303,6 +304,24 @@ class Setup(unittest.TestCase):
         self.run_setup("--go")
         self.assertEqual(self.recorded().comment_gate_exclude, ("docs/old/", "vendor/"))
 
+    def test_an_exclude_flag_of_a_command_chained_after_the_comment_gate_is_not_moved(self):
+        self.write(self.repo / ".github" / "workflows" / "ci.yml",
+                   "steps:\n  - run: comment-debt && cc-check src --exclude src/vendor\n")
+        self.assertEqual(project_files.comment_gate_exclusions(self.repo), set())
+
+    def test_only_the_comment_gates_own_segment_of_a_chained_line_gives_exclusions(self):
+        for joiner in ("&&", "||", "|", ";"):
+            with self.subTest(joiner):
+                self.write(self.repo / ".githooks" / "pre-commit",
+                           f"#!/bin/sh\ncc-check --exclude a/ {joiner} .venv/bin/comment-debt --exclude b/\n")
+                self.assertEqual(project_files.comment_gate_exclusions(self.repo), {"b/"})
+
+    def test_an_exclude_flag_on_a_continuation_line_of_a_run_block_is_moved(self):
+        self.write(self.repo / ".github" / "workflows" / "ci.yml",
+                   "steps:\n  - run: |\n      uv run comment-debt \\\n        --exclude gen/x+y@1:2/ \\\n"
+                   "        --exclude=vendor/\n      cc-check --exclude other/\n")
+        self.assertEqual(project_files.comment_gate_exclusions(self.repo), {"gen/x+y@1:2/", "vendor/"})
+
     def test_one_setup_run_asks_git_for_the_files_in_scope_once_and_reads_the_choice_file_once(self):
         self.set_up_at_v0_12_0()
         self.run_setup("--go")
@@ -345,6 +364,51 @@ class Setup(unittest.TestCase):
             code = setup_choices.main(["--json"], root=self.repo)
         self.assertEqual(code, 0)
         self.assertEqual(len(json.loads(out.getvalue())["components"]), len(manifests.load_components().components))
+
+
+class RealRuns(unittest.TestCase):
+    def setUp(self):
+        self.repo = Path(tempfile.mkdtemp())
+        git_init(self.repo)
+        (self.repo / "app.py").write_text("x = 1\n", encoding="utf-8")
+        here = Path.cwd()
+        os.chdir(self.repo)
+        self.addCleanup(os.chdir, here)
+
+    def qg(self, *argv):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            code = qg.main(list(argv))
+        self.assertEqual(code, 0)
+        return out.getvalue()
+
+    def qg_skills(self):
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as done:
+            skills_sync.main([])
+        self.assertEqual(done.exception.code, 0)
+
+    def choice_bytes(self):
+        return (self.repo / project_files.CHOICE_FILE).read_bytes()
+
+    def test_setup_records_what_qg_skills_installed_then_says_up_to_date_and_status_shows_it_installed(self):
+        self.qg("setup", "--go")
+        self.qg_skills()
+        self.assertIn("quality-gates.json: will change", self.qg("setup"))
+        self.qg("setup", "--go")
+        self.assertIn("design-helpers", project_files.read_choice(self.repo).chosen)
+        again = self.qg("setup")
+        self.assertIn("quality-gates.json is up to date.", again)
+        self.assertNotIn("qg setup --go", again)
+        recorded = self.choice_bytes()
+        self.qg("setup", "--go")
+        self.assertEqual(self.choice_bytes(), recorded)
+        report = json.loads(self.qg("status", "--json"))
+        shown = {c["id"]: c["status"] for c in report["components"]}
+        self.assertEqual((shown["design-helpers"], shown["session-helpers"]), ("installed", "installed"))
+        table = self.qg("status").splitlines()
+        for at, line in enumerate(table):
+            if status.DECLINED in line or status.NOT_OFFERED in line:
+                self.assertNotIn("Needs attention", table[at + 2] if at + 2 < len(table) else "", line)
 
 
 if __name__ == "__main__":

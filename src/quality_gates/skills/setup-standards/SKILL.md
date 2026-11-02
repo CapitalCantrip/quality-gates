@@ -78,10 +78,11 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    fixture folders left out (shell
    counts by suffix or by a shell first line such as `#!/bin/sh`), and one
    row per component: its description, its cost (commit delay, CI time,
-   outside tools) and a tick on the recommended set. What is installed is
-   **chosen**. Any other component that applies, or that the choice file
-   `quality-gates.json` does not list yet, is **offered**, ticked: it is
-   recorded only when `--choose` or `--decline` names it.
+   outside tools) and a tick on the recommended set. A component the choice
+   file `quality-gates.json` does not list yet is **chosen** when any part of
+   it is installed. Any other component that applies and that the file does
+   not list is **offered**, ticked: it is recorded only when `--choose` or
+   `--decline` names it.
 3. Show the builder that table as it stands, and ask them to say "go" or name
    changes. Under the table, end with one line: *Ask me about any row, or run
    `qg explain <name>`.*
@@ -93,8 +94,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    project has, or a language that still has code), tell the builder plainly:
    switching those off waits on recorded reasons, and nothing was changed.
 5. Run `qg setup --go` with the same flags. It writes `quality-gates.json`
-   only, and moves any `--exclude` prefixes on the `comment-debt` lines of the
-   hook and CI into the file; leave those flags where they are. Commit the
+   only, and moves the `--exclude` prefixes of the `comment-debt` commands in
+   the hook and CI into the file; leave those flags where they are. Commit the
    file.
 
 From here on, do only the blocks for the languages the file records, and only

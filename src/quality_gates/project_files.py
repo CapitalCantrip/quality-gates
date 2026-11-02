@@ -6,6 +6,7 @@ import shlex
 import shutil
 import stat
 import subprocess
+import sys
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 
@@ -32,6 +33,7 @@ NOT_A_GIT_REPO = (
     "project's repository, or run `git init` there first"
 )
 ALREADY_SCANNED = " (already scanned)"
+IGNORED_NOTE = "Skipped {}: git ignores it, and quality-gates scores only the files git would commit"
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 WORKFLOWS = Path(".github") / "workflows"
 CLAUDE_DIR = ".claude"
@@ -65,6 +67,8 @@ CHOSEN, DECLINED, UNLISTED = "chosen", "declined", "unlisted"
 FILES_SHOWN = 3
 COMMENT_GATE_COMMAND = "comment-debt"
 EXCLUDE_FLAG = "--exclude"
+COMMAND_SEPARATORS = frozenset({"&&", "||", "|", ";"})
+CONTINUATION = "\\"
 UNSHIPPED, MISSING, DIFFERS, SAME = "unshipped", "missing", "differs", "same"
 READABLE, UNREADABLE = "readable", "unreadable"
 
@@ -315,25 +319,37 @@ class Scope:
     walkable: frozenset
     excluded: tuple = ()
 
-    def location(self, here, name):
-        return os.path.relpath(os.path.join(os.path.realpath(here), name), self.root)
+    def location(self, real_here, name):
+        return os.path.relpath(os.path.join(real_here, name), self.root)
 
     def keeps(self, location, names):
         if is_outside(location):
             return True
         return location in names and not excluded_by(location, self.excluded)
 
-    def keeps_folder(self, here, name):
-        location = self.location(here, name)
-        return self.keeps(location, self.walkable)
+    def keeps_folder(self, real_here, name):
+        return self.keeps(self.location(real_here, name), self.walkable)
 
-    def keeps_file(self, here, name):
-        return self.keeps(self.location(here, name), self.listed)
+    def keeps_file(self, real_here, name):
+        return self.keeps(self.location(real_here, name), self.listed)
 
     def given(self, path):
         location = os.path.relpath(os.path.realpath(path), self.root)
         kept = tuple(entry for entry in self.excluded if not covers(entry, location))
         return replace(self, excluded=kept)
+
+    def ignores(self, path):
+        location = os.path.relpath(os.path.realpath(path), self.root)
+        if is_outside(location) or location == os.curdir:
+            return False
+        if Path(path).is_dir():
+            return location not in self.walkable and not is_empty(path)
+        return location not in self.listed
+
+
+def is_empty(folder):
+    with os.scandir(folder) as entries:
+        return next(entries, None) is None
 
 
 def is_outside(location):
@@ -361,7 +377,7 @@ def committable_files(root):
 
 
 def default_exclusions(listed):
-    found = sorted(f"{folder}/" for folder in parent_folders(listed) if PurePosixPath(folder).name in FIXTURE_FOLDERS)
+    found = sorted(f"{folder}/" for folder in parent_folders(listed) if PurePosixPath(folder).name.lower() in FIXTURE_FOLDERS)
     return tuple(prefix for prefix in found if not excluded_by(prefix, tuple(other for other in found if other != prefix)))
 
 
@@ -413,10 +429,10 @@ def detected_languages(root, scope=None):
     return {language: sorted(names) for language, names in found.items()}
 
 
-def _subfolders(here: Path, dirnames: list, seen: set, scope: Scope) -> tuple:
+def _subfolders(here: Path, real_here: str, dirnames: list, seen: set, scope: Scope) -> tuple:
     kept, skipped = [], []
     for _, name, identity in sorted(_entry(here, name) for name in dirnames):
-        if not scope.keeps_folder(here, name):
+        if not scope.keeps_folder(real_here, name):
             continue
         if _first_visit(identity, seen):
             kept.append(name)
@@ -427,15 +443,15 @@ def _subfolders(here: Path, dirnames: list, seen: set, scope: Scope) -> tuple:
 
 def _walk(root: Path, seen: set, scope: Scope) -> tuple:
     if not root.is_dir():
-        return ([root] if scope.keeps_file(root.parent, root.name) else []), []
+        return ([root] if scope.keeps_file(os.path.realpath(root.parent), root.name) else []), []
     if not _first_visit(_identity(root)[1], seen):
         return [], [os.path.relpath(root) + ALREADY_SCANNED]
     files, skipped = [], []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
-        here = Path(dirpath)
-        dirnames[:], skipped_here = _subfolders(here, dirnames, seen, scope)
+        here, real_here = Path(dirpath), os.path.realpath(dirpath)
+        dirnames[:], skipped_here = _subfolders(here, real_here, dirnames, seen, scope)
         skipped.extend(skipped_here)
-        files.extend(here / name for name in sorted(filenames) if scope.keeps_file(here, name))
+        files.extend(here / name for name in sorted(filenames) if scope.keeps_file(real_here, name))
     return files, skipped
 
 
@@ -463,6 +479,8 @@ def files_in_scope(paths: list, root=None) -> tuple:
     scope = scope_of(root_of_scanned(Path(paths[0])) if root is None else root)
     files, skipped, seen = [], set(), set()
     for path in paths:
+        if scope.ignores(path):
+            print(IGNORED_NOTE.format(path), file=sys.stderr)
         found, folders = _walk(Path(path), seen, scope.given(path))
         files.extend(found)
         skipped.update(folders)
@@ -479,11 +497,36 @@ def runs_command(text, command):
     return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
 
 
+def logical_lines(text):
+    pending = ""
+    for line in text.splitlines():
+        if line.rstrip().endswith(CONTINUATION):
+            pending += line.rstrip()[:-len(CONTINUATION)] + " "
+            continue
+        yield pending + line
+        pending = ""
+    if pending:
+        yield pending
+
+
 def words_of(line):
+    lexer = shlex.shlex(line, posix=True, punctuation_chars=True)
+    lexer.whitespace_split = True
     try:
-        return shlex.split(line, comments=True)
+        return list(lexer)
     except ValueError:
         return line.split()
+
+
+def command_segments(words):
+    segment = []
+    for word in words:
+        if word in COMMAND_SEPARATORS:
+            yield segment
+            segment = []
+        else:
+            segment.append(word)
+    yield segment
 
 
 def exclude_flags(words):
@@ -497,9 +540,9 @@ def exclude_flags(words):
 def comment_gate_exclusions(root):
     found = set()
     for text in pre_commit_texts(root) + ci_texts(root):
-        for line in (text or "").splitlines():
-            if runs_command(line, COMMENT_GATE_COMMAND):
-                found.update(exclude_flags(words_of(line)))
+        for line in logical_lines(text or ""):
+            found.update(flag for segment in command_segments(words_of(line))
+                         if runs_command(" ".join(segment), COMMENT_GATE_COMMAND) for flag in exclude_flags(segment))
     return found
 
 
@@ -517,6 +560,11 @@ class Choice:
         if component_id in self.declined:
             return DECLINED
         return CHOSEN if component_id in self.chosen else UNLISTED
+
+
+def standing(choice, component_id, has_something):
+    recorded = UNLISTED if choice is None else choice.recorded(component_id)
+    return CHOSEN if recorded == UNLISTED and has_something else recorded
 
 
 def text_list(data, field, where):

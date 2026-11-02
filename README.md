@@ -272,7 +272,9 @@ is scored once, and a symlinked folder is scanned once, by the
 [symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). The git repo is the one that
 holds the first path given, so `crap --lang python ~/other-repo/src` follows
 that repo's `.gitignore` and choice file wherever it runs; a path in no repo
-falls back to the repo the command runs in. Outside any git repo, both stop
+falls back to the repo the command runs in. A path you name that git ignores
+is still not scored, and the gate says so in one line on stderr, such as
+`Skipped gen/b.py: git ignores it, ...`. Outside any git repo, both stop
 with exit 2 and say so. They also stop with exit 2 when `quality-gates.json` is
 malformed, with one line naming the problem, such as `cc-check`'s
 `ERROR: quality-gates.json: missing field 'languages'`.
@@ -534,10 +536,12 @@ line, like any other tool error.
   files such as `package.json` count only when they are in scope, so an
   excluded or ignored one adds no language. Setup writes the default
   fixture folders here (every outermost `fixtures`, `fixture`, `__fixtures__`
-  or `testdata` folder).
+  or `testdata` folder, in any case, so `Fixtures` too).
 - `components`: `chosen` and `declined`, each a list of component ids from
   `components.json`; no id may be in both. A component in neither list has
-  not been offered yet. The core is never listed: every project has it.
+  not been offered yet, unless something of it is installed: then it counts
+  as chosen, and `qg setup --go` records it. The core is never listed: every
+  project has it.
 - `commit_time_limit_seconds`: a number above 0, 2 by default (ADR-006).
 - `settings`: per-component settings. Only `no-comments` has any so far:
   `exclude`, path prefixes the comment gate leaves out, and `conventions`, the
@@ -584,7 +588,11 @@ line, like any other tool error.
   edited, so it no longer matches the release), *partly installed*, *unknown*
   (it could not read something), *not applicable* (the component is for a
   language the project does not use), *offered, declined* or *not yet offered*
-  (the choice file lists the component as declined, or not at all). Core
+  (the choice file declines the component, or does not list it and nothing of
+  it is installed). A component the file does not list that has something
+  installed counts as chosen and shows what is installed. A declined component
+  stays declined; when some of it is installed anyway, the table shows that
+  beside the decline, such as *offered, declined (partly installed)*. Core
   components come first. The project's languages come from the
   [choice file](#the-choice-file); without one, from detection over the files
   git would commit. With a choice file, it warns about code in a language the
@@ -598,11 +606,14 @@ line, like any other tool error.
   prints the same report for an agent, with the component list's format
   version, `languages`, `languages_from` (`choice file` or `detection`),
   `unrecorded_languages` (each with its files), and for each component its id,
-  status and parts. The commands and
+  status, `install_status` (what is installed, whatever the choice), parts and
+  `needs_attention`. The commands and
   tools quality-gates itself installs, such as `cc-check` or `radon`, have no
   status of their own: they are listed as *provided by quality-gates* and do
   not count toward a component's status, and neither does a part for a language
-  the project does not use. *Needs attention* names only the parts that count.
+  the project does not use. *Needs attention* names only the parts that count,
+  and shows for the core, a chosen component, or any component with some part
+  installed; never for a declined or offered component with nothing installed.
 
   ```text
   $ qg status
@@ -628,9 +639,11 @@ line, like any other tool error.
 - `qg setup` proposes the project's languages and one row per component, with
   its description, its cost (commit delay, CI time, outside tools) and a tick
   on the recommended set, and lists the files it would change. It writes
-  nothing until `--go`, and then only `quality-gates.json`. Without a choice
-  file it records what is installed as chosen. Every other component that
-  applies, and any component the file does not list, is *offered*: ticked as
+  nothing until `--go`, and then only `quality-gates.json`. It records as
+  chosen any component that has something installed and that the choice file
+  does not list, or every such component when there is no file yet, so the
+  skills `qg-skills` copied are recorded. Every other component that applies
+  and that the file does not list is *offered*: ticked as
   recommended, and recorded only when `--choose` or `--decline` names it. A
   choice or decline already recorded is kept while its component does not
   apply, which shows as *not applicable*, and `--choose` and `--decline` work
@@ -643,10 +656,12 @@ line, like any other tool error.
   quality-gates does not know exits 3 with the same line a choice file
   holding it gives, such as `qg setup: --add-language: unknown language
   'Python'; quality-gates knows python, rust, shell, swift, typescript`. It copies the
-  `--exclude` prefixes of the `comment-debt` lines in `.githooks/pre-commit`
+  `--exclude` prefixes of the `comment-debt` commands in `.githooks/pre-commit`
   and the CI workflows into `settings` › `no-comments` › `exclude`, and leaves
-  the flags in place. Run again, it changes nothing, and `--go` says the file
-  is up to date. `--json` prints the
+  the flags in place. Only `comment-debt`'s own flags count, not those of a
+  command joined to it by `&&`, `||`, `|` or `;`, and a flag on a `\`
+  continuation line counts. Run again, it changes nothing and says the file is
+  up to date, with or without `--go`. `--json` prints the
   proposal for an agent.
 
 - `qg-skills` copies from the installed package, not from GitHub, so the

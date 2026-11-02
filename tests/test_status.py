@@ -75,6 +75,13 @@ def component(report, component_id):
     return next(c for c in report["components"] if c["id"] == component_id)
 
 
+def attention(table, component_id):
+    lines = table.splitlines()
+    start = next(at for at, line in enumerate(lines) if line.startswith(f"  {component_id} "))
+    block = lines[start + 1:start + 3]
+    return [line for line in block if "Needs attention" in line]
+
+
 def part(report, component_id, kind, part_id):
     return next(p for p in component(report, component_id)["parts"] if p["kind"] == kind and p["id"] == part_id)
 
@@ -408,6 +415,14 @@ class Status(unittest.TestCase):
             self.write(self.repo / name, "x")
         self.assertEqual(self.used(), set())
 
+    def test_a_fixtures_folder_name_is_matched_whatever_its_case(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("Tests/AppTests/Fixtures/A.swift", "spec/TestData/b.ts", "web/__FIXTURES__/c.ts"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(self.used(), set())
+        self.assertEqual(project_files.scope_of(self.repo).excluded,
+                         ("Tests/AppTests/Fixtures/", "spec/TestData/", "web/__FIXTURES__/"))
+
     def test_detection_leaves_out_what_the_choice_file_excludes(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "vendor" / "lib.ts", "x")
@@ -452,9 +467,37 @@ class Status(unittest.TestCase):
         self.assertEqual(component(self.report(), "risk")["status"], "offered, declined")
 
     def test_a_component_the_choice_file_does_not_list_shows_not_yet_offered(self):
-        self.set_up()
         self.choose()
         self.assertEqual(component(self.report(), "risk")["status"], "not yet offered")
+
+    def test_an_installed_component_the_choice_file_does_not_list_shows_whether_it_is_installed(self):
+        self.set_up()
+        self.choose()
+        self.assertEqual(component(self.report(), "risk")["status"], "installed")
+        (self.repo / "crap-baseline.json").unlink()
+        self.assertEqual(component(self.report(), "risk")["status"], "partly installed")
+        self.assertIn("Needs attention: baseline crap-baseline.json: missing", self.run_status()[1])
+
+    def test_a_declined_component_with_files_present_stays_declined_and_shows_its_install_state(self):
+        self.set_up()
+        (self.repo / "crap-baseline.json").unlink()
+        self.choose(declined=("risk",))
+        found = component(self.report(), "risk")
+        self.assertEqual((found["status"], found["install_status"]), ("offered, declined", "partly installed"))
+        _, out = self.run_status()
+        self.assertIn("offered, declined (partly installed)", out)
+        self.assertIn("Needs attention: baseline crap-baseline.json: missing", out)
+
+    def test_needs_attention_never_shows_for_a_declined_or_offered_component_with_nothing_installed(self):
+        for declined in ((), ("risk",)):
+            with self.subTest(declined=declined):
+                self.choose(declined=declined)
+                self.assertEqual(attention(self.run_status()[1], "risk"), [])
+
+    def test_needs_attention_shows_for_a_chosen_component_with_nothing_installed(self):
+        self.choose(chosen=("risk",))
+        self.assertEqual(attention(self.run_status()[1], "risk"),
+                         ["    Needs attention: skill crap: missing; baseline crap-baseline.json: missing; ci_step crap-python: missing"])
 
     def test_a_chosen_component_shows_whether_it_is_installed(self):
         self.set_up()

@@ -321,6 +321,14 @@ class FreshnessScopeTest(unittest.TestCase):
         code, _, err = self.gate("--strict-freshness")
         self.assertEqual((code, "stale" in err), (0, False))
 
+    def test_a_named_file_git_ignores_is_skipped_with_one_line_on_stderr_and_json_stays_valid(self):
+        Path(".gitignore").write_text("gen/\n")
+        self.touch("gen/b.py", 1000, "def g(x):\n    return x\n")
+        code, out, err = call(["--lang", "python", "src", "gen/b.py", "--coverage-json", "coverage.json", "--min-cc", "1",
+                               "--json"])
+        self.assertEqual((code, [fn["name"] for fn in json.loads(out)["functions"]]), (0, ["f"]))
+        self.assertIn("Skipped gen/b.py: git ignores it, and quality-gates scores only the files git would commit\n", err)
+
     def test_a_newer_file_of_another_language_does_not_make_the_report_stale(self):
         self.touch("src/Other.swift", 1020)
         self.touch("src/notes.md", 1020)

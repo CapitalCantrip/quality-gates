@@ -79,9 +79,7 @@ RECORDED_CHOICES = {project_files.DECLINED: DECLINED, project_files.CHOSEN: CHOS
 
 
 def previous_choice(component, choice, installed):
-    if choice is None:
-        return CHOSEN if component.id in installed else OFFERED
-    return RECORDED_CHOICES[choice.recorded(component.id)]
+    return RECORDED_CHOICES[project_files.standing(choice, component.id, component.id in installed)]
 
 
 def made_choice(component, choice, installed, flags):
@@ -166,20 +164,20 @@ def your_components(proposal):
             + listed("Languages added by hand", list(proposal.added_by_hand)))
 
 
-def closing_line(written, went):
+def closing_line(written, planned):
     if written:
         return "Recorded: " + ", ".join(written)
-    return UP_TO_DATE if went else RUN_GO
+    return UP_TO_DATE if all(state == project_files.UNCHANGED for _, state in planned) else RUN_GO
 
 
-def render(proposal, planned, written, went):
+def render(proposal, planned, written):
     lines = ["Languages: " + (", ".join(proposal.languages) or "none"), "", "Components"]
     lines += [line for row in proposal.components for line in row_lines(row)]
     lines += ["", "Excluded from detection and the gates: " + (", ".join(proposal.choice.exclude) or "nothing")]
     lines += ["Comment gate exclusions: " + (", ".join(proposal.choice.comment_gate_exclude) or "none")]
     lines += your_components(proposal)
     lines += ["", "Planned changes"] + [f"  {change.name}: {state}" for change, state in planned]
-    lines += ["", closing_line(written, went)]
+    lines += ["", closing_line(written, planned)]
     return "\n".join(lines)
 
 
@@ -205,7 +203,7 @@ def run(args, project, manifest):
     changes = [project_files.choice_change(proposal.choice)]
     planned = [(change, project_files.planned_state(project.root, change)) for change in changes]
     written = project_files.apply_planned(project.root, changes) if args.go else []
-    print(json.dumps(report_of(proposal, planned), indent=2) if args.json else render(proposal, planned, written, args.go))
+    print(json.dumps(report_of(proposal, planned), indent=2) if args.json else render(proposal, planned, written))
     return 0
 
 

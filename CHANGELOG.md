@@ -25,8 +25,10 @@
   quality-gates, the origin still has `version`, so `qg status` prints the same
   origins.
 - **If you read `qg status --json`:** `format_version` is 2; the report adds
-  `languages`, `languages_from` and `unrecorded_languages`; and a component's
-  `status` may now be `offered, declined` or `not yet offered` (below).
+  `languages`, `languages_from` and `unrecorded_languages`; a component's
+  `status` may now be `offered, declined` or `not yet offered` (below); and
+  each component adds `install_status`, what is installed whatever the choice,
+  and `needs_attention`, the part lines the table prints.
 - **`qg explain <name>` prints a component's explainer (#139, ADR-007).**
   `qg explain crap` prints the plain-words page for the `crap` gate from the
   installed package, offline (README § Explainers). A component names its
@@ -42,13 +44,16 @@
   (component, description, cost) and writes the file on `--go`, and nothing
   else. It refuses to switch off the core or a gate the project has, or to
   remove a language that still has code, until recorded reasons ship (#115).
-  Without a choice file, `--go` records only what is installed as chosen;
-  anything else that applies is offered, and an offer is recorded only when
-  `--choose` or `--decline` names it. A recorded choice or decline is kept
+  `--go` records as chosen what is installed and not yet listed, such as the
+  skills `qg-skills` copied; anything else that applies is offered, and an
+  offer is recorded only when `--choose` or `--decline` names it. Whenever
+  nothing would change, it says the file is up to date. A recorded choice or decline is kept
   while its component does not apply. One id given to both `--choose` and
   `--decline` exits 3.
-  It copies `--exclude` prefixes from the `comment-debt` lines of the hook and
-  CI into the file and leaves the flags. A language name it does not know,
+  It copies `--exclude` prefixes from the `comment-debt` commands of the hook
+  and CI into the file and leaves the flags; a command chained to it with
+  `&&`, `||`, `|` or `;` keeps its own flags, and a `\` continuation line
+  counts. A language name it does not know,
   given to `--add-language` or `--remove-language` or written in the file,
   exits 3 with one line listing the names it knows. Test folders count toward
   the proposed languages; fixture folders do not (ADR-007 addendum
@@ -56,9 +61,14 @@
 - **`qg status` reads the choice file.** Languages come from the file, with a
   warning naming the files in any language it does not record; without the
   file, from detection. A component the file declines shows *offered,
-  declined*; one it does not list shows *not yet offered*. `--json` adds
-  `languages`, `languages_from` and `unrecorded_languages`. A malformed choice
-  file exits 3.
+  declined*, with what is installed beside it when anything is, such as
+  *offered, declined (partly installed)*; one it does not list shows *not yet
+  offered* when nothing of it is installed, and its real state when something
+  is. *Needs attention* shows for the core, a chosen component or one with
+  some part installed, never for a declined or offered one with nothing
+  installed. `--json` adds `languages`, `languages_from` and
+  `unrecorded_languages`, and each component's `install_status` and
+  `needs_attention`. A malformed choice file exits 3.
 - **Shell and Rust are detected from files** (#137, ADR-010): `.sh`, `.bash`,
   `.zsh` and a shell first line such as `#!/bin/sh`, and `.rs`. Detection
   leaves out the skills, hooks and pre-commit hook quality-gates keeps.
@@ -66,7 +76,7 @@
   ADR-001 addendum 2026-11-01).** Tracked files plus untracked files the
   `.gitignore` does not ignore; the skip list is gone. Each file is scored
   once, even when named twice or reached through a link. Fixture folders
-  (`fixtures`, `fixture`, `__fixtures__`, `testdata`) are excluded by default,
+  (`fixtures`, `fixture`, `__fixtures__`, `testdata`, in any case) are excluded by default,
   and setup writes that default into the choice file. Outside a git repo every
   command that looks for the project's root exits 2 with one line saying so,
   instead of using the current folder: the gates, `comment-debt`, `qg status`,
@@ -76,7 +86,9 @@
   read no project and run anywhere. A malformed `quality-gates.json` stops the
   gates with exit 2 and one line naming the problem. The gates take the repo
   from the first path given, so scanning another repo's folder follows that
-  repo's `.gitignore` and `quality-gates.json`.
+  repo's `.gitignore` and `quality-gates.json`. A path named on the command
+  line that git ignores is not scored, and the gate names it in one line on
+  stderr; `--json` output stays valid and exit codes are unchanged.
 - **`exclude` entries match whole path segments.** `build` leaves out the
   folder or file `build`, never `buildscripts/` or `build_utils.py`; a
   trailing `/` changes nothing. Root marker files such as `package.json` go
