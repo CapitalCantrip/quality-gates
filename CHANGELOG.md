@@ -25,8 +25,10 @@
   quality-gates, the origin still has `version`, so `qg status` prints the same
   origins.
 - **If you read `qg status --json`:** `format_version` is 2; the report adds
-  `languages`, `languages_from` and `unrecorded_languages`; and a component's
-  `status` may now be `offered, declined` or `not yet offered` (below).
+  `languages`, `languages_from` and `unrecorded_languages`; a component's
+  `status` may now be `offered, declined` or `not yet offered` (below); and
+  each component adds `install_status`, what is installed whatever the choice,
+  and `needs_attention`, the part lines the table prints.
 - **`qg explain <name>` prints a component's explainer (#139, ADR-007).**
   `qg explain crap` prints the plain-words page for the `crap` gate from the
   installed package, offline (README § Explainers). A component names its
