@@ -22,6 +22,7 @@ LOOSENING_ISSUE = "#115"
 BOTH_FLAGS = "--choose and --decline"
 UP_TO_DATE = f"{project_files.CHOICE_FILE} is up to date."
 RUN_GO = "Run `qg setup --go` to record these choices."
+ANSWER_OFFERS = "Not yet answered: {}. Answer each with `qg setup --go --choose <id>` or `--decline <id>`."
 
 
 class Refused(Exception):
@@ -79,7 +80,9 @@ RECORDED_CHOICES = {project_files.DECLINED: DECLINED, project_files.CHOSEN: CHOS
 
 
 def previous_choice(component, choice, installed):
-    return RECORDED_CHOICES[project_files.standing(choice, component.id, component.id in installed)]
+    if choice is None:
+        return CHOSEN if component.id in installed else OFFERED
+    return RECORDED_CHOICES[choice.recorded(component.id)]
 
 
 def made_choice(component, choice, installed, flags):
@@ -164,10 +167,16 @@ def your_components(proposal):
             + listed("Languages added by hand", list(proposal.added_by_hand)))
 
 
-def closing_line(written, planned):
+def file_line(written, planned):
     if written:
-        return "Recorded: " + ", ".join(written)
-    return UP_TO_DATE if all(state == project_files.UNCHANGED for _, state in planned) else RUN_GO
+        return ["Recorded: " + ", ".join(written)]
+    return [] if all(state == project_files.UNCHANGED for _, state in planned) else [RUN_GO]
+
+
+def closing_lines(proposal, written, planned):
+    offers = names_with(proposal, OFFERED)
+    lines = file_line(written, planned) + ([ANSWER_OFFERS.format(", ".join(offers))] if offers else [])
+    return lines or [UP_TO_DATE]
 
 
 def render(proposal, planned, written):
@@ -177,7 +186,7 @@ def render(proposal, planned, written):
     lines += ["Comment gate exclusions: " + (", ".join(proposal.choice.comment_gate_exclude) or "none")]
     lines += your_components(proposal)
     lines += ["", "Planned changes"] + [f"  {change.name}: {state}" for change, state in planned]
-    lines += ["", closing_line(written, planned)]
+    lines += [""] + closing_lines(proposal, written, planned)
     return "\n".join(lines)
 
 

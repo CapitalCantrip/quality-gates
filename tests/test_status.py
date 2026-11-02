@@ -470,13 +470,18 @@ class Status(unittest.TestCase):
         self.choose()
         self.assertEqual(component(self.report(), "risk")["status"], "not yet offered")
 
-    def test_an_installed_component_the_choice_file_does_not_list_shows_whether_it_is_installed(self):
+    def test_an_installed_component_the_choice_file_does_not_list_stays_not_yet_offered_and_shows_its_install_state(self):
         self.set_up()
         self.choose()
-        self.assertEqual(component(self.report(), "risk")["status"], "installed")
+        found = component(self.report(), "risk")
+        self.assertEqual((found["status"], found["install_status"]), ("not yet offered", "installed"))
+        self.assertIn("not yet offered (installed)", self.run_status()[1])
         (self.repo / "crap-baseline.json").unlink()
-        self.assertEqual(component(self.report(), "risk")["status"], "partly installed")
-        self.assertIn("Needs attention: baseline crap-baseline.json: missing", self.run_status()[1])
+        found = component(self.report(), "risk")
+        self.assertEqual((found["status"], found["install_status"]), ("not yet offered", "partly installed"))
+        _, out = self.run_status()
+        self.assertIn("not yet offered (partly installed)", out)
+        self.assertIn("Needs attention: baseline crap-baseline.json: missing", out)
 
     def test_a_declined_component_with_files_present_stays_declined_and_shows_its_install_state(self):
         self.set_up()

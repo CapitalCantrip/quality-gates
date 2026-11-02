@@ -562,11 +562,6 @@ class Choice:
         return CHOSEN if component_id in self.chosen else UNLISTED
 
 
-def standing(choice, component_id, has_something):
-    recorded = UNLISTED if choice is None else choice.recorded(component_id)
-    return CHOSEN if recorded == UNLISTED and has_something else recorded
-
-
 def text_list(data, field, where):
     values = data[field]
     fail_unless(isinstance(values, list) and all(isinstance(v, str) for v in values),
