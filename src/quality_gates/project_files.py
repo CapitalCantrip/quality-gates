@@ -6,6 +6,7 @@ import shlex
 import shutil
 import stat
 import subprocess
+import sys
 from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 
@@ -32,6 +33,7 @@ NOT_A_GIT_REPO = (
     "project's repository, or run `git init` there first"
 )
 ALREADY_SCANNED = " (already scanned)"
+IGNORED_NOTE = "Skipped {}: git ignores it, and quality-gates scores only the files git would commit"
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 WORKFLOWS = Path(".github") / "workflows"
 CLAUDE_DIR = ".claude"
@@ -337,6 +339,19 @@ class Scope:
         kept = tuple(entry for entry in self.excluded if not covers(entry, location))
         return replace(self, excluded=kept)
 
+    def ignores(self, path):
+        location = os.path.relpath(os.path.realpath(path), self.root)
+        if is_outside(location) or location == os.curdir:
+            return False
+        if Path(path).is_dir():
+            return location not in self.walkable and not is_empty(path)
+        return location not in self.listed
+
+
+def is_empty(folder):
+    with os.scandir(folder) as entries:
+        return next(entries, None) is None
+
 
 def is_outside(location):
     return location == os.pardir or location.startswith(os.pardir + os.sep)
@@ -363,7 +378,7 @@ def committable_files(root):
 
 
 def default_exclusions(listed):
-    found = sorted(f"{folder}/" for folder in parent_folders(listed) if PurePosixPath(folder).name in FIXTURE_FOLDERS)
+    found = sorted(f"{folder}/" for folder in parent_folders(listed) if PurePosixPath(folder).name.lower() in FIXTURE_FOLDERS)
     return tuple(prefix for prefix in found if not excluded_by(prefix, tuple(other for other in found if other != prefix)))
 
 
@@ -465,6 +480,8 @@ def files_in_scope(paths: list, root=None) -> tuple:
     scope = scope_of(root_of_scanned(Path(paths[0])) if root is None else root)
     files, skipped, seen = [], set(), set()
     for path in paths:
+        if scope.ignores(path):
+            print(IGNORED_NOTE.format(path), file=sys.stderr)
         found, folders = _walk(Path(path), seen, scope.given(path))
         files.extend(found)
         skipped.update(folders)

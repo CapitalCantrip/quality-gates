@@ -66,7 +66,7 @@
   ADR-001 addendum 2026-11-01).** Tracked files plus untracked files the
   `.gitignore` does not ignore; the skip list is gone. Each file is scored
   once, even when named twice or reached through a link. Fixture folders
-  (`fixtures`, `fixture`, `__fixtures__`, `testdata`) are excluded by default,
+  (`fixtures`, `fixture`, `__fixtures__`, `testdata`, in any case) are excluded by default,
   and setup writes that default into the choice file. Outside a git repo every
   command that looks for the project's root exits 2 with one line saying so,
   instead of using the current folder: the gates, `comment-debt`, `qg status`,

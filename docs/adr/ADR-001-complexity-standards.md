@@ -1503,7 +1503,8 @@ current folder as the project root.
   the skip list. A tracked file inside an ignored folder is in scope, because
   git commits it.
 - **Fixture folders are excluded by default.** Every outermost folder named
-  `fixtures`, `fixture`, `__fixtures__` or `testdata` is excluded. Setup writes
+  `fixtures`, `fixture`, `__fixtures__` or `testdata`, in any case, so
+  Xcode's `Fixtures` too, is excluded. Setup writes
   that default into `quality-gates.json`, where the project can see and change
   it; once the file exists, its `exclude` list is the one that applies. A path
   given on the command line that is itself inside an excluded folder is still
@@ -1542,9 +1543,12 @@ matches whole path segments, so `build` leaves out the folder or file `build`
 and never `buildscripts/` or `build_utils.py`. A trailing `/` changes nothing.
 
 Without a choice file, every outermost folder named `fixtures`, `fixture`,
-`__fixtures__` or `testdata` is excluded, and setup writes that default into
-the file. A path given on the command line that is itself inside an excluded
-prefix is scanned, so a fixture can still be scored on purpose.
+`__fixtures__` or `testdata` is excluded, whatever its case, so `Fixtures`
+too, and setup writes that default into the file. A path given on the command
+line that is itself inside an excluded prefix is scanned, so a fixture can
+still be scored on purpose. A path given on the command line that git ignores
+is not scored either; the gate names it in one line on stderr, so a JSON
+report stays valid.
 
 Each file is listed once, by its real path, so a file named twice, or named and
 also inside a scanned folder, is scored once. The *Skipped N folder(s)* line

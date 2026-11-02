@@ -415,6 +415,14 @@ class Status(unittest.TestCase):
             self.write(self.repo / name, "x")
         self.assertEqual(self.used(), set())
 
+    def test_a_fixtures_folder_name_is_matched_whatever_its_case(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("Tests/AppTests/Fixtures/A.swift", "spec/TestData/b.ts", "web/__FIXTURES__/c.ts"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(self.used(), set())
+        self.assertEqual(project_files.scope_of(self.repo).excluded,
+                         ("Tests/AppTests/Fixtures/", "spec/TestData/", "web/__FIXTURES__/"))
+
     def test_detection_leaves_out_what_the_choice_file_excludes(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "vendor" / "lib.ts", "x")

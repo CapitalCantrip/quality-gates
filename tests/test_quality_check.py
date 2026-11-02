@@ -172,6 +172,31 @@ class TestSkippedFolders(InTempDir):
         self.assertEqual([r["name"] for r in json.loads(out)], ["real"])
 
 
+class IgnoredPathNamedTest(InTempDir):
+    NOTE = "Skipped {}: git ignores it, and quality-gates scores only the files git would commit\n"
+
+    def setUp(self):
+        super().setUp()
+        self.write(".gitignore", "gen/\n")
+        self.write("gen/b.py", branches("made", 0))
+        self.write("src/real.py", branches("real", 0))
+
+    def test_a_named_file_git_ignores_is_skipped_with_one_line_on_stderr_and_json_stays_valid(self):
+        code, out, err = run_main(["gen/b.py", "src/real.py", "--format", "json"])
+        self.assertEqual((code, [r["name"] for r in json.loads(out)]), (0, ["real"]))
+        self.assertEqual(err, self.NOTE.format("gen/b.py"))
+
+    def test_a_named_folder_git_ignores_is_skipped_with_one_line_on_stderr(self):
+        code, out, err = run_main(["gen", "src", "--format", "json"])
+        self.assertEqual((code, [r["name"] for r in json.loads(out)]), (0, ["real"]))
+        self.assertEqual(err, self.NOTE.format("gen"))
+
+    def test_naming_only_an_ignored_file_keeps_its_exit_code_and_says_why(self):
+        code, _, err = run_main(["gen/b.py"])
+        self.assertEqual(code, 2)
+        self.assertIn(self.NOTE.format("gen/b.py"), err)
+
+
 class TestDirectoryWalk(InTempDir):
     def test_analyses_all_py_files_in_dir(self):
         for i in range(3):

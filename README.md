@@ -534,7 +534,7 @@ line, like any other tool error.
   files such as `package.json` count only when they are in scope, so an
   excluded or ignored one adds no language. Setup writes the default
   fixture folders here (every outermost `fixtures`, `fixture`, `__fixtures__`
-  or `testdata` folder).
+  or `testdata` folder, in any case, so `Fixtures` too).
 - `components`: `chosen` and `declined`, each a list of component ids from
   `components.json`; no id may be in both. A component in neither list has
   not been offered yet. The core is never listed: every project has it.
