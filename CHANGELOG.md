@@ -44,10 +44,12 @@
   (component, description, cost) and writes the file on `--go`, and nothing
   else. It refuses to switch off the core or a gate the project has, or to
   remove a language that still has code, until recorded reasons ship (#115).
-  `--go` records as chosen what is installed and not yet listed, such as the
-  skills `qg-skills` copied; anything else that applies is offered, and an
-  offer is recorded only when `--choose` or `--decline` names it. Whenever
-  nothing would change, it says the file is up to date. A recorded choice or decline is kept
+  Without a choice file, `--go` records what is installed as chosen. Every
+  other component that applies and that the file does not list is offered,
+  whatever is installed, such as one whose skill `qg-skills` copied: an offer
+  is recorded only when `--choose` or `--decline` names it, and setup names
+  the offers not yet answered. With nothing to record and no offer open, it
+  says the file is up to date. A recorded choice or decline is kept
   while its component does not apply. One id given to both `--choose` and
   `--decline` exits 3.
   It copies `--exclude` prefixes from the `comment-debt` commands of the hook
@@ -61,10 +63,9 @@
 - **`qg status` reads the choice file.** Languages come from the file, with a
   warning naming the files in any language it does not record; without the
   file, from detection. A component the file declines shows *offered,
-  declined*, with what is installed beside it when anything is, such as
-  *offered, declined (partly installed)*; one it does not list shows *not yet
-  offered* when nothing of it is installed, and its real state when something
-  is. *Needs attention* shows for the core, a chosen component or one with
+  declined*, and one it does not list shows *not yet offered*; either has
+  what is installed beside it when anything is, such as *offered, declined
+  (partly installed)*. *Needs attention* shows for the core, a chosen component or one with
   some part installed, never for a declined or offered one with nothing
   installed. `--json` adds `languages`, `languages_from` and
   `unrecorded_languages`, and each component's `install_status` and
@@ -103,7 +104,10 @@
   1. Reinstall the commands with `uv tool install --force` and the new install
      line, so `qg` points at its new entry point.
   2. Run `/setup-standards`. Its new step shows the table; say "go" and it
-     writes `quality-gates.json` from what is installed. Commit it.
+     writes `quality-gates.json` from what is installed. Commit it. From
+     this release on, a component a release adds stays off after the bump,
+     even when `qg-skills` copied its skill: `/setup-standards` offers it,
+     and "go" or a decline records your answer.
   3. Run the gates. A file that was scored twice or a fixture folder that was
      scanned now shows `PAID`: lower the baseline with `--update` and commit
      it. A build or vendored folder that git would commit is now scored: add

@@ -44,7 +44,7 @@ this project; it never writes an explanation fresh (ADR-005, Understanding).
 
 ### The choice file
 
-Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md), [Addendum 2026-11-01: test folders count toward the languages](#addendum-2026-11-01-test-folders-count-toward-the-languages), [Addendum 2026-11-02: an installed component the choice file does not list](#addendum-2026-11-02-an-installed-component-the-choice-file-does-not-list)
+Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md), [Addendum 2026-11-01: test folders count toward the languages](#addendum-2026-11-01-test-folders-count-toward-the-languages)
 
 A committed `quality-gates.json` at the project root records the chosen
 components, the ones offered and declined, the project's languages, and its
@@ -71,8 +71,6 @@ Switching off removes the copied skill and the runner entry and keeps the
 baseline and config, so switching back on forgives nothing added in between.
 
 ### Pin bumps
-
-Amended by: [Addendum 2026-11-02: an installed component the choice file does not list](#addendum-2026-11-02-an-installed-component-the-choice-file-does-not-list)
 
 A component that a release adds is off for existing consumers until accepted.
 The next `/setup-standards` run offers it with a recommendation and records the
@@ -201,22 +199,3 @@ is `tests/sample.ts` is proposed `typescript`. The reason is ADR-011's: test
 code is agent-written code the gates hold to the standard, so its language is
 one the project uses, while a fixture is sample input in whatever language the
 test needs.
-
-## Addendum 2026-11-02: an installed component the choice file does not list
-
-Amends: [The choice file](#the-choice-file), [Pin bumps](#pin-bumps)
-
-A component in neither `chosen` nor `declined` that has any part installed
-counts as chosen: `qg setup --go` records it, and `qg status` shows what is
-installed rather than *not yet offered*. A declined component stays declined
-whatever is installed, and `qg status` shows its install state beside the
-decline. The reason: the choice file must agree with the project. Without
-this, a project whose skills `qg-skills` had copied showed them as never
-offered, and setup never recorded them.
-
-The cost falls on *Pin bumps*. `qg-skills` copies every skill a release ships,
-so a component a release adds that has a skill part is installed by the copy
-and then recorded as chosen, not offered. "Off for existing consumers until
-accepted" now holds only for a component without a skill part. The fix is for
-`qg-skills` to copy only the skills of chosen components; that is outside this
-addendum and waits on its own issue.

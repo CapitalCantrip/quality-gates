@@ -156,16 +156,16 @@ def counts_toward_status(part):
 CHOICE_STATUSES = {project_files.DECLINED: DECLINED, project_files.CHOSEN: None, project_files.UNLISTED: NOT_OFFERED}
 
 
-def choice_status(component, choice, rolled):
+def choice_status(component, choice):
     if choice is None or component.core:
         return None
-    return CHOICE_STATUSES[project_files.standing(choice, component.id, rolled in HAS_SOMETHING)]
+    return CHOICE_STATUSES[choice.recorded(component.id)]
 
 
 def component_status(component, rolled, choice):
     if rolled == NOT_APPLICABLE:
         return NOT_APPLICABLE
-    return choice_status(component, choice, rolled) or rolled
+    return choice_status(component, choice) or rolled
 
 
 def wants_attention(component, choice, rolled):
@@ -265,8 +265,8 @@ def unrecorded_lines(report):
 
 
 def status_text(item):
-    if item["status"] == DECLINED and item["install_status"] != MISSING:
-        return f"{DECLINED} ({item['install_status']})"
+    if item["status"] in (DECLINED, NOT_OFFERED) and item["install_status"] != MISSING:
+        return f"{item['status']} ({item['install_status']})"
     return item["status"]
 
 

@@ -31,6 +31,9 @@ RUST = {"id": "rust-lint", "name": "Rust lint", "description": "Lints Rust.", "c
         "origin": OURS, "parts": [{"kind": "skill", "id": "cc-rust"}]}
 FRESH = {"id": "fresh", "name": "Fresh gate", "description": "A gate a later release adds.", "core": False,
          "languages": ["python"], "origin": OURS, "parts": [{"kind": "baseline", "id": "fresh-baseline.json"}]}
+FRESH_WITH_SKILL = {"id": "fresh", "name": "Fresh gate", "description": "A component a later release adds.",
+                    "core": False, "languages": ["python"], "origin": OURS,
+                    "parts": [{"kind": "skill", "id": "fresh-skill"}, {"kind": "baseline", "id": "fresh-baseline.json"}]}
 ABSENT = {"id": "absent", "name": "Absent", "description": "A component nothing installed.", "core": False,
           "languages": [], "origin": OURS, "parts": [{"kind": "baseline", "id": "absent-baseline.json"}]}
 
@@ -177,6 +180,37 @@ class Setup(unittest.TestCase):
         self.run_setup("--go", manifest=with_absent)
         self.assertEqual((self.recorded().chosen, self.recorded().declined), (("helpers", "risk"), ()))
         self.assertEqual(self.choice_of(self.proposal(manifest=with_absent), "absent"), "offered")
+
+    def bump_to_a_release_adding(self, component):
+        self.write(self.source / "fresh-skill" / "SKILL.md", "fresh-skill v1")
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as done:
+            skills_sync.main(["--dest", str(self.repo / ".claude" / "skills")], self.source, self.hooks)
+        self.assertEqual(done.exception.code, 0)
+        self.assertTrue((self.repo / ".claude" / "skills" / "fresh-skill" / "SKILL.md").is_file())
+        return manifest_of(CORE, RISK, HELPERS, RUST, component)
+
+    def status_table(self, manifest):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            status.main([], root=self.repo, source=self.source, hooks=self.hooks, manifest=manifest)
+        return out.getvalue()
+
+    def test_after_a_pin_bump_a_new_component_whose_skill_qg_skills_copied_is_offered_until_answered(self):
+        self.set_up_at_v0_12_0()
+        self.run_setup("--go")
+        bumped = self.bump_to_a_release_adding(FRESH_WITH_SKILL)
+        self.assertEqual(self.choice_of(self.proposal(manifest=bumped), "fresh"), "offered")
+        table = self.status_table(bumped)
+        self.assertIn("not yet offered (partly installed)", table)
+        self.assertIn("Needs attention: baseline fresh-baseline.json: missing", table)
+        _, out, _ = self.run_setup("--go", manifest=bumped)
+        self.assertNotIn("up to date", out)
+        self.assertNotIn("fresh", self.recorded().chosen + self.recorded().declined)
+        self.run_setup("--choose", "fresh", "--go", manifest=bumped)
+        self.assertIn("fresh", self.recorded().chosen)
+        self.run_setup("--decline", "fresh", "--go", manifest=bumped)
+        self.assertEqual((self.recorded().chosen, self.recorded().declined), (("helpers", "risk"), ("fresh",)))
+        self.assertIn("offered, declined (partly installed)", self.status_table(bumped))
 
     def test_a_recorded_choice_survives_while_its_component_does_not_apply(self):
         self.set_up_at_v0_12_0()
@@ -390,26 +424,33 @@ class RealRuns(unittest.TestCase):
     def choice_bytes(self):
         return (self.repo / project_files.CHOICE_FILE).read_bytes()
 
-    def test_setup_records_what_qg_skills_installed_then_says_up_to_date_and_status_shows_it_installed(self):
+    def offered(self):
+        proposal = json.loads(self.qg("setup", "--json"))
+        return [row["id"] for row in proposal["components"] if row["choice"] == setup_choices.OFFERED]
+
+    def test_after_qg_skills_the_copied_components_are_offered_and_the_go_path_reaches_up_to_date(self):
         self.qg("setup", "--go")
+        recorded = self.choice_bytes()
         self.qg_skills()
-        self.assertIn("quality-gates.json: will change", self.qg("setup"))
+        offered = self.offered()
+        self.assertIn("design-helpers", offered)
+        before = self.qg("setup")
+        self.assertIn("quality-gates.json: unchanged", before)
+        self.assertNotIn("is up to date", before)
+        self.assertIn("design-helpers", before.splitlines()[-1])
         self.qg("setup", "--go")
-        self.assertIn("design-helpers", project_files.read_choice(self.repo).chosen)
+        self.assertEqual(self.choice_bytes(), recorded)
+        shown = {c["id"]: c for c in json.loads(self.qg("status", "--json"))["components"]}
+        self.assertEqual((shown["design-helpers"]["status"], shown["design-helpers"]["install_status"]),
+                         (status.NOT_OFFERED, status.INSTALLED))
+        self.qg("setup", "--go", *[flag for name in offered for flag in ("--choose", name)])
+        self.assertEqual(self.offered(), [])
         again = self.qg("setup")
         self.assertIn("quality-gates.json is up to date.", again)
         self.assertNotIn("qg setup --go", again)
-        recorded = self.choice_bytes()
-        self.qg("setup", "--go")
-        self.assertEqual(self.choice_bytes(), recorded)
-        report = json.loads(self.qg("status", "--json"))
-        shown = {c["id"]: c["status"] for c in report["components"]}
+        self.assertTrue(set(offered) <= set(project_files.read_choice(self.repo).chosen))
+        shown = {c["id"]: c["status"] for c in json.loads(self.qg("status", "--json"))["components"]}
         self.assertEqual((shown["design-helpers"], shown["session-helpers"]), ("installed", "installed"))
-        table = self.qg("status").splitlines()
-        for at, line in enumerate(table):
-            if status.DECLINED in line or status.NOT_OFFERED in line:
-                self.assertNotIn("Needs attention", table[at + 2] if at + 2 < len(table) else "", line)
-
 
 if __name__ == "__main__":
     unittest.main()
