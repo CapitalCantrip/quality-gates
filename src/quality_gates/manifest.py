@@ -259,12 +259,16 @@ def check_upkeep(data, where):
 def check_versions(data, where):
     fail_unless((data.get("minimum_version") is None) == (data.get("tested_version") is None),
                 f"{where}: give 'minimum_version' and 'tested_version' together")
-    for field in VERSION_FIELDS:
+
+
+def check_texts(data, fields, where):
+    for field in fields:
         fail_unless(data.get(field) is None or isinstance(data[field], str), f"{where}: field '{field}' must be text")
 
 
 def admission_from(data, where):
     require(data, ADMISSION_REQUIRED, where)
+    check_texts(data, ADMISSION_FIELDS, where)
     known(data["kind"], SOURCE_KINDS, "source kind", where)
     check_licence(data["kind"], data["licence"], where)
     fail_unless(isinstance(data["practice"], str) and re.search(ONE_SENTENCE, data["practice"]) is not None,

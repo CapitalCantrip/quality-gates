@@ -319,20 +319,19 @@ class Scope:
     walkable: frozenset
     excluded: tuple = ()
 
-    def location(self, here, name):
-        return os.path.relpath(os.path.join(os.path.realpath(here), name), self.root)
+    def location(self, real_here, name):
+        return os.path.relpath(os.path.join(real_here, name), self.root)
 
     def keeps(self, location, names):
         if is_outside(location):
             return True
         return location in names and not excluded_by(location, self.excluded)
 
-    def keeps_folder(self, here, name):
-        location = self.location(here, name)
-        return self.keeps(location, self.walkable)
+    def keeps_folder(self, real_here, name):
+        return self.keeps(self.location(real_here, name), self.walkable)
 
-    def keeps_file(self, here, name):
-        return self.keeps(self.location(here, name), self.listed)
+    def keeps_file(self, real_here, name):
+        return self.keeps(self.location(real_here, name), self.listed)
 
     def given(self, path):
         location = os.path.relpath(os.path.realpath(path), self.root)
@@ -430,10 +429,10 @@ def detected_languages(root, scope=None):
     return {language: sorted(names) for language, names in found.items()}
 
 
-def _subfolders(here: Path, dirnames: list, seen: set, scope: Scope) -> tuple:
+def _subfolders(here: Path, real_here: str, dirnames: list, seen: set, scope: Scope) -> tuple:
     kept, skipped = [], []
     for _, name, identity in sorted(_entry(here, name) for name in dirnames):
-        if not scope.keeps_folder(here, name):
+        if not scope.keeps_folder(real_here, name):
             continue
         if _first_visit(identity, seen):
             kept.append(name)
@@ -444,15 +443,15 @@ def _subfolders(here: Path, dirnames: list, seen: set, scope: Scope) -> tuple:
 
 def _walk(root: Path, seen: set, scope: Scope) -> tuple:
     if not root.is_dir():
-        return ([root] if scope.keeps_file(root.parent, root.name) else []), []
+        return ([root] if scope.keeps_file(os.path.realpath(root.parent), root.name) else []), []
     if not _first_visit(_identity(root)[1], seen):
         return [], [os.path.relpath(root) + ALREADY_SCANNED]
     files, skipped = [], []
     for dirpath, dirnames, filenames in os.walk(root, followlinks=True):
-        here = Path(dirpath)
-        dirnames[:], skipped_here = _subfolders(here, dirnames, seen, scope)
+        here, real_here = Path(dirpath), os.path.realpath(dirpath)
+        dirnames[:], skipped_here = _subfolders(here, real_here, dirnames, seen, scope)
         skipped.extend(skipped_here)
-        files.extend(here / name for name in sorted(filenames) if scope.keeps_file(here, name))
+        files.extend(here / name for name in sorted(filenames) if scope.keeps_file(real_here, name))
     return files, skipped
 
 

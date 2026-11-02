@@ -1,3 +1,4 @@
+import re
 from dataclasses import dataclass
 from pathlib import PurePath
 from typing import Optional
@@ -26,6 +27,7 @@ REGISTERED = (
 )
 SHEBANG = "#!"
 ENV = "env"
+ENV_SETTING = re.compile(r"[A-Za-z_]\w*=")
 
 LANGUAGES = {language.name: language for language in REGISTERED}
 
@@ -48,7 +50,7 @@ def interpreter_of(first_line: str) -> Optional[str]:
         return None
     words = first_line[len(SHEBANG):].split()
     if words and PurePath(words[0]).name == ENV:
-        words = [word for word in words[1:] if not word.startswith("-")]
+        words = [word for word in words[1:] if not word.startswith("-") and not ENV_SETTING.match(word)]
     return PurePath(words[0]).name if words else None
 
 

@@ -158,6 +158,12 @@ class GateTables(unittest.TestCase):
             with self.subTest(line):
                 self.assertEqual(languages.language_of_first_line(line), "shell")
 
+    def test_env_skips_variable_settings_as_well_as_flags_before_the_interpreter(self):
+        for line in ("#!/usr/bin/env LC_ALL=C bash", "#!/usr/bin/env -i PATH=/bin A_1= sh -e"):
+            with self.subTest(line):
+                self.assertEqual(languages.language_of_first_line(line), "shell")
+        self.assertIsNone(languages.language_of_first_line("#!/usr/bin/env LC_ALL=C python3"))
+
     def test_a_first_line_that_is_not_a_shell_shebang_names_no_language(self):
         for line in ("", "#!/usr/bin/env python3", "#!", "# sh", "echo #!/bin/sh"):
             with self.subTest(line):

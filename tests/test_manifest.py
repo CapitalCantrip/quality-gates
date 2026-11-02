@@ -201,6 +201,14 @@ class MalformedAdmission(unittest.TestCase):
                 message = self.rejected(admission(lambda a: a[0].update({field: 6})))
                 self.assertEqual(message, f"components.json: admission 'radon': field '{field}' must be text")
 
+    def test_any_admission_field_that_is_not_text_fails_naming_the_field(self):
+        for field in manifest.ADMISSION_FIELDS:
+            for wrong in (6, ["radon"], {"x": 1}, True):
+                with self.subTest(field=field, wrong=wrong):
+                    message = self.rejected(admission(lambda a: a[0].update({field: wrong})))
+                    named = "admission 1" if field == "name" else "admission 'radon'"
+                    self.assertEqual(message, f"components.json: {named}: field '{field}' must be text")
+
     def test_two_sources_with_one_name_fail(self):
         message = self.rejected(admission(lambda a: a.append(copy.deepcopy(a[0]))))
         self.assertEqual(message, "components.json: admission name 'radon' is listed twice")
