@@ -125,8 +125,6 @@ GATES = languages_table.GATES
 LANGUAGE_TABLES = {
     **module_language_tables(outside_the_registry()),
     "complexity_scan.COUNTERS": complexity_scan.COUNTERS,
-    "status.DETECTED_BY_MARKER": status.DETECTED_BY_MARKER,
-    "status.DETECTED_BY_FILE": status.DETECTED_BY_FILE,
 }
 
 
@@ -154,6 +152,22 @@ class GateTables(unittest.TestCase):
         for name, table in LANGUAGE_TABLES.items():
             with self.subTest(name):
                 self.assertLessEqual(set(table), set(languages.LANGUAGES))
+
+    def test_a_shell_shebang_names_shell_directly_or_through_env(self):
+        for line in ("#!/bin/sh", "#!/bin/bash -e", "#! /usr/bin/zsh", "#!/usr/bin/env dash", "#!/usr/bin/env -S bash -eu"):
+            with self.subTest(line):
+                self.assertEqual(languages.language_of_first_line(line), "shell")
+
+    def test_env_skips_variable_settings_as_well_as_flags_before_the_interpreter(self):
+        for line in ("#!/usr/bin/env LC_ALL=C bash", "#!/usr/bin/env -i PATH=/bin A_1= sh -e"):
+            with self.subTest(line):
+                self.assertEqual(languages.language_of_first_line(line), "shell")
+        self.assertIsNone(languages.language_of_first_line("#!/usr/bin/env LC_ALL=C python3"))
+
+    def test_a_first_line_that_is_not_a_shell_shebang_names_no_language(self):
+        for line in ("", "#!/usr/bin/env python3", "#!", "# sh", "echo #!/bin/sh"):
+            with self.subTest(line):
+                self.assertIsNone(languages.language_of_first_line(line))
 
     def test_rust_and_shell_are_registered_though_no_gate_scores_them(self):
         self.assertEqual(list(languages.LANGUAGES), ["python", "swift", "typescript", "rust", "shell"])

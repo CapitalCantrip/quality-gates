@@ -2,6 +2,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import tempfile
 import unittest
 from argparse import Namespace
@@ -10,7 +11,7 @@ from pathlib import Path
 from subprocess import CompletedProcess
 from unittest.mock import patch
 
-from quality_gates import complexity_scan, crap, languages, project_files
+from quality_gates import complexity_scan, crap, languages
 from quality_gates import xccov as xccov_reader
 
 
@@ -300,6 +301,7 @@ class FreshnessScopeTest(unittest.TestCase):
         before = os.getcwd()
         os.chdir(tmp.name)
         self.addCleanup(os.chdir, before)
+        subprocess.run(["git", "init", "-q"], check=True)
         self.touch("src/mod.py", 1000, "def f(x):\n    return x\n")
         Path("coverage.json").write_text(json.dumps({"files": {"src/mod.py": {
             "executed_lines": [1, 2], "missing_lines": []}}}))
@@ -313,16 +315,19 @@ class FreshnessScopeTest(unittest.TestCase):
     def gate(self, *extra):
         return call(["--lang", "python", "src", "--coverage-json", "coverage.json", "--allow-empty", *extra])
 
-    def test_a_newer_file_under_a_skipped_folder_does_not_make_the_report_stale(self):
+    def test_a_newer_file_under_an_ignored_folder_does_not_make_the_report_stale(self):
+        Path(".gitignore").write_text("node_modules/\n")
         self.touch("src/node_modules/dep/index.py", 1020)
         code, _, err = self.gate("--strict-freshness")
         self.assertEqual((code, "stale" in err), (0, False))
 
-    def test_a_newer_file_under_every_skip_list_folder_does_not_make_the_report_stale(self):
-        for folder in project_files.SKIPPED_FOLDERS:
-            self.touch(f"src/{folder}/x.py", 1020)
-        code, _, err = self.gate("--strict-freshness")
-        self.assertEqual((code, "stale" in err), (0, False))
+    def test_a_named_file_git_ignores_is_skipped_with_one_line_on_stderr_and_json_stays_valid(self):
+        Path(".gitignore").write_text("gen/\n")
+        self.touch("gen/b.py", 1000, "def g(x):\n    return x\n")
+        code, out, err = call(["--lang", "python", "src", "gen/b.py", "--coverage-json", "coverage.json", "--min-cc", "1",
+                               "--json"])
+        self.assertEqual((code, [fn["name"] for fn in json.loads(out)["functions"]]), (0, ["f"]))
+        self.assertIn("Skipped gen/b.py: git ignores it, and quality-gates scores only the files git would commit\n", err)
 
     def test_a_newer_file_of_another_language_does_not_make_the_report_stale(self):
         self.touch("src/Other.swift", 1020)
@@ -564,6 +569,43 @@ class HelpTest(unittest.TestCase):
         for language in (languages.LANGUAGES[name] for name in crap.LANGUAGES):
             with self.subTest(language.label):
                 self.assertIn(f"CC from {complexity_scan.COUNTERS[language.name].tool} ({language.suffix_text})", flat)
+
+
+class ScannedRepoTest(unittest.TestCase):
+    def test_a_repo_scanned_from_outside_any_repo_is_scanned_by_its_own_git(self):
+        before = os.getcwd()
+        self.addCleanup(os.chdir, before)
+        repo = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        (repo / ".gitignore").write_text("build/\n", encoding="utf-8")
+        for name in ("src/mod.py", "src/build/made.py"):
+            (repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (repo / name).write_text("def f(x):\n    if x:\n        return 1\n    return 2\n", encoding="utf-8")
+        os.chdir(tempfile.mkdtemp())
+        code, out, err = call(["--lang", "python", str(repo / "src"), "--json"])
+        self.assertEqual(code, 0, err)
+        self.assertEqual([Path(f["file"]).name for f in json.loads(out)["functions"]], ["mod.py"])
+
+    def test_a_baseline_written_while_scanning_another_repo_is_keyed_to_the_scanned_repo(self):
+        before = os.getcwd()
+        self.addCleanup(os.chdir, before)
+        repo = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        module = repo / "src" / "mod.py"
+        module.parent.mkdir()
+        module.write_text("def f(x):\n    if x:\n        return 1\n    if x > 2:\n        return 3\n    return 2\n")
+        coverage = repo / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(module): {"executed_lines": [], "missing_lines": [1, 2, 3, 4, 5, 6]}}}))
+        future = module.stat().st_mtime + 10
+        os.utime(coverage, (future, future))
+        baseline = repo / "crap.json"
+        other = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        os.chdir(other)
+        code, out, err = call(["--lang", "python", str(repo / "src"), "--coverage-json", str(coverage),
+                               "--baseline", str(baseline), "--update"])
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(list(json.loads(baseline.read_text())), ["src/mod.py::f"])
 
 
 if __name__ == "__main__":

@@ -3,6 +3,7 @@ import json
 import os
 import re
 import sys
+import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -35,6 +36,7 @@ class InTempDir(unittest.TestCase):
         before = os.getcwd()
         os.chdir(tmp.name)
         self.addCleanup(os.chdir, before)
+        subprocess.run(["git", "init", "-q"], check=True)
 
     def write(self, path, text):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -146,27 +148,53 @@ class TestRadonNotInstalled(InTempDir):
 class TestSkippedFolders(InTempDir):
     def setUp(self):
         super().setUp()
-        self.write("src/build/gen.py", branches("gen", 0))
         self.write("src/real.py", branches("real", 0))
+        os.symlink(os.path.abspath("src"), "src/up")
 
-    def test_a_build_folder_is_skipped_and_named_after_the_text_report(self):
+    def test_a_folder_reached_twice_is_named_after_the_text_report(self):
         rc, out, _ = run_main(["src"])
         self.assertEqual(rc, 0)
-        self.assertTrue(out.endswith("Skipped 1 folder(s): src/build\n"))
+        self.assertTrue(out.endswith("Skipped 1 folder(s): src/up (already scanned)\n"))
 
     def test_json_keeps_its_bare_list_and_names_the_skipped_folder_on_stderr(self):
         _, out, err = run_main(["src", "--format", "json"])
         self.assertEqual([r["name"] for r in json.loads(out)], ["real"])
-        self.assertEqual(err, "Skipped 1 folder(s): src/build\n")
+        self.assertEqual(err, "Skipped 1 folder(s): src/up (already scanned)\n")
 
     def test_a_scan_with_nothing_skipped_prints_no_skipped_line(self):
         _, out, _ = run_main(["src/real.py"])
         self.assertNotIn("Skipped", out)
 
-    def test_the_pycache_folder_is_skipped(self):
+    def test_a_folder_the_gitignore_lists_is_not_scanned(self):
+        self.write(".gitignore", "__pycache__/\n")
         self.write("src/__pycache__/cached.py", branches("cached", 0))
         _, out, _ = run_main(["src", "--format", "json"])
         self.assertEqual([r["name"] for r in json.loads(out)], ["real"])
+
+
+class IgnoredPathNamedTest(InTempDir):
+    NOTE = "Skipped {}: git ignores it, and quality-gates scores only the files git would commit\n"
+
+    def setUp(self):
+        super().setUp()
+        self.write(".gitignore", "gen/\n")
+        self.write("gen/b.py", branches("made", 0))
+        self.write("src/real.py", branches("real", 0))
+
+    def test_a_named_file_git_ignores_is_skipped_with_one_line_on_stderr_and_json_stays_valid(self):
+        code, out, err = run_main(["gen/b.py", "src/real.py", "--format", "json"])
+        self.assertEqual((code, [r["name"] for r in json.loads(out)]), (0, ["real"]))
+        self.assertEqual(err, self.NOTE.format("gen/b.py"))
+
+    def test_a_named_folder_git_ignores_is_skipped_with_one_line_on_stderr(self):
+        code, out, err = run_main(["gen", "src", "--format", "json"])
+        self.assertEqual((code, [r["name"] for r in json.loads(out)]), (0, ["real"]))
+        self.assertEqual(err, self.NOTE.format("gen"))
+
+    def test_naming_only_an_ignored_file_keeps_its_exit_code_and_says_why(self):
+        code, _, err = run_main(["gen/b.py"])
+        self.assertEqual(code, 2)
+        self.assertIn(self.NOTE.format("gen/b.py"), err)
 
 
 class TestDirectoryWalk(InTempDir):
@@ -200,6 +228,48 @@ class HelpTest(unittest.TestCase):
 
     def test_the_description_names_the_python_and_typescript_checkers(self):
         self.assertIn("Cyclomatic complexity reporter for Python and TypeScript code", self.flat_help())
+
+
+class ScannedRepoTest(unittest.TestCase):
+    def setUp(self):
+        before = os.getcwd()
+        self.addCleanup(os.chdir, before)
+        self.repo = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        (self.repo / ".gitignore").write_text("build/\n", encoding="utf-8")
+        for name in ("src/mod.py", "src/build/made.py"):
+            (self.repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (self.repo / name).write_text(branches("f", 1), encoding="utf-8")
+
+    def scanned_files(self):
+        rc, out, err = run_main([str(self.repo / "src"), "--format", "json"])
+        self.assertEqual(rc, 0, err)
+        return sorted(Path(r["file"]).name for r in json.loads(out))
+
+    def test_a_repo_scanned_from_outside_any_repo_is_scanned_by_its_own_git(self):
+        os.chdir(tempfile.mkdtemp())
+        self.assertEqual(self.scanned_files(), ["mod.py"])
+
+    def test_a_repo_scanned_from_inside_another_repo_follows_the_scanned_repos_gitignore(self):
+        other = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        os.chdir(other)
+        self.assertEqual(self.scanned_files(), ["mod.py"])
+
+    def test_a_baseline_written_while_scanning_another_repo_is_keyed_to_the_scanned_repo(self):
+        (self.repo / "src" / "big.py").write_text(branches("big", 12), encoding="utf-8")
+        baseline = self.repo / "cc.json"
+        other = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        for elsewhere in (other, Path(tempfile.mkdtemp())):
+            with self.subTest(elsewhere=elsewhere):
+                os.chdir(elsewhere)
+                rc, _, err = run_main([str(self.repo / "src"), "--baseline", str(baseline), "--update"])
+                self.assertEqual(rc, 0, err)
+                self.assertEqual(list(json.loads(baseline.read_text(encoding="utf-8"))), ["src/big.py::big"])
+                os.chdir(self.repo)
+                rc, out, err = run_main(["src", "--baseline", "cc.json"])
+                self.assertEqual(rc, 0, out + err)
 
 
 if __name__ == "__main__":

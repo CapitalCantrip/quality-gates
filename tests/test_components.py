@@ -1,3 +1,4 @@
+import fnmatch
 import re
 import sys
 import unittest
@@ -21,6 +22,21 @@ COMMENT_DEBT_LANGUAGES = {"python"}
 HOOK_SECTION = "\n## 4. Hooks\n"
 UPSTREAM_LABELS = {"mattpocock/skills": "Pocock"}
 SKILLS_PREFIX = "src/quality_gates/skills/"
+EXPLAINER_GAPS = frozenset({"core", "no-comments", "complexity-python", "complexity-typescript", "complexity-swift",
+                            "complexity-rust", "design-helpers", "session-helpers"})
+
+
+def admissions_of(kind):
+    return {a.name: a for a in MANIFEST.admissions if a.kind == kind}
+
+
+def version_tuple(version):
+    return tuple(int(number) for number in version.split("."))
+
+
+def pyproject_requirements():
+    listed = re.search(r"(?m)^dependencies = \[(.*)\]$", PYPROJECT).group(1)
+    return dict(re.findall(r'"([\w-]+)>=([\d.]+)"', listed))
 
 
 def parts(kind=None):
@@ -175,6 +191,33 @@ class ComponentManifestAgreesWithTheUpstreamRecord(unittest.TestCase):
                 self.assertEqual(bool(origin.changed), skill_md_is_adapted(part.id), part.id)
 
 
+class AdmissionsAgreeWithWhatShips(unittest.TestCase):
+    def test_every_source_in_the_upstream_record_has_an_upstream_admission(self):
+        upstreams = admissions_of("upstream")
+        for source in SOURCES:
+            self.assertIn(source.repo, upstreams)
+
+    def test_every_upstream_admission_is_a_source_in_the_upstream_record(self):
+        self.assertEqual(set(admissions_of("upstream")), {source.repo for source in SOURCES})
+
+    def test_every_python_requirement_of_the_package_has_a_dependency_admission_at_the_same_minimum(self):
+        dependencies = admissions_of("dependency")
+        requirements = pyproject_requirements()
+        self.assertEqual(sorted(requirements), sorted(dependencies))
+        for name, minimum in requirements.items():
+            self.assertEqual(dependencies[name].minimum_version, minimum, name)
+
+    def test_the_version_ci_tested_is_at_or_above_the_minimum_for_every_dependency(self):
+        for name, admission in admissions_of("dependency").items():
+            self.assertGreaterEqual(version_tuple(admission.tested_version), version_tuple(admission.minimum_version), name)
+
+    def test_every_test_only_tool_has_a_licence_and_no_part_installs_it(self):
+        named = {origin_of(c, p).name for c, p in parts()}
+        for name, admission in admissions_of("test-only").items():
+            self.assertTrue(admission.licence, name)
+            self.assertNotIn(name, named)
+
+
 class ComponentManifestAgreesWithTheReadme(unittest.TestCase):
     def test_the_readme_from_column_agrees_with_the_manifest_for_every_skill(self):
         from_column, _ = readme_from_column()
@@ -186,10 +229,32 @@ class ComponentManifestAgreesWithTheReadme(unittest.TestCase):
         self.assertEqual(sorted(names), shipped_skills())
 
 
+class ComponentExplainers(unittest.TestCase):
+    def test_every_component_without_an_explainer_is_on_the_known_gap_list(self):
+        missing = [c.id for c in MANIFEST.components if c.explainer is None and c.id not in EXPLAINER_GAPS]
+        self.assertEqual(missing, [])
+
+    def test_every_known_gap_names_a_component_that_still_has_no_explainer(self):
+        explained = {c.id for c in MANIFEST.components if c.explainer is not None}
+        self.assertEqual(EXPLAINER_GAPS & explained, set())
+        self.assertLessEqual(EXPLAINER_GAPS, {c.id for c in MANIFEST.components})
+
+    def test_every_explainer_a_component_names_is_a_file_in_the_package(self):
+        for component in MANIFEST.components:
+            if component.explainer is not None:
+                self.assertTrue(MANIFEST.explainer_path(component).is_file(), component.id)
+
+
 class ComponentManifestShips(unittest.TestCase):
     def test_the_manifest_is_listed_in_the_package_data(self):
         package_data = re.search(r"(?m)^quality_gates = \[(.*)\]$", PYPROJECT).group(1)
         self.assertIn('"components.json"', package_data)
+
+    def test_every_explainer_a_component_names_matches_a_pattern_in_the_package_data(self):
+        patterns = re.findall(r'"([^"]+)"', re.search(r"(?m)^quality_gates = \[(.*)\]$", PYPROJECT).group(1))
+        for component in MANIFEST.components:
+            if component.explainer is not None:
+                self.assertTrue(any(fnmatch.fnmatch(component.explainer, pattern) for pattern in patterns), component.id)
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import contextlib
 import io
 import json
 import shutil
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -10,13 +11,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import languages, manifest as manifests, skills_sync, status
+from quality_gates import languages, manifest as manifests, project_files, skills_sync, status
+
+
+def git_init(folder):
+    subprocess.run(["git", "init", "-q", str(folder)], check=True)
 
 OURS = {"type": "ours"}
 POCOCK = {"type": "upstream", "name": "mattpocock/skills"}
+ADMISSIONS = [{"name": "mattpocock/skills", "kind": "upstream", "licence": "MIT", "practice": "Tagged releases.",
+               "last_release": "2026-10-29"}]
+
+
+def admitted(manifest):
+    return dict(manifest, admissions=ADMISSIONS)
 
 MANIFEST = {
-    "format_version": 1,
+    "format_version": 2,
     "components": [
         {
             "id": "core",
@@ -64,6 +75,13 @@ def component(report, component_id):
     return next(c for c in report["components"] if c["id"] == component_id)
 
 
+def attention(table, component_id):
+    lines = table.splitlines()
+    start = next(at for at, line in enumerate(lines) if line.startswith(f"  {component_id} "))
+    block = lines[start + 1:start + 3]
+    return [line for line in block if "Needs attention" in line]
+
+
 def part(report, component_id, kind, part_id):
     return next(p for p in component(report, component_id)["parts"] if p["kind"] == kind and p["id"] == part_id)
 
@@ -77,6 +95,7 @@ class Status(unittest.TestCase):
         self.hooks = self.tmp / "shipped-hooks"
         self.write(self.hooks / "stage_guard.py", "guard")
         self.repo = self.tmp / "repo"
+        git_init(self.repo)
         self.write(self.repo / "CLAUDE.md", "# Repo\n")
         self.write(self.repo / "pyproject.toml", "[project]\nname = 'consumer'\n")
 
@@ -95,7 +114,7 @@ class Status(unittest.TestCase):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = status.main([*flags], root=self.repo, source=self.source, hooks=self.hooks,
-                               manifest=manifests.components_from(manifest))
+                               manifest=manifests.components_from(admitted(manifest)))
         return code, out.getvalue()
 
     def report(self, manifest=MANIFEST):
@@ -111,7 +130,7 @@ class Status(unittest.TestCase):
 
     def test_json_carries_the_manifest_format_version_and_the_installed_version(self):
         report = self.report()
-        self.assertEqual(report["format_version"], 1)
+        self.assertEqual(report["format_version"], 2)
         self.assertEqual(report["installed_version"], skills_sync.installed_version())
 
     def test_json_carries_each_components_id_description_origin_and_core_flag(self):
@@ -192,7 +211,7 @@ class Status(unittest.TestCase):
         self.assertEqual(part(self.report(), "risk", "ci_step", "crap-python")["status"], "missing")
 
     def test_a_ci_step_that_runs_inside_a_named_file_is_installed_when_that_file_has_its_marker(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], parts=[
             {"kind": "ci_step", "id": "cc-check-python", "marker": "quality_check.main",
              "found_in": "tests/test_quality_gates.py"}])]}
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
@@ -200,7 +219,7 @@ class Status(unittest.TestCase):
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
 
     def test_a_precommit_step_is_installed_when_the_pre_commit_hook_runs_its_marker(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], parts=[
             {"kind": "precommit_step", "id": "comment-debt", "marker": "comment-debt"}])]}
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
         self.write(self.repo / ".githooks" / "pre-commit", "#!/bin/sh\ncomment-debt-report\n")
@@ -209,13 +228,13 @@ class Status(unittest.TestCase):
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "installed")
 
     def test_a_precommit_step_is_not_found_in_a_ci_workflow(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], parts=[
             {"kind": "precommit_step", "id": "crap", "marker": "crap --lang python"}])]}
         self.set_up()
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
 
     def test_a_config_file_is_installed_when_present_and_missing_when_absent(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], parts=[
             {"kind": "config", "id": ".swiftlint.yml"}])]}
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "missing")
         self.write(self.repo / ".swiftlint.yml", "cyclomatic_complexity:\n  error: 8\n")
@@ -268,7 +287,7 @@ class Status(unittest.TestCase):
         self.assertEqual(part(report, "risk", "dependency", "radon")["status"], "provided by quality-gates")
 
     def test_a_skill_the_release_does_not_ship_is_unknown(self):
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][2], parts=[
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][2], parts=[
             {"kind": "skill", "id": "not-shipped"}])]}
         self.write(self.repo / "Cargo.toml", "[package]\n")
         self.assertEqual(self.report(manifest)["components"][0]["parts"][0]["status"], "unknown")
@@ -283,12 +302,12 @@ class Status(unittest.TestCase):
     def test_a_swift_only_project_shows_a_python_only_component_as_not_applicable(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "Package.swift", "// package")
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
         self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
 
     def test_an_xcode_project_counts_as_a_swift_project(self):
         (self.repo / "pyproject.toml").unlink()
-        (self.repo / "App.xcodeproj").mkdir()
+        self.write(self.repo / "App.xcodeproj" / "project.pbxproj", "// project")
         self.assertEqual(component(self.report(), "risk")["status"], "missing")
 
     def test_a_component_is_applicable_when_any_one_of_its_languages_is_used(self):
@@ -296,24 +315,39 @@ class Status(unittest.TestCase):
         self.write(self.repo / "Sources" / "App.swift", "let a = 1")
         self.assertEqual(component(self.report(), "risk")["status"], "missing")
 
-    def test_source_files_inside_the_virtual_environment_do_not_count_as_a_language(self):
+    def test_source_files_inside_an_ignored_virtual_environment_do_not_count_as_a_language(self):
         (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".gitignore", ".venv/\n")
         self.write(self.repo / ".venv" / "lib" / "dep.py", "x = 1")
         self.assertEqual(component(self.report(), "risk")["status"], "not applicable")
+
+    def test_the_copied_skills_and_hooks_do_not_make_a_project_use_their_languages(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".claude" / "skills" / "diagnosing-bugs" / "scripts" / "loop.sh", "#!/bin/sh\n")
+        self.write(self.repo / ".claude" / "hooks" / "session_start.sh", "#!/bin/sh\n")
+        self.write(self.repo / ".claude" / "hooks" / "stage_guard.py", "x = 1\n")
+        self.assertEqual(self.used(), set())
+
+    def test_the_pre_commit_hook_setup_keeps_does_not_make_a_project_a_shell_project(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".githooks" / "pre-commit", "#!/bin/sh\ncomment-debt\n")
+        self.assertEqual(self.used(), set())
 
     def test_the_copied_stage_guard_does_not_make_a_project_a_python_project(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "src" / "app.ts", "export {}")
         self.set_up()
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
         self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
 
-    def test_source_files_in_build_and_vendored_output_do_not_count_as_a_language(self):
+    def test_source_files_in_ignored_build_and_vendored_output_do_not_count_as_a_language(self):
         (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".gitignore", "dist/\nbuild/\ntarget/\nPods/\nDerivedData/\n.tox/\nsite-packages/\n.build/\n"
+                   "node_modules/\n.cache/\n")
         for folder in ("dist", "build", "target", "Pods", "DerivedData", ".tox", "lib/site-packages", ".build",
                        "node_modules", ".cache"):
             self.write(self.repo / folder / "vendored.py", "x = 1")
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["python"])]}
         self.assertEqual(self.report(manifest)["components"][0]["status"], "not applicable")
 
     def test_a_project_with_source_in_every_language_gets_every_language_component(self):
@@ -323,39 +357,187 @@ class Status(unittest.TestCase):
         self.write(self.repo / "src" / "more" / "deeper.py", "x = 1")
         components = [dict(MANIFEST["components"][1], id=language, languages=[language])
                       for language in ("python", "swift", "typescript")]
-        report = self.report({"format_version": 1, "components": components})
+        report = self.report({"format_version": 2, "components": components})
         self.assertEqual([c["status"] for c in report["components"]], ["missing", "missing", "missing"])
 
-    def test_rust_and_shell_source_files_do_not_make_a_project_use_a_language(self):
+    def used(self, root=None):
+        return set(project_files.detected_languages(root or self.repo))
+
+    def test_rust_and_shell_source_files_make_a_project_use_rust_and_shell(self):
         (self.repo / "pyproject.toml").unlink()
         for name in ("src/main.rs", "run.sh", "build.bash", "env.zsh"):
             self.write(self.repo / name, "x")
-        self.assertEqual(status.used_languages(self.repo), set())
+        self.assertEqual(self.used(), {"rust", "shell"})
 
     def test_a_cargo_manifest_makes_a_project_use_rust(self):
         (self.repo / "pyproject.toml").unlink()
         self.write(self.repo / "Cargo.toml", "[package]\n")
-        self.assertEqual(status.used_languages(self.repo), {"rust"})
+        self.assertEqual(self.used(), {"rust"})
 
     def test_every_marker_the_registry_lists_makes_a_project_use_its_language(self):
         (self.repo / "pyproject.toml").unlink()
         for language in languages.REGISTERED:
             for marker in language.markers:
                 with self.subTest(marker), tempfile.TemporaryDirectory() as folder:
+                    git_init(folder)
                     (Path(folder) / marker).write_text("x")
-                    self.assertEqual(status.used_languages(Path(folder)), {language.name})
+                    self.assertEqual(self.used(Path(folder)), {language.name})
 
-    def test_a_project_with_source_in_every_detected_language_uses_exactly_those(self):
+    def test_a_project_with_source_in_every_registered_language_uses_exactly_those(self):
         (self.repo / "pyproject.toml").unlink()
         for name in ("app.py", "App.swift", "app.ts", "Cargo.toml", "main.rs", "run.sh"):
             self.write(self.repo / name, "x")
-        self.assertEqual(status.used_languages(self.repo), {"python", "swift", "typescript", "rust"})
+        self.assertEqual(self.used(), {"python", "swift", "typescript", "rust", "shell"})
+
+    def test_an_extensionless_script_with_a_shell_shebang_makes_a_project_use_shell(self):
+        (self.repo / "pyproject.toml").unlink()
+        for first_line in ("#!/bin/sh", "#!/usr/bin/env bash", "#! /bin/zsh -e", "#!/usr/bin/env -S bash -eu"):
+            with self.subTest(first_line):
+                self.write(self.repo / "bin" / "run", first_line + "\necho hi\n")
+                self.assertEqual(self.used(), {"shell"})
+
+    def test_a_script_with_another_shebang_or_none_uses_no_language(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "bin" / "tool", "#!/usr/bin/env node\n")
+        self.write(self.repo / "bin" / "notes", "sh is mentioned\n")
+        self.write(self.repo / "bin" / "blob", b"\x00\xff".decode("latin-1"))
+        self.assertEqual(self.used(), set())
+
+    def test_files_the_gitignore_lists_make_no_language_used(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / ".gitignore", "node_modules/\n")
+        self.write(self.repo / "node_modules" / "dep" / "index.ts", "x")
+        self.assertEqual(self.used(), set())
+
+    def test_source_files_inside_a_fixtures_folder_make_no_language_used(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("tests/fixtures/typescript/a.ts", "tests/fixtures/swift/A.swift", "spec/fixture/b.ts"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(self.used(), set())
+
+    def test_a_fixtures_folder_name_is_matched_whatever_its_case(self):
+        (self.repo / "pyproject.toml").unlink()
+        for name in ("Tests/AppTests/Fixtures/A.swift", "spec/TestData/b.ts", "web/__FIXTURES__/c.ts"):
+            self.write(self.repo / name, "x")
+        self.assertEqual(self.used(), set())
+        self.assertEqual(project_files.scope_of(self.repo).excluded,
+                         ("Tests/AppTests/Fixtures/", "spec/TestData/", "web/__FIXTURES__/"))
+
+    def test_detection_leaves_out_what_the_choice_file_excludes(self):
+        (self.repo / "pyproject.toml").unlink()
+        self.write(self.repo / "vendor" / "lib.ts", "x")
+        self.write(self.repo / "tests" / "fixtures" / "a.swift", "x")
+        choice = project_files.Choice(languages=(), exclude=("vendor/",))
+        project_files.write_kept(self.repo, project_files.CHOICE_FILE, project_files.choice_text(choice))
+        self.assertEqual(self.used(), {"swift"})
+
+    def test_detection_names_the_files_that_made_each_language_used(self):
+        self.write(self.repo / "src" / "app.py", "x")
+        self.write(self.repo / "bin" / "run", "#!/bin/sh\n")
+        self.assertEqual(project_files.detected_languages(self.repo),
+                         {"python": ["pyproject.toml", "src/app.py"], "shell": ["bin/run"]})
 
     def test_a_language_component_is_applicable_to_a_project_with_typescript_files(self):
         (self.repo / "pyproject.toml").unlink()
-        manifest = {"format_version": 1, "components": [dict(MANIFEST["components"][1], languages=["typescript"])]}
+        manifest = {"format_version": 2, "components": [dict(MANIFEST["components"][1], languages=["typescript"])]}
         self.write(self.repo / "src" / "app.tsx", "export {}")
         self.assertEqual(self.report(manifest)["components"][0]["status"], "missing")
+
+    def choose(self, languages=("python",), chosen=(), declined=()):
+        choice = project_files.Choice(languages=tuple(languages), chosen=tuple(chosen), declined=tuple(declined))
+        project_files.write_kept(self.repo, project_files.CHOICE_FILE, project_files.choice_text(choice))
+
+    def test_the_choice_files_languages_replace_detection(self):
+        self.set_up()
+        self.write(self.repo / "App.swift", "x")
+        self.choose(languages=("rust",), chosen=("risk", "rust-lint"))
+        report = self.report()
+        self.assertEqual((report["languages"], report["languages_from"]), (["rust"], "choice file"))
+        self.assertEqual(component(report, "risk")["status"], "not applicable")
+        self.assertEqual(component(report, "rust-lint")["status"], "installed")
+
+    def test_without_a_choice_file_the_languages_come_from_detection(self):
+        report = self.report()
+        self.assertEqual((report["languages"], report["languages_from"]), (["python"], "detection"))
+        self.assertEqual(report["unrecorded_languages"], {})
+
+    def test_a_declined_component_shows_offered_declined(self):
+        self.set_up()
+        self.choose(declined=("risk",))
+        self.assertEqual(component(self.report(), "risk")["status"], "offered, declined")
+
+    def test_a_component_the_choice_file_does_not_list_shows_not_yet_offered(self):
+        self.choose()
+        self.assertEqual(component(self.report(), "risk")["status"], "not yet offered")
+
+    def test_an_installed_component_the_choice_file_does_not_list_stays_not_yet_offered_and_shows_its_install_state(self):
+        self.set_up()
+        self.choose()
+        found = component(self.report(), "risk")
+        self.assertEqual((found["status"], found["install_status"]), ("not yet offered", "installed"))
+        self.assertIn("not yet offered (installed)", self.run_status()[1])
+        (self.repo / "crap-baseline.json").unlink()
+        found = component(self.report(), "risk")
+        self.assertEqual((found["status"], found["install_status"]), ("not yet offered", "partly installed"))
+        _, out = self.run_status()
+        self.assertIn("not yet offered (partly installed)", out)
+        self.assertIn("Needs attention: baseline crap-baseline.json: missing", out)
+
+    def test_a_declined_component_with_files_present_stays_declined_and_shows_its_install_state(self):
+        self.set_up()
+        (self.repo / "crap-baseline.json").unlink()
+        self.choose(declined=("risk",))
+        found = component(self.report(), "risk")
+        self.assertEqual((found["status"], found["install_status"]), ("offered, declined", "partly installed"))
+        _, out = self.run_status()
+        self.assertIn("offered, declined (partly installed)", out)
+        self.assertIn("Needs attention: baseline crap-baseline.json: missing", out)
+
+    def test_needs_attention_never_shows_for_a_declined_or_offered_component_with_nothing_installed(self):
+        for declined in ((), ("risk",)):
+            with self.subTest(declined=declined):
+                self.choose(declined=declined)
+                self.assertEqual(attention(self.run_status()[1], "risk"), [])
+
+    def test_needs_attention_shows_for_a_chosen_component_with_nothing_installed(self):
+        self.choose(chosen=("risk",))
+        self.assertEqual(attention(self.run_status()[1], "risk"),
+                         ["    Needs attention: skill crap: missing; baseline crap-baseline.json: missing; ci_step crap-python: missing"])
+
+    def test_a_chosen_component_shows_whether_it_is_installed(self):
+        self.set_up()
+        self.choose(chosen=("risk",))
+        self.assertEqual(component(self.report(), "risk")["status"], "installed")
+        (self.repo / "crap-baseline.json").unlink()
+        self.assertEqual(component(self.report(), "risk")["status"], "partly installed")
+
+    def test_core_components_are_reported_whatever_the_choice_file_lists(self):
+        self.set_up()
+        self.choose()
+        self.assertEqual(component(self.report(), "core")["status"], "installed")
+
+    def test_code_in_a_language_the_choice_file_does_not_record_is_warned_about_with_its_files(self):
+        self.write(self.repo / "bin" / "run", "#!/bin/sh\n")
+        self.choose()
+        self.assertEqual(self.report()["unrecorded_languages"], {"shell": ["bin/run"]})
+        _, out = self.run_status()
+        self.assertIn("Code in a language quality-gates.json does not record: shell (bin/run).", out)
+
+    def test_declined_components_do_not_count_as_nothing_installed(self):
+        self.choose(declined=("risk",))
+        self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "tdd v1")
+        _, out = self.run_status()
+        self.assertNotIn("No quality-gates parts found", out)
+
+    def test_a_broken_choice_file_exits_3_with_one_plain_line(self):
+        self.write(self.repo / project_files.CHOICE_FILE, "{")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = status.main([], root=self.repo, source=self.source, hooks=self.hooks,
+                               manifest=manifests.components_from(admitted(MANIFEST)))
+        self.assertEqual((code, out.getvalue()), (3, ""))
+        self.assertTrue(err.getvalue().startswith("qg status: "), err.getvalue())
+        self.assertEqual(len(err.getvalue().splitlines()), 1)
 
     def test_the_pin_is_read_from_the_python_dev_dependencies(self):
         self.write(self.repo / "pyproject.toml", (
@@ -448,11 +630,11 @@ class Status(unittest.TestCase):
 
     def test_an_empty_folder_gets_a_plain_report_and_exit_0(self):
         empty = self.tmp / "empty"
-        empty.mkdir()
+        git_init(empty)
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
             code = status.main([], root=empty, source=self.source, hooks=self.hooks,
-                               manifest=manifests.components_from(MANIFEST))
+                               manifest=manifests.components_from(admitted(MANIFEST)))
         self.assertEqual(code, 0)
         self.assertIn("No quality-gates parts found", out.getvalue())
 

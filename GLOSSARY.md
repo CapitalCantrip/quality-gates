@@ -49,7 +49,8 @@ _Avoid_: module, plugin, feature, part
 
 **Choice file**:
 The committed `quality-gates.json` that records which components a consumer
-chose or declined, its languages and its commit time limit (ADR-007).
+chose or declined, its languages, the paths the gates leave out, its commit
+time limit and the comment gate's settings (ADR-007, ADR-010).
 _Avoid_: config, settings, lock file
 
 **Explainer**:

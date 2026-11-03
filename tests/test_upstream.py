@@ -1,4 +1,5 @@
 import contextlib
+import datetime
 import io
 import json
 import tempfile
@@ -82,6 +83,57 @@ class Upstream(unittest.TestCase):
         for source in manifest.load_sources():
             for local in source.files.values():
                 self.assertTrue((repo / local).is_file(), local)
+
+
+TODAY = datetime.date(2026, 11, 1)
+
+
+def admission(name, **fields):
+    return dict({"name": name, "kind": "dependency", "licence": "MIT", "practice": "Maintained by one person."}, **fields)
+
+
+class Upkeep(unittest.TestCase):
+    def setUp(self):
+        self.components = Path(tempfile.mkdtemp()) / "outside-sources.json"
+
+    def check(self, *admissions):
+        self.components.write_text(json.dumps({"format_version": 2, "admissions": list(admissions), "components": []}))
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as stop:
+            upstream.main(["--upkeep"], components_path=self.components, today=TODAY)
+        return stop.exception.code, out.getvalue() + err.getvalue()
+
+    def test_a_source_whose_last_release_is_13_months_old_and_not_stable_is_reported_with_how_to_renew_it(self):
+        code, out = self.check(admission("radon", last_release="2025-10-01"))
+        self.assertEqual(code, 1)
+        self.assertIn("radon: no release recorded since 2025-10-01 (13 months)", out)
+        self.assertIn("mark it stable with the reason", out)
+
+    def test_the_upkeep_report_says_it_read_the_recorded_date_and_not_the_source(self):
+        _, out = self.check(admission("radon", last_release="2025-10-01"))
+        self.assertIn("This check reads the `last_release` recorded in `components.json`; it does not ask the source.", out)
+
+    def test_a_source_marked_stable_is_not_reported(self):
+        code, out = self.check(admission("radon", stable="A finished algorithm."))
+        self.assertEqual((code, out), (0, "No outside source has gone quiet.\n"))
+
+    def test_a_source_released_11_months_ago_is_not_reported(self):
+        code, _ = self.check(admission("radon", last_release="2025-12-01"))
+        self.assertEqual(code, 0)
+
+    def test_only_the_quiet_sources_among_several_are_reported(self):
+        code, out = self.check(admission("radon", last_release="2025-10-01"), admission("lizard", last_release="2026-10-24"))
+        self.assertEqual(code, 1)
+        self.assertIn("radon", out)
+        self.assertNotIn("lizard", out)
+
+    def test_a_malformed_manifest_exits_3_with_one_plain_line_naming_the_file(self):
+        self.components.write_text("{")
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err), self.assertRaises(SystemExit) as stop:
+            upstream.main(["--upkeep"], components_path=self.components, today=TODAY)
+        self.assertEqual(stop.exception.code, 3)
+        self.assertTrue(err.getvalue().startswith(f"qg-upstream: {self.components}: not valid JSON"))
 
 
 class Reply(io.BytesIO):

@@ -1,11 +1,13 @@
 import argparse
 import filecmp
+import os
 import shutil
 import sys
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
 
 from quality_gates import project_files
+from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
 
 SHIPPED = Path(__file__).parent / "skills"
 SKILL_FILE = "SKILL.md"
@@ -74,7 +76,7 @@ def build_parser():
         prog="qg-skills",
         description="Copy the quality-gates skills and stage guard into a repo, register the guard, and add the asking-rule line to CLAUDE.md, so local and cloud sessions both get them.",
     )
-    parser.add_argument("--dest", type=Path, default=project_files.SKILLS_DEST, help="default: .claude/skills")
+    parser.add_argument("--dest", type=Path, help="default: .claude/skills at the top of the git repository")
     parser.add_argument("--check", action="store_true", help="exit 1 if the copies differ from this version's")
     return parser
 
@@ -91,7 +93,11 @@ def install(dest, source, hooks):
 def main(argv=None, source=SHIPPED, hooks=project_files.HOOKS_SOURCE):
     args = build_parser().parse_args(argv)
     try:
-        sys.exit(check(args.dest, source, hooks) if args.check else install(args.dest, source, hooks))
+        dest = args.dest or Path(os.path.relpath(project_files.git_root() / project_files.SKILLS_DEST))
+        sys.exit(check(dest, source, hooks) if args.check else install(dest, source, hooks))
+    except ToolError as error:
+        print(f"qg-skills: {error}", file=sys.stderr)
+        sys.exit(TOOL_ERROR_EXIT)
     except project_files.SettingsError as error:
         print(error, file=sys.stderr)
-        sys.exit(2)
+        sys.exit(TOOL_ERROR_EXIT)

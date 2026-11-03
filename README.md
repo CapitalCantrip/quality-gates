@@ -264,12 +264,20 @@ Both gates take their functions from one scan, so they always list the same
 functions under the same names. A function, method, closure or method of a
 nested class is scored on its own; a class is not. A Swift closure is the
 exception: its branches count in the function that holds it, and its untested
-lines do not lower that function's coverage (#53). Both leave out generated
-and installed folders such as `node_modules` and `build`, by one
-[skip list](src/quality_gates/skills/crap/references/skip-list.md), and scan a symlinked folder once, by the
-[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). Each gate ends its report with a line
-naming the skipped folders it found, so no source folder is dropped without a
-word.
+lines do not lower that function's coverage (#53). Both look only at the
+[files in scope](src/quality_gates/skills/crap/references/files-in-scope.md): the files git would commit, so the
+project's own `.gitignore` leaves out generated and installed folders, less the
+`exclude` entries in `quality-gates.json` (test fixtures by default). Each file
+is scored once, and a symlinked folder is scanned once, by the
+[symlink rule](src/quality_gates/skills/crap/references/symlinked-folders.md). The git repo is the one that
+holds the first path given, so `crap --lang python ~/other-repo/src` follows
+that repo's `.gitignore` and choice file wherever it runs; a path in no repo
+falls back to the repo the command runs in. A path you name that git ignores
+is still not scored, and the gate says so in one line on stderr, such as
+`Skipped gen/b.py: git ignores it, ...`. Outside any git repo, both stop
+with exit 2 and say so. They also stop with exit 2 when `quality-gates.json` is
+malformed, with one line naming the problem, such as `cc-check`'s
+`ERROR: quality-gates.json: missing field 'languages'`.
 
 A Python function's line range runs from its `def` line to the end of its last
 statement, taken from the syntax tree, so a function whose body ends in a nested
@@ -346,13 +354,29 @@ when it disagrees with [upstream.json](src/quality_gates/upstream.json), the
 file-level record `qg-upstream` reads.
 
 - `format_version`: a whole number. A change to the shape below raises it and
-  gets a CHANGELOG note; adding a component or a part does not.
+  gets a CHANGELOG note; adding a component or a part does not. It is 2; version 2
+  added `admissions` and each component's optional `explainer`.
+- `admissions`: a list with one record per outside source ([ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md)),
+  each with `name` (the repo or tool name, as a component's `origin` spells it),
+  `kind` (`upstream`, `dependency` or `test-only`), `licence` (an SPDX id: an
+  upstream needs MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause or ISC, a
+  dependency any OSI-approved licence, a test-only tool any), `practice` (one
+  sentence on the author's practice, ending in a full stop), and either
+  `last_release` (a date like `2026-10-29`) or `stable` (the reason it needs no
+  releases), never both. A Python package this package installs also has
+  `minimum_version` and `tested_version`, the version CI ran. An admission holds no repo
+  or commit: those stay in `upstream.json`, whose `sources` each need an
+  `upstream` admission. Loading fails when any is missing or breaks the rule,
+  and when an `origin` name or an `adapts` entry has no admission, or an
+  `origin` `type` differs from the `kind` of the source it names.
 - `components`: a list. Each has `id`, `name`, `description` (one line, plain
   words), `core` (true for the parts every project has and cannot switch off),
   `languages` (empty when the component has none), `origin` and `parts`.
 - `origin`: `{"type": "ours"}`, `{"type": "upstream", "name": "<repo>"}` (with
   `"changed": true` when the copy is adapted), or `{"type": "dependency",
-  "name": "<tool>", "version": "<requirement>"}`. A component's origin is the
+  "name": "<tool>"}`. A dependency's version is not repeated in its origin:
+  loading fills `version` with `>=` and the `minimum_version` its admission
+  records, so `qg status` and its `--json` show it. A component's origin is the
   one most of its parts have; a part with a different one carries its own. An
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.
@@ -368,6 +392,9 @@ file-level record `qg-upstream` reads.
   component's languages lists them in `languages`; in a project that uses none
   of them the part is *not applicable* and does not count toward the
   component's status.
+- `explainer`: optional. The path, relative to `components.json`, of the
+  component's explainer, a Markdown file ending in `.md`. Each explainer must
+  ship in the package, and [Explainers](#explainers) says what it holds.
 
 **Set up and standards**
 
@@ -431,12 +458,98 @@ Three more commands support them:
   [Keeping the copied skills current](#keeping-the-copied-skills-current).
   Exit 0: nothing changed. Exit 1: changes, printed as Markdown. Exit 2:
   GitHub unreachable. Exit 3: `upstream.json` is missing or malformed.
+  `--upkeep` instead checks `components.json` for outside sources with no
+  release in 12 months that are not marked stable: exit 0 none, exit 1 some,
+  exit 3 the manifest is malformed.
 - `qg-references` writes the rules the skills cite into each skill's
   `references/` folder, from the restated rules tagged in the ADRs
   ([ADR-004](docs/adr/ADR-004-reference-files.md)). `qg-references --check` also
   fails when an ADR amendment and the text it amends do not link to each other.
   It runs in this repo at each release; a consumer gets the files through
   `qg-skills`.
+
+#### Explainers
+
+Each component ships an explainer: a short Markdown page, versioned with the
+release, in [src/quality_gates/explainers](src/quality_gates/explainers). It
+opens with the component's name and has four sections, in order: what it
+catches, why it matters to someone who cannot read the code, what it asks of
+the builder, and *Want to go deeper?*. That last one holds one to three
+outside links. Each link has a line on why it is worth reading and the date it
+was checked, and it is free to view and written by someone with real practice
+in the subject. The worked example is
+[crap.md](src/quality_gates/explainers/crap.md).
+
+`qg explain <name>` prints a component's explainer from the installed package,
+with no network access. It exits 0 when it printed one; 1 for a name that is not
+a component, or one with no explainer yet; 2 for a usage error; and 3 when the
+manifest or the explainer cannot be read. It reads no project, so it works
+outside a git repo too.
+
+The setup skill never writes an explanation of its own. It runs `qg explain`,
+reads what it prints and says what that means for this project. Under its
+component table it ends with the line *Ask me about any row, or run
+`qg explain <name>`.*
+
+The tests check the sections and link lines of every explainer, and that each
+explainer a component names ships in the package. A component with no explainer
+yet is named on a known-gap list in the tests, which shrinks as each one is
+written. The release checklist runs a link check, described under
+[Releasing](#releasing).
+
+### The choice file
+
+`quality-gates.json` sits at the project root and is committed. It records what
+the builder chose ([ADR-007](docs/adr/ADR-007-component-install.md)), and
+`qg setup` writes it. It is a contract for `qg status`, setup and the planned
+runner. Loading fails, and `qg status` and `qg setup` exit 3 with one line
+naming the problem, when a field is missing, has the wrong type or names
+something quality-gates does not know. The gates (`crap`, `cc-check`) read the
+file for `exclude`, so a malformed file stops them with exit 2 and the same
+line, like any other tool error.
+
+```json
+{
+  "format_version": 1,
+  "languages": ["python", "shell"],
+  "exclude": ["tests/fixtures/"],
+  "components": {"chosen": ["crap", "no-comments"], "declined": ["design-helpers"]},
+  "commit_time_limit_seconds": 2,
+  "settings": {"no-comments": {"exclude": ["gen/"], "conventions": ["rust-safety"]}}
+}
+```
+
+- `format_version`: a whole number, 1. A change to the shape raises it and
+  gets a CHANGELOG note.
+- `languages`: the project's languages, each a name the language registry
+  knows: `python`, `typescript`, `swift`, `rust` or `shell`. Setup proposes
+  them from the files git would commit: test folders count, and only the
+  `exclude` entries, fixture folders by default, are left out (ADR-007
+  addendum 2026-11-01). It replaces
+  detection as the source of truth; `qg status` warns about code in a language
+  the list leaves out. A language may be listed before it has code.
+- `exclude`: folders and files, each by its path from the repo root, that
+  detection and the gates leave out, on top of what `.gitignore` ignores.
+  Entries match whole segments, by the
+  [files in scope](src/quality_gates/skills/crap/references/files-in-scope.md)
+  rule: `vendor` covers `vendor/` and nothing called `vendored`. An entry
+  that starts with `/`, `./` or `../`, or has an empty, `.` or `..` segment,
+  makes the file malformed, so it can never silently match nothing. Root marker
+  files such as `package.json` count only when they are in scope, so an
+  excluded or ignored one adds no language. Setup writes the default
+  fixture folders here (every outermost `fixtures`, `fixture`, `__fixtures__`
+  or `testdata` folder, in any case, so `Fixtures` too).
+- `components`: `chosen` and `declined`, each a list of component ids from
+  `components.json`; no id may be in both. A component in neither list has
+  not been offered yet, whatever of it is installed: `qg setup` offers it,
+  and it is recorded only when `--choose` or `--decline` names it. The core
+  is never listed: every project has it.
+- `commit_time_limit_seconds`: a number above 0, 2 by default (ADR-006).
+- `settings`: per-component settings. Only `no-comments` has any so far:
+  `exclude`, path prefixes the comment gate leaves out, and `conventions`, the
+  ids of the [recognised conventions](docs/recognised-conventions.md) the
+  project has switched on. Both default to empty. `comment-debt` does not read
+  them yet (#3), so keep its `--exclude` flags until then.
 
 ## Setup details
 
@@ -461,6 +574,8 @@ Three more commands support them:
   |---|---|
   | `qg` | [src/quality_gates/qg.py](src/quality_gates/qg.py), which hands each subcommand to its own file |
   | `qg status` | [src/quality_gates/status.py](src/quality_gates/status.py) |
+  | `qg setup` | [src/quality_gates/setup_choices.py](src/quality_gates/setup_choices.py) |
+  | `qg explain` | [src/quality_gates/explain.py](src/quality_gates/explain.py) |
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
   | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |
@@ -473,19 +588,33 @@ Three more commands support them:
   It lists every component with one of these words, a line on what it does and
   where it came from: *installed*, *missing*, *different* (a copied file was
   edited, so it no longer matches the release), *partly installed*, *unknown*
-  (it could not read something) or *not applicable* (the component is for a
-  language the project does not use). Core components come first. It also shows
+  (it could not read something), *not applicable* (the component is for a
+  language the project does not use), *offered, declined* or *not yet offered*
+  (the choice file declines the component, or does not list it). Either stays
+  as it is whatever is installed; when some of it is installed, the table
+  shows that beside it, such as *offered, declined (partly installed)* or
+  *not yet offered (installed)*. Core
+  components come first. The project's languages come from the
+  [choice file](#the-choice-file); without one, from detection over the files
+  git would commit. With a choice file, it warns about code in a language the
+  file does not record, naming the files. It also shows
   the version the project pins next to the version installed, or *pin not
   found*. It only reads, works offline and exits 0 whatever it finds, so it
   never blocks a commit; `qg-skills --check` stays the check that fails. It
   exits 3, with one line on stderr naming the problem, only when the
-  `components.json` shipped inside quality-gates is missing or malformed. `qg status --json`
+  `components.json` shipped inside quality-gates or the project's
+  `quality-gates.json` is malformed, and 2 outside a git repo. `qg status --json`
   prints the same report for an agent, with the component list's format
-  version, and for each component its id, status and parts. The commands and
+  version, `languages`, `languages_from` (`choice file` or `detection`),
+  `unrecorded_languages` (each with its files), and for each component its id,
+  status, `install_status` (what is installed, whatever the choice), parts and
+  `needs_attention`. The commands and
   tools quality-gates itself installs, such as `cc-check` or `radon`, have no
   status of their own: they are listed as *provided by quality-gates* and do
   not count toward a component's status, and neither does a part for a language
-  the project does not use. *Needs attention* names only the parts that count.
+  the project does not use. *Needs attention* names only the parts that count,
+  and shows for the core, a chosen component, or any component with some part
+  installed; never for a declined or offered component with nothing installed.
 
   ```text
   $ qg status
@@ -508,9 +637,39 @@ Three more commands support them:
       Flags Swift functions that are too tangled to follow, ...
   ```
 
+- `qg setup` proposes the project's languages and one row per component, with
+  its description, its cost (commit delay, CI time, outside tools) and a tick
+  on the recommended set, and lists the files it would change. It writes
+  nothing until `--go`, and then only `quality-gates.json`. Without a choice
+  file it records what is installed as chosen. Every other component that
+  applies and that the file does not list is *offered*, whatever is
+  installed, so a component a release adds stays off after `qg-skills`
+  copies its skill: ticked as recommended, and recorded only when `--choose`
+  or `--decline` names it. Its last line names the offers not yet answered. A
+  choice or decline already recorded is kept while its component does not
+  apply, which shows as *not applicable*, and `--choose` and `--decline` work
+  on such a component. Change the
+  proposal with `--add-language`, `--remove-language`, `--choose` and
+  `--decline`, each repeatable. One component given to both `--choose` and
+  `--decline` exits 3 with the line a choice file listing it in both gives. It refuses, with exit 1 and nothing written,
+  to switch off the core or a gate the project has, or to remove a language
+  that still has code: both wait on recorded reasons (#115). A language name
+  quality-gates does not know exits 3 with the same line a choice file
+  holding it gives, such as `qg setup: --add-language: unknown language
+  'Python'; quality-gates knows python, rust, shell, swift, typescript`. It copies the
+  `--exclude` prefixes of the `comment-debt` commands in `.githooks/pre-commit`
+  and the CI workflows into `settings` › `no-comments` › `exclude`, and leaves
+  the flags in place. Only `comment-debt`'s own flags count, not those of a
+  command joined to it by `&&`, `||`, `|` or `;`, and a flag on a `\`
+  continuation line counts. Run again with every offer answered, it changes
+  nothing and says the file is up to date, with or without `--go`. `--json` prints the
+  proposal for an agent.
+
 - `qg-skills` copies from the installed package, not from GitHub, so the
   version you installed decides which skills a project gets. It writes
-  `.claude/skills/`, the stage guard and the asking-rule line in `CLAUDE.md`. It touches only the skills it ships; the project's own
+  `.claude/skills/` at the top of the git repo, or in the folder `--dest`
+  names, plus the stage guard and the asking-rule line in `CLAUDE.md`.
+  Outside a git repo and without `--dest`, it stops with exit 2 and says so. It touches only the skills it ships; the project's own
   skills are left alone. `qg-skills --check` exits 1 if any copy differs from
   the installed version, and `/setup-standards` adds a test that runs it, so CI
   catches a stale copy.
@@ -532,7 +691,17 @@ Bump `version` in `pyproject.toml`, `.claude-plugin/plugin.json` and
 `.claude-plugin/marketplace.json` together, add a `CHANGELOG.md` entry, update
 the pinned tag in the skills' install lines, run the reference generator
 (`.venv/bin/qg-references`, then `.venv/bin/qg-skills` to refresh
-`.claude/skills`), tag `vX.Y.Z`, then bump the pin in each consuming project.
+`.claude/skills`), run the explainer link check below, tag `vX.Y.Z`, then bump
+the pin in each consuming project.
+
+The explainer link check follows every link in the explainers and prints the
+status of each. It needs network access. Every line it prints must begin with
+`200`. Replace a link that does not, then set the `Checked` date on every link
+to the day of the check:
+
+```sh
+grep -rhoE 'https://[^)[:space:]]+' src/quality_gates/explainers | sort -u | xargs -n1 curl -s -o /dev/null -L -w '%{http_code} %{url_effective}\n'
+```
 
 Push the tag from a local session: a Claude Code cloud session's GitHub proxy
 refuses tag pushes and the API call that creates a tag.
@@ -555,7 +724,13 @@ updates reach a project only through a release here
 ([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)).
 
 1. On the 1st of each month the `upstream` workflow runs `qg-upstream` and, if
-   a copied file changed upstream, opens an issue with the changes.
+   a copied file changed upstream, opens an issue with the changes. It also
+   runs `qg-upstream --upkeep`, which opens or updates one issue naming every
+   outside source in `components.json` whose recorded `last_release` is over
+   12 months old and that is not marked `stable`. It reads the recorded date
+   and never asks the source, so it flags a record not renewed in 12 months.
+   Renewing means looking up the source's real newest release and setting
+   `last_release` to it, or marking the source stable with the reason.
 2. Replace each word-for-word copy with the new upstream file.
 3. For each changed file, take the new upstream version and redo every change
    [docs/upstream-adaptations.md](docs/upstream-adaptations.md) lists for it.

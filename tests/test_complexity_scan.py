@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -131,6 +132,7 @@ class InTempDir(unittest.TestCase):
         before = os.getcwd()
         os.chdir(tmp.name)
         self.addCleanup(os.chdir, before)
+        subprocess.run(["git", "init", "-q"], check=True)
 
     def write(self, path, text="def f(x):\n    return x\n"):
         Path(path).parent.mkdir(parents=True, exist_ok=True)
@@ -240,62 +242,86 @@ class PythonScanTest(InTempDir):
                 complexity_scan.scan(["mod.py"], "python")
 
 
-class SkipListTest(InTempDir):
-    def test_every_skip_list_folder_is_skipped_and_named(self):
-        for folder in project_files.SKIPPED_FOLDERS:
+class GitScopeTest(InTempDir):
+    def test_a_folder_the_projects_gitignore_lists_is_not_scanned(self):
+        self.write(".gitignore", "venv/\nbuild/\n")
+        self.write("venv/lib/x.py")
+        self.write("build/y.py")
+        self.write("src/mod.py")
+        self.assertEqual([fn.file for fn in complexity_scan.scan(["."], "python").functions], ["src/mod.py"])
+
+    def test_a_folder_named_like_build_output_is_scanned_when_git_would_commit_it(self):
+        for folder in ("build", "dist", "node_modules", ".build"):
             self.write(f"{folder}/x.py")
         found = complexity_scan.scan(["."], "python")
-        self.assertEqual(found.functions, [])
-        self.assertEqual(found.skipped, sorted(project_files.SKIPPED_FOLDERS))
+        self.assertEqual(sorted(fn.file for fn in found.functions),
+                         [".build/x.py", "build/x.py", "dist/x.py", "node_modules/x.py"])
 
-    def test_a_typescript_project_inside_a_build_folder_is_scanned_when_given_by_its_full_path(self):
-        self.write("build/proj/a.ts", "function a(x) { return x ? 1 : 2; }\n")
-        found = complexity_scan.scan([os.path.abspath("build/proj")], "typescript")
-        self.assertEqual([fn.name for fn in found.functions], ["a"])
-        self.assertEqual(found.skipped, [])
+    def test_a_tracked_file_is_scanned_even_when_the_gitignore_would_match_it(self):
+        self.write("gen/kept.py")
+        subprocess.run(["git", "add", "gen/kept.py"], check=True)
+        self.write(".gitignore", "gen/\n")
+        self.assertEqual([fn.file for fn in complexity_scan.scan(["."], "python").functions], ["gen/kept.py"])
 
-    def test_a_hidden_folder_not_on_the_skip_list_is_scanned(self):
+    def test_an_ignored_folder_given_by_its_path_still_yields_no_files(self):
+        self.write(".gitignore", "build/\n")
+        self.write("build/proj/a.py")
+        self.assertEqual(complexity_scan.scan(["build/proj"], "python").files, [])
+
+    def test_a_hidden_folder_git_would_commit_is_scanned(self):
         self.write(".claude/hooks/hook.py")
         self.assertEqual([fn.file for fn in complexity_scan.scan(["."], "python").functions], [".claude/hooks/hook.py"])
 
-    def test_a_skip_list_folder_nested_in_another_is_not_named(self):
-        self.write("venv/lib/build/x.py")
-        self.assertEqual(complexity_scan.scan(["."], "python").skipped, ["venv"])
+    def test_the_git_folder_itself_is_never_scanned(self):
+        self.write(".git/hooks/x.py")
+        self.write("mod.py")
+        self.assertEqual([fn.file for fn in complexity_scan.scan(["."], "python").functions], ["mod.py"])
 
-    def test_a_skip_list_name_deep_inside_a_scanned_path_is_skipped(self):
-        self.write("src/pkg/dist/x.py")
-        self.write("src/pkg/y.py")
-        found = complexity_scan.scan(["src"], "python")
-        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["src/pkg/y.py"], ["src/pkg/dist"]))
-
-    def test_a_swift_file_under_swiftpms_build_folder_is_not_scanned_and_the_folder_is_named(self):
-        self.write(".build/debug/test_entry_point.swift", "func entry(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
-        self.write("Sources/App.swift", "func load(a: Int) -> Int { return a > 0 ? 1 : 2 }\n")
-        found = complexity_scan.scan(["."], "swift")
-        self.assertEqual(([fn.file for fn in found.functions], found.skipped), (["Sources/App.swift"], [".build"]))
-
-    def test_swiftpms_build_folder_is_skipped_for_every_language(self):
-        self.write(".build/checkouts/dep/x.py")
-        self.write(".build/checkouts/dep/x.ts", "function x(a) { return a ? 1 : 2; }\n")
-        for lang in ("python", "typescript"):
-            found = complexity_scan.scan(["."], lang)
-            self.assertEqual((found.functions, found.skipped), ([], [".build"]))
-
-    def test_a_worktrees_folder_outside_claude_is_scanned(self):
-        self.write("tools/worktrees/x.py")
-        self.assertEqual(len(complexity_scan.scan(["."], "python").functions), 1)
-
-    def test_a_scan_with_no_skip_list_folders_names_none(self):
+    def test_a_scan_names_no_skipped_folder_when_nothing_was_reached_twice(self):
+        self.write(".gitignore", "dist/\n")
+        self.write("dist/x.py")
         self.write("mod.py")
         self.assertEqual(complexity_scan.scan(["."], "python").skipped, [])
 
-    def test_lizard_skips_the_same_folders(self):
-        for folder in project_files.SKIPPED_FOLDERS:
-            self.write(f"{folder}/x.ts", "function x(a) { return a ? 1 : 2; }\n")
+    def test_a_fixtures_folder_is_not_scanned_when_a_folder_above_it_is(self):
+        self.write("tests/fixtures/python/sample.py")
+        self.write("tests/test_a.py")
+        self.assertEqual([fn.file for fn in complexity_scan.scan(["tests"], "python").functions], ["tests/test_a.py"])
+
+    def test_a_fixtures_folder_given_by_its_own_path_is_scanned(self):
+        self.write("tests/fixtures/python/sample.py")
+        self.assertEqual([fn.file for fn in complexity_scan.scan(["tests/fixtures/python"], "python").functions],
+                         ["tests/fixtures/python/sample.py"])
+
+    def test_a_file_inside_a_fixtures_folder_given_by_its_path_is_scanned(self):
+        self.write("tests/fixtures/sample.py")
+        self.assertEqual(len(complexity_scan.scan(["tests/fixtures/sample.py"], "python").functions), 1)
+
+    def test_the_choice_files_exclusions_replace_the_default_fixture_exclusion(self):
+        self.write("tests/fixtures/sample.py")
+        self.write("gen/made.py")
+        self.write("src/mod.py")
+        choice = project_files.Choice(languages=("python",), exclude=("gen/",))
+        project_files.write_kept(Path.cwd(), project_files.CHOICE_FILE, project_files.choice_text(choice))
+        self.assertEqual(sorted(fn.file for fn in complexity_scan.scan(["."], "python").functions),
+                         ["src/mod.py", "tests/fixtures/sample.py"])
+
+    def test_an_exclude_entry_names_a_whole_folder_or_file_and_never_a_longer_name_that_starts_with_it(self):
+        for name in ("build/x.py", "buildscripts/deploy.py", "build_utils.py", "gen.py", "gen_tools.py"):
+            self.write(name)
+        choice = project_files.Choice(languages=("python",), exclude=("build", "gen.py"))
+        project_files.write_kept(Path.cwd(), project_files.CHOICE_FILE, project_files.choice_text(choice))
+        self.assertEqual(sorted(fn.file for fn in complexity_scan.scan(["."], "python").functions),
+                         ["build_utils.py", "buildscripts/deploy.py", "gen_tools.py"])
+        self.assertEqual(project_files.detected_languages(Path.cwd())["python"],
+                         ["build_utils.py", "buildscripts/deploy.py", "gen_tools.py"])
+
+    def test_lizard_reads_the_same_files_git_would_commit(self):
+        self.write(".gitignore", "node_modules/\n")
+        self.write("node_modules/dep/x.ts", "function x(a) { return a ? 1 : 2; }\n")
         self.write(".claude/hooks/h.ts", "function h(a) { return a ? 1 : 2; }\n")
         found = complexity_scan.scan(["."], "typescript")
         self.assertEqual([fn.file for fn in found.functions], [".claude/hooks/h.ts"])
-        self.assertEqual(found.skipped, sorted(project_files.SKIPPED_FOLDERS))
 
 
 class SymlinkedFolderTest(InTempDir):
@@ -366,15 +392,25 @@ class SymlinkedFolderTest(InTempDir):
 
     def test_finding_sources_lists_files_and_skipped_folders_without_counting_functions(self):
         self.write("src/mod.py")
-        self.write("src/dist/y.py")
         self.write("src/notes.md")
+        self.link("src", "src/up")
         found = complexity_scan.find_sources(["src"], "python")
-        self.assertEqual(([str(f) for f in found.files], found.skipped), (["src/mod.py"], ["src/dist"]))
+        self.assertEqual(([str(f) for f in found.files], found.skipped), (["src/mod.py"], ["src/up (already scanned)"]))
 
-    def test_a_skip_list_folder_is_not_marked_already_scanned(self):
-        self.write("src/x.py")
-        self.write("src/dist/y.py")
-        self.assertEqual(complexity_scan.scan(["src"], "python").skipped, ["src/dist"])
+    def test_a_file_given_directly_and_reached_through_a_linked_folder_is_scanned_once(self):
+        self.write("src/b/real/m.py")
+        self.link("src/b/real", "src/a/link")
+        found = complexity_scan.scan(["src/b/real/m.py", "src"], "python")
+        self.assertEqual([fn.file for fn in found.functions], ["src/b/real/m.py"])
+
+    def test_a_file_given_twice_is_scanned_once(self):
+        self.write("src/m.py")
+        self.assertEqual([fn.name for fn in complexity_scan.scan(["src/m.py", "src"], "python").functions], ["f"])
+
+    def test_a_symlinked_file_beside_its_target_is_scanned_once(self):
+        self.write("src/m.py")
+        os.symlink(os.path.abspath("src/m.py"), "src/alias.py")
+        self.assertEqual([fn.file for fn in complexity_scan.scan(["src"], "python").functions], ["src/alias.py"])
 
     def test_a_folder_reached_through_two_scanned_paths_is_scanned_once(self):
         self.write("shared/Shop/shop.py")
@@ -388,11 +424,19 @@ class SymlinkedFolderTest(InTempDir):
         found = complexity_scan.scan(["src", "src/pkg"], "python")
         self.assertEqual(([fn.name for fn in found.functions], found.skipped), (["f"], ["src/pkg (already scanned)"]))
 
-    def test_a_symlink_named_on_the_skip_list_is_skipped_and_named(self):
+    def test_a_link_the_gitignore_lists_is_not_followed(self):
+        self.write(".gitignore", "build\n")
         self.write("elsewhere/x.py")
         self.link("elsewhere", "src/build")
         found = complexity_scan.scan(["src"], "python")
-        self.assertEqual((found.functions, found.skipped), ([], ["src/build"]))
+        self.assertEqual((found.functions, found.skipped), ([], []))
+
+    def test_a_linked_folder_outside_the_repo_is_scanned(self):
+        outside = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, outside)
+        Path(outside, "shop.py").write_text("def f(x):\n    return x\n", encoding="utf-8")
+        self.link(outside, "Sources/Shop")
+        self.assertEqual(self.files("Sources"), ["Sources/Shop/shop.py"])
 
     def test_a_symlink_to_a_folder_that_does_not_exist_is_ignored(self):
         self.write("src/mod.py")
@@ -443,6 +487,7 @@ class LizardRunTest(InTempDir):
 
     def test_lizard_reads_only_the_walked_files_of_its_language(self):
         self.write("notes.txt", "text")
+        self.write(".gitignore", "build/\n")
         self.write("build/Gen.swift", "func gen() {}\n")
         given = []
         runner = lambda cmd, **k: given.append(Path(cmd[-1]).read_text()) or completed("")

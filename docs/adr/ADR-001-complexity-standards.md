@@ -1287,7 +1287,8 @@ The workaround is removed once the lizard floor reaches a release with the fix
 
 Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070), [Addendum 2026-10-11: skip SwiftPM's .build (v0.9.0)](#addendum-2026-10-11-skip-swiftpms-build-v090)
 
-<!-- rule:skip-list -->
+Amended by: [Addendum 2026-11-01: the files git would commit (v0.13.0)](#addendum-2026-11-01-the-files-git-would-commit-v0130), [Current rule, restated 2026-11-01: the files in scope](#current-rule-restated-2026-11-01-the-files-in-scope)
+
 **The skip list** is `.git`, `.venv`, `venv`, `.direnv`, `node_modules`,
 `__pycache__`, `backups`, `build`, `.build`, `dist`, `.tox`, `.mypy_cache`,
 `.pytest_cache`, `.worktrees`, `.claude/worktrees`. It is one list for both
@@ -1299,13 +1300,13 @@ real package called `build` or `dist` is skipped too; for that reason both gates
 end their report with a *Skipped N folder(s)* line naming every skipped folder
 they found. A folder above the scanned path never counts: a project checked out
 under a `build` or `.build` folder is scanned in full, in every language.
-<!-- /rule:skip-list -->
 
 ## Current rule, restated 2026-10-12: symlinked folders
 
 Amends: [Addendum 2026-10-11: follow symlinked folders (v0.9.0)](#addendum-2026-10-11-follow-symlinked-folders-v090), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090)
 
-<!-- rule:symlinked-folders -->
+Amended by: [Addendum 2026-11-01: the files git would commit (v0.13.0)](#addendum-2026-11-01-the-files-git-would-commit-v0130), [Current rule, restated 2026-11-01: symlinked folders](#current-rule-restated-2026-11-01-symlinked-folders)
+
 **The rule.** The walk follows a symlinked folder unless its name is on the skip
 list, and never walks the same real folder twice in one scan:
 
@@ -1343,7 +1344,6 @@ list, and never walks the same real folder twice in one scan:
   (`src src/pkg`) lists the inner folder's functions once and marks the repeat
   as already scanned. The same file named twice on the command line, or once
   inside a folder that is also scanned, is listed twice.
-<!-- /rule:symlinked-folders -->
 
 ## Current rule, restated 2026-10-22: TypeScript and JavaScript counting
 
@@ -1471,3 +1471,127 @@ enforce the limits in CI without first paying it all off.
 - **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
   not a gate.
 <!-- /rule:baseline-ratchet -->
+
+## Addendum 2026-11-01: the files git would commit (v0.13.0)
+
+Amends: [Current rule, restated 2026-10-12: the skip list](#current-rule-restated-2026-10-12-the-skip-list), [Current rule, restated 2026-10-12: symlinked folders](#current-rule-restated-2026-10-12-symlinked-folders)
+
+Amended by: [Current rule, restated 2026-11-01: the files in scope](#current-rule-restated-2026-11-01-the-files-in-scope), [Current rule, restated 2026-11-01: symlinked folders](#current-rule-restated-2026-11-01-symlinked-folders)
+
+The limits are unchanged. Which files the gates look at changes, as ADR-011
+§ 1 decided (#87, #120).
+
+**Before this,** both gates walked the paths given and left out folders by name,
+through one hand-kept skip list. Three things went wrong. A project's own build
+or vendored folder that was not on the list was scored, while a real package
+called `build` was not. A file named twice, or named and also inside a scanned
+folder, was scored twice (#87). Test fixtures, which are sample code in other
+languages, were scanned and made a project look like a TypeScript and Swift
+project (#120). Outside a git repo, `crap` and `cc-check --baseline` used the
+current folder as the project root.
+
+**Now:**
+
+- **Git is required.** Outside a git repo every command that looks for the
+  project's root stops with exit 2 and one line saying it looks at the files
+  git would commit: the gates, `comment-debt`, `qg status`, `qg setup`,
+  `qg-skills` without `--dest` and `qg-agent-docs` without `--root`.
+  `qg explain`, `qg-upstream` and `qg-references` read no project, so they run
+  anywhere.
+- **The files in scope are the files git would commit:** tracked files plus
+  untracked files that are not ignored. The project's own `.gitignore` replaces
+  the skip list. A tracked file inside an ignored folder is in scope, because
+  git commits it.
+- **Fixture folders are excluded by default.** Every outermost folder named
+  `fixtures`, `fixture`, `__fixtures__` or `testdata`, in any case, so
+  Xcode's `Fixtures` too, is excluded. Setup writes
+  that default into `quality-gates.json`, where the project can see and change
+  it; once the file exists, its `exclude` list is the one that applies. A path
+  given on the command line that is itself inside an excluded folder is still
+  scanned, so `crap tests/fixtures/sample` works.
+- **Each file is listed once,** by its real path. The first spelling the walk
+  meets is the one shown.
+- **The symlink rule stands,** restated below for the new filter. A file
+  outside the repo that a symlinked folder reaches is still scanned.
+
+**Consequence.** On bumping the pin, a file that was scored twice or a fixture
+folder that was scanned shows as PAID: lower the baseline with `--update`. A
+build or vendored folder that git would commit is now scored: add it to
+`.gitignore`, or to `exclude` in `quality-gates.json`.
+
+### Rejected
+
+- **Keeping the skip list beside `.gitignore`.** Two lists of what to leave out
+  would disagree, and the project already keeps one.
+- **Excluding fixtures from detection only.** The gates would still score them,
+  so the baselines would keep fixture debt no one will pay (#120).
+- **Falling back to the current folder outside git.** A gate run from a
+  subfolder would key its baseline differently from CI.
+
+## Current rule, restated 2026-11-01: the files in scope
+
+Amends: [Current rule, restated 2026-10-12: the skip list](#current-rule-restated-2026-10-12-the-skip-list), [Addendum 2026-11-01: the files git would commit (v0.13.0)](#addendum-2026-11-01-the-files-git-would-commit-v0130)
+
+<!-- rule:files-in-scope -->
+**The files in scope** are the files git would commit: tracked files plus
+untracked files that the project's `.gitignore` does not ignore. Both gates and
+language detection use them; outside a git repo, every command that looks for
+the project's root stops with exit 2 and one line saying so. The paths given on the command line narrow the set,
+and `exclude` in `quality-gates.json` applies on top: each entry names a
+folder or file by its path from the repo root, such as `tests/fixtures/`, and
+matches whole path segments, so `build` leaves out the folder or file `build`
+and never `buildscripts/` or `build_utils.py`. A trailing `/` changes nothing.
+
+Without a choice file, every outermost folder named `fixtures`, `fixture`,
+`__fixtures__` or `testdata` is excluded, whatever its case, so `Fixtures`
+too, and setup writes that default into the file. A path given on the command
+line that is itself inside an excluded prefix is scanned, so a fixture can
+still be scored on purpose. A path given on the command line that git ignores
+is not scored either; the gate names it in one line on stderr, so a JSON
+report stays valid.
+
+Each file is listed once, by its real path, so a file named twice, or named and
+also inside a scanned folder, is scored once. The *Skipped N folder(s)* line
+names only folders marked `(already scanned)`.
+<!-- /rule:files-in-scope -->
+
+## Current rule, restated 2026-11-01: symlinked folders
+
+Amends: [Current rule, restated 2026-10-12: symlinked folders](#current-rule-restated-2026-10-12-symlinked-folders), [Addendum 2026-11-01: the files git would commit (v0.13.0)](#addendum-2026-11-01-the-files-git-would-commit-v0130)
+
+<!-- rule:symlinked-folders -->
+**The rule.** The walk follows a symlinked folder that git would commit (a
+link is committed as a link), and never walks the same real folder twice in one
+scan:
+
+- **Once each, across the whole scan.** A folder's identity, its device and
+  inode, is recorded when the walk enters it, including each scanned path
+  itself. Path text cannot tell folders apart: on a case-insensitive volume
+  `shared/Shop` and `shared/shop` are one folder under two spellings. A folder
+  whose identity was already entered is not walked again, which covers a link to
+  an ancestor (a loop), two links to one folder, a link beside the real folder,
+  and a folder reached from two scanned paths. The second visit is named on the
+  *Skipped N folder(s)* line, marked `src/Shop (already scanned)`: the folder's
+  files were scanned once, through the first visit.
+- **Which visit wins is fixed.** Among the folders under one parent, real
+  folders are entered before links, then by name; the walk is depth first in
+  that order. The first visit is scanned, so the same arguments on the same
+  checkout always yield the same file names. Scanned paths are entered in the
+  order given, so a different argument order can change which spelling a file
+  shows on screen; its baseline key does not change.
+- **File names on screen keep the link path as scanned.** A file reached through
+  a link is reported as `Sources/Shop/Shop.swift`, not its real path, and the
+  coverage readers (which resolve both sides to a real path) still match it. The
+  baseline key is the file's real path.
+- **Inside the repo, git decides by location.** A file or folder reached through
+  a link is in scope when its location (the real folder it sits in, plus its own
+  name) is one git would commit and not excluded. A link the `.gitignore` lists is not followed. A link to a
+  folder that does not exist is ignored. A scanned path that is itself a link is
+  followed.
+- **Outside the repo, a linked folder is scanned in full.** Git cannot say what
+  it would commit there, so a link to `../shared/Shop` widens the scan to that
+  whole folder. Remove the link or exclude it to narrow it.
+- **Files are listed once too.** The same file named twice on the command line,
+  or once inside a folder that is also scanned, is listed once, under the first
+  spelling met.
+<!-- /rule:symlinked-folders -->

@@ -1,22 +1,33 @@
 import argparse
+import datetime
 import difflib
 import os
 import sys
 import urllib.error
 import urllib.request
 
-from quality_gates.manifest import BROKEN_EXIT, UPSTREAM_PATH, ManifestError, load_sources
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, UPSTREAM_PATH, BrokenFileError, load_components, load_sources
 
 RAW = "https://raw.githubusercontent.com/{repo}/{ref}/{path}"
 HEAD = "https://api.github.com/repos/{repo}/commits/HEAD"
 NOT_FOUND = 404
 SHORT_SHA = 7
+QUIET_AFTER_DAYS = 365
+DAYS_PER_MONTH = 30
 
 ADOPT = (
     "To adopt a change: carry it into the local file (verbatim copies are replaced, adapted ones "
     "are edited by hand, redoing each change `docs/upstream-adaptations.md` lists for them), set `commit` for that source in `src/quality_gates/upstream.json` to the "
     "new head, and release it through a PR. To decline it, move `commit` to the new head in a PR "
     "that says why, so the next run stops reporting it."
+)
+
+RENEW = (
+    "This check reads the `last_release` recorded in `components.json`; it does not ask the source. A source "
+    "listed here may have released since the record was written. To keep a source: look up its real newest "
+    "release on its repo or package index, confirm its licence and practice still hold, then set `last_release` "
+    "for it in `src/quality_gates/components.json` to that date. If it needs no releases, mark it stable "
+    "with the reason instead. To drop it, remove its parts and its admission."
 )
 
 
@@ -91,21 +102,55 @@ def report(sources, fetch):
     return sections
 
 
+def quiet_sources(admissions, today):
+    quiet = []
+    for admission in admissions:
+        if admission.last_release is None:
+            continue
+        age = (today - admission.last_release).days
+        if age > QUIET_AFTER_DAYS:
+            quiet.append((admission, age // DAYS_PER_MONTH))
+    return quiet
+
+
+def upkeep_section(admission, months):
+    return f"## {admission.name}: no release recorded since {admission.last_release.isoformat()} ({months} months)"
+
+
+def upkeep(components_path, today):
+    try:
+        quiet = quiet_sources(load_components(components_path).admissions, today)
+    except BrokenFileError as error:
+        print(f"qg-upstream: {error}", file=sys.stderr)
+        sys.exit(BROKEN_EXIT)
+    if not quiet:
+        print("No outside source has gone quiet.")
+        sys.exit(0)
+    print("\n\n".join([upkeep_section(a, months) for a, months in quiet] + [RENEW]))
+    sys.exit(1)
+
+
 def build_parser():
-    return argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         prog="qg-upstream",
         description="Report what changed upstream (Matt Pocock's skills, pstack) in the files this "
                     "repo copies or adapts, since the commits recorded in upstream.json. Exit 0: "
                     "nothing changed. Exit 1: changes, printed as Markdown. Exit 2: GitHub unreachable. "
                     "Exit 3: upstream.json is missing or malformed.",
     )
+    parser.add_argument("--upkeep", action="store_true",
+                        help="instead, report each outside source in components.json whose recorded last_release "
+                             "is over 12 months old and that is not marked stable (exit 1 when there is one)")
+    return parser
 
 
-def main(argv=None, record_path=UPSTREAM_PATH, fetch=github_fetch):
-    build_parser().parse_args(argv)
+def main(argv=None, record_path=UPSTREAM_PATH, fetch=github_fetch, components_path=COMPONENTS_PATH, today=None):
+    arguments = build_parser().parse_args(argv)
+    if arguments.upkeep:
+        upkeep(components_path, today or datetime.date.today())
     try:
         sources = load_sources(record_path)
-    except ManifestError as error:
+    except BrokenFileError as error:
         print(f"qg-upstream: {error}", file=sys.stderr)
         sys.exit(BROKEN_EXIT)
     try:

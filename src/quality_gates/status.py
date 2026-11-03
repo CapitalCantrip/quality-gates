@@ -5,8 +5,9 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from quality_gates import languages, project_files, skills_sync
-from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, ManifestError, load_components
+from quality_gates import project_files, skills_sync
+from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, BrokenFileError, load_components
 
 INSTALLED = "installed"
 MISSING = "missing"
@@ -15,12 +16,16 @@ UNKNOWN = "unknown"
 PARTLY = "partly installed"
 NOT_APPLICABLE = "not applicable"
 PROVIDED = "provided by quality-gates"
+DECLINED = "offered, declined"
+NOT_OFFERED = "not yet offered"
+FROM_CHOICE = "choice file"
+FROM_DETECTION = "detection"
+HAS_SOMETHING = (INSTALLED, PARTLY, DIFFERENT)
 
-DETECTED_BY_MARKER = tuple(language.name for language in languages.REGISTERED if language.markers)
-DETECTED_BY_FILE = ("python", "swift", "typescript")
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
+COPIED_TO_EVERY_PROJECT = "skill"
 PIN_VERDICTS = {
     True: "matches",
     False: "differs from the installed version",
@@ -51,6 +56,10 @@ class Project:
     @property
     def claude_dir(self):
         return project_files.claude_dir(self.root)
+
+
+def project_at(root, source, hooks):
+    return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)))
 
 
 def skill_status(project, part):
@@ -90,12 +99,8 @@ def file_status(project, part):
     return FILE_STATES[project_files.file_state(project.root, part.id)]
 
 
-def runs_command(text, command):
-    return re.search(rf"(?<![\w-]){re.escape(command)}(?![\w-])", text) is not None
-
-
 def step_status(texts, marker):
-    if any(text is not None and runs_command(text, marker) for text in texts):
+    if any(text is not None and project_files.runs_command(text, marker) for text in texts):
         return INSTALLED
     return UNKNOWN if None in texts else MISSING
 
@@ -135,32 +140,10 @@ def roll_up(statuses):
     return MISSING if found == {MISSING} else PARTLY
 
 
-def marker_languages(root):
-    return {name for name in DETECTED_BY_MARKER if any((root / marker).exists() for marker in languages.markers_of(name))}
-
-
-def used_languages(root):
-    found = marker_languages(root)
-    for directories, files in project_files.detection_walk(root):
-        if found >= set(DETECTED_BY_FILE):
-            break
-        found |= project_file_languages(directories, files)
-    return found
-
-
-def project_file_languages(directories, files):
-    named = {languages.language_of_file(f) for f in files} | {languages.language_of_folder(d) for d in directories}
-    return named & set(DETECTED_BY_FILE)
-
-
-def applies(languages_wanted, used):
-    return not languages_wanted or bool(set(languages_wanted) & used)
-
-
 def part_report(project, part, used):
     if part.kind in PROVIDED_BY_PACKAGE:
         found = PROVIDED
-    elif applies(part.languages, used):
+    elif part.applies_to(used):
         found = part_status(project, part)
     else:
         found = NOT_APPLICABLE
@@ -171,20 +154,70 @@ def counts_toward_status(part):
     return part["status"] not in (PROVIDED, NOT_APPLICABLE)
 
 
-def component_report(project, component, used):
+CHOICE_STATUSES = {project_files.DECLINED: DECLINED, project_files.CHOSEN: None, project_files.UNLISTED: NOT_OFFERED}
+
+
+def choice_status(component, choice):
+    if choice is None or component.core:
+        return None
+    return CHOICE_STATUSES[choice.recorded(component.id)]
+
+
+def component_status(component, rolled, choice):
+    if rolled == NOT_APPLICABLE:
+        return NOT_APPLICABLE
+    return choice_status(component, choice) or rolled
+
+
+def own_parts(parts):
+    counted = [p for p in parts if counts_toward_status(p)]
+    if all(p["kind"] == COPIED_TO_EVERY_PROJECT for p in parts):
+        return counted
+    return [p for p in counted if p["kind"] != COPIED_TO_EVERY_PROJECT]
+
+
+def is_present(parts):
+    return roll_up([p["status"] for p in own_parts(parts)]) in HAS_SOMETHING
+
+
+def wants_attention(component, choice, parts):
+    chosen = choice is not None and choice.recorded(component.id) == project_files.CHOSEN
+    return component.core or chosen or is_present(parts)
+
+
+def needs_attention(component, parts, choice, rolled):
+    if rolled == NOT_APPLICABLE or not wants_attention(component, choice, parts):
+        return []
+    return [f"{p['kind']} {p['id']}: {p['status']}" for p in parts if counts_toward_status(p) and p["status"] != INSTALLED]
+
+
+def installed_state(component, parts, used):
+    if not component.applies_to(used):
+        return NOT_APPLICABLE
+    return roll_up([p["status"] for p in parts if counts_toward_status(p)])
+
+
+def component_report(project, component, used, choice=None):
     wanted = list(component.languages)
     parts = [part_report(project, p, used) for p in component.parts]
-    applicable = applies(wanted, used)
+    rolled = installed_state(component, parts, used)
     return {
         "id": component.id,
         "name": component.name,
         "core": component.core,
-        "status": roll_up([p["status"] for p in parts if counts_toward_status(p)]) if applicable else NOT_APPLICABLE,
+        "status": component_status(component, rolled, choice),
+        "install_status": rolled,
         "description": component.description,
         "origin": component.origin.as_dict(),
         "languages": wanted,
         "parts": parts,
+        "needs_attention": needs_attention(component, parts, choice, rolled),
     }
+
+
+def components_present(project, manifest, used):
+    return {component.id for component in manifest.components
+            if component.applies_to(used) and is_present([part_report(project, p, used) for p in component.parts])}
 
 
 def read_pin(project):
@@ -201,15 +234,25 @@ def pin_matches(pin, installed):
     return pin.lstrip("v") == installed
 
 
-def build_report(project, manifest):
-    used = used_languages(project.root)
+def recorded_languages(detected, choice):
+    if choice is None:
+        return sorted(detected), FROM_DETECTION, {}
+    unrecorded = {language: files for language, files in detected.items() if language not in choice.languages}
+    return list(choice.languages), FROM_CHOICE, unrecorded
+
+
+def build_report(project, manifest, choice=None):
+    used, used_from, unrecorded = recorded_languages(project_files.detected_languages(project.root), choice)
     pin, installed = read_pin(project), skills_sync.installed_version()
     return {
         "format_version": manifest.format_version,
         "installed_version": installed,
         "pin": pin,
         "pin_matches": pin_matches(pin, installed),
-        "components": [component_report(project, c, used) for c in manifest.components],
+        "languages": used,
+        "languages_from": used_from,
+        "unrecorded_languages": unrecorded,
+        "components": [component_report(project, c, set(used), choice) for c in manifest.components],
     }
 
 
@@ -224,11 +267,25 @@ def pin_line(report):
     return f"Pin: {report['pin']}. Installed quality-gates: {installed} ({PIN_VERDICTS[report['pin_matches']]})."
 
 
+def unrecorded_lines(report):
+    found = report["unrecorded_languages"]
+    if not found:
+        return []
+    named = "; ".join(f"{language} ({project_files.files_named(files)})" for language, files in sorted(found.items()))
+    return ["", f"Code in a language {project_files.CHOICE_FILE} does not record: {named}.",
+            "Run `qg setup` to record it, or exclude those files in the choice file."]
+
+
+def status_text(item):
+    if item["status"] in (DECLINED, NOT_OFFERED) and item["install_status"] != MISSING:
+        return f"{item['status']} ({item['install_status']})"
+    return item["status"]
+
+
 def component_lines(item):
-    lines = [f"  {item['id']:<24} {item['status']:<18} {origin_text(item['origin'])}", f"    {item['description']}"]
-    needs = [f"{p['kind']} {p['id']}: {p['status']}" for p in item["parts"] if counts_toward_status(p) and p["status"] != INSTALLED]
-    if is_applicable(item) and needs:
-        lines.append("    Needs attention: " + "; ".join(needs))
+    lines = [f"  {item['id']:<24} {status_text(item):<18} {origin_text(item['origin'])}", f"    {item['description']}"]
+    if item["needs_attention"]:
+        lines.append("    Needs attention: " + "; ".join(item["needs_attention"]))
     return lines
 
 
@@ -253,13 +310,13 @@ def grouped(items):
 
 
 def nothing_installed(items):
-    applicable = where(items, is_applicable)
+    applicable = where(items, lambda i: i["status"] not in (NOT_APPLICABLE, DECLINED, NOT_OFFERED))
     return bool(applicable) and all(i["status"] == MISSING for i in applicable)
 
 
 def render_table(report):
     core, optional, inapplicable = grouped(report["components"])
-    lines = [pin_line(report)]
+    lines = [pin_line(report)] + unrecorded_lines(report)
     lines += section("Core components (every project has these)", core)
     lines += section("Optional components", optional)
     lines += section("Not applicable to this project", inapplicable)
@@ -279,10 +336,20 @@ def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.H
     args = build_parser().parse_args(argv)
     try:
         manifest = manifest or load_components(components_path)
-    except ManifestError as error:
+    except BrokenFileError as error:
         print(f"qg status: {error}", file=sys.stderr)
         return BROKEN_EXIT
-    project = Project(project_files.current_folder() if root is None else root, source, hooks, frozenset(skills_sync.skill_names(source)))
-    report = build_report(project, manifest)
+    try:
+        root = project_files.git_root() if root is None else root
+    except ToolError as error:
+        print(f"qg status: {error}", file=sys.stderr)
+        return TOOL_ERROR_EXIT
+    try:
+        choice = project_files.read_choice(root)
+    except BrokenFileError as error:
+        print(f"qg status: {error}", file=sys.stderr)
+        return BROKEN_EXIT
+    project = project_at(root, source, hooks)
+    report = build_report(project, manifest, choice)
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0

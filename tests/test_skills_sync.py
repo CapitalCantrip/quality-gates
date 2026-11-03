@@ -1,5 +1,7 @@
 import contextlib
 import io
+import os
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -7,7 +9,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import manifest, skills_sync
+from quality_gates import manifest, project_files, skills_sync
 
 
 def run(argv, source, hooks):
@@ -131,6 +133,27 @@ class SkillsSync(unittest.TestCase):
         code, out = self.sync()
         self.assertEqual(code, 2)
         self.assertIn("settings.json is not valid JSON", out)
+
+    def in_folder(self, folder):
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(folder)
+
+    def test_outside_a_git_repo_without_dest_it_exits_2_with_one_line_and_copies_nothing(self):
+        self.in_folder(self.repo)
+        for argv in ([], ["--check"]):
+            code, out = run(argv, self.source, self.hooks)
+            self.assertEqual((code, out), (2, f"qg-skills: {project_files.NOT_A_GIT_REPO}\n"))
+        self.assertFalse((self.repo / ".claude").exists())
+
+    def test_from_a_subfolder_without_dest_it_copies_into_the_top_of_the_git_repo(self):
+        subprocess.run(["git", "init", "-q", str(self.repo)], check=True)
+        (self.repo / "src").mkdir()
+        self.in_folder(self.repo / "src")
+        code, _ = run([], self.source, self.hooks)
+        self.assertEqual(code, 0)
+        self.assertTrue((self.repo / ".claude" / "skills" / "crap" / "SKILL.md").is_file())
+        self.assertFalse((self.repo / "src" / ".claude").exists())
 
     def test_the_package_ships_every_skill_the_plugin_lists(self):
         names = skills_sync.skill_names(skills_sync.SHIPPED)

@@ -113,7 +113,7 @@ def parse_args(argv):
 
 def gate(argv, root):
     args = parse_args(argv)
-    found = complexity_scan.scan(args.paths, args.lang)
+    found = complexity_scan.scan(args.paths, args.lang, root=root)
     if not found.files:
         complexity_scan.print_skipped(found.skipped, sys.stderr)
         print(LANGUAGES[args.lang], file=sys.stderr)
@@ -124,7 +124,7 @@ def gate(argv, root):
     complexity_scan.print_skipped(found.skipped, out)
     if args.baseline is None:
         return code
-    current = over_threshold(results, root or project_files.git_root_or_current_folder())
+    current = over_threshold(results, project_files.root_for(args.paths, root))
     return ratchet.enforce(current, Path(args.baseline), args.update, out)
 
 

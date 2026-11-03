@@ -1,5 +1,125 @@
 # Changelog
 
+## Unreleased (0.13.0)
+
+- **Admission records (#114, ADR-010).** `components.json` is now
+  `format_version` 2. A new top-level `admissions` list records each outside
+  source once: radon, lizard, `mattpocock/skills`, `cursor/plugins`, and the
+  test-only ruff, ESLint and SwiftLint. Each has a name, a kind (`upstream`,
+  `dependency` or `test-only`), a licence, one sentence on the author's
+  practice, and either a last release date or a `stable` reason; radon and
+  lizard also keep the minimum version and the version CI tested. Loading
+  fails, on every run, when a record lacks a field, when an upstream is not
+  MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause or ISC, when a dependency's
+  licence is not OSI-approved, when an `origin` or `adapts` entry names a
+  source with no admission, or when a source in `upstream.json` has none.
+- **Quiet sources are flagged (#114).** `qg-upstream --upkeep` reports any
+  source whose recorded `last_release` is over 12 months old and that is not
+  marked stable, and the monthly `upstream` workflow opens or updates one issue
+  for them. It reads the recorded date and never asks the source, so renewing
+  means looking up the real newest release and updating `last_release`.
+- **If you read `components.json`:** accept `format_version` 2 and read
+  `admissions` and each component's optional `explainer` (README § The component
+  manifest). A dependency part's `origin` no longer carries `version`: take it
+  from its admission's `minimum_version`, as `>=` that version. Read through
+  quality-gates, the origin still has `version`, so `qg status` prints the same
+  origins.
+- **If you read `qg status --json`:** `format_version` is 2; the report adds
+  `languages`, `languages_from` and `unrecorded_languages`; a component's
+  `status` may now be `offered, declined` or `not yet offered` (below); and
+  each component adds `install_status`, what is installed whatever the choice,
+  and `needs_attention`, the part lines the table prints.
+- **`qg explain <name>` prints a component's explainer (#139, ADR-007).**
+  `qg explain crap` prints the plain-words page for the `crap` gate from the
+  installed package, offline (README § Explainers). A component names its
+  explainer in `components.json`. Exit 0 when it printed one; 1 for a name that
+  is not a component, or a component with no explainer yet; 2 for a usage error;
+  3 when the manifest or the explainer cannot be read. Nothing to do beyond the
+  pin bump steps below.
+- **The choice file (#137, ADR-007, ADR-010).** A committed
+  `quality-gates.json` at the project root records the languages, the chosen
+  and declined components, the excluded paths, the commit time limit
+  (2 seconds) and the comment gate's `exclude` and `conventions`
+  (README § The choice file). The new `qg setup` proposes them in one table
+  (component, description, cost) and writes the file on `--go`, and nothing
+  else. It refuses to switch off the core or a gate the project has, or to
+  remove a language that still has code, until recorded reasons ship (#115).
+  Without a choice file, `--go` records what is installed as chosen; a gate
+  whose only part present is the skill `qg-skills` copied does not count as
+  installed, so it is offered and can be declined freely. Every
+  other component that applies and that the file does not list is offered,
+  whatever is installed, such as one whose skill `qg-skills` copied: an offer
+  is recorded only when `--choose` or `--decline` names it, and setup names
+  the offers not yet answered. With nothing to record and no offer open, it
+  says the file is up to date. A recorded choice or decline is kept
+  while its component does not apply. One id given to both `--choose` and
+  `--decline` exits 3.
+  It copies `--exclude` prefixes from the `comment-debt` commands of the hook
+  and CI into the file and leaves the flags; a command chained to it with
+  `&&`, `||`, `|` or `;` keeps its own flags, and a `\` continuation line
+  counts. A language name it does not know,
+  given to `--add-language` or `--remove-language` or written in the file,
+  exits 3 with one line listing the names it knows. Test folders count toward
+  the proposed languages; fixture folders do not (ADR-007 addendum
+  2026-11-01).
+- **`qg status` reads the choice file.** Languages come from the file, with a
+  warning naming the files in any language it does not record; without the
+  file, from detection. A component the file declines shows *offered,
+  declined*, and one it does not list shows *not yet offered*; either has
+  what is installed beside it when anything is, such as *offered, declined
+  (partly installed)*. *Needs attention* shows for the core, a chosen component or one with
+  some part installed, never for a declined or offered one with nothing
+  installed. `--json` adds `languages`, `languages_from` and
+  `unrecorded_languages`, and each component's `install_status` and
+  `needs_attention`. A malformed choice file exits 3.
+- **Shell and Rust are detected from files** (#137, ADR-010): `.sh`, `.bash`,
+  `.zsh` and a shell first line such as `#!/bin/sh`, and `.rs`. Detection
+  leaves out the skills, hooks and pre-commit hook quality-gates keeps.
+- **The gates look at the files git would commit (#87, #120, ADR-011,
+  ADR-001 addendum 2026-11-01).** Tracked files plus untracked files the
+  `.gitignore` does not ignore; the skip list is gone. Each file is scored
+  once, even when named twice or reached through a link. Fixture folders
+  (`fixtures`, `fixture`, `__fixtures__`, `testdata`, in any case) are excluded by default,
+  and setup writes that default into the choice file. Outside a git repo every
+  command that looks for the project's root exits 2 with one line saying so,
+  instead of using the current folder: the gates, `comment-debt`, `qg status`,
+  `qg setup`, `qg-agent-docs` without `--root`, and `qg-skills` without
+  `--dest`, which now writes `.claude/skills` at the top of the git repo even
+  when run from a subfolder. `qg explain`, `qg-upstream` and `qg-references`
+  read no project and run anywhere. A malformed `quality-gates.json` stops the
+  gates with exit 2 and one line naming the problem. The gates take the repo
+  from the first path given, so scanning another repo's folder follows that
+  repo's `.gitignore` and `quality-gates.json`, and `--baseline` keys are
+  written relative to that repo too. A path named on the command
+  line that git ignores is not scored, and the gate names it in one line on
+  stderr; `--json` output stays valid and exit codes are unchanged.
+- **`exclude` entries match whole path segments.** `build` leaves out the
+  folder or file `build`, never `buildscripts/` or `build_utils.py`; a
+  trailing `/` changes nothing. Each entry is a path from the repo root: one
+  starting with `/`, `./` or `../`, or with an empty, `.` or `..` segment,
+  makes `quality-gates.json` malformed (exit 2 from the gates, 3 from
+  `qg setup`). Root marker files such as `package.json` go
+  through the same scope, so an excluded or git-ignored one adds no language.
+  `comment-debt --exclude` keeps matching plain prefixes.
+- **The `qg` entry point moved** from `quality_gates.status:main` to
+  `quality_gates.qg:main` (sprint 1, ADR-011).
+- **Manifests are validated on load** (sprint 1, ADR-011): a malformed
+  `components.json` or `upstream.json` stops `qg status` and `qg-upstream`
+  with one plain line and a non-zero exit, never a traceback.
+- **When you bump the pin:**
+  1. Reinstall the commands with `uv tool install --force` and the new install
+     line, so `qg` points at its new entry point.
+  2. Run `/setup-standards`. Its new step shows the table; say "go" and it
+     writes `quality-gates.json` from what is installed. Commit it. From
+     this release on, a component a release adds stays off after the bump,
+     even when `qg-skills` copied its skill: `/setup-standards` offers it,
+     and "go" or a decline records your answer.
+  3. Run the gates. A file that was scored twice or a fixture folder that was
+     scanned now shows `PAID`: lower the baseline with `--update` and commit
+     it. A build or vendored folder that git would commit is now scored: add
+     it to `.gitignore` or to `exclude` in `quality-gates.json`.
+  4. Run the gates inside the git repo; outside one they stop with exit 2.
+
 ## 0.12.0 — 2026-10-25
 
 No threshold or scanned file changes. `crap` now grades a function with no
