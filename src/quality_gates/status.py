@@ -171,7 +171,9 @@ def component_status(component, rolled, choice):
 
 def own_parts(parts):
     counted = [p for p in parts if counts_toward_status(p)]
-    return [p for p in counted if p["kind"] != COPIED_TO_EVERY_PROJECT] or counted
+    if all(p["kind"] == COPIED_TO_EVERY_PROJECT for p in parts):
+        return counted
+    return [p for p in counted if p["kind"] != COPIED_TO_EVERY_PROJECT]
 
 
 def is_present(parts):
