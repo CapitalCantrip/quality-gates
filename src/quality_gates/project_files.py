@@ -483,10 +483,28 @@ def root_for(paths, root=None):
     return root_of_scanned(Path(paths[0])) if root is None else root
 
 
+def spelled_on_disk(folder, name):
+    if name in (os.curdir, os.pardir):
+        return name
+    entries = os.listdir(folder)
+    if name in entries:
+        return name
+    return next((entry for entry in entries if entry.lower() == name.lower()
+                 and os.path.samefile(os.path.join(folder, entry), os.path.join(folder, name))), name)
+
+
+def on_disk_case(path):
+    fixed = Path(path.anchor) if path.is_absolute() else Path()
+    for name in path.parts[1 if path.is_absolute() else 0:]:
+        fixed = fixed / spelled_on_disk(str(fixed), name)
+    return fixed
+
+
 def files_in_scope(paths: list, root=None) -> tuple:
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
+    paths = [on_disk_case(Path(path)) for path in paths]
     scope = scope_of(root_for(paths, root))
     files, skipped, seen = [], set(), set()
     for path in paths:

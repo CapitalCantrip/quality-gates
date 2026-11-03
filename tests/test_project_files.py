@@ -580,5 +580,44 @@ class OneRootFinder(unittest.TestCase):
         self.assertFalse(hasattr(pf, "current_folder"))
 
 
+def case_insensitive(folder):
+    probe = Path(folder) / "probe"
+    probe.write_text("", encoding="utf-8")
+    try:
+        return (Path(folder) / "PROBE").exists()
+    finally:
+        probe.unlink()
+
+
+class TypedCase(unittest.TestCase):
+    def setUp(self):
+        self.root = git_repo(tempfile.mkdtemp())
+        (self.root / "src").mkdir()
+        (self.root / "src" / "a.py").write_text("x = 1\n", encoding="utf-8")
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(self.root)
+
+    def test_a_path_typed_in_another_case_is_spelled_as_the_folder_lists_it(self):
+        real_listdir = os.listdir
+        listing = lambda folder: ["src"] if os.path.realpath(folder) == str(self.root) else real_listdir(folder)
+        with mock.patch.object(pf.os, "listdir", side_effect=listing), \
+                mock.patch.object(pf.os.path, "samefile", return_value=True):
+            self.assertEqual(pf.on_disk_case(Path("SRC")), Path("src"))
+            self.assertEqual(pf.on_disk_case(self.root / "SRC" / "a.py"), self.root / "src" / "a.py")
+
+    def test_a_path_typed_in_its_own_case_is_unchanged(self):
+        self.assertEqual(pf.on_disk_case(Path("src/a.py")), Path("src/a.py"))
+        self.assertEqual(pf.on_disk_case(Path(".")), Path("."))
+
+    @unittest.skipUnless(case_insensitive(tempfile.gettempdir()), "needs a case-insensitive filesystem, as on macOS")
+    def test_on_a_case_insensitive_filesystem_a_path_typed_in_another_case_is_scanned_not_called_ignored(self):
+        err = io.StringIO()
+        with contextlib.redirect_stderr(err):
+            files, _ = pf.files_in_scope(["SRC"])
+        self.assertEqual([f.as_posix() for f in files], ["src/a.py"])
+        self.assertNotIn("git ignores it", err.getvalue())
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -94,7 +94,9 @@
   scanned path in no repo, `node_modules`, `.venv`, `build`, `.git` and the
   other dependency and build folders are still never walked. A path named on the command
   line that git ignores is not scored, and the gate names it in one line on
-  stderr; `--json` output stays valid and exit codes are unchanged.
+  stderr; `--json` output stays valid and exit codes are unchanged. On a
+  case-insensitive filesystem, as on macOS, a path typed in another case, such
+  as `SRC` for `src`, is scanned under the spelling on disk.
 - **`exclude` entries match whole path segments.** `build` leaves out the
   folder or file `build`, never `buildscripts/` or `build_utils.py`; a
   trailing `/` changes nothing. Each entry is a path from the repo root: one
