@@ -1551,8 +1551,13 @@ is not scored either; the gate names it in one line on stderr, so a JSON
 report stays valid.
 
 Each file is listed once, by its real path, so a file named twice, or named and
-also inside a scanned folder, is scored once. The *Skipped N folder(s)* line
-names only folders marked `(already scanned)`.
+also inside a scanned folder, is scored once.
+
+A git submodule is its own repo: the superproject's git lists only the
+submodule's folder, so a scan from the superproject scores none of its files.
+The *Skipped N folder(s)* line names it, marked `libs/core (a submodule: scan
+it from inside)`; scan a path inside it to score it by its own git. Besides
+submodules, that line names only folders marked `(already scanned)`.
 <!-- /rule:files-in-scope -->
 
 ## Current rule, restated 2026-11-01: symlinked folders
@@ -1588,9 +1593,13 @@ scan:
   name) is one git would commit and not excluded. A link the `.gitignore` lists is not followed. A link to a
   folder that does not exist is ignored. A scanned path that is itself a link is
   followed.
-- **Outside the repo, a linked folder is scanned in full.** Git cannot say what
-  it would commit there, so a link to `../shared/Shop` widens the scan to that
-  whole folder. Remove the link or exclude it to narrow it.
+- **Outside the repo, a linked folder is scanned in full, less dependency and
+  build folders.** Git cannot say what it would commit there, so a link to
+  `../shared/Shop`, or a scanned path in no repo, widens the scan to that whole
+  folder, except folders named `.git`, `.venv`, `venv`, `.direnv`,
+  `node_modules`, `__pycache__`, `backups`, `build`, `.build`, `dist`, `.tox`,
+  `.mypy_cache`, `.pytest_cache` or `.worktrees`, which are never walked there.
+  Remove the link or exclude it to narrow it further.
 - **Files are listed once too.** The same file named twice on the command line,
   or once inside a folder that is also scanned, is listed once, under the first
   spelling met.

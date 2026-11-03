@@ -33,6 +33,11 @@ NOT_A_GIT_REPO = (
     "project's repository, or run `git init` there first"
 )
 ALREADY_SCANNED = " (already scanned)"
+A_SUBMODULE = " (a submodule: scan it from inside)"
+FOLDERS_SKIPPED_OUTSIDE_THE_REPO = frozenset({
+    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
+    ".tox", ".mypy_cache", ".pytest_cache", ".worktrees",
+})
 IGNORED_NOTE = "Skipped {}: git ignores it, and quality-gates scores only the files git would commit"
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 WORKFLOWS = Path(".github") / "workflows"
@@ -328,7 +333,13 @@ class Scope:
         return location in names and not excluded_by(location, self.excluded)
 
     def keeps_folder(self, real_here, name):
-        return self.keeps(self.location(real_here, name), self.walkable)
+        location = self.location(real_here, name)
+        if is_outside(location):
+            return name not in FOLDERS_SKIPPED_OUTSIDE_THE_REPO
+        return self.keeps(location, self.walkable)
+
+    def is_submodule(self, real_here, name):
+        return self.location(real_here, name) in self.listed
 
     def keeps_file(self, real_here, name):
         return self.keeps(self.location(real_here, name), self.listed)
@@ -431,10 +442,12 @@ def detected_languages(root, scope=None):
 
 def _subfolders(here: Path, real_here: str, dirnames: list, seen: set, scope: Scope) -> tuple:
     kept, skipped = [], []
-    for _, name, identity in sorted(_entry(here, name) for name in dirnames):
+    for is_link, name, identity in sorted(_entry(here, name) for name in dirnames):
         if not scope.keeps_folder(real_here, name):
             continue
-        if _first_visit(identity, seen):
+        if not is_link and scope.is_submodule(real_here, name):
+            skipped.append(os.path.relpath(here / name) + A_SUBMODULE)
+        elif _first_visit(identity, seen):
             kept.append(name)
         else:
             skipped.append(os.path.relpath(here / name) + ALREADY_SCANNED)
@@ -476,10 +489,28 @@ def root_for(paths, root=None):
     return root_of_scanned(Path(paths[0])) if root is None else root
 
 
+def spelled_on_disk(folder, name):
+    if name in (os.curdir, os.pardir):
+        return name
+    entries = os.listdir(folder)
+    if name in entries:
+        return name
+    return next((entry for entry in entries if entry.lower() == name.lower()
+                 and os.path.samefile(os.path.join(folder, entry), os.path.join(folder, name))), name)
+
+
+def on_disk_case(path):
+    fixed = Path(path.anchor) if path.is_absolute() else Path()
+    for name in path.parts[1 if path.is_absolute() else 0:]:
+        fixed = fixed / spelled_on_disk(str(fixed), name)
+    return fixed
+
+
 def files_in_scope(paths: list, root=None) -> tuple:
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
+    paths = [on_disk_case(Path(path)) for path in paths]
     scope = scope_of(root_for(paths, root))
     files, skipped, seen = [], set(), set()
     for path in paths:

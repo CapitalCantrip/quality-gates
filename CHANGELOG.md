@@ -90,9 +90,17 @@
   gates with exit 2 and one line naming the problem. The gates take the repo
   from the first path given, so scanning another repo's folder follows that
   repo's `.gitignore` and `quality-gates.json`, and `--baseline` keys are
-  written relative to that repo too. A path named on the command
+  written relative to that repo too. Outside the repo, through a link or a
+  scanned path in no repo, `node_modules`, `.venv`, `build`, `.git` and the
+  other dependency and build folders are still never walked. A path named on the command
   line that git ignores is not scored, and the gate names it in one line on
-  stderr; `--json` output stays valid and exit codes are unchanged.
+  stderr; `--json` output stays valid and exit codes are unchanged. On a
+  case-insensitive filesystem, as on macOS, a path typed in another case, such
+  as `SRC` for `src`, is scanned under the spelling on disk. A git submodule
+  is scanned from inside it, by its own git: a scan from the superproject
+  scores none of its files and names it on the *Skipped* line, marked
+  `(a submodule: scan it from inside)`. Before this release its files were
+  scored with the superproject's.
 - **`exclude` entries match whole path segments.** `build` leaves out the
   folder or file `build`, never `buildscripts/` or `build_utils.py`; a
   trailing `/` changes nothing. Each entry is a path from the repo root: one
