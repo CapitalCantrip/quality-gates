@@ -124,7 +124,7 @@ def gate(argv, root):
     complexity_scan.print_skipped(found.skipped, out)
     if args.baseline is None:
         return code
-    current = over_threshold(results, root or project_files.git_root())
+    current = over_threshold(results, project_files.root_for(args.paths, root))
     return ratchet.enforce(current, Path(args.baseline), args.update, out)
 
 

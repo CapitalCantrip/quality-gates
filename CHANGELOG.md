@@ -89,7 +89,8 @@
   read no project and run anywhere. A malformed `quality-gates.json` stops the
   gates with exit 2 and one line naming the problem. The gates take the repo
   from the first path given, so scanning another repo's folder follows that
-  repo's `.gitignore` and `quality-gates.json`. A path named on the command
+  repo's `.gitignore` and `quality-gates.json`, and `--baseline` keys are
+  written relative to that repo too. A path named on the command
   line that git ignores is not scored, and the gate names it in one line on
   stderr; `--json` output stays valid and exit codes are unchanged.
 - **`exclude` entries match whole path segments.** `build` leaves out the

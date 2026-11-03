@@ -472,11 +472,15 @@ def root_of_scanned(path):
         return git_root()
 
 
+def root_for(paths, root=None):
+    return root_of_scanned(Path(paths[0])) if root is None else root
+
+
 def files_in_scope(paths: list, root=None) -> tuple:
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
-    scope = scope_of(root_of_scanned(Path(paths[0])) if root is None else root)
+    scope = scope_of(root_for(paths, root))
     files, skipped, seen = [], set(), set()
     for path in paths:
         if scope.ignores(path):
