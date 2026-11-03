@@ -472,11 +472,15 @@ def root_of_scanned(path):
         return git_root()
 
 
+def root_for(paths, root=None):
+    return root_of_scanned(Path(paths[0])) if root is None else root
+
+
 def files_in_scope(paths: list, root=None) -> tuple:
     for path in paths:
         if not Path(path).exists():
             raise ToolError(f"path not found: {path}")
-    scope = scope_of(root_of_scanned(Path(paths[0])) if root is None else root)
+    scope = scope_of(root_for(paths, root))
     files, skipped, seen = [], set(), set()
     for path in paths:
         if scope.ignores(path):
@@ -606,13 +610,26 @@ def comment_gate_settings(settings, where):
     return text_list(gate, "exclude", where), conventions
 
 
+def is_from_root(entry):
+    segments = entry.rstrip("/").split("/")
+    return not entry.startswith("/") and not any(segment in ("", os.curdir, os.pardir) for segment in segments)
+
+
+def exclude_entries(data, where):
+    entries = text_list(data, "exclude", where)
+    for entry in entries:
+        fail_unless(is_from_root(entry), f"{where}: exclude entry '{entry}' must be a path from the repo root, "
+                                         f"such as 'tests/fixtures/', with no '/', './' or '../' in front")
+    return entries
+
+
 def choice_from(data, where=CHOICE_FILE):
     require(data, CHOICE_REQUIRED, where)
     check_version(data, where)
     chosen, declined = components_of(data["components"], where)
     comment_gate_exclude, conventions = comment_gate_settings(data["settings"], where)
     return Choice(known_languages(text_list(data, "languages", where), where), chosen, declined,
-                  text_list(data, "exclude", where), check_limit(data["commit_time_limit_seconds"], where),
+                  exclude_entries(data, where), check_limit(data["commit_time_limit_seconds"], where),
                   comment_gate_exclude, conventions)
 
 

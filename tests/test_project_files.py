@@ -475,6 +475,17 @@ class ChoiceFile(unittest.TestCase):
         self.assertEqual(sorted(pf.RECOGNISED_CONVENTIONS), sorted(recorded_convention_ids()))
         self.assertIn("rust-safety", pf.RECOGNISED_CONVENTIONS)
 
+    def test_an_exclude_entry_not_written_from_the_repo_root_is_refused_by_name(self):
+        for entry in ("./tests/fixtures/", "/tests/fixtures", "../shared", "tests/../gen", "tests//fixtures", "", "/"):
+            with self.subTest(entry=entry):
+                found = self.broken(self.valid(exclude=[entry]))
+                self.assertIn(f"exclude entry '{entry}'", found)
+                self.assertIn("from the repo root", found)
+
+    def test_an_exclude_entry_from_the_repo_root_is_read_with_or_without_its_trailing_slash(self):
+        self.write(self.valid(exclude=["tests/fixtures/", "gen", "a/b.py"]))
+        self.assertEqual(pf.read_choice(self.root).exclude, ("tests/fixtures/", "gen", "a/b.py"))
+
     def test_a_missing_field_is_named(self):
         data = self.valid()
         del data["languages"]

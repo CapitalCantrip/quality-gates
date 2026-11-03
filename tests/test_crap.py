@@ -586,6 +586,27 @@ class ScannedRepoTest(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual([Path(f["file"]).name for f in json.loads(out)["functions"]], ["mod.py"])
 
+    def test_a_baseline_written_while_scanning_another_repo_is_keyed_to_the_scanned_repo(self):
+        before = os.getcwd()
+        self.addCleanup(os.chdir, before)
+        repo = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        module = repo / "src" / "mod.py"
+        module.parent.mkdir()
+        module.write_text("def f(x):\n    if x:\n        return 1\n    if x > 2:\n        return 3\n    return 2\n")
+        coverage = repo / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(module): {"executed_lines": [], "missing_lines": [1, 2, 3, 4, 5, 6]}}}))
+        future = module.stat().st_mtime + 10
+        os.utime(coverage, (future, future))
+        baseline = repo / "crap.json"
+        other = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        os.chdir(other)
+        code, out, err = call(["--lang", "python", str(repo / "src"), "--coverage-json", str(coverage),
+                               "--baseline", str(baseline), "--update"])
+        self.assertEqual(code, 0, out + err)
+        self.assertEqual(list(json.loads(baseline.read_text())), ["src/mod.py::f"])
+
 
 if __name__ == "__main__":
     unittest.main()

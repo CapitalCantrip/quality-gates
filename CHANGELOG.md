@@ -44,7 +44,9 @@
   (component, description, cost) and writes the file on `--go`, and nothing
   else. It refuses to switch off the core or a gate the project has, or to
   remove a language that still has code, until recorded reasons ship (#115).
-  Without a choice file, `--go` records what is installed as chosen. Every
+  Without a choice file, `--go` records what is installed as chosen; a gate
+  whose only part present is the skill `qg-skills` copied does not count as
+  installed, so it is offered and can be declined freely. Every
   other component that applies and that the file does not list is offered,
   whatever is installed, such as one whose skill `qg-skills` copied: an offer
   is recorded only when `--choose` or `--decline` names it, and setup names
@@ -87,12 +89,16 @@
   read no project and run anywhere. A malformed `quality-gates.json` stops the
   gates with exit 2 and one line naming the problem. The gates take the repo
   from the first path given, so scanning another repo's folder follows that
-  repo's `.gitignore` and `quality-gates.json`. A path named on the command
+  repo's `.gitignore` and `quality-gates.json`, and `--baseline` keys are
+  written relative to that repo too. A path named on the command
   line that git ignores is not scored, and the gate names it in one line on
   stderr; `--json` output stays valid and exit codes are unchanged.
 - **`exclude` entries match whole path segments.** `build` leaves out the
   folder or file `build`, never `buildscripts/` or `build_utils.py`; a
-  trailing `/` changes nothing. Root marker files such as `package.json` go
+  trailing `/` changes nothing. Each entry is a path from the repo root: one
+  starting with `/`, `./` or `../`, or with an empty, `.` or `..` segment,
+  makes `quality-gates.json` malformed (exit 2 from the gates, 3 from
+  `qg setup`). Root marker files such as `package.json` go
   through the same scope, so an excluded or git-ignored one adds no language.
   `comment-debt --exclude` keeps matching plain prefixes.
 - **The `qg` entry point moved** from `quality_gates.status:main` to

@@ -256,6 +256,21 @@ class ScannedRepoTest(unittest.TestCase):
         os.chdir(other)
         self.assertEqual(self.scanned_files(), ["mod.py"])
 
+    def test_a_baseline_written_while_scanning_another_repo_is_keyed_to_the_scanned_repo(self):
+        (self.repo / "src" / "big.py").write_text(branches("big", 12), encoding="utf-8")
+        baseline = self.repo / "cc.json"
+        other = Path(tempfile.mkdtemp())
+        subprocess.run(["git", "init", "-q", str(other)], check=True)
+        for elsewhere in (other, Path(tempfile.mkdtemp())):
+            with self.subTest(elsewhere=elsewhere):
+                os.chdir(elsewhere)
+                rc, _, err = run_main([str(self.repo / "src"), "--baseline", str(baseline), "--update"])
+                self.assertEqual(rc, 0, err)
+                self.assertEqual(list(json.loads(baseline.read_text(encoding="utf-8"))), ["src/big.py::big"])
+                os.chdir(self.repo)
+                rc, out, err = run_main(["src", "--baseline", "cc.json"])
+                self.assertEqual(rc, 0, out + err)
+
 
 if __name__ == "__main__":
     unittest.main()

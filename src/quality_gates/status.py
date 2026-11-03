@@ -25,6 +25,7 @@ HAS_SOMETHING = (INSTALLED, PARTLY, DIFFERENT)
 PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
+COPIED_TO_EVERY_PROJECT = "skill"
 PIN_VERDICTS = {
     True: "matches",
     False: "differs from the installed version",
@@ -168,13 +169,24 @@ def component_status(component, rolled, choice):
     return choice_status(component, choice) or rolled
 
 
-def wants_attention(component, choice, rolled):
+def own_parts(parts):
+    counted = [p for p in parts if counts_toward_status(p)]
+    if all(p["kind"] == COPIED_TO_EVERY_PROJECT for p in parts):
+        return counted
+    return [p for p in counted if p["kind"] != COPIED_TO_EVERY_PROJECT]
+
+
+def is_present(parts):
+    return roll_up([p["status"] for p in own_parts(parts)]) in HAS_SOMETHING
+
+
+def wants_attention(component, choice, parts):
     chosen = choice is not None and choice.recorded(component.id) == project_files.CHOSEN
-    return component.core or chosen or rolled in HAS_SOMETHING
+    return component.core or chosen or is_present(parts)
 
 
 def needs_attention(component, parts, choice, rolled):
-    if rolled == NOT_APPLICABLE or not wants_attention(component, choice, rolled):
+    if rolled == NOT_APPLICABLE or not wants_attention(component, choice, parts):
         return []
     return [f"{p['kind']} {p['id']}: {p['status']}" for p in parts if counts_toward_status(p) and p["status"] != INSTALLED]
 
@@ -204,8 +216,8 @@ def component_report(project, component, used, choice=None):
 
 
 def components_present(project, manifest, used):
-    reports = (component_report(project, component, used) for component in manifest.components)
-    return {report["id"] for report in reports if report["status"] in HAS_SOMETHING}
+    return {component.id for component in manifest.components
+            if component.applies_to(used) and is_present([part_report(project, p, used) for p in component.parts])}
 
 
 def read_pin(project):
