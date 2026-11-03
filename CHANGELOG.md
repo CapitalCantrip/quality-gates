@@ -90,7 +90,9 @@
   gates with exit 2 and one line naming the problem. The gates take the repo
   from the first path given, so scanning another repo's folder follows that
   repo's `.gitignore` and `quality-gates.json`, and `--baseline` keys are
-  written relative to that repo too. A path named on the command
+  written relative to that repo too. Outside the repo, through a link or a
+  scanned path in no repo, `node_modules`, `.venv`, `build`, `.git` and the
+  other dependency and build folders are still never walked. A path named on the command
   line that git ignores is not scored, and the gate names it in one line on
   stderr; `--json` output stays valid and exit codes are unchanged.
 - **`exclude` entries match whole path segments.** `build` leaves out the

@@ -438,6 +438,18 @@ class SymlinkedFolderTest(InTempDir):
         self.link(outside, "Sources/Shop")
         self.assertEqual(self.files("Sources"), ["Sources/Shop/shop.py"])
 
+    def test_a_folder_outside_the_repo_leaves_out_dependency_and_build_folders(self):
+        outside = tempfile.mkdtemp()
+        self.addCleanup(__import__("shutil").rmtree, outside)
+        for name in ("shop.py", "node_modules/dep/index.py", ".venv/lib/site.py", "build/made.py", ".git/hooks/h.py",
+                     "lib/node_modules_helper.py"):
+            Path(outside, name).parent.mkdir(parents=True, exist_ok=True)
+            Path(outside, name).write_text("def f(x):\n    return x\n", encoding="utf-8")
+        self.link(outside, "Sources/Shop")
+        self.assertEqual(self.files("Sources"), ["Sources/Shop/lib/node_modules_helper.py", "Sources/Shop/shop.py"])
+        found = complexity_scan.scan([outside], "python")
+        self.assertEqual(sorted(Path(fn.file).name for fn in found.functions), ["node_modules_helper.py", "shop.py"])
+
     def test_a_symlink_to_a_folder_that_does_not_exist_is_ignored(self):
         self.write("src/mod.py")
         os.symlink(os.path.abspath("gone"), "src/dangling")

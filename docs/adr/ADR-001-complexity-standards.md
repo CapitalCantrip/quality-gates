@@ -1588,9 +1588,13 @@ scan:
   name) is one git would commit and not excluded. A link the `.gitignore` lists is not followed. A link to a
   folder that does not exist is ignored. A scanned path that is itself a link is
   followed.
-- **Outside the repo, a linked folder is scanned in full.** Git cannot say what
-  it would commit there, so a link to `../shared/Shop` widens the scan to that
-  whole folder. Remove the link or exclude it to narrow it.
+- **Outside the repo, a linked folder is scanned in full, less dependency and
+  build folders.** Git cannot say what it would commit there, so a link to
+  `../shared/Shop`, or a scanned path in no repo, widens the scan to that whole
+  folder, except folders named `.git`, `.venv`, `venv`, `.direnv`,
+  `node_modules`, `__pycache__`, `backups`, `build`, `.build`, `dist`, `.tox`,
+  `.mypy_cache`, `.pytest_cache` or `.worktrees`, which are never walked there.
+  Remove the link or exclude it to narrow it further.
 - **Files are listed once too.** The same file named twice on the command line,
   or once inside a folder that is also scanned, is listed once, under the first
   spelling met.

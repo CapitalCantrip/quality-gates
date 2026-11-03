@@ -33,6 +33,10 @@ NOT_A_GIT_REPO = (
     "project's repository, or run `git init` there first"
 )
 ALREADY_SCANNED = " (already scanned)"
+FOLDERS_SKIPPED_OUTSIDE_THE_REPO = frozenset({
+    ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
+    ".tox", ".mypy_cache", ".pytest_cache", ".worktrees",
+})
 IGNORED_NOTE = "Skipped {}: git ignores it, and quality-gates scores only the files git would commit"
 WORKFLOW_SUFFIXES = (".yml", ".yaml")
 WORKFLOWS = Path(".github") / "workflows"
@@ -328,7 +332,10 @@ class Scope:
         return location in names and not excluded_by(location, self.excluded)
 
     def keeps_folder(self, real_here, name):
-        return self.keeps(self.location(real_here, name), self.walkable)
+        location = self.location(real_here, name)
+        if is_outside(location):
+            return name not in FOLDERS_SKIPPED_OUTSIDE_THE_REPO
+        return self.keeps(location, self.walkable)
 
     def keeps_file(self, real_here, name):
         return self.keeps(self.location(real_here, name), self.listed)
