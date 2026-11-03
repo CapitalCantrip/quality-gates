@@ -33,6 +33,7 @@ NOT_A_GIT_REPO = (
     "project's repository, or run `git init` there first"
 )
 ALREADY_SCANNED = " (already scanned)"
+A_SUBMODULE = " (a submodule: scan it from inside)"
 FOLDERS_SKIPPED_OUTSIDE_THE_REPO = frozenset({
     ".git", ".venv", "venv", ".direnv", "node_modules", "__pycache__", "backups", "build", ".build", "dist",
     ".tox", ".mypy_cache", ".pytest_cache", ".worktrees",
@@ -337,6 +338,9 @@ class Scope:
             return name not in FOLDERS_SKIPPED_OUTSIDE_THE_REPO
         return self.keeps(location, self.walkable)
 
+    def is_submodule(self, real_here, name):
+        return self.location(real_here, name) in self.listed
+
     def keeps_file(self, real_here, name):
         return self.keeps(self.location(real_here, name), self.listed)
 
@@ -438,10 +442,12 @@ def detected_languages(root, scope=None):
 
 def _subfolders(here: Path, real_here: str, dirnames: list, seen: set, scope: Scope) -> tuple:
     kept, skipped = [], []
-    for _, name, identity in sorted(_entry(here, name) for name in dirnames):
+    for is_link, name, identity in sorted(_entry(here, name) for name in dirnames):
         if not scope.keeps_folder(real_here, name):
             continue
-        if _first_visit(identity, seen):
+        if not is_link and scope.is_submodule(real_here, name):
+            skipped.append(os.path.relpath(here / name) + A_SUBMODULE)
+        elif _first_visit(identity, seen):
             kept.append(name)
         else:
             skipped.append(os.path.relpath(here / name) + ALREADY_SCANNED)

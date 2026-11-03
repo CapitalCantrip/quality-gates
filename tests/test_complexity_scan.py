@@ -324,6 +324,21 @@ class GitScopeTest(InTempDir):
         self.assertEqual([fn.file for fn in found.functions], [".claude/hooks/h.ts"])
 
 
+class SubmoduleTest(InTempDir):
+    def test_a_submodule_is_named_on_the_skipped_line_and_its_files_are_not_scored(self):
+        self.write("src/mod.py")
+        self.write("libs/core/x.py")
+        quiet = {"capture_output": True, "check": True}
+        subprocess.run(["git", "init", "-q", "libs/core"], **quiet)
+        subprocess.run(["git", "-C", "libs/core", "add", "x.py"], **quiet)
+        subprocess.run(["git", "-C", "libs/core", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "x"],
+                       **quiet)
+        subprocess.run(["git", "add", "libs/core"], **quiet)
+        found = complexity_scan.scan(["."], "python")
+        self.assertEqual(([fn.file for fn in found.functions], found.skipped),
+                         (["src/mod.py"], ["libs/core (a submodule: scan it from inside)"]))
+
+
 class SymlinkedFolderTest(InTempDir):
     def link(self, target, name):
         Path(name).parent.mkdir(parents=True, exist_ok=True)

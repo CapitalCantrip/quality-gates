@@ -1551,8 +1551,13 @@ is not scored either; the gate names it in one line on stderr, so a JSON
 report stays valid.
 
 Each file is listed once, by its real path, so a file named twice, or named and
-also inside a scanned folder, is scored once. The *Skipped N folder(s)* line
-names only folders marked `(already scanned)`.
+also inside a scanned folder, is scored once.
+
+A git submodule is its own repo: the superproject's git lists only the
+submodule's folder, so a scan from the superproject scores none of its files.
+The *Skipped N folder(s)* line names it, marked `libs/core (a submodule: scan
+it from inside)`; scan a path inside it to score it by its own git. Besides
+submodules, that line names only folders marked `(already scanned)`.
 <!-- /rule:files-in-scope -->
 
 ## Current rule, restated 2026-11-01: symlinked folders

@@ -96,7 +96,11 @@
   line that git ignores is not scored, and the gate names it in one line on
   stderr; `--json` output stays valid and exit codes are unchanged. On a
   case-insensitive filesystem, as on macOS, a path typed in another case, such
-  as `SRC` for `src`, is scanned under the spelling on disk.
+  as `SRC` for `src`, is scanned under the spelling on disk. A git submodule
+  is scanned from inside it, by its own git: a scan from the superproject
+  scores none of its files and names it on the *Skipped* line, marked
+  `(a submodule: scan it from inside)`. Before this release its files were
+  scored with the superproject's.
 - **`exclude` entries match whole path segments.** `build` leaves out the
   folder or file `build`, never `buildscripts/` or `build_utils.py`; a
   trailing `/` changes nothing. Each entry is a path from the repo root: one
