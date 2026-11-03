@@ -532,7 +532,9 @@ line, like any other tool error.
   detection and the gates leave out, on top of what `.gitignore` ignores.
   Entries match whole segments, by the
   [files in scope](src/quality_gates/skills/crap/references/files-in-scope.md)
-  rule: `vendor` covers `vendor/` and nothing called `vendored`. Root marker
+  rule: `vendor` covers `vendor/` and nothing called `vendored`. An entry
+  that starts with `/`, `./` or `../`, or has an empty, `.` or `..` segment,
+  makes the file malformed, so it can never silently match nothing. Root marker
   files such as `package.json` count only when they are in scope, so an
   excluded or ignored one adds no language. Setup writes the default
   fixture folders here (every outermost `fixtures`, `fixture`, `__fixtures__`

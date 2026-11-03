@@ -95,7 +95,10 @@
   stderr; `--json` output stays valid and exit codes are unchanged.
 - **`exclude` entries match whole path segments.** `build` leaves out the
   folder or file `build`, never `buildscripts/` or `build_utils.py`; a
-  trailing `/` changes nothing. Root marker files such as `package.json` go
+  trailing `/` changes nothing. Each entry is a path from the repo root: one
+  starting with `/`, `./` or `../`, or with an empty, `.` or `..` segment,
+  makes `quality-gates.json` malformed (exit 2 from the gates, 3 from
+  `qg setup`). Root marker files such as `package.json` go
   through the same scope, so an excluded or git-ignored one adds no language.
   `comment-debt --exclude` keeps matching plain prefixes.
 - **The `qg` entry point moved** from `quality_gates.status:main` to
