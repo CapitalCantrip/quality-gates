@@ -127,7 +127,7 @@ class ProjectFiles(unittest.TestCase):
 
 ROOT = Path(__file__).resolve().parents[1]
 SKILLS = ROOT / "src/quality_gates/skills"
-DOCUMENTS = [ROOT / "README.md", ROOT / "docs/adr/ADR-001-complexity-standards.md", *sorted(SKILLS.rglob("*.md"))]
+DOCUMENTS = [ROOT / "README.md", *sorted((ROOT / "docs/adr").glob("*.md")), *sorted(SKILLS.rglob("*.md"))]
 TYPESCRIPT_SUFFIXES = languages.LANGUAGES["typescript"].suffixes
 
 
@@ -165,7 +165,8 @@ CWD_LOOKUP = "Path.cwd"
 PATH_CALLS = {"glob", "rglob", "iterdir"}
 GIT_LOOKUPS = ("rev-parse", "ls-files", "--show-toplevel")
 ALLOWED = {
-    ("references.read_rules", "glob"): "reads the package's own ADRs",
+    ("references.read_rules", "glob"): "reads the package's own decision pages",
+    ("references.archived", "glob"): "reads the package's own archived ADRs",
     ("references.skill_documents", "rglob"): "reads the package's own skills",
     ("references.write", "iterdir"): "tidies the package's own skill references",
     ("references.strays", "glob"): "reads the package's own skill references",

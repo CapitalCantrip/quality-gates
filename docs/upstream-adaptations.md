@@ -6,7 +6,7 @@ upstream version, then redo each change listed here for that file. A change
 whose reason no longer holds is removed from this list in the same PR.
 
 Every file not listed is a word-for-word copy: replace it with the new
-upstream version. Why the copies exist: [ADR-003](adr/ADR-003-vendor-pocock-skills.md).
+upstream version. Why the copies exist: [ADR-003](adr/archive/ADR-003-vendor-pocock-skills.md).
 
 ## mattpocock/skills
 

@@ -3,7 +3,7 @@
 A guided framework for building software with AI coding agents, from idea to
 release, for people who can't review the code themselves. It aims for
 well-designed outcomes, efficient use of resources, and a builder who stays
-informed and in control ([ADR-005](docs/adr/ADR-005-direction-idea-to-release.md)).
+informed and in control ([ADR-005](docs/adr/archive/ADR-005-direction-idea-to-release.md)).
 Today it ships the gates and the working method; the rest is on the way.
 
 Checks fail the commit or the build when the
@@ -108,7 +108,7 @@ stage, from testing the idea through spec, planning, building and review to
 release, leaves the builder with a clearer picture of where the project is
 going and what each choice trades off. The gates below are the part that needs
 no judgement; the direction for the rest is in
-[ADR-005](docs/adr/ADR-005-direction-idea-to-release.md).
+[ADR-005](docs/adr/archive/ADR-005-direction-idea-to-release.md).
 
 In a software factory, agents do most of the building and a person decides what
 to build and checks that it works. That only holds up when no step depends on
@@ -144,12 +144,12 @@ A standard moves down this table whenever it can. The workflow is
 [Matt Pocock's engineering skills](https://github.com/mattpocock/skills) and
 many principles come from [Lauren Tan's pstack](https://github.com/cursor/plugins/tree/main/pstack).
 All three layers ship in this package, so neither Pocock's plugin nor pstack needs installing. Why it
-is shaped this way: [ADR-002](docs/adr/ADR-002-engineering-standards.md).
+is shaped this way: [ADR-002](docs/adr/archive/ADR-002-engineering-standards.md).
 
 A fourth layer, **Understanding**, is planned: a project map of the outcome and
 the key forks, a plain-words checkpoint at each stage boundary, fixed teaching
 material, and a personal learning record kept outside the repo
-([ADR-005](docs/adr/ADR-005-direction-idea-to-release.md)).
+([ADR-005](docs/adr/archive/ADR-005-direction-idea-to-release.md)).
 
 ### Workflow: size decides where to start
 
@@ -162,13 +162,13 @@ material, and a personal learning record kept outside the repo
 Every route ends with `/review-against-spec`, then the gates. The size rule and
 the principles ship as the `standards` skill, and Matt Pocock's skills for each
 step ship beside it, so a cloud session has them too
-([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)). The full list is under
+([ADR-003](docs/adr/archive/ADR-003-vendor-pocock-skills.md)). The full list is under
 [Skills](#skills).
 
 ## Standards
 
 Agent-written code is held to these. A project may tighten them, never loosen
-them. Why each number is what it is: [ADR-001](docs/adr/ADR-001-complexity-standards.md).
+them. Why each number is what it is: [ADR-001](docs/adr/archive/ADR-001-complexity-standards.md).
 
 | Gate | Language | Tool | Fails above | Warns above |
 |---|---|---|---|---|
@@ -198,7 +198,7 @@ comment, and also if it loses one without the baseline being lowered, so paid
 debt is always recorded. Python only for now
 ([#3](../../issues/3) adds Rust,
 TypeScript, Swift and shell:
-[ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md)).
+[ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md)).
 
 ### `cc-check`: cyclomatic complexity
 
@@ -356,7 +356,7 @@ file-level record `qg-upstream` reads.
 - `format_version`: a whole number. A change to the shape below raises it and
   gets a CHANGELOG note; adding a component or a part does not. It is 2; version 2
   added `admissions` and each component's optional `explainer`.
-- `admissions`: a list with one record per outside source ([ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md)),
+- `admissions`: a list with one record per outside source ([ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md)),
   each with `name` (the repo or tool name, as a component's `origin` spells it),
   `kind` (`upstream`, `dependency` or `test-only`), `licence` (an SPDX id: an
   upstream needs MIT, Apache-2.0, BSD-2-Clause, BSD-3-Clause or ISC, a
@@ -463,7 +463,7 @@ Three more commands support them:
   exit 3 the manifest is malformed.
 - `qg-references` writes the rules the skills cite into each skill's
   `references/` folder, from the restated rules tagged in the ADRs
-  ([ADR-004](docs/adr/ADR-004-reference-files.md)). `qg-references --check` also
+  ([ADR-004](docs/adr/archive/ADR-004-reference-files.md)). `qg-references --check` also
   fails when an ADR amendment and the text it amends do not link to each other.
   It runs in this repo at each release; a consumer gets the files through
   `qg-skills`.
@@ -500,7 +500,7 @@ written. The release checklist runs a link check, described under
 ### The choice file
 
 `quality-gates.json` sits at the project root and is committed. It records what
-the builder chose ([ADR-007](docs/adr/ADR-007-component-install.md)), and
+the builder chose ([ADR-007](docs/adr/archive/ADR-007-component-install.md)), and
 `qg setup` writes it. It is a contract for `qg status`, setup and the planned
 runner. Loading fails, and `qg status` and `qg setup` exit 3 with one line
 naming the problem, when a field is missing, has the wrong type or names
@@ -721,7 +721,7 @@ floor.
 
 The Pocock skills and the pstack principles are copies, so their authors'
 updates reach a project only through a release here
-([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)).
+([ADR-003](docs/adr/archive/ADR-003-vendor-pocock-skills.md)).
 
 1. On the 1st of each month the `upstream` workflow runs `qg-upstream` and, if
    a copied file changed upstream, opens an issue with the changes. It also
@@ -753,7 +753,7 @@ This repo runs its own gates and carries no comment debt: `comment-debt.json` is
 `{}`.
 
 How the code is laid out, and where each new piece belongs:
-[ADR-011](docs/adr/ADR-011-code-structure.md).
+[ADR-011](docs/adr/archive/ADR-011-code-structure.md).
 
 [docs/languages-by-gates.md](docs/languages-by-gates.md) is generated from the
 language registry and each gate's language table. After changing either, run
@@ -764,22 +764,28 @@ when `components.json` is missing or malformed.
 
 ## Decisions
 
-Every standard and design choice is recorded in an ADR in
-[docs/adr/](docs/adr/), and changes only through a new ADR or a dated addendum.
+What is decided now is in the [compendium](docs/adr/README.md), one page per
+question: what gets scored, how complexity is counted, baselines and
+loosening, components and setup, how standards are made, and code structure.
+Each decision was made in a numbered ADR, kept as accepted in
+[docs/adr/archive/](docs/adr/archive/). A change is a new ADR or a dated
+addendum there, and the same pull request updates the compendium page
+([ADR-012](docs/adr/archive/ADR-012-decisions-compendium.md)).
 
 | ADR | Decides |
 |---|---|
-| [ADR-001](docs/adr/ADR-001-complexity-standards.md) | The complexity and CRAP thresholds, and the tool that counts them |
-| [ADR-002](docs/adr/ADR-002-engineering-standards.md) | The three layers: workflow, principles, gates |
-| [ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md) | Shipping Matt Pocock's skills through `qg-skills` |
-| [ADR-004](docs/adr/ADR-004-reference-files.md) | Rules shipped with the skills as generated reference files |
-| [ADR-005](docs/adr/ADR-005-direction-idea-to-release.md) | The direction: a guided framework from idea to release |
-| [ADR-006](docs/adr/ADR-006-gates-beyond-complexity.md) | The gates beyond complexity, and the order they ship in |
-| [ADR-007](docs/adr/ADR-007-component-install.md) | Choosing, switching and upgrading components |
-| [ADR-008](docs/adr/ADR-008-project-map-and-checkpoints.md) | The project map and the checkpoints |
-| [ADR-009](docs/adr/ADR-009-recorded-reasons-and-loosening.md) | Recorded reasons and loosening |
-| [ADR-010](docs/adr/ADR-010-admission-and-recognised-conventions.md) | Admitting outside sources, and the comment gate's new languages |
-| [ADR-011](docs/adr/ADR-011-code-structure.md) | The code's structure |
+| [ADR-001](docs/adr/archive/ADR-001-complexity-standards.md) | The complexity and CRAP thresholds, and the tool that counts them |
+| [ADR-002](docs/adr/archive/ADR-002-engineering-standards.md) | The three layers: workflow, principles, gates |
+| [ADR-003](docs/adr/archive/ADR-003-vendor-pocock-skills.md) | Shipping Matt Pocock's skills through `qg-skills` |
+| [ADR-004](docs/adr/archive/ADR-004-reference-files.md) | Rules shipped with the skills as generated reference files |
+| [ADR-005](docs/adr/archive/ADR-005-direction-idea-to-release.md) | The direction: a guided framework from idea to release |
+| [ADR-006](docs/adr/archive/ADR-006-gates-beyond-complexity.md) | The gates beyond complexity, and the order they ship in |
+| [ADR-007](docs/adr/archive/ADR-007-component-install.md) | Choosing, switching and upgrading components |
+| [ADR-008](docs/adr/archive/ADR-008-project-map-and-checkpoints.md) | The project map and the checkpoints |
+| [ADR-009](docs/adr/archive/ADR-009-recorded-reasons-and-loosening.md) | Recorded reasons and loosening |
+| [ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md) | Admitting outside sources, and the comment gate's new languages |
+| [ADR-011](docs/adr/archive/ADR-011-code-structure.md) | The code's structure |
+| [ADR-012](docs/adr/archive/ADR-012-decisions-compendium.md) | A thematic compendium over an archive of decisions |
 
 ## Licence
 

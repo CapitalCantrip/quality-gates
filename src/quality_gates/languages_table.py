@@ -7,7 +7,7 @@ from quality_gates import comment_debt, crap, languages, manifest, quality_check
 COMMAND = "python -m quality_gates.languages_table"
 DEFAULT_PATH = Path("docs") / "languages-by-gates.md"
 REPO = Path(__file__).resolve().parents[2]
-CHECKOUT_MARK = Path("docs") / "adr" / "ADR-011-code-structure.md"
+CHECKOUT_MARK = Path("docs") / "adr" / "archive" / "ADR-011-code-structure.md"
 NOT_A_CHECKOUT = (f"{COMMAND} writes {DEFAULT_PATH} only inside the quality-gates checkout, and {{repo}} is not one. "
                   "Run it from a clone of quality-gates installed with `uv pip install -e .`.")
 OUTSIDE = "{path} is outside the quality-gates checkout at {repo}; " + f"{COMMAND} writes only inside it."

@@ -37,8 +37,14 @@ Link = namedtuple("Link", "source text name target")
 Outcome = namedtuple("Outcome", "written problems")
 
 
+ARCHIVE = "archive"
+ADR_FILES = "ADR-*.md"
+
+
 def adr_id(path):
-    return "-".join(path.stem.split("-")[:2])
+    if path.match(ADR_FILES):
+        return "-".join(path.stem.split("-")[:2])
+    return f"{DEFAULT_ADR_DIR.as_posix()}/{path.name}"
 
 
 def nested_section(headings, level, title):
@@ -103,11 +109,18 @@ def outside_pointers(rule):
     return found
 
 
+def archived(adr_dir):
+    problems = []
+    for path in sorted(Path(adr_dir).glob(f"{ARCHIVE}/{ADR_FILES}")):
+        problems += amendments.problems(path)
+    return problems
+
+
 def read_rules(adr_dir):
-    rules, problems = {}, []
-    for path in sorted(Path(adr_dir).glob("ADR-*.md")):
+    rules, problems = {}, archived(adr_dir)
+    for path in sorted(Path(adr_dir).glob("*.md")):
         found, faults = AdrReader(path).read()
-        problems += faults + amendments.problems(path)
+        problems += faults + (amendments.problems(path) if path.match(ADR_FILES) else [])
         for rule in found:
             problems += outside_pointers(rule)
         for rule in found:
@@ -238,7 +251,7 @@ def check(adr_dir, skills_dir):
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="qg-references",
-        description="Write each rule tagged <!-- rule:NAME --> in the ADRs to references/NAME.md in every skill that "
+        description="Write each rule tagged <!-- rule:NAME --> in the decision pages to references/NAME.md in every skill that "
                     "links it, and remove reference files no skill links. Run from the quality-gates repo root.",
     )
     parser.add_argument("--adr-dir", type=Path, default=DEFAULT_ADR_DIR, help="default: docs/adr")

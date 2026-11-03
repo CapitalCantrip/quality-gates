@@ -1,5 +1,13 @@
 # Changelog
 
+## Unreleased
+
+- **Decisions are a compendium over an archive (ADR-012).** The numbered ADRs
+  moved to `docs/adr/archive/`; `docs/adr/` now holds one page per question,
+  which is where the current rules live. Every generated reference file's
+  second line now names its compendium page instead of an ADR. Nothing to do
+  beyond the pin bump.
+
 ## 0.13.0 — 2026-11-04
 
 The choice file, explainers and admission records (#137, #139, #114). The gates
@@ -781,7 +789,7 @@ Documentation only: the README describes the package as it is since 0.5.0.
 ## 0.5.0 — 2026-10-07
 
 Matt Pocock's workflow skills ship with the package, so cloud sessions have
-them ([ADR-003](docs/adr/ADR-003-vendor-pocock-skills.md)).
+them ([ADR-003](docs/adr/archive/ADR-003-vendor-pocock-skills.md)).
 
 - `qg-skills` now also copies 17 of his skills: `wayfinder`,
   `grill-with-docs`, `to-spec`, `to-tickets`, `implement`, `implement-spec`,
