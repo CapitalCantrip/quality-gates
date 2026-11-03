@@ -108,7 +108,7 @@ class ReferenceFiles(unittest.TestCase):
         self.assertEqual([pointer for rule in rules.values() for pointer in references.outside_pointers(rule)], [])
 
     def test_every_adr_links_each_amendment_and_the_text_it_amends_both_ways(self):
-        self.assertEqual([problem for path in sorted(ADR_DIR.glob("ADR-*.md")) for problem in amendments.problems(path)], [])
+        self.assertEqual([problem for path in sorted(ADR_DIR.glob("archive/ADR-*.md")) for problem in amendments.problems(path)], [])
 
     def test_no_shipped_skill_names_an_adr_file_by_path(self):
         for path in SKILLS.rglob("*.md"):

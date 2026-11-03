@@ -48,8 +48,8 @@ class Checked(unittest.TestCase):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
         self.repo = Path(tmp.name).resolve() / "quality-gates"
-        (self.repo / "docs" / "adr").mkdir(parents=True)
-        (self.repo / "docs" / "adr" / "ADR-011-code-structure.md").write_text("# ADR-011\n", encoding="utf-8")
+        (self.repo / "docs" / "adr" / "archive").mkdir(parents=True)
+        (self.repo / "docs" / "adr" / "archive" / "ADR-011-code-structure.md").write_text("# ADR-011\n", encoding="utf-8")
         self.path = self.repo / "docs" / "languages-by-gates.md"
 
     def run_main(self, *argv):
@@ -89,7 +89,7 @@ class Checked(unittest.TestCase):
         self.assertEqual(languages_table.check(self.path), [])
 
     def test_a_copy_of_the_package_outside_a_quality_gates_checkout_refuses_to_write_and_says_why(self):
-        (self.repo / "docs" / "adr" / "ADR-011-code-structure.md").unlink()
+        (self.repo / "docs" / "adr" / "archive" / "ADR-011-code-structure.md").unlink()
         code, out = self.run_main()
         self.assertEqual(code, 2)
         self.assertIn("only inside the quality-gates checkout", out)

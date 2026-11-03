@@ -78,6 +78,24 @@ class Generator(unittest.TestCase):
         self.assertEqual(self.repo.generate(), [])
         self.assertEqual(self.repo.read("skills/crap/references/skip-list.md"), EXPECTED_REFERENCE)
 
+    def test_a_rule_tagged_on_a_compendium_page_is_generated_and_names_the_page(self):
+        self.repo.write("docs/adr/archive/ADR-009-example.md", ADR)
+        (self.repo.adr_dir / "ADR-009-example.md").unlink()
+        self.repo.write("docs/adr/what-gets-scored.md", ADR.replace("# ADR-009: Example", "# What gets scored"))
+        self.assertEqual(self.repo.generate(), [])
+        self.assertIn('from docs/adr/what-gets-scored.md, section "Decision"',
+                      self.repo.read("skills/crap/references/skip-list.md"))
+
+    def test_a_tag_left_in_an_archived_adr_is_not_read(self):
+        self.repo.write("docs/adr/archive/ADR-001-old.md", ADR.replace("`.git` and `build`", "an old wording"))
+        self.assertEqual(self.repo.generate(), [])
+        self.assertEqual(self.repo.read("skills/crap/references/skip-list.md"), EXPECTED_REFERENCE)
+
+    def test_an_archived_adr_whose_amendment_links_break_fails_the_check(self):
+        self.repo.write("docs/adr/archive/ADR-001-old.md", "# ADR-001\n\n## Addendum 2026-01-01: later\n\nNo link.\n")
+        self.assertIn('ADR-001-old.md:3: "Addendum 2026-01-01: later" amends nothing; '
+                      'add an Amends: line linking the text it changes', self.repo.check())
+
     def test_running_the_generator_twice_changes_no_reference_file(self):
         self.repo.generate()
         first = self.repo.read("skills/crap/references/skip-list.md")

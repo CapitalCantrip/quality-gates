@@ -91,7 +91,6 @@ bumping their pin; their `qg-skills --check` test fails until they rerun
 
 Amends: [Decision](#decision)
 
-<!-- rule:vendored-skills -->
 `qg-skills` ships 17 of Matt Pocock's skills beside the standards skills, copied
 from `mattpocock/skills` at one pinned commit:
 
@@ -124,4 +123,3 @@ upstream file changes. Adopting the change means replacing the word-for-word
 copies, redoing each listed change, moving the pinned commit, and releasing.
 Consumers get it by bumping their pin; their `qg-skills --check` test fails
 until they rerun `qg-skills`, so a stale copy cannot pass CI.
-<!-- /rule:vendored-skills -->

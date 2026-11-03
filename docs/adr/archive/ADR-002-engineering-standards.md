@@ -340,7 +340,6 @@ gates are set up as usual. No threshold, counting tool or gate scope changes.
 
 Amends: [Decision](#decision)
 
-<!-- rule:three-layers -->
 **Engineering standards come in three layers: Workflow, Principles and Gates.**
 
 | Layer | Answers | Source | Form |
@@ -353,13 +352,11 @@ The layers are ordered by how much they rely on the agent's cooperation. Gates
 need none. Principles need the agent to read and apply them. The workflow
 needs the builder to start at the right step. Where a standard can move from
 the workflow toward the gates, it does.
-<!-- /rule:three-layers -->
 
 ## Current rule, restated 2026-10-12: principles from use
 
 Amends: [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path), [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040)
 
-<!-- rule:principles-from-use -->
 Two principles come from use rather than from pstack.
 
 - *Date every "this can't be done"*. A negative finding ("this API can't be
@@ -369,13 +366,11 @@ Two principles come from use rather than from pstack.
   without a commit, the agent reports what is done, what is left, and what it
   decided that nobody asked for. Those numbers are a starting point, to be
   revised from use.
-<!-- /rule:principles-from-use -->
 
 ## Current rule, restated 2026-10-12: the promotion path
 
 Amends: [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path)
 
-<!-- rule:promotion-path -->
 **A principle that can become a check, does.** When a class of mistake
 recurs, the fix goes in the strongest place available. Architecture comes
 first, then a gate in quality-gates, then a behaviour test, and prose comes last.
@@ -386,13 +381,11 @@ built yet.
 **A lesson becomes a standard when it has happened at least twice and would
 recur in another project.** One-off and project-specific lessons stay in their
 project.
-<!-- /rule:promotion-path -->
 
 ## Current rule, restated 2026-10-12: asking the builder
 
 Amends: [Asking the builder](#asking-the-builder)
 
-<!-- rule:asking-the-builder -->
 **Ask when uncertain about anything irreversible, outward-facing or large in
 scope. Proceed on reversible work with a stated default.** Every question
 carries:
@@ -408,4 +401,3 @@ This is a principle in the `standards` skill. Each consuming project's
 `CLAUDE.md` also carries a one-line pointer to it, because skills load only
 when invoked and this rule must apply to every turn. `qg-skills --check` fails
 when that line is missing.
-<!-- /rule:asking-the-builder -->

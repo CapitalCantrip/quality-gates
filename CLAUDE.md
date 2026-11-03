@@ -2,16 +2,18 @@
 
 This repo is the source of truth for the quality standards every
 project that pins it holds agent-written code to. The standards table is in
-`README.md`; the reasons are in `docs/adr/`.
+`README.md`; what is decided now is in the compendium, `docs/adr/README.md`
+and its pages. Read the page your task touches. Open `docs/adr/archive/`
+only to learn why something was decided.
 
 **Asking the builder:** ask when uncertain about anything irreversible, outward-facing or large in scope, and proceed on reversible work with a stated default. Every question gives what is at stake in plain words, two or three options with only the pros and cons the builder would notice, and a recommendation with its reason (`standards` skill, *ask the builder*).
 
 ## Rules
 
 - **A standard changes only through an ADR.** Changing a threshold, a counting
-  tool or what a gate covers means a new ADR in `docs/adr/`, or a dated addendum
-  on the one it amends, then the code, the skills and the README in the same PR.
-  The skills and the README must never disagree with the ADR.
+  tool or what a gate covers means a new ADR in `docs/adr/archive/`, or a dated
+  addendum on the one it amends, then the compendium page, the code, the skills
+  and the README in the same PR. None of them may disagree with the ADR.
 - **What a consumer receives is released, at most once a day.** `README.md`
   § Releasing says what counts and lists the steps. The `CHANGELOG.md` entry
   says what a consumer must do when they bump the pin. Consumers pin tags, so

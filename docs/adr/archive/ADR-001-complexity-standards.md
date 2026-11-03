@@ -1089,7 +1089,6 @@ enforce the limits in CI without first paying it all off.
 
 Amends: [Addendum 2026-10-04: the baseline ratchet (v0.3.0)](#addendum-2026-10-04-the-baseline-ratchet-v030), [Addendum 2026-10-11: follow symlinked folders (v0.9.0)](#addendum-2026-10-11-follow-symlinked-folders-v090), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090)
 
-<!-- rule:baseline-keys -->
 **The rule.** A baseline key is the file's real path relative to the real path of
 the repo root (the working directory outside a git repo), followed by `::` and
 the function name, with a method as `Class.method`. Symlinks are resolved and a
@@ -1116,7 +1115,6 @@ checkout whose shared folder lies elsewhere sees those functions as new and thei
 old rows as paid. This is accepted: such links are rare, and the alternative,
 keeping link-path keys and patching each way a path can be typed, fails more
 often.
-<!-- /rule:baseline-keys -->
 
 ## Current rule, restated 2026-10-12: TypeScript and JavaScript counting
 
@@ -1150,7 +1148,6 @@ raise a score, so the gate errs strict; it is left as is.
 
 Amends: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
 
-<!-- rule:repeated-names -->
 **Repeated names get their order as a suffix in baseline keys,** in every
 language: Python, TypeScript, JavaScript and Swift. lizard names a method without
 its class and every unnamed callback `(anonymous)`, and the ratchet keeps one
@@ -1159,13 +1156,11 @@ The second and later functions of a name in a file are keyed `path::name#2`,
 `#3`, in order of their start line. A file with no repeated names has no
 suffixed keys. Keying by the enclosing named function was rejected: lizard does not
 report nesting.
-<!-- /rule:repeated-names -->
 
 ## Current rule, restated 2026-10-12: what a Function is
 
 Amends: [Addendum 2026-10-09: one complexity scan for both gates (v0.7.0)](#addendum-2026-10-09-one-complexity-scan-for-both-gates-v070)
 
-<!-- rule:function-names -->
 **A Function is what is scored:** a function, a method, a closure, or a method
 of a nested class, each on its own. Both gates take their Functions from one
 scan, so they score the same Functions.
@@ -1180,13 +1175,11 @@ scan, so they score the same Functions.
   callback as `(anonymous)`.
 - **A repeated name gets its order as a suffix,** `name#2`, `name#3`, in every
   language.
-<!-- /rule:function-names -->
 
 ## Current rule, restated 2026-10-12: functions that share a start line
 
 Amends: [Addendum 2026-10-10: functions that share a start line (v0.7.3)](#addendum-2026-10-10-functions-that-share-a-start-line-v073)
 
-<!-- rule:shared-start-line -->
 A TypeScript or JavaScript Function's lines come from Istanbul's `fnMap`,
 matched to lizard by start line, because lizard's end line runs on into the next
 declaration when the code has type annotations. lizard gives no column, so in
@@ -1212,7 +1205,6 @@ that shares a line with its holder, or with the function declared beside it,
 still counts that line's branches and statements, and the holder still counts
 the callback's. The rule fixes the range, not the overlap on a shared line.
 Two functions that start and end on the same line get the same coverage.
-<!-- /rule:shared-start-line -->
 
 ## Current rule, restated 2026-10-12: the lizard Swift workaround
 
@@ -1349,7 +1341,6 @@ list, and never walks the same real folder twice in one scan:
 
 Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-12: TypeScript and JavaScript counting](#current-rule-restated-2026-10-12-typescript-and-javascript-counting)
 
-<!-- rule:typescript-counting -->
 **TypeScript and JavaScript are the files ending in `.ts`, `.tsx`, `.js`, `.jsx`,
 `.cjs` and `.mjs`.** `languages.py` holds that list, and the `--help` text of
 `crap` and `cc-check` prints it from there.
@@ -1367,13 +1358,11 @@ destructuring pattern, counts one path: `function f(a = 1, b = 2)` is CC 3, and
 **`switch` cases count.** Swift is exempt because its compiler requires an
 exhaustive `switch`; TypeScript does not, so each `case` is a path that can go
 untested. lizard runs without `-m`.
-<!-- /rule:typescript-counting -->
 
 ## Current rule, restated 2026-10-22: how lizard reads Swift
 
 Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083), [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround)
 
-<!-- rule:swift-reading -->
 **A Swift scan runs plain `lizard`, at 1.24.2 or newer, with no correction.**
 That release reads these Swift constructs as follows:
 
@@ -1393,13 +1382,11 @@ A property's own `get`, `set`, `willSet` and `didSet` blocks are Functions.
 the scan's lizard run exits 0 however many functions exceed lizard's own warning
 limit; the scan also passes `-i -1` in case a lizard release starts counting
 them. Any other exit is a tool error that shows lizard's error output.
-<!-- /rule:swift-reading -->
 
 ## Current rule, restated 2026-10-25: the complexity ceiling
 
 Amends: [Current rule, restated 2026-10-12: the complexity ceiling](#current-rule-restated-2026-10-12-the-complexity-ceiling), [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120)
 
-<!-- rule:complexity-ceiling -->
 **Agent-written code has a cyclomatic complexity ceiling of 8.** Human-maintained
 code targets 5. Agents keep exact short-term memory, so some of the cognitive
 load that drives the human limit does not apply (Robert C. Martin, interviewed
@@ -1445,13 +1432,11 @@ and none got a figure, `crap` also prints a line to stderr saying the report may
 have been made elsewhere or hold no figures for the scanned files.
 
 **A project may tighten these limits, never loosen them.**
-<!-- /rule:complexity-ceiling -->
 
 ## Current rule, restated 2026-10-25: the baseline ratchet
 
 Amends: [Current rule, restated 2026-10-12: the baseline ratchet](#current-rule-restated-2026-10-12-the-baseline-ratchet), [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120)
 
-<!-- rule:baseline-ratchet -->
 `cc-check` and `crap` take `--baseline`, so a repo with existing debt can
 enforce the limits in CI without first paying it all off.
 
@@ -1470,7 +1455,6 @@ enforce the limits in CI without first paying it all off.
   added back.
 - **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
   not a gate.
-<!-- /rule:baseline-ratchet -->
 
 ## Addendum 2026-11-01: the files git would commit (v0.13.0)
 
@@ -1532,7 +1516,6 @@ build or vendored folder that git would commit is now scored: add it to
 
 Amends: [Current rule, restated 2026-10-12: the skip list](#current-rule-restated-2026-10-12-the-skip-list), [Addendum 2026-11-01: the files git would commit (v0.13.0)](#addendum-2026-11-01-the-files-git-would-commit-v0130)
 
-<!-- rule:files-in-scope -->
 **The files in scope** are the files git would commit: tracked files plus
 untracked files that the project's `.gitignore` does not ignore. Both gates and
 language detection use them; outside a git repo, every command that looks for
@@ -1558,13 +1541,11 @@ submodule's folder, so a scan from the superproject scores none of its files.
 The *Skipped N folder(s)* line names it, marked `libs/core (a submodule: scan
 it from inside)`; scan a path inside it to score it by its own git. Besides
 submodules, that line names only folders marked `(already scanned)`.
-<!-- /rule:files-in-scope -->
 
 ## Current rule, restated 2026-11-01: symlinked folders
 
 Amends: [Current rule, restated 2026-10-12: symlinked folders](#current-rule-restated-2026-10-12-symlinked-folders), [Addendum 2026-11-01: the files git would commit (v0.13.0)](#addendum-2026-11-01-the-files-git-would-commit-v0130)
 
-<!-- rule:symlinked-folders -->
 **The rule.** The walk follows a symlinked folder that git would commit (a
 link is committed as a link), and never walks the same real folder twice in one
 scan:
@@ -1603,4 +1584,3 @@ scan:
 - **Files are listed once too.** The same file named twice on the command line,
   or once inside a folder that is also scanned, is listed once, under the first
   spelling met.
-<!-- /rule:symlinked-folders -->
