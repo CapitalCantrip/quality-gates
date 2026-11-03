@@ -44,7 +44,9 @@
   (component, description, cost) and writes the file on `--go`, and nothing
   else. It refuses to switch off the core or a gate the project has, or to
   remove a language that still has code, until recorded reasons ship (#115).
-  Without a choice file, `--go` records what is installed as chosen. Every
+  Without a choice file, `--go` records what is installed as chosen; a gate
+  whose only part present is the skill `qg-skills` copied does not count as
+  installed, so it is offered and can be declined freely. Every
   other component that applies and that the file does not list is offered,
   whatever is installed, such as one whose skill `qg-skills` copied: an offer
   is recorded only when `--choose` or `--decline` names it, and setup names

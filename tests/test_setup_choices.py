@@ -181,6 +181,33 @@ class Setup(unittest.TestCase):
         self.assertEqual((self.recorded().chosen, self.recorded().declined), (("helpers", "risk"), ()))
         self.assertEqual(self.choice_of(self.proposal(manifest=with_absent), "absent"), "offered")
 
+    def copy_skills_only(self):
+        self.write(self.repo / "pyproject.toml", "[project]\nname = 'consumer'\n")
+        self.write(self.repo / "src" / "app.py", "x = 1\n")
+        with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+            skills_sync.main(["--dest", str(self.repo / ".claude" / "skills")], self.source, self.hooks)
+
+    def test_a_gate_whose_only_part_present_is_the_skill_qg_skills_copied_is_offered_not_chosen_on_the_first_run(self):
+        self.copy_skills_only()
+        proposal = self.proposal()
+        self.assertEqual((self.choice_of(proposal, "risk"), self.choice_of(proposal, "helpers")), ("offered", "chosen"))
+        self.run_setup("--go")
+        self.assertEqual((self.recorded().chosen, self.recorded().declined), (("helpers",), ()))
+
+    def test_declining_a_gate_whose_only_part_present_is_its_copied_skill_is_not_loosening(self):
+        for first_run in (True, False):
+            with self.subTest(first_run=first_run):
+                self.setUp()
+                self.copy_skills_only()
+                if not first_run:
+                    self.run_setup("--go")
+                code, _, err = self.run_setup("--decline", "risk", "--go")
+                self.assertEqual(code, 0, err)
+                self.assertEqual(self.recorded().declined, ("risk",))
+                table = self.status_table(MANIFEST)
+                self.assertIn("offered, declined (partly installed)", table)
+                self.assertNotIn("Needs attention", table)
+
     def bump_to_a_release_adding(self, component):
         self.write(self.source / "fresh-skill" / "SKILL.md", "fresh-skill v1")
         with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit) as done:
@@ -202,7 +229,7 @@ class Setup(unittest.TestCase):
         self.assertEqual(self.choice_of(self.proposal(manifest=bumped), "fresh"), "offered")
         table = self.status_table(bumped)
         self.assertIn("not yet offered (partly installed)", table)
-        self.assertIn("Needs attention: baseline fresh-baseline.json: missing", table)
+        self.assertNotIn("fresh-baseline.json", table)
         _, out, _ = self.run_setup("--go", manifest=bumped)
         self.assertNotIn("up to date", out)
         self.assertNotIn("fresh", self.recorded().chosen + self.recorded().declined)
