@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased (0.13.0)
+## 0.13.0 — 2026-11-04
+
+The choice file, explainers and admission records (#137, #139, #114). The gates
+now score only the files git would commit, each once, and stop outside a git
+repo (#87, #120). Baselines may show `PAID` after the bump; the steps below say
+what to do.
 
 - **Admission records (#114, ADR-010).** `components.json` is now
   `format_version` 2. A new top-level `admissions` list records each outside
