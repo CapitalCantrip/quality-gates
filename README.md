@@ -35,7 +35,7 @@ folder:
    gate commands and `coverage` on your computer:
 
    ```bash
-   uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.12.0"
+   uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.13.0"
    ```
 
 2. Run this command to copy the skills into the project:
