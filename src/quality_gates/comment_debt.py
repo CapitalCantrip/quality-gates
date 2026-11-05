@@ -2,15 +2,14 @@
 import argparse
 import ast
 import io
-import json
 import re
 import sys
 import tokenize
 import warnings
 from pathlib import Path
 
-from quality_gates import languages, project_files
-from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
+from quality_gates import languages, project_files, ratchet
+from quality_gates.errors import ToolError
 
 
 PRAGMA = re.compile(
@@ -22,6 +21,7 @@ PRAGMA = re.compile(
     r")\s*$"
 )
 CODING = re.compile(r"^#.*coding[:=]")
+FINDING_KIND = "comment lines"
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,
@@ -90,88 +90,65 @@ def measure(root, listed):
     return current
 
 
-def ratchet(current, baseline):
-    over, under = {}, {}
-    for path, lines in current.items():
-        allowed = baseline.get(path, 0)
-        if len(lines) > allowed:
-            over[path] = (lines, allowed)
-        elif len(lines) < allowed:
-            under[path] = (len(lines), allowed)
-    stale = sorted(p for p in baseline if p not in current)
-    return over, under, stale
+def to_finding(path, lines):
+    return ratchet.Finding(ratchet.Location(path), len(lines), FINDING_KIND, ", ".join(str(n) for n in lines))
 
 
-def lowered(current, baseline):
-    return {
-        path: min(len(lines), baseline.get(path, 0))
-        for path, lines in sorted(current.items())
-        if min(len(lines), baseline.get(path, 0)) > 0
-    }
+def findings(root, excluded):
+    return [to_finding(path, lines) for path, lines in sorted(measure(root, tracked_files(root, excluded)).items())]
 
 
-def load_baseline(file):
-    if not file.exists():
-        return None
-    return json.loads(file.read_text(encoding="utf-8"))
-
-
-def write_baseline(file, counts):
-    text = json.dumps(counts, indent=2, sort_keys=True) + "\n"
-    file.write_text(text, encoding="utf-8")
-
-
-def report_over(over, out):
-    for path, (lines, allowed) in sorted(over.items()):
-        where = ", ".join(str(n) for n in lines)
-        out.write(f"FAIL {path}: {len(lines)} comment lines, baseline allows {allowed} — lines {where}\n")
+def describe_failed(result, found, out):
+    shown = {finding.location.key: finding.display for finding in found}
+    for v in result.having(ratchet.Outcome.FAILED):
+        allowed = v.allowed or 0
+        out.write(f"FAIL {v.location.key}: {v.now} comment lines, baseline allows {allowed} — lines {shown[v.location.key]}\n")
     out.write(
         "\nNew comments are not allowed (no-code-comments policy). Move the knowledge to a test, "
         "a named constant, an ADR or an issue — see the quality-gates README for where each kind goes.\n"
     )
 
 
-def report_behind(under, stale, file, out):
-    for path, (count, allowed) in sorted(under.items()):
-        out.write(f"PAID {path}: {count} lines, baseline still says {allowed}\n")
-    for path in stale:
-        out.write(f"GONE {path}: in the baseline but no longer tracked\n")
+def describe_behind(result, file, out):
+    behind = result.having(ratchet.Outcome.BEHIND)
+    for v in behind:
+        if v.now is not None:
+            out.write(f"PAID {v.location.key}: {v.now} lines, baseline still says {v.allowed}\n")
+    for v in behind:
+        if v.now is None:
+            out.write(f"GONE {v.location.key}: in the baseline but no longer tracked\n")
     out.write(
         f"\nThe baseline is behind. Run `comment-debt --update` "
         f"and commit {file.name} so the paid debt cannot come back.\n"
     )
 
 
-def check(root, file, excluded, out):
-    baseline = load_baseline(file)
-    if baseline is None:
-        out.write(f"No baseline at {file}. Run with --update to create one.\n")
-        return TOOL_ERROR_EXIT
-    over, under, stale = ratchet(measure(root, tracked_files(root, excluded)), baseline)
-    if over:
-        report_over(over, out)
-        return 1
-    if under or stale:
-        report_behind(under, stale, file, out)
-        return 1
-    out.write(f"comment debt: {sum(baseline.values())} lines in {len(baseline)} files, none new\n")
-    return 0
+def describe_check(result, found, file, out):
+    if result.having(ratchet.Outcome.FAILED):
+        describe_failed(result, found, out)
+    elif result.having(ratchet.Outcome.BEHIND):
+        describe_behind(result, file, out)
+    else:
+        allowed = [v.allowed for v in result.verdicts if v.allowed is not None]
+        out.write(f"comment debt: {sum(allowed)} lines in {len(allowed)} files, none new\n")
 
 
-def update(root, file, excluded, out):
-    current = measure(root, tracked_files(root, excluded))
-    baseline = load_baseline(file)
-    if baseline is None:
-        baseline = {path: len(lines) for path, lines in current.items()}
-    over, _, _ = ratchet(current, baseline)
-    if over:
-        report_over(over, out)
+def describe_update(result, found, out):
+    if result.having(ratchet.Outcome.FAILED):
+        describe_failed(result, found, out)
         out.write("--update only lowers the baseline. It will not record new comments.\n")
-        return 1
-    counts = lowered(current, baseline)
-    write_baseline(file, counts)
+        return
+    counts = ratchet.lowered(result)
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
-    return 0
+
+
+def describe(result, found, file, updating, out):
+    if result.having(ratchet.Outcome.DID_NOT_RUN):
+        ratchet.describe(result, file, updating, out)
+    elif updating:
+        describe_update(result, found, out)
+    else:
+        describe_check(result, found, file, out)
 
 
 def area(path):
@@ -225,22 +202,23 @@ def main(argv=None, root=None, baseline=None, out=sys.stdout):
     args = parser.parse_args(argv)
     if args.baseline is not None and not args.baseline.strip():
         out.write("--baseline was given an empty path\n")
-        return TOOL_ERROR_EXIT
+        return ratchet.exit_code(ratchet.DID_NOT_RUN)
     try:
         root = root or project_files.git_root()
     except ToolError as error:
         out.write(f"comment-debt: {error}\n")
-        return TOOL_ERROR_EXIT
+        return ratchet.exit_code(ratchet.DID_NOT_RUN)
     return run_mode(args, root, baseline, out)
 
 
 def run_mode(args, root, baseline, out):
-    baseline = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
-    if args.update:
-        return update(root, baseline, args.exclude, out)
     if args.status:
         return status(root, args.exclude, out)
-    return check(root, baseline, args.exclude, out)
+    file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
+    found = findings(root, args.exclude)
+    result = ratchet.settle(found, file, args.update)
+    describe(result, found, file, args.update, out)
+    return ratchet.exit_code(result)
 
 
 if __name__ == "__main__":
