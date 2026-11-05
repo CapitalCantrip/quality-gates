@@ -446,12 +446,16 @@ def _check_baseline_args(args, report: Optional[CoverageReport]) -> None:
         raise ToolError("--baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).")
 
 
-def _findings(results: list, root) -> list:
+def _shown(r: FunctionResult) -> str:
+    return f"{r.grade}  CRAP={_fmt_crap(r.crap).strip()}  {r.file}:{r.line}  {r.name}"
+
+
+def findings(results: list, root) -> list:
     found = []
     for r in results:
         if r.grade == "FAIL" or r.grade == UNMEASURED:
             number = None if r.crap is None else round(r.crap, 2)
-            found.append(ratchet.Finding(ratchet.location(root, r.file, r.name), number, FINDING_KIND, ""))
+            found.append(ratchet.Finding(ratchet.location(root, r.file, r.name), number, FINDING_KIND, _shown(r)))
     return found
 
 
@@ -475,7 +479,7 @@ def gate(argv, root) -> ratchet.Result:
     results = score(found.functions, coverage_of, Limits(args.min_cc, args.warn, args.threshold))
     _check_results_empty(results, args, found.skipped)
     _check_report_matched(report, results)
-    failing = _findings(results, project_files.root_for(args.paths, root))
+    failing = findings(results, project_files.root_for(args.paths, root))
     _emit_output(results, args, len(failing), found.skipped, _coverage_source(report))
     return _settled(failing, args)
 

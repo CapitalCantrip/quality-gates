@@ -63,7 +63,7 @@ class Result:
     verdicts: tuple
 
     def having(self, outcome: Outcome) -> list:
-        return [v for v in self.verdicts if v.outcome is outcome]
+        return [verdict for verdict in self.verdicts if verdict.outcome is outcome]
 
 
 DID_NOT_RUN = Result((Verdict(None, Outcome.DID_NOT_RUN),))
@@ -72,10 +72,6 @@ DID_NOT_RUN = Result((Verdict(None, Outcome.DID_NOT_RUN),))
 def location(root, file, function) -> Location:
     relative = os.path.relpath(real_path(file), real_path(root))
     return Location(Path(relative).as_posix(), function)
-
-
-def key(root, file, name):
-    return location(root, file, name).key
 
 
 def record(scores, name, score):
@@ -105,15 +101,19 @@ def _outcome(now, allowed) -> Outcome:
 
 def judge(findings, baseline: dict) -> Result:
     numbers = strongest(findings)
-    dark = unmeasured_keys(findings)
+    unmeasured = unmeasured_keys(findings)
     verdicts = [
         Verdict(Location.from_key(k), _outcome(n, baseline.get(k)), n, baseline.get(k))
         for k, n in numbers.items()
-        if k not in dark or n > baseline.get(k, 0)
+        if k not in unmeasured or n > baseline.get(k, 0)
     ]
-    verdicts += [Verdict(Location.from_key(k), Outcome.UNMEASURED, None, baseline.get(k)) for k in dark]
-    verdicts += [Verdict(Location.from_key(k), Outcome.BEHIND, None, v) for k, v in baseline.items() if k not in numbers and k not in dark]
-    return Result(tuple(sorted(verdicts, key=lambda v: v.location.key)))
+    verdicts += [Verdict(Location.from_key(k), Outcome.UNMEASURED, None, baseline.get(k)) for k in unmeasured]
+    verdicts += [
+        Verdict(Location.from_key(k), Outcome.BEHIND, None, allowed)
+        for k, allowed in baseline.items()
+        if k not in numbers and k not in unmeasured
+    ]
+    return Result(tuple(sorted(verdicts, key=lambda verdict: verdict.location.key)))
 
 
 def exit_code(result: Result) -> int:
@@ -122,14 +122,18 @@ def exit_code(result: Result) -> int:
     return 0 if len(result.having(Outcome.PASSED)) == len(result.verdicts) else 1
 
 
+def owes(verdict: Verdict) -> bool:
+    return verdict.outcome in (Outcome.PASSED, Outcome.BEHIND) and bool(verdict.now)
+
+
 def lowered(result: Result) -> dict:
-    kept = {v.location.key: v.now for v in result.verdicts if v.outcome in (Outcome.PASSED, Outcome.BEHIND) and v.now}
-    held = {v.location.key: v.allowed for v in result.having(Outcome.UNMEASURED) if v.allowed is not None}
+    kept = {verdict.location.key: verdict.now for verdict in result.verdicts if owes(verdict)}
+    held = {
+        verdict.location.key: verdict.allowed
+        for verdict in result.having(Outcome.UNMEASURED)
+        if verdict.allowed is not None
+    }
     return dict(sorted({**kept, **held}.items()))
-
-
-def seeded(findings) -> dict:
-    return strongest(findings)
 
 
 def write(file, scores):
@@ -148,7 +152,7 @@ def settle(find: Callable[[], list], file: Path, updating: bool) -> Result:
     if not file.exists() and not updating:
         raise Untagged(MISSING_BASELINE.format(file))
     findings = find()
-    baseline = json.loads(file.read_text(encoding="utf-8")) if file.exists() else seeded(findings)
+    baseline = json.loads(file.read_text(encoding="utf-8")) if file.exists() else strongest(findings)
     result = judge(findings, baseline)
     if not updating or result.having(Outcome.FAILED):
         return result

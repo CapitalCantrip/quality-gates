@@ -78,7 +78,7 @@ class TrueCasePathTest(InCaseInsensitiveTree):
 
 class TrueCaseKeyTest(InCaseInsensitiveTree):
     def test_two_links_spelling_a_folder_in_different_case_give_the_file_one_key(self):
-        keys = {ratchet.key(self.root, str(self.root / link / "x" / "shop.py"), "f") for link in ("pa", "pb")}
+        keys = {ratchet.location(self.root, str(self.root / link / "x" / "shop.py"), "f").key for link in ("pa", "pb")}
         self.assertEqual(keys, {"shared/Shop/shop.py::f"})
 
 

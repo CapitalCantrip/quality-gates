@@ -47,11 +47,11 @@ class KeyTest(unittest.TestCase):
         os.symlink(self.root / "shared" / "Shop", self.root / "src" / "Shop")
 
     def test_a_file_behind_a_symlinked_folder_is_keyed_by_its_real_path(self):
-        self.assertEqual(ratchet.key(self.root, "src/Shop/shop.py", "f"), "shared/Shop/shop.py::f")
+        self.assertEqual(ratchet.location(self.root, "src/Shop/shop.py", "f").key, "shared/Shop/shop.py::f")
 
     def test_an_absolute_file_behind_a_symlinked_folder_is_keyed_by_its_real_path(self):
         file = str(self.root / "src" / "Shop" / "shop.py")
-        self.assertEqual(ratchet.key(self.root, file, "f"), "shared/Shop/shop.py::f")
+        self.assertEqual(ratchet.location(self.root, file, "f").key, "shared/Shop/shop.py::f")
 
     def test_a_file_behind_a_link_to_a_folder_outside_the_repo_is_keyed_with_a_parent_step(self):
         outside = tempfile.TemporaryDirectory(dir=self.root.parent)
@@ -59,34 +59,34 @@ class KeyTest(unittest.TestCase):
         (Path(outside.name) / "o.py").write_text("x = 1\n")
         os.symlink(outside.name, self.root / "src" / "Out")
         expected = f"../{Path(outside.name).name}/o.py::f"
-        self.assertEqual(ratchet.key(self.root, "src/Out/o.py", "f"), expected)
+        self.assertEqual(ratchet.location(self.root, "src/Out/o.py", "f").key, expected)
 
     def test_an_ordinary_files_key_is_its_path_from_the_root(self):
-        self.assertEqual(ratchet.key(self.root, "src/mod.py", "f"), "src/mod.py::f")
+        self.assertEqual(ratchet.location(self.root, "src/mod.py", "f").key, "src/mod.py::f")
 
     def test_an_ordinary_absolute_files_key_is_its_path_from_the_root(self):
-        self.assertEqual(ratchet.key(self.root, str(self.root / "src" / "mod.py"), "f"), "src/mod.py::f")
+        self.assertEqual(ratchet.location(self.root, str(self.root / "src" / "mod.py"), "f").key, "src/mod.py::f")
 
     def test_a_relative_file_with_dot_segments_is_keyed_without_them(self):
-        self.assertEqual(ratchet.key(self.root, "./src/../src/mod.py", "f"), "src/mod.py::f")
+        self.assertEqual(ratchet.location(self.root, "./src/../src/mod.py", "f").key, "src/mod.py::f")
 
     def test_a_scanned_path_that_is_itself_a_link_is_keyed_by_its_real_path(self):
         os.symlink(self.root / "shared", self.root / "alias")
-        self.assertEqual(ratchet.key(self.root, "alias/Shop/shop.py", "f"), "shared/Shop/shop.py::f")
+        self.assertEqual(ratchet.location(self.root, "alias/Shop/shop.py", "f").key, "shared/Shop/shop.py::f")
 
     def test_a_file_reached_through_a_link_and_a_dot_dot_step_is_keyed_by_where_the_step_really_lands(self):
         (self.root / "shared" / "up.py").write_text("x = 1\n")
-        self.assertEqual(ratchet.key(self.root, "src/Shop/../up.py", "f"), "shared/up.py::f")
+        self.assertEqual(ratchet.location(self.root, "src/Shop/../up.py", "f").key, "shared/up.py::f")
 
     def test_one_file_reached_by_three_spellings_gets_one_key(self):
         spellings = ("src/Shop/shop.py", "shared/Shop/shop.py", str(self.root / "src" / "Shop" / ".." / "Shop" / "shop.py"))
-        self.assertEqual({ratchet.key(self.root, s, "f") for s in spellings}, {"shared/Shop/shop.py::f"})
+        self.assertEqual({ratchet.location(self.root, s, "f").key for s in spellings}, {"shared/Shop/shop.py::f"})
 
     def test_a_logical_working_directory_does_not_change_the_key(self):
         alias = self.root.parent / (self.root.name + "-alias")
         os.symlink(self.root, alias)
         self.addCleanup(os.unlink, alias)
-        self.assertEqual(ratchet.key(alias, str(alias / "src" / "Shop" / "shop.py"), "f"), "shared/Shop/shop.py::f")
+        self.assertEqual(ratchet.location(alias, str(alias / "src" / "Shop" / "shop.py"), "f").key, "shared/Shop/shop.py::f")
 
 
 class ResultTest(unittest.TestCase):
@@ -221,6 +221,102 @@ class CcCheckFindsTest(unittest.TestCase):
             updated, _ = call(qc.main, [*argv, "--baseline", str(file), "--update"], self.root)
         self.assertEqual((plain, updated), (5, 5))
         self.assertEqual(json.loads(file.read_text()), {"mod.py::A.m": 6, "mod.py::f": 6})
+
+
+class CrapFindsTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        (self.root / "mod.py").write_text("class A:\n" + branchy("m", 5, indent="    ") + branchy("f", 5))
+
+    def located(self):
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            result = crap.gate(["--lang", "python", str(self.root / "mod.py"), "--no-coverage"], self.root)
+        return [v.location for v in result.verdicts]
+
+    def test_the_same_code_gives_the_same_locations_on_two_runs(self):
+        first = self.located()
+        self.assertEqual(first, [ratchet.Location("mod.py", "A.m"), ratchet.Location("mod.py", "f")])
+        self.assertEqual(self.located(), first)
+
+    def test_each_finding_shows_what_its_fail_or_unmeasured_line_names(self):
+        results = [
+            crap.FunctionResult("mod.py", "f", 3, 6, 0.0, 42.0, "FAIL"),
+            crap.FunctionResult("mod.py", "A.m", 9, 4, None, None, crap.UNMEASURED),
+        ]
+        shown = [f.display for f in crap.findings(results, self.root)]
+        self.assertEqual(shown, ["FAIL  CRAP=42.0  mod.py:3  f", "UNMEASURED  CRAP=—  mod.py:9  A.m"])
+
+
+class CommentDebtFindsTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        (self.root / "pkg").mkdir()
+        (self.root / "pkg" / "b.py").write_text("x = 1  # b\n")
+        (self.root / "a.py").write_text("# a\nx = 1\n")
+        subprocess.run(["git", "-C", str(self.root), "add", "a.py", "pkg/b.py"], check=True)
+
+    def located(self):
+        return [f.location for f in cd.findings(self.root, [])]
+
+    def test_the_same_code_gives_the_same_locations_on_two_runs(self):
+        first = self.located()
+        self.assertEqual(first, [ratchet.Location("a.py"), ratchet.Location("pkg/b.py")])
+        self.assertEqual(self.located(), first)
+
+
+class PaidDebtLeavesTheBaselineTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        self.file = self.root / "baseline.json"
+        self.module = self.root / "mod.py"
+
+    def baseline(self):
+        return json.loads(self.file.read_text())
+
+    def test_a_location_whose_count_reached_zero_or_vanished_owes_nothing(self):
+        result = ratchet.judge([finding("zero.py", 0), finding("kept.py", 2)], {"zero.py::f": 3, "gone.py::f": 4, "kept.py::f": 2})
+        owed = {v.location.key: ratchet.owes(v) for v in result.verdicts}
+        self.assertEqual(owed, {"gone.py::f": False, "kept.py::f": True, "zero.py::f": False})
+        self.assertEqual(ratchet.lowered(result), {"kept.py::f": 2})
+
+    def test_cc_check_update_drops_a_function_paid_down_to_the_threshold(self):
+        argv = [str(self.module), "--threshold", "3", "--baseline", str(self.file)]
+        self.module.write_text(branchy("f", 5))
+        call(qc.main, [*argv, "--update"], self.root)
+        self.module.write_text(branchy("f", 1))
+        self.assertEqual(call(qc.main, [*argv, "--update"], self.root)[0], 0)
+        self.assertEqual(self.baseline(), {})
+
+    def test_crap_update_drops_a_function_paid_down_below_the_threshold(self):
+        coverage = self.root / "coverage.json"
+        argv = ["--lang", "python", str(self.module), "--coverage-json", str(coverage), "--baseline", str(self.file)]
+        self.module.write_text(branchy("f", 2))
+        lines = list(range(1, branchy("f", 2).count("\n") + 1))
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": lines}}}))
+        call(crap.main, [*argv, "--update"], self.root)
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": lines, "missing_lines": []}}}))
+        self.assertEqual(call(crap.main, [*argv, "--update"], self.root)[0], 0)
+        self.assertEqual(self.baseline(), {})
+
+    def test_comment_debt_update_drops_a_file_paid_down_to_zero_comment_lines(self):
+        self.module.write_text("# one\nx = 1\n")
+        subprocess.run(["git", "-C", str(self.root), "add", "mod.py"], check=True)
+        cd.main(["--update"], root=self.root, baseline=self.file, out=io.StringIO())
+        self.module.write_text("x = 1\n")
+        self.assertEqual(cd.main(["--update"], root=self.root, baseline=self.file, out=io.StringIO()), 0)
+        self.assertEqual(self.baseline(), {})
 
 
 class CcCheckRatchetTest(unittest.TestCase):
