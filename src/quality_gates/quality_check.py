@@ -121,7 +121,7 @@ def gate(argv, root):
     if not found.files:
         complexity_scan.print_skipped(found.skipped, sys.stderr)
         print(LANGUAGES[args.lang], file=sys.stderr)
-        return 2
+        return ratchet.exit_code(ratchet.DID_NOT_RUN)
     flagged = findings(found.functions, args.threshold, project_files.root_for(args.paths, root))
     report(found, flagged, args)
     out = sys.stderr if args.format == "json" else sys.stdout
