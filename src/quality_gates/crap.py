@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
 from quality_gates import complexity_scan, coverage_json, istanbul, languages, llvm_cov, project_files, ratchet, xccov
-from quality_gates.errors import ToolError, given_path, run_gate
+from quality_gates.errors import ToolError, given_path
 
 if TYPE_CHECKING:
     from quality_gates.complexity_scan import Function
@@ -18,6 +18,7 @@ WARN_THRESHOLD = 5.0
 LABEL_WIDTH = 50
 TAG = "[crap] "
 ASSUMED_ZERO = "assumed-zero"
+FINDING_KIND = "crap"
 UNMEASURED = "UNMEASURED"
 NO_SCORE = "—"
 UNMATCHED_REPORT = "no scored function got a figure from the coverage report; it may have been made elsewhere or hold no figures for the scanned files"
@@ -445,23 +446,27 @@ def _check_baseline_args(args, report: Optional[CoverageReport]) -> None:
         raise ToolError("--baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).")
 
 
-def _failing_scores(results: list, root) -> dict:
-    scores: dict = {}
+def _shown(r: FunctionResult) -> str:
+    return f"{r.grade}  CRAP={_fmt_crap(r.crap).strip()}  {r.file}:{r.line}  {r.name}"
+
+
+def findings(results: list, root) -> list:
+    found = []
     for r in results:
-        if r.grade == "FAIL":
-            ratchet.record(scores, ratchet.key(root, r.file, r.name), round(r.crap, 2))
-    return scores
+        if r.grade == "FAIL" or r.grade == UNMEASURED:
+            number = None if r.crap is None else round(r.crap, 2)
+            found.append(ratchet.Finding(ratchet.location(root, r.file, r.name), number, FINDING_KIND, _shown(r)))
+    return found
 
 
-def _enforce_baseline(results: list, args, root) -> int:
+def _settled(failing: list, args) -> ratchet.Result:
+    if not args.baseline:
+        return ratchet.judge(failing, {})
     out = sys.stderr if args.json_output else sys.stdout
-    root = project_files.root_for(args.paths, root)
-    current = _failing_scores(results, root)
-    unmeasured = {ratchet.key(root, r.file, r.name) for r in _unmeasured(results)}
-    return ratchet.enforce(current, Path(args.baseline), args.update, out, unmeasured)
+    return ratchet.enforce(lambda: failing, Path(args.baseline), args.update, out)
 
 
-def gate(argv, root) -> int:
+def gate(argv, root) -> ratchet.Result:
     args = build_parser().parse_args(argv)
     _validate_args(args)
     report = _given_report(args)
@@ -474,15 +479,13 @@ def gate(argv, root) -> int:
     results = score(found.functions, coverage_of, Limits(args.min_cc, args.warn, args.threshold))
     _check_results_empty(results, args, found.skipped)
     _check_report_matched(report, results)
-    n_fail = sum(1 for r in results if r.grade in ("FAIL", UNMEASURED))
-    _emit_output(results, args, n_fail, found.skipped, _coverage_source(report))
-    if args.baseline:
-        return _enforce_baseline(results, args, root)
-    return 1 if n_fail > 0 else 0
+    failing = findings(results, project_files.root_for(args.paths, root))
+    _emit_output(results, args, len(failing), found.skipped, _coverage_source(report))
+    return _settled(failing, args)
 
 
 def main(argv=None, root=None) -> None:
-    sys.exit(run_gate(gate, argv, root, TAG))
+    sys.exit(ratchet.run_gate(gate, argv, root, TAG))
 
 
 if __name__ == "__main__":

@@ -8,6 +8,7 @@ from pathlib import Path
 from unittest import mock
 
 from quality_gates import comment_debt as cd
+from quality_gates import ratchet
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -57,26 +58,30 @@ class CountingTest(unittest.TestCase):
 
 class RatchetTest(unittest.TestCase):
 
+    def judged(self, counts, baseline):
+        found = [ratchet.Finding(ratchet.Location(path), n, cd.FINDING_KIND, '') for path, n in counts.items()]
+        return ratchet.judge(found, baseline)
+
+    def outcomes(self, counts, baseline):
+        return {v.location.key: (v.outcome, v.now, v.allowed) for v in self.judged(counts, baseline).verdicts}
+
     def test_a_new_file_with_a_comment_is_over(self):
-        over, _, _ = cd.ratchet({'new.py': [3]}, {})
-        self.assertEqual(over, {'new.py': ([3], 0)})
+        self.assertEqual(self.outcomes({'new.py': 1}, {}), {'new.py': (ratchet.Outcome.FAILED, 1, None)})
 
     def test_a_file_at_its_baseline_passes(self):
-        self.assertEqual(cd.ratchet({'a.py': [1, 2]}, {'a.py': 2}), ({}, {}, []))
+        self.assertEqual(self.outcomes({'a.py': 2}, {'a.py': 2}), {'a.py': (ratchet.Outcome.PASSED, 2, 2)})
 
     def test_a_file_below_its_baseline_is_reported_as_paid(self):
-        _, under, _ = cd.ratchet({'a.py': [1]}, {'a.py': 2})
-        self.assertEqual(under, {'a.py': (1, 2)})
+        self.assertEqual(self.outcomes({'a.py': 1}, {'a.py': 2}), {'a.py': (ratchet.Outcome.BEHIND, 1, 2)})
 
     def test_a_baseline_entry_for_a_deleted_file_is_stale(self):
-        _, _, stale = cd.ratchet({}, {'gone.py': 4})
-        self.assertEqual(stale, ['gone.py'])
+        self.assertEqual(self.outcomes({}, {'gone.py': 4}), {'gone.py': (ratchet.Outcome.BEHIND, None, 4)})
 
     def test_lowering_never_raises_a_count(self):
-        self.assertEqual(cd.lowered({'a.py': [1, 2, 3]}, {'a.py': 2}), {'a.py': 2})
+        self.assertEqual(ratchet.lowered(self.judged({'a.py': 2}, {'a.py': 3})), {'a.py': 2})
 
     def test_lowering_drops_files_that_reach_zero(self):
-        self.assertEqual(cd.lowered({'a.py': [], 'b.py': [1]}, {'a.py': 3, 'b.py': 1}), {'b.py': 1})
+        self.assertEqual(ratchet.lowered(self.judged({'a.py': 0, 'b.py': 1}, {'a.py': 3, 'b.py': 1})), {'b.py': 1})
 
 
 class RepositoryTest(unittest.TestCase):
@@ -166,6 +171,20 @@ class RepositoryTest(unittest.TestCase):
         self.run_gate('--update', '--exclude', 'backups/')
         self.assertEqual(self.baseline(), {})
 
+    def test_each_tracked_file_is_one_finding_with_its_comment_count_and_line_numbers(self):
+        self.put('a.py', '# one\nx = 1\ny = 2  # two\n')
+        self.put('b.py', 'x = 1\n')
+        self.assertEqual(cd.findings(self.root, []), [
+            ratchet.Finding(ratchet.Location('a.py'), 2, 'comment lines', '1, 3'),
+            ratchet.Finding(ratchet.Location('b.py'), 0, 'comment lines', ''),
+        ])
+
+    def test_comment_debt_keeps_no_ratchet_or_baseline_code_of_its_own(self):
+        self.assertIs(cd.ratchet, ratchet)
+        for name in ('lowered', 'load_baseline', 'write_baseline', 'check', 'update'):
+            with self.subTest(name=name):
+                self.assertFalse(hasattr(cd, name))
+
     def test_status_lists_each_file_under_its_area(self):
         self.put('a.py', '# a workaround for now\nx = 1\n')
         code, out = self.run_gate('--status')
@@ -194,6 +213,14 @@ class LiveRepositoryTest(unittest.TestCase):
         out = io.StringIO()
         code = cd.main([], root=REPO, out=out)
         self.assertEqual(code, 0, out.getvalue())
+
+    def test_update_on_this_repository_leaves_its_baseline_byte_for_byte_the_same(self):
+        original = (REPO / 'comment-debt.json').read_bytes()
+        with tempfile.TemporaryDirectory() as tmp:
+            copy = Path(tmp) / 'comment-debt.json'
+            copy.write_bytes(original)
+            code = cd.main(['--update'], root=REPO, baseline=copy, out=io.StringIO())
+            self.assertEqual((code, copy.read_bytes()), (0, original))
 
 
 if __name__ == '__main__':
