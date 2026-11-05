@@ -2,6 +2,7 @@ import io
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -10,8 +11,10 @@ from pathlib import Path
 from unittest import mock
 
 from quality_gates import complexity_scan, crap
+from quality_gates import comment_debt as cd
 from quality_gates import quality_check as qc
 from quality_gates import ratchet
+from quality_gates.errors import ToolError, Untagged
 
 
 def branchy(name, branches, indent=""):
@@ -138,25 +141,34 @@ class SettleTest(unittest.TestCase):
         self.file = Path(tmp.name) / "baseline.json"
 
     def test_a_check_without_a_baseline_file_did_not_run_and_exits_2(self):
-        result = ratchet.settle([finding("a.py", 5)], self.file, updating=False)
+        out = io.StringIO()
+        result = ratchet.enforce(lambda: [finding("a.py", 5)], self.file, False, out)
         self.assertEqual([v.outcome for v in result.verdicts], [ratchet.Outcome.DID_NOT_RUN])
         self.assertEqual(ratchet.exit_code(result), 2)
+        self.assertEqual(out.getvalue(), f"No baseline at {self.file}. Run with --update to create one.\n")
+
+    def test_a_check_without_a_baseline_file_never_asks_the_gate_to_find(self):
+        def find():
+            raise AssertionError("the gate was asked to find")
+
+        with self.assertRaises(ToolError):
+            ratchet.settle(find, self.file, updating=False)
 
     def test_update_writes_the_lowered_baseline_and_then_every_location_has_passed(self):
         self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
-        result = ratchet.settle([finding("a.py", 5)], self.file, updating=True)
+        result = ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=True)
         self.assertEqual(self.file.read_text(), '{\n  "a.py::f": 5\n}\n')
         self.assertEqual([(v.location.key, v.outcome) for v in result.verdicts], [("a.py::f", ratchet.Outcome.PASSED)])
 
     def test_update_refuses_a_failed_location_and_writes_nothing(self):
         self.file.write_text('{"a.py::f": 4}')
-        result = ratchet.settle([finding("a.py", 5)], self.file, updating=True)
+        result = ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=True)
         self.assertEqual(self.file.read_text(), '{"a.py::f": 4}')
         self.assertEqual(ratchet.exit_code(result), 1)
 
     def test_update_keeps_the_entry_of_an_unmeasured_location_and_adds_none_for_a_new_one(self):
         self.file.write_text('{"a.py::f": 9}')
-        result = ratchet.settle([finding("a.py", None), finding("b.py", None)], self.file, updating=True)
+        result = ratchet.settle(lambda: [finding("a.py", None), finding("b.py", None)], self.file, updating=True)
         self.assertEqual(json.loads(self.file.read_text()), {"a.py::f": 9})
         self.assertEqual(ratchet.exit_code(result), 1)
 
@@ -172,13 +184,13 @@ class SharedKeyTest(unittest.TestCase):
 
     def test_a_failing_score_and_an_unmeasured_figure_at_one_location_both_fail_the_check(self):
         out = io.StringIO()
-        self.assertEqual(ratchet.enforce(self.found, self.file, False, out), 1)
+        self.assertEqual(ratchet.exit_code(ratchet.enforce(lambda: self.found, self.file, False, out)), 1)
         self.assertIn("FAIL a.py::f: 9, new", out.getvalue())
         self.assertIn("UNMEASURED a.py::f", out.getvalue())
 
     def test_update_refuses_a_failing_score_even_when_its_location_is_also_unmeasured(self):
         out = io.StringIO()
-        self.assertEqual(ratchet.enforce(self.found, self.file, True, out), 1)
+        self.assertEqual(ratchet.exit_code(ratchet.enforce(lambda: self.found, self.file, True, out)), 1)
         self.assertEqual(self.file.read_text(), "{}")
         self.assertIn("--update only lowers the baseline", out.getvalue())
 
@@ -484,6 +496,152 @@ class EmptyBaselineFlagTest(unittest.TestCase):
                 code, out = call(qc.main, [str(self.module), "--baseline", value], self.root)
                 self.assertEqual(code, 2)
                 self.assertIn("ERROR: --baseline was given an empty path", out)
+
+
+class RunGateTest(unittest.TestCase):
+    def test_the_exit_code_of_the_result_a_gate_returns_is_passed_through(self):
+        failed = ratchet.Result((ratchet.Verdict(ratchet.Location("a.py"), ratchet.Outcome.FAILED),))
+        self.assertEqual(ratchet.run_gate(lambda argv, root: failed, ["x"], None, "[t] "), 1)
+
+    def test_a_tool_error_is_printed_after_the_tag_and_becomes_exit_code_2(self):
+        def gate(argv, root):
+            raise ToolError("path not found: x")
+
+        err = io.StringIO()
+        with redirect_stderr(err):
+            code = ratchet.run_gate(gate, [], None, "[t] ")
+        self.assertEqual((code, err.getvalue()), (2, "[t] path not found: x\n"))
+
+    def test_an_untagged_tool_error_is_printed_without_the_tag(self):
+        def gate(argv, root):
+            raise Untagged("No Python files found.")
+
+        err = io.StringIO()
+        with redirect_stderr(err):
+            code = ratchet.run_gate(gate, [], None, "[t] ")
+        self.assertEqual((code, err.getvalue()), (2, "No Python files found.\n"))
+
+    def test_an_error_that_is_not_a_tool_error_is_not_caught(self):
+        def gate(argv, root):
+            raise ValueError("bug")
+
+        with self.assertRaises(ValueError):
+            ratchet.run_gate(gate, [], None, "[t] ")
+
+
+NOT_A_REPO = (
+    "not inside a git repository: quality-gates looks at the files git would commit, "
+    "so run it inside the project's repository, or run `git init` there first"
+)
+STALE_MTIME = 1_000_000_000
+
+
+class CouldNotRunTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(os.path.realpath(tmp.name))
+        self.module = self.root / "m.py"
+        self.module.write_text(branchy("f", 3))
+        self.missing = self.root / "missing.json"
+        self.report = self.root / "cov.json"
+        self.report.write_text('{"files": {}}')
+
+    def repo(self):
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        subprocess.run(["git", "-C", str(self.root), "add", "m.py"], check=True)
+
+    def working_in_the_folder(self):
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(self.root)
+
+    def tried(self, run):
+        out, err = io.StringIO(), io.StringIO()
+        with redirect_stdout(out), redirect_stderr(err):
+            result = run()
+        outcomes = [v.outcome for v in result.verdicts]
+        return outcomes, ratchet.exit_code(result), (out.getvalue(), err.getvalue())
+
+    def assertDidNotRun(self, run, message):
+        outcomes, code, streams = self.tried(run)
+        self.assertEqual((outcomes, code), ([ratchet.Outcome.DID_NOT_RUN], 2))
+        self.assertTrue(any(shown.endswith(message) for shown in streams), streams)
+
+    def cc_check(self, *argv):
+        return lambda: ratchet.run(qc.gate, list(argv), None, qc.ERROR_TAG)
+
+    def crap(self, *argv):
+        return lambda: ratchet.run(crap.gate, ["--lang", "python", *argv], None, crap.TAG)
+
+    def comment_debt(self, *argv):
+        return lambda: cd.run(list(argv), None, None, sys.stdout)
+
+    def test_a_missing_baseline_did_not_run_in_cc_check(self):
+        self.repo()
+        self.assertDidNotRun(
+            self.cc_check(str(self.module), "--baseline", str(self.missing)),
+            f"No baseline at {self.missing}. Run with --update to create one.\n",
+        )
+
+    def test_a_missing_baseline_did_not_run_in_crap(self):
+        self.repo()
+        self.assertDidNotRun(
+            self.crap(str(self.module), "--coverage-json", str(self.report), "--baseline", str(self.missing)),
+            f"No baseline at {self.missing}. Run with --update to create one.\n",
+        )
+
+    def test_a_missing_baseline_did_not_run_in_comment_debt(self):
+        self.repo()
+        self.working_in_the_folder()
+        self.assertDidNotRun(
+            self.comment_debt("--baseline", str(self.missing)),
+            f"No baseline at {self.missing}. Run with --update to create one.\n",
+        )
+
+    def test_an_empty_baseline_path_did_not_run_in_comment_debt(self):
+        self.assertDidNotRun(self.comment_debt("--baseline", ""), "--baseline was given an empty path\n")
+
+    def test_a_directory_that_is_not_a_git_repository_did_not_run_in_cc_check(self):
+        self.working_in_the_folder()
+        self.assertDidNotRun(self.cc_check("m.py"), f"ERROR: {NOT_A_REPO}\n")
+
+    def test_a_directory_that_is_not_a_git_repository_did_not_run_in_crap(self):
+        self.working_in_the_folder()
+        self.assertDidNotRun(self.crap("m.py", "--no-coverage"), f"[crap] {NOT_A_REPO}\n")
+
+    def test_a_directory_that_is_not_a_git_repository_did_not_run_in_comment_debt(self):
+        self.working_in_the_folder()
+        self.assertDidNotRun(self.comment_debt(), f"comment-debt: {NOT_A_REPO}\n")
+
+    def test_a_missing_coverage_report_did_not_run_in_crap(self):
+        self.repo()
+        self.assertDidNotRun(
+            self.crap(str(self.module), "--coverage-json", str(self.missing)),
+            f"[crap] cannot open coverage file: [Errno 2] No such file or directory: '{self.missing}'\n",
+        )
+
+    def test_a_stale_coverage_report_with_strict_freshness_did_not_run_in_crap(self):
+        self.repo()
+        os.utime(self.report, (STALE_MTIME, STALE_MTIME))
+        self.assertDidNotRun(
+            self.crap(str(self.module), "--coverage-json", str(self.report), "--strict-freshness"),
+            "[crap] ⚠️  coverage file may be stale: cov.json is older than the newest source file\n",
+        )
+
+    def test_nothing_to_scan_did_not_run_in_cc_check(self):
+        self.repo()
+        (self.root / "empty").mkdir()
+        self.assertDidNotRun(self.cc_check(str(self.root / "empty")), "No Python files found.\n")
+
+    def test_nothing_to_scan_did_not_run_in_crap(self):
+        self.repo()
+        (self.root / "empty").mkdir()
+        self.assertDidNotRun(
+            self.crap(str(self.root / "empty"), "--no-coverage"),
+            "  Use --allow-empty to suppress this error.\n",
+        )
 
 
 if __name__ == "__main__":

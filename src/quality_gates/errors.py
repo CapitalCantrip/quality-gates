@@ -1,9 +1,12 @@
 import codecs
 import sys
-from typing import Callable
 
 
 class ToolError(Exception):
+    pass
+
+
+class Untagged(ToolError):
     pass
 
 
@@ -17,14 +20,13 @@ def _write_utf8(stream) -> None:
         stream.reconfigure(encoding=OUTPUT_ENCODING)
 
 
-def run_gate(gate: Callable, argv, root, tag: str) -> int:
+def write_utf8() -> None:
     _write_utf8(sys.stdout)
     _write_utf8(sys.stderr)
-    try:
-        return gate(argv, root)
-    except ToolError as error:
-        print(f"{tag}{error}", file=sys.stderr)
-        return TOOL_ERROR_EXIT
+
+
+def shown(error: ToolError, tag: str) -> str:
+    return str(error) if isinstance(error, Untagged) else f"{tag}{error}"
 
 
 def given_path(flag: str, value: str) -> str:

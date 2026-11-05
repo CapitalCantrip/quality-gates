@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import argparse
 import ast
+import functools
 import io
 import re
 import sys
@@ -9,7 +10,7 @@ import warnings
 from pathlib import Path
 
 from quality_gates import languages, project_files, ratchet
-from quality_gates.errors import ToolError
+from quality_gates.errors import Untagged, shown
 
 
 PRAGMA = re.compile(
@@ -22,6 +23,7 @@ PRAGMA = re.compile(
 )
 CODING = re.compile(r"^#.*coding[:=]")
 FINDING_KIND = "comment lines"
+TAG = "comment-debt: "
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,
@@ -99,10 +101,10 @@ def findings(root, excluded):
 
 
 def describe_failed(result, found, out):
-    shown = {finding.location.key: finding.display for finding in found}
+    lines = {finding.location.key: finding.display for finding in found}
     for v in result.having(ratchet.Outcome.FAILED):
         allowed = v.allowed or 0
-        out.write(f"FAIL {v.location.key}: {v.now} comment lines, baseline allows {allowed} — lines {shown[v.location.key]}\n")
+        out.write(f"FAIL {v.location.key}: {v.now} comment lines, baseline allows {allowed} — lines {lines[v.location.key]}\n")
     out.write(
         "\nNew comments are not allowed (no-code-comments policy). Move the knowledge to a test, "
         "a named constant, an ADR or an issue — see the quality-gates README for where each kind goes.\n"
@@ -143,9 +145,7 @@ def describe_update(result, found, out):
 
 
 def describe(result, found, file, updating, out):
-    if result.having(ratchet.Outcome.DID_NOT_RUN):
-        ratchet.describe(result, file, updating, out)
-    elif updating:
+    if updating:
         describe_update(result, found, out)
     else:
         describe_check(result, found, file, out)
@@ -183,14 +183,13 @@ def status(root, excluded, out):
     out.write("Columns: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n")
     for name in sorted(areas, key=lambda a: -sum(n for _, n, _ in areas[a])):
         write_area(name, areas[name], out)
-    return 0
 
 
 def labels():
     return " and ".join(languages.LANGUAGES[name].label for name in LANGUAGES)
 
 
-def main(argv=None, root=None, baseline=None, out=sys.stdout):
+def parse_args(argv):
     parser = argparse.ArgumentParser(
         description=f"Ratchet on comment lines in tracked {labels()} files.",
     )
@@ -199,26 +198,30 @@ def main(argv=None, root=None, baseline=None, out=sys.stdout):
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
     parser.add_argument("--baseline", help=f"baseline file (default: {project_files.COMMENT_DEBT_BASELINE} at the repo root)")
     parser.add_argument("--exclude", action="append", default=[], metavar="PREFIX", help="skip tracked paths with this prefix")
-    args = parser.parse_args(argv)
-    if args.baseline is not None and not args.baseline.strip():
-        out.write("--baseline was given an empty path\n")
-        return ratchet.exit_code(ratchet.DID_NOT_RUN)
-    try:
-        root = root or project_files.git_root()
-    except ToolError as error:
-        out.write(f"comment-debt: {error}\n")
-        return ratchet.exit_code(ratchet.DID_NOT_RUN)
-    return run_mode(args, root, baseline, out)
+    return parser.parse_args(argv)
+
+
+def run(argv, root, baseline, out):
+    args = parse_args(argv)
+    return ratchet.attempt(lambda: run_mode(args, root, baseline, out), lambda error: out.write(f"{shown(error, TAG)}\n"))
+
+
+def main(argv=None, root=None, baseline=None, out=sys.stdout):
+    return ratchet.exit_code(run(argv, root, baseline, out))
 
 
 def run_mode(args, root, baseline, out):
+    if args.baseline is not None and not args.baseline.strip():
+        raise Untagged("--baseline was given an empty path")
+    root = root or project_files.git_root()
     if args.status:
-        return status(root, args.exclude, out)
+        status(root, args.exclude, out)
+        return ratchet.Result(())
     file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
-    found = findings(root, args.exclude)
-    result = ratchet.settle(found, file, args.update)
-    describe(result, found, file, args.update, out)
-    return ratchet.exit_code(result)
+    find = functools.lru_cache(maxsize=None)(functools.partial(findings, root, args.exclude))
+    result = ratchet.settle(find, file, args.update)
+    describe(result, find(), file, args.update, out)
+    return result
 
 
 if __name__ == "__main__":

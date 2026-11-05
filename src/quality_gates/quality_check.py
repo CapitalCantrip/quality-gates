@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 from quality_gates import complexity_scan, languages, project_files, ratchet
-from quality_gates.errors import given_path, run_gate
+from quality_gates.errors import Untagged, given_path
 
 AGENT_CC_CEILING = 8
 ERROR_TAG = "ERROR: "
@@ -120,19 +120,18 @@ def gate(argv, root):
     found = complexity_scan.scan(args.paths, args.lang, root=root)
     if not found.files:
         complexity_scan.print_skipped(found.skipped, sys.stderr)
-        print(LANGUAGES[args.lang], file=sys.stderr)
-        return ratchet.exit_code(ratchet.DID_NOT_RUN)
+        raise Untagged(LANGUAGES[args.lang])
     flagged = findings(found.functions, args.threshold, project_files.root_for(args.paths, root))
     report(found, flagged, args)
     out = sys.stderr if args.format == "json" else sys.stdout
     complexity_scan.print_skipped(found.skipped, out)
     if args.baseline is None:
-        return ratchet.exit_code(ratchet.judge(gated(flagged, args), {}))
-    return ratchet.enforce(flagged, Path(args.baseline), args.update, out)
+        return ratchet.judge(gated(flagged, args), {})
+    return ratchet.enforce(lambda: flagged, Path(args.baseline), args.update, out)
 
 
 def main(argv=None, root=None):
-    sys.exit(run_gate(gate, argv, root, ERROR_TAG))
+    sys.exit(ratchet.run_gate(gate, argv, root, ERROR_TAG))
 
 
 if __name__ == "__main__":

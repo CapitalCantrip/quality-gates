@@ -1,14 +1,16 @@
 import json
 import os
+import sys
 from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
-from quality_gates.errors import TOOL_ERROR_EXIT
+from quality_gates.errors import TOOL_ERROR_EXIT, ToolError, Untagged, shown, write_utf8
 from quality_gates.real_path import real_path
 
 KEY_SEPARATOR = "::"
+MISSING_BASELINE = "No baseline at {}. Run with --update to create one."
 UNMEASURED_ADVICE = (
     "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
     "the baseline keeps any entry they already have and records none for them."
@@ -134,13 +136,19 @@ def write(file, scores):
     file.write_text(json.dumps(scores, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
-def settle(findings, file: Path, updating: bool) -> Result:
-    if file.exists():
-        baseline = json.loads(file.read_text(encoding="utf-8"))
-    elif updating:
-        baseline = seeded(findings)
-    else:
+def attempt(run: Callable[[], Result], told: Callable[[ToolError], None]) -> Result:
+    try:
+        return run()
+    except ToolError as error:
+        told(error)
         return DID_NOT_RUN
+
+
+def settle(find: Callable[[], list], file: Path, updating: bool) -> Result:
+    if not file.exists() and not updating:
+        raise Untagged(MISSING_BASELINE.format(file))
+    findings = find()
+    baseline = json.loads(file.read_text(encoding="utf-8")) if file.exists() else seeded(findings)
     result = judge(findings, baseline)
     if not updating or result.having(Outcome.FAILED):
         return result
@@ -190,15 +198,24 @@ def describe_update(result: Result, out):
 
 def describe(result: Result, file: Path, updating: bool, out):
     if result.having(Outcome.DID_NOT_RUN):
-        out.write(f"No baseline at {file}. Run with --update to create one.\n")
-    elif updating:
+        return
+    if updating:
         describe_update(result, out)
     else:
         describe_check(result, file, out)
 
 
-def enforce(findings, file: Path, updating: bool, out) -> int:
-    result = settle(findings, file, updating)
+def enforce(find: Callable[[], list], file: Path, updating: bool, out) -> Result:
+    result = attempt(lambda: settle(find, file, updating), lambda error: out.write(f"{error}\n"))
     describe(result, file, updating, out)
-    return exit_code(result)
+    return result
+
+
+def run(gate: Callable, argv, root, tag: str) -> Result:
+    return attempt(lambda: gate(argv, root), lambda error: print(shown(error, tag), file=sys.stderr))
+
+
+def run_gate(gate: Callable, argv, root, tag: str) -> int:
+    write_utf8()
+    return exit_code(run(gate, argv, root, tag))
 

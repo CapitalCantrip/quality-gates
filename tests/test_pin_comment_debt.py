@@ -91,6 +91,11 @@ class CheckTest(PinTest):
         expected = "No baseline at other.json. Run with --update to create one.\n"
         self.assertRan(made.run(COMMENT_DEBT, "--baseline", "other.json"), 2, expected)
 
+    def test_a_missing_baseline_is_reported_before_a_file_python_cannot_read_is_measured(self):
+        made = project(self, {"a.py": CLEAN, "bad.py": "def f(:\n"})
+        expected = "No baseline at <ROOT>/comment-debt.json. Run with --update to create one.\n"
+        self.assertRan(made.run(COMMENT_DEBT), 2, expected)
+
     def test_a_directory_that_is_not_a_git_repository_cannot_run_and_exits_2(self):
         made = project(self, {"a.py": CLEAN}, repo=False)
         self.assertRan(made.run(COMMENT_DEBT), 2, NOT_A_REPO)
