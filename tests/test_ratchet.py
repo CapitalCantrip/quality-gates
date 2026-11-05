@@ -161,6 +161,28 @@ class SettleTest(unittest.TestCase):
         self.assertEqual(ratchet.exit_code(result), 1)
 
 
+class SharedKeyTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.file = Path(tmp.name) / "baseline.json"
+        self.file.write_text("{}")
+        self.found = [finding("a.py", 9), finding("a.py", None)]
+
+    def test_a_failing_score_and_an_unmeasured_figure_at_one_location_both_fail_the_check(self):
+        out = io.StringIO()
+        self.assertEqual(ratchet.enforce(self.found, self.file, False, out), 1)
+        self.assertIn("FAIL a.py::f: 9, new", out.getvalue())
+        self.assertIn("UNMEASURED a.py::f", out.getvalue())
+
+    def test_update_refuses_a_failing_score_even_when_its_location_is_also_unmeasured(self):
+        out = io.StringIO()
+        self.assertEqual(ratchet.enforce(self.found, self.file, True, out), 1)
+        self.assertEqual(self.file.read_text(), "{}")
+        self.assertIn("--update only lowers the baseline", out.getvalue())
+
+
 class CcCheckFindsTest(unittest.TestCase):
 
     def setUp(self):

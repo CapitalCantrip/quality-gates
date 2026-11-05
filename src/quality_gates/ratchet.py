@@ -80,18 +80,16 @@ def record(scores, name, score):
     scores[name] = max(score, scores.get(name, score))
 
 
-def _unmeasured(numbers, finding) -> bool:
-    return finding.number is None or (finding.location.key in numbers and numbers[finding.location.key] is None)
-
-
 def strongest(findings) -> dict:
     numbers: dict = {}
     for finding in findings:
-        if _unmeasured(numbers, finding):
-            numbers[finding.location.key] = None
-        else:
+        if finding.number is not None:
             record(numbers, finding.location.key, finding.number)
     return numbers
+
+
+def unmeasured_keys(findings) -> set:
+    return {f.location.key for f in findings if f.number is None}
 
 
 def _outcome(now, allowed) -> Outcome:
@@ -105,8 +103,14 @@ def _outcome(now, allowed) -> Outcome:
 
 def judge(findings, baseline: dict) -> Result:
     numbers = strongest(findings)
-    verdicts = [Verdict(Location.from_key(k), _outcome(n, baseline.get(k)), n, baseline.get(k)) for k, n in numbers.items()]
-    verdicts += [Verdict(Location.from_key(k), Outcome.BEHIND, None, v) for k, v in baseline.items() if k not in numbers]
+    dark = unmeasured_keys(findings)
+    verdicts = [
+        Verdict(Location.from_key(k), _outcome(n, baseline.get(k)), n, baseline.get(k))
+        for k, n in numbers.items()
+        if k not in dark or n > baseline.get(k, 0)
+    ]
+    verdicts += [Verdict(Location.from_key(k), Outcome.UNMEASURED, None, baseline.get(k)) for k in dark]
+    verdicts += [Verdict(Location.from_key(k), Outcome.BEHIND, None, v) for k, v in baseline.items() if k not in numbers and k not in dark]
     return Result(tuple(sorted(verdicts, key=lambda v: v.location.key)))
 
 
@@ -123,7 +127,7 @@ def lowered(result: Result) -> dict:
 
 
 def seeded(findings) -> dict:
-    return {k: n for k, n in strongest(findings).items() if n is not None}
+    return strongest(findings)
 
 
 def write(file, scores):
@@ -198,8 +202,3 @@ def enforce(findings, file: Path, updating: bool, out) -> int:
     describe(result, file, updating, out)
     return exit_code(result)
 
-
-def enforce_scores(current, file, updating, out, unmeasured=frozenset()):
-    scored = [Finding(Location.from_key(k), n, "score", "") for k, n in current.items()]
-    unscored = [Finding(Location.from_key(k), None, "score", "") for k in unmeasured]
-    return enforce(scored + unscored, file, updating, out)
