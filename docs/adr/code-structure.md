@@ -31,10 +31,15 @@ repo's docs, not a consumer command.
 
 ## One gate interface and one ratchet
 
-Decided, not built yet (with the runner, quality-gates#138): gates only find,
-returning findings with a location, a number and a kind; one ratchet module
-applies reasons, baseline and outcome. See
-[Baselines and loosening](baselines-and-loosening.md).
+Built: `comment-debt`, `cc-check` and `crap` only find, returning findings
+with a location, a number and a kind. `ratchet` compares them with the
+baseline, writes it on `--update` and returns a result with one outcome per
+location: passed, failed, behind the baseline, unmeasured or did not run. A
+gate that could not run raises `errors.ToolError`; `ratchet` turns it into
+*did not run*, and the command line exits 2. Decided, not built yet: the one
+common baseline format, the line for a language a gate does not support and
+the runner's record of *did not run* (quality-gates#138), and recorded reasons
+(quality-gates#115). See [Baselines and loosening](baselines-and-loosening.md).
 
 ## Coverage matching in one place
 
