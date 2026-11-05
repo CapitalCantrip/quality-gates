@@ -458,7 +458,7 @@ def _enforce_baseline(results: list, args, root) -> int:
     root = project_files.root_for(args.paths, root)
     current = _failing_scores(results, root)
     unmeasured = {ratchet.key(root, r.file, r.name) for r in _unmeasured(results)}
-    return ratchet.enforce(current, Path(args.baseline), args.update, out, unmeasured)
+    return ratchet.enforce_scores(current, Path(args.baseline), args.update, out, unmeasured)
 
 
 def gate(argv, root) -> int:

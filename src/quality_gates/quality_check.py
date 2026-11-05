@@ -10,6 +10,7 @@ from quality_gates.errors import given_path, run_gate
 AGENT_CC_CEILING = 8
 ERROR_TAG = "ERROR: "
 DEFAULT_LANG = "python"
+FINDING_KIND = "complexity"
 
 LANGUAGES = {
     "python": "No Python files found.",
@@ -69,36 +70,39 @@ def print_flagged(flagged):
         print("  All functions at or below threshold. ✓")
         return
     print(f"FLAGGED — {len(flagged)} function(s) above threshold:\n")
-    for r in sorted(flagged, key=lambda x: -x["complexity"]):
-        print(f"  CC={r['complexity']:>3}  {display_path(r['file'])}:{r['line']}  {r['name']}")
+    for finding in sorted(flagged, key=lambda f: -f.number):
+        print(f"  {finding.display}")
 
 
-def print_text(results, files, threshold):
-    flagged = [r for r in results if r["above_threshold"]]
+def print_text(flagged, functions, files, threshold):
     print(f"\n=== Cyclomatic Complexity Report (threshold: CC > {threshold}) ===\n")
     print_flagged(flagged)
     print("\nSUMMARY:")
     print(f"  Files analysed:     {len(files)}")
-    print(f"  Functions checked:  {len(results)}")
+    print(f"  Functions checked:  {len(functions)}")
     print(f"  Above threshold:    {len(flagged)}")
-    print(f"  At/below threshold: {len(results) - len(flagged)}")
+    print(f"  At/below threshold: {len(functions) - len(flagged)}")
     print("\n  → Refactoring needed. Exit 1." if flagged else "\n  → Clean. Exit 0.")
-    return 1 if flagged else 0
 
 
-def over_threshold(results, root):
-    scores = {}
-    for r in results:
-        if r["above_threshold"]:
-            ratchet.record(scores, ratchet.key(root, r["file"], r["fullname"]), r["complexity"])
-    return scores
+def to_finding(fn, root):
+    shown = f"CC={fn.cc:>3}  {display_path(fn.file)}:{fn.start}  {fn.name}"
+    return ratchet.Finding(ratchet.location(root, fn.file, fn.name), fn.cc, FINDING_KIND, shown)
 
 
-def report(results, files, args):
+def findings(functions, threshold, root):
+    return [to_finding(fn, root) for fn in functions if fn.cc > threshold]
+
+
+def report(found, flagged, args):
     if args.format == "json":
-        print(json.dumps(results, indent=2))
-        return 0
-    return print_text(results, files, args.threshold)
+        print(json.dumps([to_result(fn, args.threshold) for fn in found.functions], indent=2))
+    else:
+        print_text(flagged, found.functions, found.files, args.threshold)
+
+
+def gated(flagged, args):
+    return [] if args.format == "json" else flagged
 
 
 def parse_args(argv):
@@ -118,14 +122,13 @@ def gate(argv, root):
         complexity_scan.print_skipped(found.skipped, sys.stderr)
         print(LANGUAGES[args.lang], file=sys.stderr)
         return 2
-    results = [to_result(fn, args.threshold) for fn in found.functions]
-    code = report(results, found.files, args)
+    flagged = findings(found.functions, args.threshold, project_files.root_for(args.paths, root))
+    report(found, flagged, args)
     out = sys.stderr if args.format == "json" else sys.stdout
     complexity_scan.print_skipped(found.skipped, out)
     if args.baseline is None:
-        return code
-    current = over_threshold(results, project_files.root_for(args.paths, root))
-    return ratchet.enforce(current, Path(args.baseline), args.update, out)
+        return ratchet.exit_code(ratchet.judge(gated(flagged, args), {}))
+    return ratchet.enforce(flagged, Path(args.baseline), args.update, out)
 
 
 def main(argv=None, root=None):

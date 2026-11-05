@@ -1,7 +1,11 @@
 import json
 import os
+from dataclasses import dataclass
+from enum import Enum
 from pathlib import Path
+from typing import Optional, Union
 
+from quality_gates.errors import TOOL_ERROR_EXIT
 from quality_gates.real_path import real_path
 
 KEY_SEPARATOR = "::"
@@ -10,97 +14,192 @@ UNMEASURED_ADVICE = (
     "the baseline keeps any entry they already have and records none for them."
 )
 
+Number = Union[int, float]
+
+
+class Outcome(Enum):
+    PASSED = "passed"
+    FAILED = "failed"
+    BEHIND = "behind the baseline"
+    UNMEASURED = "unmeasured"
+    DID_NOT_RUN = "did not run"
+
+
+@dataclass(frozen=True)
+class Location:
+    file: str
+    function: Optional[str] = None
+
+    @property
+    def key(self) -> str:
+        return self.file if self.function is None else self.file + KEY_SEPARATOR + self.function
+
+    @classmethod
+    def from_key(cls, key: str) -> "Location":
+        file, separator, function = key.partition(KEY_SEPARATOR)
+        return cls(file, function if separator else None)
+
+
+@dataclass(frozen=True)
+class Finding:
+    location: Location
+    number: Optional[Number]
+    kind: str
+    display: str
+
+
+@dataclass(frozen=True)
+class Verdict:
+    location: Optional[Location]
+    outcome: Outcome
+    now: Optional[Number] = None
+    allowed: Optional[Number] = None
+
+
+@dataclass(frozen=True)
+class Result:
+    verdicts: tuple
+
+    def having(self, outcome: Outcome) -> list:
+        return [v for v in self.verdicts if v.outcome is outcome]
+
+
+DID_NOT_RUN = Result((Verdict(None, Outcome.DID_NOT_RUN),))
+
+
+def location(root, file, function) -> Location:
+    relative = os.path.relpath(real_path(file), real_path(root))
+    return Location(Path(relative).as_posix(), function)
+
 
 def key(root, file, name):
-    relative = os.path.relpath(real_path(file), real_path(root))
-    return Path(relative).as_posix() + KEY_SEPARATOR + name
+    return location(root, file, name).key
 
 
 def record(scores, name, score):
     scores[name] = max(score, scores.get(name, score))
 
 
-def compare(current, baseline):
-    over = {k: (v, baseline.get(k)) for k, v in current.items() if v > baseline.get(k, float("-inf"))}
-    behind = {k: (current.get(k), v) for k, v in baseline.items() if current.get(k, float("-inf")) < v}
-    return over, behind
+def _unmeasured(numbers, finding) -> bool:
+    return finding.number is None or (finding.location.key in numbers and numbers[finding.location.key] is None)
 
 
-def lowered(current, baseline):
-    return {k: min(v, baseline[k]) for k, v in sorted(current.items()) if k in baseline}
+def strongest(findings) -> dict:
+    numbers: dict = {}
+    for finding in findings:
+        if _unmeasured(numbers, finding):
+            numbers[finding.location.key] = None
+        else:
+            record(numbers, finding.location.key, finding.number)
+    return numbers
 
 
-def load(file, updating):
-    if file.exists():
-        return json.loads(file.read_text(encoding="utf-8"))
-    if updating:
-        return None
-    raise FileNotFoundError(f"No baseline at {file}. Run with --update to create one.")
+def _outcome(now, allowed) -> Outcome:
+    allowance = 0 if allowed is None else allowed
+    if now is None:
+        return Outcome.UNMEASURED
+    if now > allowance:
+        return Outcome.FAILED
+    return Outcome.BEHIND if now < allowance else Outcome.PASSED
+
+
+def judge(findings, baseline: dict) -> Result:
+    numbers = strongest(findings)
+    verdicts = [Verdict(Location.from_key(k), _outcome(n, baseline.get(k)), n, baseline.get(k)) for k, n in numbers.items()]
+    verdicts += [Verdict(Location.from_key(k), Outcome.BEHIND, None, v) for k, v in baseline.items() if k not in numbers]
+    return Result(tuple(sorted(verdicts, key=lambda v: v.location.key)))
+
+
+def exit_code(result: Result) -> int:
+    if result.having(Outcome.DID_NOT_RUN):
+        return TOOL_ERROR_EXIT
+    return 0 if len(result.having(Outcome.PASSED)) == len(result.verdicts) else 1
+
+
+def lowered(result: Result) -> dict:
+    kept = {v.location.key: v.now for v in result.verdicts if v.outcome in (Outcome.PASSED, Outcome.BEHIND) and v.now}
+    held = {v.location.key: v.allowed for v in result.having(Outcome.UNMEASURED) if v.allowed is not None}
+    return dict(sorted({**kept, **held}.items()))
+
+
+def seeded(findings) -> dict:
+    return {k: n for k, n in strongest(findings).items() if n is not None}
 
 
 def write(file, scores):
     file.write_text(json.dumps(scores, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def settle(findings, file: Path, updating: bool) -> Result:
+    if file.exists():
+        baseline = json.loads(file.read_text(encoding="utf-8"))
+    elif updating:
+        baseline = seeded(findings)
+    else:
+        return DID_NOT_RUN
+    result = judge(findings, baseline)
+    if not updating or result.having(Outcome.FAILED):
+        return result
+    write(file, lowered(result))
+    return judge(findings, lowered(result))
+
+
 def describe_over(over, out):
-    for name, (score, allowed) in sorted(over.items()):
-        was = "new" if allowed is None else f"baseline allows {allowed}"
-        out.write(f"FAIL {name}: {score}, {was}\n")
+    for v in over:
+        was = "new" if v.allowed is None else f"baseline allows {v.allowed}"
+        out.write(f"FAIL {v.location.key}: {v.now}, {was}\n")
 
 
 def describe_behind(behind, file, out):
-    for name, (score, allowed) in sorted(behind.items()):
-        now = "at or below the threshold" if score is None else str(score)
-        out.write(f"PAID {name}: now {now}, baseline still says {allowed}\n")
+    for v in behind:
+        now = "at or below the threshold" if v.now is None else str(v.now)
+        out.write(f"PAID {v.location.key}: now {now}, baseline still says {v.allowed}\n")
     out.write(f"\nThe baseline is behind. Run again with --update and commit {file.name}.\n")
 
 
 def describe_unmeasured(unmeasured, out):
     if not unmeasured:
-        return 0
-    for name in sorted(unmeasured):
-        out.write(f"UNMEASURED {name}: no coverage figure\n")
+        return
+    for v in unmeasured:
+        out.write(f"UNMEASURED {v.location.key}: no coverage figure\n")
     out.write(f"\n{UNMEASURED_ADVICE}\n")
-    return 1
 
 
-def check(current, file, out, unmeasured=frozenset()):
-    over, behind = compare(current, load(file, updating=False))
-    behind = {k: v for k, v in behind.items() if k not in unmeasured}
-    if over:
-        describe_over(over, out)
-    elif behind:
-        describe_behind(behind, file, out)
-    describe_unmeasured(unmeasured, out)
-    if over or behind or unmeasured:
-        return 1
-    out.write(f"ratchet: {len(current)} baselined function(s) over the threshold, none new or worse\n")
-    return 0
+def describe_check(result: Result, file, out):
+    if result.having(Outcome.FAILED):
+        describe_over(result.having(Outcome.FAILED), out)
+    elif result.having(Outcome.BEHIND):
+        describe_behind(result.having(Outcome.BEHIND), file, out)
+    describe_unmeasured(result.having(Outcome.UNMEASURED), out)
+    if exit_code(result) == 0:
+        out.write(f"ratchet: {len(result.verdicts)} baselined function(s) over the threshold, none new or worse\n")
 
 
-def held_for_unmeasured(baseline, unmeasured):
-    return {k: v for k, v in baseline.items() if k in unmeasured}
-
-
-def update(current, file, out, unmeasured=frozenset()):
-    baseline = load(file, updating=True)
-    if baseline is None:
-        baseline = dict(current)
-    over, _ = compare(current, baseline)
-    if over:
-        describe_over(over, out)
+def describe_update(result: Result, out):
+    if result.having(Outcome.FAILED):
+        describe_over(result.having(Outcome.FAILED), out)
         out.write("--update only lowers the baseline. It will not record a new or worse function.\n")
-        return 1
-    scores = dict(sorted({**lowered(current, baseline), **held_for_unmeasured(baseline, unmeasured)}.items()))
-    write(file, scores)
-    out.write(f"baseline: {len(scores)} function(s) over the threshold\n")
-    return describe_unmeasured(unmeasured, out)
+        return
+    out.write(f"baseline: {len(lowered(result))} function(s) over the threshold\n")
+    describe_unmeasured(result.having(Outcome.UNMEASURED), out)
 
 
-def enforce(current, file, updating, out, unmeasured=frozenset()):
-    try:
-        run = update if updating else check
-        return run(current, file, out, unmeasured)
-    except FileNotFoundError as missing:
-        out.write(f"{missing}\n")
-        return 2
+def describe(result: Result, file: Path, updating: bool, out):
+    if result.having(Outcome.DID_NOT_RUN):
+        out.write(f"No baseline at {file}. Run with --update to create one.\n")
+    elif updating:
+        describe_update(result, out)
+    else:
+        describe_check(result, file, out)
+
+
+def enforce(findings, file: Path, updating: bool, out) -> int:
+    result = settle(findings, file, updating)
+    describe(result, file, updating, out)
+    return exit_code(result)
+
+
+def enforce_scores(current, file, updating, out, unmeasured=frozenset()):
+    scored = [Finding(Location.from_key(k), n, "score", "") for k, n in current.items()]
+    unscored = [Finding(Location.from_key(k), None, "score", "") for k in unmeasured]
+    return enforce(scored + unscored, file, updating, out)

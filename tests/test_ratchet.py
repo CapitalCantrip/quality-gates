@@ -5,9 +5,11 @@ import subprocess
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import fields
 from pathlib import Path
+from unittest import mock
 
-from quality_gates import crap
+from quality_gates import complexity_scan, crap
 from quality_gates import quality_check as qc
 from quality_gates import ratchet
 
@@ -82,6 +84,109 @@ class KeyTest(unittest.TestCase):
         os.symlink(self.root, alias)
         self.addCleanup(os.unlink, alias)
         self.assertEqual(ratchet.key(alias, str(alias / "src" / "Shop" / "shop.py"), "f"), "shared/Shop/shop.py::f")
+
+
+class ResultTest(unittest.TestCase):
+
+    def test_the_result_holds_exactly_the_five_outcomes_adr_011_names(self):
+        names = [outcome.name for outcome in ratchet.Outcome]
+        self.assertEqual(names, ["PASSED", "FAILED", "BEHIND", "UNMEASURED", "DID_NOT_RUN"])
+
+    def test_the_result_carries_no_display_text(self):
+        shown = "SHOWN-NEVER-STORED"
+        found = [ratchet.Finding(ratchet.Location("a.py", "f"), 3, "complexity", shown)]
+        result = ratchet.judge(found, {"a.py::f": 4, "b.py::g": 2})
+        self.assertNotIn(shown, repr(result))
+        self.assertEqual([f.name for f in fields(result)], ["verdicts"])
+        self.assertEqual([f.name for f in fields(result.verdicts[0])], ["location", "outcome", "now", "allowed"])
+
+    def test_each_location_gets_one_outcome_from_its_finding_and_the_baseline(self):
+        found = [
+            finding("new.py", 5), finding("same.py", 4), finding("better.py", 2),
+            finding("dark.py", None), finding("worse.py", 9),
+        ]
+        baseline = {"same.py::f": 4, "better.py::f": 3, "gone.py::f": 6, "worse.py::f": 8, "dark.py::f": 7}
+        outcomes = {v.location.key: v.outcome for v in ratchet.judge(found, baseline).verdicts}
+        self.assertEqual(outcomes, {
+            "better.py::f": ratchet.Outcome.BEHIND,
+            "dark.py::f": ratchet.Outcome.UNMEASURED,
+            "gone.py::f": ratchet.Outcome.BEHIND,
+            "new.py::f": ratchet.Outcome.FAILED,
+            "same.py::f": ratchet.Outcome.PASSED,
+            "worse.py::f": ratchet.Outcome.FAILED,
+        })
+
+    def test_two_findings_at_one_location_are_judged_by_the_higher_number(self):
+        result = ratchet.judge([finding("a.py", 7), finding("a.py", 5)], {"a.py::f": 6})
+        self.assertEqual([(v.outcome, v.now) for v in result.verdicts], [(ratchet.Outcome.FAILED, 7)])
+
+    def test_a_location_without_a_function_keys_the_baseline_by_its_file_alone(self):
+        result = ratchet.judge([ratchet.Finding(ratchet.Location("a.py"), 2, "comment", "")], {"a.py": 3})
+        expected = [(ratchet.Location("a.py"), ratchet.Outcome.BEHIND)]
+        self.assertEqual([(v.location, v.outcome) for v in result.verdicts], expected)
+
+
+def finding(file, number):
+    return ratchet.Finding(ratchet.Location(file, "f"), number, "complexity", "")
+
+
+class SettleTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.file = Path(tmp.name) / "baseline.json"
+
+    def test_a_check_without_a_baseline_file_did_not_run_and_exits_2(self):
+        result = ratchet.settle([finding("a.py", 5)], self.file, updating=False)
+        self.assertEqual([v.outcome for v in result.verdicts], [ratchet.Outcome.DID_NOT_RUN])
+        self.assertEqual(ratchet.exit_code(result), 2)
+
+    def test_update_writes_the_lowered_baseline_and_then_every_location_has_passed(self):
+        self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
+        result = ratchet.settle([finding("a.py", 5)], self.file, updating=True)
+        self.assertEqual(self.file.read_text(), '{\n  "a.py::f": 5\n}\n')
+        self.assertEqual([(v.location.key, v.outcome) for v in result.verdicts], [("a.py::f", ratchet.Outcome.PASSED)])
+
+    def test_update_refuses_a_failed_location_and_writes_nothing(self):
+        self.file.write_text('{"a.py::f": 4}')
+        result = ratchet.settle([finding("a.py", 5)], self.file, updating=True)
+        self.assertEqual(self.file.read_text(), '{"a.py::f": 4}')
+        self.assertEqual(ratchet.exit_code(result), 1)
+
+    def test_update_keeps_the_entry_of_an_unmeasured_location_and_adds_none_for_a_new_one(self):
+        self.file.write_text('{"a.py::f": 9}')
+        result = ratchet.settle([finding("a.py", None), finding("b.py", None)], self.file, updating=True)
+        self.assertEqual(json.loads(self.file.read_text()), {"a.py::f": 9})
+        self.assertEqual(ratchet.exit_code(result), 1)
+
+
+class CcCheckFindsTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        (self.root / "mod.py").write_text("class A:\n" + branchy("m", 5, indent="    ") + branchy("f", 5))
+
+    def located(self):
+        found = complexity_scan.scan([str(self.root / "mod.py")], "python", root=self.root)
+        return [f.location for f in qc.findings(found.functions, 3, self.root)]
+
+    def test_the_same_code_gives_the_same_locations_on_two_runs(self):
+        first = self.located()
+        self.assertEqual(first, [ratchet.Location("mod.py", "A.m"), ratchet.Location("mod.py", "f")])
+        self.assertEqual(self.located(), first)
+
+    def test_cc_check_exits_with_the_code_the_ratchet_decides(self):
+        file = self.root / "cc.json"
+        argv = [str(self.root / "mod.py"), "--threshold", "3"]
+        with mock.patch.object(ratchet, "exit_code", return_value=5):
+            plain, _ = call(qc.main, argv, self.root)
+            updated, _ = call(qc.main, [*argv, "--baseline", str(file), "--update"], self.root)
+        self.assertEqual((plain, updated), (5, 5))
+        self.assertEqual(json.loads(file.read_text()), {"mod.py::A.m": 6, "mod.py::f": 6})
 
 
 class CcCheckRatchetTest(unittest.TestCase):
