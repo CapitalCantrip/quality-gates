@@ -666,13 +666,13 @@ class CouldNotRunTest(unittest.TestCase):
         self.assertTrue(any(shown.endswith(message) for shown in streams), streams)
 
     def cc_check(self, *argv):
-        return lambda: ratchet.run(qc.gate, list(argv), None, qc.ERROR_TAG)
+        return lambda: ratchet.result_of(qc.gate, list(argv), None, qc.ERROR_TAG)
 
     def crap(self, *argv):
-        return lambda: ratchet.run(crap.gate, ["--lang", "python", *argv], None, crap.TAG)
+        return lambda: ratchet.result_of(crap.gate, ["--lang", "python", *argv], None, crap.TAG)
 
     def comment_debt(self, *argv):
-        return lambda: cd.run(list(argv), None, None, sys.stdout)
+        return lambda: cd.result_of(list(argv), None, None, sys.stdout)
 
     def test_a_missing_baseline_did_not_run_in_cc_check(self):
         self.repo()

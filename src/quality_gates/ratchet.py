@@ -161,52 +161,75 @@ def settle(find: Callable[[], list], file: Path, updating: bool) -> Result:
 
 
 def describe_over(over, out):
-    for v in over:
-        was = "new" if v.allowed is None else f"baseline allows {v.allowed}"
-        out.write(f"FAIL {v.location.key}: {v.now}, {was}\n")
+    for verdict in over:
+        was = "new" if verdict.allowed is None else f"baseline allows {verdict.allowed}"
+        out.write(f"FAIL {verdict.location.key}: {verdict.now}, {was}\n")
 
 
 def describe_behind(behind, file, out):
-    for v in behind:
-        now = "at or below the threshold" if v.now is None else str(v.now)
-        out.write(f"PAID {v.location.key}: now {now}, baseline still says {v.allowed}\n")
+    for verdict in behind:
+        now = "at or below the threshold" if verdict.now is None else str(verdict.now)
+        out.write(f"PAID {verdict.location.key}: now {now}, baseline still says {verdict.allowed}\n")
     out.write(f"\nThe baseline is behind. Run again with --update and commit {file.name}.\n")
+
+
+def describe_passed(result: Result, out):
+    out.write(f"ratchet: {len(result.verdicts)} baselined function(s) over the threshold, none new or worse\n")
+
+
+def describe_recorded(counts: dict, out):
+    out.write(f"baseline: {len(counts)} function(s) over the threshold\n")
+
+
+@dataclass(frozen=True)
+class Wording:
+    failed: Callable
+    behind: Callable
+    passed: Callable
+    recorded: Callable
+    refusal: str
+
+
+FUNCTION_WORDING = Wording(
+    describe_over, describe_behind, describe_passed, describe_recorded,
+    "--update only lowers the baseline. It will not record a new or worse function.\n",
+)
 
 
 def describe_unmeasured(unmeasured, out):
     if not unmeasured:
         return
-    for v in unmeasured:
-        out.write(f"UNMEASURED {v.location.key}: no coverage figure\n")
+    for verdict in unmeasured:
+        out.write(f"UNMEASURED {verdict.location.key}: no coverage figure\n")
     out.write(f"\n{UNMEASURED_ADVICE}\n")
 
 
-def describe_check(result: Result, file, out):
+def describe_check(result: Result, file, out, wording: Wording):
     if result.having(Outcome.FAILED):
-        describe_over(result.having(Outcome.FAILED), out)
+        wording.failed(result.having(Outcome.FAILED), out)
     elif result.having(Outcome.BEHIND):
-        describe_behind(result.having(Outcome.BEHIND), file, out)
+        wording.behind(result.having(Outcome.BEHIND), file, out)
     describe_unmeasured(result.having(Outcome.UNMEASURED), out)
     if exit_code(result) == 0:
-        out.write(f"ratchet: {len(result.verdicts)} baselined function(s) over the threshold, none new or worse\n")
+        wording.passed(result, out)
 
 
-def describe_update(result: Result, out):
+def describe_update(result: Result, out, wording: Wording):
     if result.having(Outcome.FAILED):
-        describe_over(result.having(Outcome.FAILED), out)
-        out.write("--update only lowers the baseline. It will not record a new or worse function.\n")
+        wording.failed(result.having(Outcome.FAILED), out)
+        out.write(wording.refusal)
         return
-    out.write(f"baseline: {len(lowered(result))} function(s) over the threshold\n")
+    wording.recorded(lowered(result), out)
     describe_unmeasured(result.having(Outcome.UNMEASURED), out)
 
 
-def describe(result: Result, file: Path, updating: bool, out):
+def describe(result: Result, file: Path, updating: bool, out, wording: Wording = FUNCTION_WORDING):
     if result.having(Outcome.DID_NOT_RUN):
         return
     if updating:
-        describe_update(result, out)
+        describe_update(result, out, wording)
     else:
-        describe_check(result, file, out)
+        describe_check(result, file, out, wording)
 
 
 def enforce(find: Callable[[], list], file: Path, updating: bool, out) -> Result:
@@ -215,11 +238,10 @@ def enforce(find: Callable[[], list], file: Path, updating: bool, out) -> Result
     return result
 
 
-def run(gate: Callable, argv, root, tag: str) -> Result:
+def result_of(gate: Callable, argv, root, tag: str) -> Result:
     return attempt(lambda: gate(argv, root), lambda error: print(shown(error, tag), file=sys.stderr))
 
 
 def run_gate(gate: Callable, argv, root, tag: str) -> int:
     write_utf8()
-    return exit_code(run(gate, argv, root, tag))
-
+    return exit_code(result_of(gate, argv, root, tag))

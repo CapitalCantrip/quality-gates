@@ -24,6 +24,7 @@ PRAGMA = re.compile(
 CODING = re.compile(r"^#.*coding[:=]")
 FINDING_KIND = "comment lines"
 TAG = "comment-debt: "
+UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,
@@ -100,55 +101,41 @@ def findings(root, excluded):
     return [to_finding(path, lines) for path, lines in sorted(measure(root, tracked_files(root, excluded)).items())]
 
 
-def describe_failed(result, found, out):
+def describe_failed(found, failed, out):
     lines = {finding.location.key: finding.display for finding in found}
-    for v in result.having(ratchet.Outcome.FAILED):
-        allowed = v.allowed or 0
-        out.write(f"FAIL {v.location.key}: {v.now} comment lines, baseline allows {allowed} — lines {lines[v.location.key]}\n")
+    for verdict in failed:
+        allowed = verdict.allowed or 0
+        out.write(f"FAIL {verdict.location.key}: {verdict.now} comment lines, baseline allows {allowed} — lines {lines[verdict.location.key]}\n")
     out.write(
         "\nNew comments are not allowed (no-code-comments policy). Move the knowledge to a test, "
         "a named constant, an ADR or an issue — see the quality-gates README for where each kind goes.\n"
     )
 
 
-def describe_behind(result, file, out):
-    behind = result.having(ratchet.Outcome.BEHIND)
-    for v in behind:
-        if v.now is not None:
-            out.write(f"PAID {v.location.key}: {v.now} lines, baseline still says {v.allowed}\n")
-    for v in behind:
-        if v.now is None:
-            out.write(f"GONE {v.location.key}: in the baseline but no longer tracked\n")
+def describe_behind(behind, file, out):
+    for verdict in behind:
+        if verdict.now is not None:
+            out.write(f"PAID {verdict.location.key}: {verdict.now} lines, baseline still says {verdict.allowed}\n")
+    for verdict in behind:
+        if verdict.now is None:
+            out.write(f"GONE {verdict.location.key}: in the baseline but no longer tracked\n")
     out.write(
         f"\nThe baseline is behind. Run `comment-debt --update` "
         f"and commit {file.name} so the paid debt cannot come back.\n"
     )
 
 
-def describe_check(result, found, file, out):
-    if result.having(ratchet.Outcome.FAILED):
-        describe_failed(result, found, out)
-    elif result.having(ratchet.Outcome.BEHIND):
-        describe_behind(result, file, out)
-    else:
-        allowed = [v.allowed for v in result.verdicts if v.allowed is not None]
-        out.write(f"comment debt: {sum(allowed)} lines in {len(allowed)} files, none new\n")
+def describe_passed(result, out):
+    allowed = [verdict.allowed for verdict in result.verdicts if verdict.allowed is not None]
+    out.write(f"comment debt: {sum(allowed)} lines in {len(allowed)} files, none new\n")
 
 
-def describe_update(result, found, out):
-    if result.having(ratchet.Outcome.FAILED):
-        describe_failed(result, found, out)
-        out.write("--update only lowers the baseline. It will not record new comments.\n")
-        return
-    counts = ratchet.lowered(result)
+def describe_recorded(counts, out):
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
 
 
-def describe(result, found, file, updating, out):
-    if updating:
-        describe_update(result, found, out)
-    else:
-        describe_check(result, found, file, out)
+def wording(found):
+    return ratchet.Wording(functools.partial(describe_failed, found), describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL)
 
 
 def area(path):
@@ -201,16 +188,16 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def run(argv, root, baseline, out):
+def result_of(argv, root, baseline, out):
     args = parse_args(argv)
-    return ratchet.attempt(lambda: run_mode(args, root, baseline, out), lambda error: out.write(f"{shown(error, TAG)}\n"))
+    return ratchet.attempt(lambda: mode_result(args, root, baseline, out), lambda error: out.write(f"{shown(error, TAG)}\n"))
 
 
 def main(argv=None, root=None, baseline=None, out=sys.stdout):
-    return ratchet.exit_code(run(argv, root, baseline, out))
+    return ratchet.exit_code(result_of(argv, root, baseline, out))
 
 
-def run_mode(args, root, baseline, out):
+def mode_result(args, root, baseline, out):
     if args.baseline is not None and not args.baseline.strip():
         raise Untagged("--baseline was given an empty path")
     root = root or project_files.git_root()
@@ -220,7 +207,7 @@ def run_mode(args, root, baseline, out):
     file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
     find = functools.lru_cache(maxsize=None)(functools.partial(findings, root, args.exclude))
     result = ratchet.settle(find, file, args.update)
-    describe(result, find(), file, args.update, out)
+    ratchet.describe(result, file, args.update, out, wording(find()))
     return result
 
 
