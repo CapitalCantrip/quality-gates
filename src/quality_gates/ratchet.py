@@ -92,8 +92,6 @@ def unmeasured_keys(findings) -> set:
 
 def _outcome(now, allowed) -> Outcome:
     allowance = 0 if allowed is None else allowed
-    if now is None:
-        return Outcome.UNMEASURED
     if now > allowance:
         return Outcome.FAILED
     return Outcome.BEHIND if now < allowance else Outcome.PASSED
