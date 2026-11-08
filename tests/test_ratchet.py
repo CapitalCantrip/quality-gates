@@ -156,7 +156,7 @@ class SettleTest(unittest.TestCase):
 
     def test_a_check_without_a_baseline_file_did_not_run_and_exits_2(self):
         out = io.StringIO()
-        result = ratchet.enforce(lambda: [finding("a.py", 5)], self.file, False, out)
+        result = ratchet.enforce(lambda: [finding("a.py", 5)], ratchet.Asked(self.file), out)
         self.assertEqual([v.outcome for v in result.verdicts], [ratchet.Outcome.DID_NOT_RUN])
         self.assertEqual(ratchet.exit_code(result), 2)
         self.assertEqual(out.getvalue(), f"No baseline at {self.file}. Run with --update to create one.\n")
@@ -178,7 +178,7 @@ class SettleTest(unittest.TestCase):
         self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
         out = io.StringIO()
         with mock.patch.object(ratchet, "lowered", wraps=ratchet.lowered) as lowering:
-            ratchet.enforce(lambda: [finding("a.py", 5)], self.file, True, out)
+            ratchet.enforce(lambda: [finding("a.py", 5)], ratchet.Asked(self.file, updating=True), out)
         self.assertEqual(lowering.call_count, 1)
         self.assertEqual(out.getvalue(), "baseline: 1 function(s) over the threshold\n")
 
@@ -206,13 +206,13 @@ class SharedKeyTest(unittest.TestCase):
 
     def test_a_failing_score_and_an_unmeasured_figure_at_one_location_both_fail_the_check(self):
         out = io.StringIO()
-        self.assertEqual(ratchet.exit_code(ratchet.enforce(lambda: self.found, self.file, False, out)), 1)
+        self.assertEqual(ratchet.exit_code(ratchet.enforce(lambda: self.found, ratchet.Asked(self.file), out)), 1)
         self.assertIn("FAIL a.py::f: 9, new", out.getvalue())
         self.assertIn("UNMEASURED a.py::f", out.getvalue())
 
     def test_update_refuses_a_failing_score_even_when_its_location_is_also_unmeasured(self):
         out = io.StringIO()
-        self.assertEqual(ratchet.exit_code(ratchet.enforce(lambda: self.found, self.file, True, out)), 1)
+        self.assertEqual(ratchet.exit_code(ratchet.enforce(lambda: self.found, ratchet.Asked(self.file, updating=True), out)), 1)
         self.assertEqual(self.file.read_text(), "{}")
         self.assertIn("--update only lowers the baseline", out.getvalue())
 
@@ -228,11 +228,12 @@ class CcCheckFindsTest(unittest.TestCase):
 
     def located(self):
         found = complexity_scan.scan([str(self.root / "mod.py")], "python", root=self.root)
-        return [f.location for f in qc.findings(found.functions, 3, self.root)]
+        return [f.location for f in qc.findings(found.functions, 3)]
 
     def test_the_same_code_gives_the_same_locations_on_two_runs(self):
         first = self.located()
-        self.assertEqual(first, [ratchet.Location("mod.py", "A.m"), ratchet.Location("mod.py", "f")])
+        scanned = str(self.root / "mod.py")
+        self.assertEqual(first, [ratchet.Location(scanned, "A.m"), ratchet.Location(scanned, "f")])
         self.assertEqual(self.located(), first)
 
     def test_cc_check_exits_with_the_code_the_ratchet_decides(self):
@@ -261,7 +262,8 @@ class CrapFindsTest(unittest.TestCase):
 
     def test_the_same_code_gives_the_same_locations_on_two_runs(self):
         first = self.located()
-        self.assertEqual(first, [ratchet.Location("mod.py", "A.m"), ratchet.Location("mod.py", "f")])
+        scanned = str(self.root / "mod.py")
+        self.assertEqual(first, [ratchet.Location(scanned, "A.m"), ratchet.Location(scanned, "f")])
         self.assertEqual(self.located(), first)
 
     def test_each_finding_shows_what_its_fail_or_unmeasured_line_names(self):
@@ -269,7 +271,7 @@ class CrapFindsTest(unittest.TestCase):
             crap.FunctionResult("mod.py", "f", 3, 6, 0.0, 42.0, "FAIL"),
             crap.FunctionResult("mod.py", "A.m", 9, 4, None, None, crap.UNMEASURED),
         ]
-        shown = [f.display for f in crap.findings(results, self.root)]
+        shown = [f.display for f in crap.findings(results)]
         self.assertEqual(shown, ["FAIL  CRAP=42.0  mod.py:3  f", "UNMEASURED  CRAP=—  mod.py:9  A.m"])
 
 
@@ -292,6 +294,90 @@ class CommentDebtFindsTest(unittest.TestCase):
         first = self.located()
         self.assertEqual(first, [ratchet.Location("a.py"), ratchet.Location("pkg/b.py")])
         self.assertEqual(self.located(), first)
+
+
+HANDED = ratchet.Result((ratchet.Verdict(ratchet.Location("handed.py"), ratchet.Outcome.BEHIND),))
+
+
+class AskedTest(unittest.TestCase):
+
+    def test_a_run_without_a_baseline_judges_the_findings_against_an_empty_one_and_prints_nothing(self):
+        out = io.StringIO()
+        result = ratchet.enforce(lambda: [finding("a.py", 5), finding("b.py", None)], ratchet.Asked(), out)
+        outcomes = [(v.location.key, v.outcome) for v in result.verdicts]
+        self.assertEqual(outcomes, [("a.py::f", ratchet.Outcome.FAILED), ("b.py::f", ratchet.Outcome.UNMEASURED)])
+        self.assertEqual(out.getvalue(), "")
+
+    def test_a_run_that_is_not_judged_never_asks_the_gate_to_find_and_passes(self):
+        def find():
+            raise AssertionError("the gate was asked to find")
+
+        result = ratchet.enforce(find, ratchet.Asked(judged=False), io.StringIO())
+        self.assertEqual(ratchet.exit_code(result), 0)
+
+    def test_a_run_without_a_baseline_never_keys_a_location_from_the_root(self):
+        def root():
+            raise AssertionError("the root was asked for")
+
+        with mock.patch.object(ratchet, "location", side_effect=ToolError("cannot resolve")):
+            result = ratchet.enforce(lambda: [finding("a.py", 5)], ratchet.Asked(), io.StringIO(), root=root)
+        self.assertEqual(ratchet.exit_code(result), 1)
+
+    def test_a_run_with_a_baseline_keys_each_location_by_its_real_path_from_the_root(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        root = Path(os.path.realpath(tmp.name))
+        file = root / "baseline.json"
+        found = [ratchet.Finding(ratchet.Location(str(root / "pkg" / "a.py"), "f"), 5, "complexity", "")]
+        ratchet.enforce(lambda: found, ratchet.Asked(file, updating=True), io.StringIO(), root=lambda: root)
+        self.assertEqual(json.loads(file.read_text()), {"pkg/a.py::f": 5})
+
+
+class EveryRunGoesToTheRatchetTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name)
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        self.module = self.root / "mod.py"
+        self.module.write_text(branchy("f", 5))
+        subprocess.run(["git", "-C", str(self.root), "add", "mod.py"], check=True)
+        self.file = self.root / "baseline.json"
+        self.file.write_text("{}")
+        self.coverage = self.root / "coverage.json"
+        self.coverage.write_text(json.dumps({"files": {}}))
+
+    def handed(self, gate, argv, **given):
+        with mock.patch.object(ratchet, "enforce", return_value=HANDED), \
+                redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            return gate(argv, self.root, **given)
+
+    def test_cc_check_hands_every_run_to_the_ratchet(self):
+        for extra in ([], ["--format", "json"], ["--baseline", str(self.file)], ["--baseline", str(self.file), "--update"]):
+            with self.subTest(extra=extra):
+                self.assertIs(self.handed(qc.gate, [str(self.module), "--threshold", "3", *extra]), HANDED)
+
+    def test_crap_hands_every_run_to_the_ratchet(self):
+        measured = ["--coverage-json", str(self.coverage), "--baseline", str(self.file)]
+        for extra in (["--no-coverage"], ["--no-coverage", "--json"], measured, [*measured, "--update"]):
+            with self.subTest(extra=extra):
+                self.assertIs(self.handed(crap.gate, ["--lang", "python", str(self.module), *extra]), HANDED)
+
+    def test_comment_debt_hands_every_run_to_the_ratchet(self):
+        for extra in ([], ["--status"], ["--update"]):
+            with self.subTest(extra=extra):
+                self.assertIs(self.handed(cd.gate, extra, baseline=self.file, out=io.StringIO()), HANDED)
+
+    def test_a_plain_cc_check_run_does_not_key_locations_for_a_baseline(self):
+        with mock.patch.object(ratchet, "location", side_effect=ToolError("cannot resolve")) as keyed:
+            code, _ = call(qc.main, [str(self.module), "--threshold", "3"], self.root)
+        self.assertEqual((code, keyed.call_count), (1, 0))
+
+    def test_a_plain_crap_run_does_not_key_locations_for_a_baseline(self):
+        with mock.patch.object(ratchet, "location", side_effect=ToolError("cannot resolve")) as keyed:
+            code, _ = call(crap.main, ["--lang", "python", str(self.module), "--no-coverage"], self.root)
+        self.assertEqual((code, keyed.call_count), (1, 0))
 
 
 class PaidDebtLeavesTheBaselineTest(unittest.TestCase):

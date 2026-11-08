@@ -186,6 +186,12 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
+def asked(args, root, baseline) -> ratchet.Asked:
+    if args.status:
+        return ratchet.Asked(judged=False)
+    return ratchet.Asked(Path(baseline or args.baseline or project_files.comment_debt_baseline(root)), args.update)
+
+
 def gate(argv, root, baseline=None, out=None):
     out = sys.stdout if out is None else out
     args = parse_args(argv)
@@ -194,9 +200,7 @@ def gate(argv, root, baseline=None, out=None):
     root = root or project_files.git_root()
     if args.status:
         status(root, args.exclude, out)
-        return ratchet.Result(())
-    file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
-    return ratchet.enforce(functools.partial(findings, root, args.exclude), file, args.update, out, WORDING)
+    return ratchet.enforce(functools.partial(findings, root, args.exclude), asked(args, root, baseline), out, WORDING)
 
 
 def main(argv=None, root=None, baseline=None, out=None):

@@ -85,13 +85,13 @@ def print_text(flagged, functions, files, threshold):
     print("\n  → Refactoring needed. Exit 1." if flagged else "\n  → Clean. Exit 0.")
 
 
-def to_finding(fn, root):
+def to_finding(fn):
     shown = f"CC={fn.cc:>3}  {display_path(fn.file)}:{fn.start}  {fn.name}"
-    return ratchet.Finding(ratchet.location(root, fn.file, fn.name), fn.cc, FINDING_KIND, shown)
+    return ratchet.Finding(ratchet.Location(fn.file, fn.name), fn.cc, FINDING_KIND, shown)
 
 
-def findings(functions, threshold, root):
-    return [to_finding(fn, root) for fn in functions if fn.cc > threshold]
+def findings(functions, threshold):
+    return [to_finding(fn) for fn in functions if fn.cc > threshold]
 
 
 def report(found, flagged, args):
@@ -101,8 +101,9 @@ def report(found, flagged, args):
         print_text(flagged, found.functions, found.files, args.threshold)
 
 
-def gated(flagged, args):
-    return [] if args.format == "json" else flagged
+def asked(args) -> ratchet.Asked:
+    baseline = None if args.baseline is None else Path(args.baseline)
+    return ratchet.Asked(baseline, args.update, judged=args.format == "text" or baseline is not None)
 
 
 def parse_args(argv):
@@ -121,13 +122,11 @@ def gate(argv, root):
     if not found.files:
         complexity_scan.print_skipped(found.skipped, sys.stderr)
         raise Untagged(LANGUAGES[args.lang])
-    flagged = findings(found.functions, args.threshold, project_files.root_for(args.paths, root))
+    flagged = findings(found.functions, args.threshold)
     report(found, flagged, args)
     out = sys.stderr if args.format == "json" else sys.stdout
     complexity_scan.print_skipped(found.skipped, out)
-    if args.baseline is None:
-        return ratchet.judge(gated(flagged, args), {})
-    return ratchet.enforce(lambda: flagged, Path(args.baseline), args.update, out)
+    return ratchet.enforce(lambda: flagged, asked(args), out, root=lambda: project_files.root_for(args.paths, root))
 
 
 def main(argv=None, root=None):

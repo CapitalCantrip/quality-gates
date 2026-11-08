@@ -1,7 +1,7 @@
 import json
 import os
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import Enum
 from pathlib import Path
 from typing import Callable, Optional, Union
@@ -67,11 +67,26 @@ class Result:
 
 
 DID_NOT_RUN = Result((Verdict(None, Outcome.DID_NOT_RUN),))
+NOT_JUDGED = Result(())
+
+
+@dataclass(frozen=True)
+class Asked:
+    baseline: Optional[Path] = None
+    updating: bool = False
+    judged: bool = True
 
 
 def location(root, file, function) -> Location:
     relative = os.path.relpath(real_path(file), real_path(root))
     return Location(Path(relative).as_posix(), function)
+
+
+def keyed(findings, root: Optional[Callable[[], Path]]) -> list:
+    if root is None:
+        return findings
+    base = root()
+    return [replace(f, location=location(base, f.location.file, f.location.function)) for f in findings]
 
 
 def record(scores, name, score):
@@ -102,11 +117,11 @@ def _outcome(now, allowed) -> Outcome:
     return Outcome.BEHIND if now is None or now < allowance else Outcome.PASSED
 
 
-def _verdict(location: Location, now, dark: bool, allowed) -> Verdict:
+def _verdict(place: Location, now, dark: bool, allowed) -> Verdict:
     outcome = _outcome(now, allowed)
     if dark and outcome is not Outcome.FAILED:
-        return Verdict(location, Outcome.UNMEASURED, None, allowed)
-    return Verdict(location, outcome, now, allowed)
+        return Verdict(place, Outcome.UNMEASURED, None, allowed)
+    return Verdict(place, outcome, now, allowed)
 
 
 def judge(findings, baseline: dict) -> Result:
@@ -156,10 +171,10 @@ class Settled:
     recorded: Optional[dict] = None
 
 
-def settle(find: Callable[[], list], file: Path, updating: bool) -> Settled:
+def settle(find: Callable[[], list], file: Path, updating: bool, root=None) -> Settled:
     if not file.exists() and not updating:
         raise Untagged(MISSING_BASELINE.format(file))
-    findings = find()
+    findings = keyed(find(), root)
     baseline = json.loads(file.read_text(encoding="utf-8")) if file.exists() else strongest(findings)
     result = judge(findings, baseline)
     if not updating or result.having(Outcome.FAILED):
@@ -251,13 +266,17 @@ def describe(settled: Settled, file: Path, updating: bool, out, wording: Wording
         describe_check(settled, file, out, wording)
 
 
-def enforce(find: Callable[[], list], file: Path, updating: bool, out, wording: Wording = FUNCTION_WORDING) -> Result:
+def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNCTION_WORDING, root=None) -> Result:
+    if not asked.judged:
+        return NOT_JUDGED
+    if asked.baseline is None:
+        return judge(find(), {})
     try:
-        settled = settle(find, file, updating)
+        settled = settle(find, asked.baseline, asked.updating, root)
     except ToolError as error:
         out.write(f"{shown(error, wording.tag)}\n")
         return DID_NOT_RUN
-    describe(settled, file, updating, out, wording)
+    describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result
 
 

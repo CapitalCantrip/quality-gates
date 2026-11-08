@@ -32,9 +32,12 @@ repo's docs, not a consumer command.
 ## One gate interface and one ratchet
 
 Built: `comment-debt`, `cc-check` and `crap` only find, returning findings
-with a location, a number and a kind. `ratchet` compares them with the
-baseline, writes it on `--update` and returns a result with one outcome per
-location: passed, failed, behind the baseline, unmeasured or did not run. A
+with a location, a number and a kind; they read no baseline and no flag that
+picks the outcome. `ratchet` decides whether a run is judged and against which
+baseline, keys each location by its real path from the root only when a
+baseline is used, compares, writes the baseline on `--update` and returns a
+result with one outcome per location: passed, failed, behind the baseline,
+unmeasured or did not run. A
 gate that could not run raises `errors.ToolError`; `ratchet` turns it into
 *did not run*, and the command line exits 2. Decided, not built yet: the one
 common baseline format, the line for a language a gate does not support and

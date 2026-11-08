@@ -450,20 +450,17 @@ def _shown(r: FunctionResult) -> str:
     return f"{r.grade}  CRAP={_fmt_crap(r.crap).strip()}  {r.file}:{r.line}  {r.name}"
 
 
-def findings(results: list, root) -> list:
+def findings(results: list) -> list:
     found = []
     for r in results:
         if r.grade == "FAIL" or r.grade == UNMEASURED:
             number = None if r.crap is None else round(r.crap, 2)
-            found.append(ratchet.Finding(ratchet.location(root, r.file, r.name), number, FINDING_KIND, _shown(r)))
+            found.append(ratchet.Finding(ratchet.Location(r.file, r.name), number, FINDING_KIND, _shown(r)))
     return found
 
 
-def _settled(failing: list, args) -> ratchet.Result:
-    if not args.baseline:
-        return ratchet.judge(failing, {})
-    out = sys.stderr if args.json_output else sys.stdout
-    return ratchet.enforce(lambda: failing, Path(args.baseline), args.update, out)
+def _asked(args) -> ratchet.Asked:
+    return ratchet.Asked(Path(args.baseline) if args.baseline else None, args.update)
 
 
 def gate(argv, root) -> ratchet.Result:
@@ -479,9 +476,10 @@ def gate(argv, root) -> ratchet.Result:
     results = score(found.functions, coverage_of, Limits(args.min_cc, args.warn, args.threshold))
     _check_results_empty(results, args, found.skipped)
     _check_report_matched(report, results)
-    failing = findings(results, project_files.root_for(args.paths, root))
+    failing = findings(results)
     _emit_output(results, args, len(failing), found.skipped, _coverage_source(report))
-    return _settled(failing, args)
+    out = sys.stderr if args.json_output else sys.stdout
+    return ratchet.enforce(lambda: failing, _asked(args), out, root=lambda: project_files.root_for(args.paths, root))
 
 
 def main(argv=None, root=None) -> None:
