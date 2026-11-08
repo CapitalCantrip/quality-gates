@@ -101,8 +101,7 @@ def findings(root, excluded):
     return [to_finding(path, lines) for path, lines in sorted(measure(root, tracked_files(root, excluded)).items())]
 
 
-def describe_failed(found, failed, out):
-    lines = {finding.location.key: finding.display for finding in found}
+def describe_failed(failed, lines, out):
     for verdict in failed:
         allowed = verdict.allowed or 0
         out.write(f"FAIL {verdict.location.key}: {verdict.now} comment lines, baseline allows {allowed} — lines {lines[verdict.location.key]}\n")
@@ -134,8 +133,7 @@ def describe_recorded(counts, out):
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
 
 
-def wording(found):
-    return ratchet.Wording(functools.partial(describe_failed, found), describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL)
+WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL)
 
 
 def area(path):
@@ -205,10 +203,9 @@ def mode_result(args, root, baseline, out):
         status(root, args.exclude, out)
         return ratchet.Result(())
     file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
-    find = functools.lru_cache(maxsize=None)(functools.partial(findings, root, args.exclude))
-    result = ratchet.settle(find, file, args.update)
-    ratchet.describe(result, file, args.update, out, wording(find()))
-    return result
+    settled = ratchet.settle(functools.partial(findings, root, args.exclude), file, args.update)
+    ratchet.describe(settled, file, args.update, out, WORDING)
+    return settled.result
 
 
 if __name__ == "__main__":

@@ -123,6 +123,19 @@ class ResultTest(unittest.TestCase):
         result = ratchet.judge([finding("a.py", 7), finding("a.py", 5)], {"a.py::f": 6})
         self.assertEqual([(v.outcome, v.now) for v in result.verdicts], [(ratchet.Outcome.FAILED, 7)])
 
+    def test_a_verdict_keeps_the_location_its_gate_found_even_when_the_file_holds_the_key_separator(self):
+        place = ratchet.Location("dir::x.py", "f")
+        result = ratchet.judge([ratchet.Finding(place, 9, "complexity", "")], {})
+        self.assertEqual([v.location for v in result.verdicts], [place])
+
+    def test_a_location_both_failing_and_unmeasured_gets_one_failed_verdict(self):
+        result = ratchet.judge([finding("a.py", 9), finding("a.py", None)], {})
+        self.assertEqual([(v.location.key, v.outcome, v.now) for v in result.verdicts], [("a.py::f", ratchet.Outcome.FAILED, 9)])
+
+    def test_a_location_unmeasured_and_scored_within_its_allowance_gets_one_unmeasured_verdict(self):
+        result = ratchet.judge([finding("a.py", 9), finding("a.py", None)], {"a.py::f": 9})
+        self.assertEqual([(v.location.key, v.outcome, v.allowed) for v in result.verdicts], [("a.py::f", ratchet.Outcome.UNMEASURED, 9)])
+
     def test_a_location_without_a_function_keys_the_baseline_by_its_file_alone(self):
         result = ratchet.judge([ratchet.Finding(ratchet.Location("a.py"), 2, "comment", "")], {"a.py": 3})
         expected = [(ratchet.Location("a.py"), ratchet.Outcome.BEHIND)]
@@ -156,19 +169,27 @@ class SettleTest(unittest.TestCase):
 
     def test_update_writes_the_lowered_baseline_and_then_every_location_has_passed(self):
         self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
-        result = ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=True)
+        result = ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=True).result
         self.assertEqual(self.file.read_text(), '{\n  "a.py::f": 5\n}\n')
         self.assertEqual([(v.location.key, v.outcome) for v in result.verdicts], [("a.py::f", ratchet.Outcome.PASSED)])
 
+    def test_update_lowers_the_baseline_once_for_both_the_file_and_the_report(self):
+        self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
+        out = io.StringIO()
+        with mock.patch.object(ratchet, "lowered", wraps=ratchet.lowered) as lowering:
+            ratchet.enforce(lambda: [finding("a.py", 5)], self.file, True, out)
+        self.assertEqual(lowering.call_count, 1)
+        self.assertEqual(out.getvalue(), "baseline: 1 function(s) over the threshold\n")
+
     def test_update_refuses_a_failed_location_and_writes_nothing(self):
         self.file.write_text('{"a.py::f": 4}')
-        result = ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=True)
+        result = ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=True).result
         self.assertEqual(self.file.read_text(), '{"a.py::f": 4}')
         self.assertEqual(ratchet.exit_code(result), 1)
 
     def test_update_keeps_the_entry_of_an_unmeasured_location_and_adds_none_for_a_new_one(self):
         self.file.write_text('{"a.py::f": 9}')
-        result = ratchet.settle(lambda: [finding("a.py", None), finding("b.py", None)], self.file, updating=True)
+        result = ratchet.settle(lambda: [finding("a.py", None), finding("b.py", None)], self.file, updating=True).result
         self.assertEqual(json.loads(self.file.read_text()), {"a.py::f": 9})
         self.assertEqual(ratchet.exit_code(result), 1)
 

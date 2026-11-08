@@ -90,28 +90,31 @@ def unmeasured_keys(findings) -> set:
     return {f.location.key for f in findings if f.number is None}
 
 
+def located(findings) -> Callable[[str], Location]:
+    found = {finding.location.key: finding.location for finding in findings}
+    return lambda key: found.get(key) or Location.from_key(key)
+
+
 def _outcome(now, allowed) -> Outcome:
     allowance = 0 if allowed is None else allowed
-    if now > allowance:
+    if now is not None and now > allowance:
         return Outcome.FAILED
-    return Outcome.BEHIND if now < allowance else Outcome.PASSED
+    return Outcome.BEHIND if now is None or now < allowance else Outcome.PASSED
+
+
+def _verdict(location: Location, now, dark: bool, allowed) -> Verdict:
+    outcome = _outcome(now, allowed)
+    if dark and outcome is not Outcome.FAILED:
+        return Verdict(location, Outcome.UNMEASURED, None, allowed)
+    return Verdict(location, outcome, now, allowed)
 
 
 def judge(findings, baseline: dict) -> Result:
+    at = located(findings)
     numbers = strongest(findings)
     unmeasured = unmeasured_keys(findings)
-    verdicts = [
-        Verdict(Location.from_key(k), _outcome(n, baseline.get(k)), n, baseline.get(k))
-        for k, n in numbers.items()
-        if k not in unmeasured or n > baseline.get(k, 0)
-    ]
-    verdicts += [Verdict(Location.from_key(k), Outcome.UNMEASURED, None, baseline.get(k)) for k in unmeasured]
-    verdicts += [
-        Verdict(Location.from_key(k), Outcome.BEHIND, None, allowed)
-        for k, allowed in baseline.items()
-        if k not in numbers and k not in unmeasured
-    ]
-    return Result(tuple(sorted(verdicts, key=lambda verdict: verdict.location.key)))
+    keys = sorted(set(numbers) | unmeasured | set(baseline))
+    return Result(tuple(_verdict(at(k), numbers.get(k), k in unmeasured, baseline.get(k)) for k in keys))
 
 
 def exit_code(result: Result) -> int:
@@ -146,19 +149,27 @@ def attempt(run: Callable[[], Result], told: Callable[[ToolError], None]) -> Res
         return DID_NOT_RUN
 
 
-def settle(find: Callable[[], list], file: Path, updating: bool) -> Result:
+@dataclass(frozen=True)
+class Settled:
+    findings: list
+    result: Result
+    recorded: Optional[dict] = None
+
+
+def settle(find: Callable[[], list], file: Path, updating: bool) -> Settled:
     if not file.exists() and not updating:
         raise Untagged(MISSING_BASELINE.format(file))
     findings = find()
     baseline = json.loads(file.read_text(encoding="utf-8")) if file.exists() else strongest(findings)
     result = judge(findings, baseline)
     if not updating or result.having(Outcome.FAILED):
-        return result
-    write(file, lowered(result))
-    return judge(findings, lowered(result))
+        return Settled(findings, result)
+    counts = lowered(result)
+    write(file, counts)
+    return Settled(findings, judge(findings, counts), counts)
 
 
-def describe_over(over, out):
+def describe_over(over, displays, out):
     for verdict in over:
         was = "new" if verdict.allowed is None else f"baseline allows {verdict.allowed}"
         out.write(f"FAIL {verdict.location.key}: {verdict.now}, {was}\n")
@@ -194,6 +205,11 @@ FUNCTION_WORDING = Wording(
 )
 
 
+def unmeasured_in(settled: Settled) -> list:
+    dark = unmeasured_keys(settled.findings)
+    return [verdict for verdict in settled.result.verdicts if verdict.location.key in dark]
+
+
 def describe_unmeasured(unmeasured, out):
     if not unmeasured:
         return
@@ -202,38 +218,46 @@ def describe_unmeasured(unmeasured, out):
     out.write(f"\n{UNMEASURED_ADVICE}\n")
 
 
-def describe_check(result: Result, file, out, wording: Wording):
+def describe_failed(settled: Settled, out, wording: Wording):
+    displays = {finding.location.key: finding.display for finding in settled.findings}
+    wording.failed(settled.result.having(Outcome.FAILED), displays, out)
+
+
+def describe_check(settled: Settled, file, out, wording: Wording):
+    result = settled.result
     if result.having(Outcome.FAILED):
-        wording.failed(result.having(Outcome.FAILED), out)
+        describe_failed(settled, out, wording)
     elif result.having(Outcome.BEHIND):
         wording.behind(result.having(Outcome.BEHIND), file, out)
-    describe_unmeasured(result.having(Outcome.UNMEASURED), out)
+    describe_unmeasured(unmeasured_in(settled), out)
     if exit_code(result) == 0:
         wording.passed(result, out)
 
 
-def describe_update(result: Result, out, wording: Wording):
-    if result.having(Outcome.FAILED):
-        wording.failed(result.having(Outcome.FAILED), out)
+def describe_update(settled: Settled, out, wording: Wording):
+    if settled.recorded is None:
+        describe_failed(settled, out, wording)
         out.write(wording.refusal)
         return
-    wording.recorded(lowered(result), out)
-    describe_unmeasured(result.having(Outcome.UNMEASURED), out)
+    wording.recorded(settled.recorded, out)
+    describe_unmeasured(unmeasured_in(settled), out)
 
 
-def describe(result: Result, file: Path, updating: bool, out, wording: Wording = FUNCTION_WORDING):
-    if result.having(Outcome.DID_NOT_RUN):
-        return
+def describe(settled: Settled, file: Path, updating: bool, out, wording: Wording = FUNCTION_WORDING):
     if updating:
-        describe_update(result, out, wording)
+        describe_update(settled, out, wording)
     else:
-        describe_check(result, file, out, wording)
+        describe_check(settled, file, out, wording)
 
 
 def enforce(find: Callable[[], list], file: Path, updating: bool, out) -> Result:
-    result = attempt(lambda: settle(find, file, updating), lambda error: out.write(f"{error}\n"))
-    describe(result, file, updating, out)
-    return result
+    try:
+        settled = settle(find, file, updating)
+    except ToolError as error:
+        out.write(f"{error}\n")
+        return DID_NOT_RUN
+    describe(settled, file, updating, out)
+    return settled.result
 
 
 def result_of(gate: Callable, argv, root, tag: str) -> Result:
