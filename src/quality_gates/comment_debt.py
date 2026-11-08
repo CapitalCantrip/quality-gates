@@ -10,7 +10,7 @@ import warnings
 from pathlib import Path
 
 from quality_gates import languages, project_files, ratchet
-from quality_gates.errors import Untagged, shown
+from quality_gates.errors import Untagged
 
 
 PRAGMA = re.compile(
@@ -133,7 +133,7 @@ def describe_recorded(counts, out):
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
 
 
-WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL)
+WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL, TAG)
 
 
 def area(path):
@@ -186,16 +186,9 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def result_of(argv, root, baseline, out):
+def gate(argv, root, baseline=None, out=None):
+    out = sys.stdout if out is None else out
     args = parse_args(argv)
-    return ratchet.attempt(lambda: mode_result(args, root, baseline, out), lambda error: out.write(f"{shown(error, TAG)}\n"))
-
-
-def main(argv=None, root=None, baseline=None, out=sys.stdout):
-    return ratchet.exit_code(result_of(argv, root, baseline, out))
-
-
-def mode_result(args, root, baseline, out):
     if args.baseline is not None and not args.baseline.strip():
         raise Untagged("--baseline was given an empty path")
     root = root or project_files.git_root()
@@ -203,9 +196,12 @@ def mode_result(args, root, baseline, out):
         status(root, args.exclude, out)
         return ratchet.Result(())
     file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
-    settled = ratchet.settle(functools.partial(findings, root, args.exclude), file, args.update)
-    ratchet.describe(settled, file, args.update, out, WORDING)
-    return settled.result
+    return ratchet.enforce(functools.partial(findings, root, args.exclude), file, args.update, out, WORDING)
+
+
+def main(argv=None, root=None, baseline=None, out=None):
+    out = sys.stdout if out is None else out
+    return ratchet.run_gate(functools.partial(gate, baseline=baseline, out=out), argv, root, TAG, out)
 
 
 if __name__ == "__main__":

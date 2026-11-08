@@ -1,3 +1,4 @@
+import functools
 import io
 import json
 import os
@@ -693,7 +694,7 @@ class CouldNotRunTest(unittest.TestCase):
         return lambda: ratchet.result_of(crap.gate, ["--lang", "python", *argv], None, crap.TAG)
 
     def comment_debt(self, *argv):
-        return lambda: cd.result_of(list(argv), None, None, sys.stdout)
+        return lambda: ratchet.result_of(functools.partial(cd.gate, out=sys.stdout), list(argv), None, cd.TAG, sys.stdout)
 
     def test_a_missing_baseline_did_not_run_in_cc_check(self):
         self.repo()

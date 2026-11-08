@@ -197,6 +197,7 @@ class Wording:
     passed: Callable
     recorded: Callable
     refusal: str
+    tag: str = ""
 
 
 FUNCTION_WORDING = Wording(
@@ -250,20 +251,20 @@ def describe(settled: Settled, file: Path, updating: bool, out, wording: Wording
         describe_check(settled, file, out, wording)
 
 
-def enforce(find: Callable[[], list], file: Path, updating: bool, out) -> Result:
+def enforce(find: Callable[[], list], file: Path, updating: bool, out, wording: Wording = FUNCTION_WORDING) -> Result:
     try:
         settled = settle(find, file, updating)
     except ToolError as error:
-        out.write(f"{error}\n")
+        out.write(f"{shown(error, wording.tag)}\n")
         return DID_NOT_RUN
-    describe(settled, file, updating, out)
+    describe(settled, file, updating, out, wording)
     return settled.result
 
 
-def result_of(gate: Callable, argv, root, tag: str) -> Result:
-    return attempt(lambda: gate(argv, root), lambda error: print(shown(error, tag), file=sys.stderr))
+def result_of(gate: Callable, argv, root, tag: str, err=None) -> Result:
+    return attempt(lambda: gate(argv, root), lambda error: print(shown(error, tag), file=err or sys.stderr))
 
 
-def run_gate(gate: Callable, argv, root, tag: str) -> int:
+def run_gate(gate: Callable, argv, root, tag: str, err=None) -> int:
     write_utf8()
-    return exit_code(result_of(gate, argv, root, tag))
+    return exit_code(result_of(gate, argv, root, tag, err))
