@@ -19,3 +19,8 @@ Edit the right-hand column to match whatever vocabulary you actually use.
 The brief has a Done-when, and every command in it, and every claim the brief
 makes about how the code behaves, has been run once against `main`, with the
 output pasted in the brief.
+
+When a rule from the parent issue or ADR holds only in part until a later
+build, the Done-when names the exception and the issue that owns it ("gates
+read no flags, except `--format` until #138"), and so does the compendium
+page that states the rule.

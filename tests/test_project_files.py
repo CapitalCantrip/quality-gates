@@ -413,6 +413,217 @@ class ProjectModuleReadsAndWritesTheKeptFiles(unittest.TestCase):
         self.assertEqual(set(OPENS_ALLOWED) - set(found), set())
 
 
+RATCHET_MODULE = "ratchet"
+RATCHET_CATCH = "ratchet.attempt"
+COULD_NOT_RUN = "ToolError"
+CATCHES_ALLOWED = {
+    "project_files.root_of_scanned": "falls back to the root of the folder the command ran in",
+    "setup_choices.main": "a non-gate command that reports its own setup errors",
+    "skills_sync.main": "a non-gate command that reports its own setup errors",
+    "agent_docs.main": "a non-gate command that reports its own setup errors",
+    "status.main": "qg status reports, it does not gate",
+}
+CATCH_EVERY_ERROR = {"Exception", "BaseException"}
+SUPPRESS = "suppress"
+GATE_MODULES = ("comment_debt", "quality_check", "crap")
+RATCHET_PATH = "quality_gates.ratchet"
+GATE_INTERFACE = {"Finding", "Location", "Asked", "Wording", "Result", "enforce", "run_gate"}
+BASELINE_FORMAT = "json"
+
+
+def last_names(node):
+    members = node.elts if isinstance(node, ast.Tuple) else [node]
+    return {dotted_name(member).split(".")[-1] for member in members} - {""}
+
+
+def assigned_alias(node):
+    if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
+        return node.targets[0].id, last_names(node.value)
+    return None
+
+
+def type_parents(tree):
+    parents = {node.name: {dotted_name(base).split(".")[-1] for base in node.bases}
+               for node in ast.walk(tree) if isinstance(node, ast.ClassDef)}
+    for alias in filter(None, map(assigned_alias, ast.walk(tree))):
+        parents.setdefault(alias[0], set()).update(alias[1])
+    return parents
+
+
+def could_not_run_types(trees):
+    bases = {name: found for tree in trees for name, found in type_parents(tree).items()}
+    named = {COULD_NOT_RUN}
+    grown = True
+    while grown:
+        more = {name for name, found in bases.items() if found & named} - named
+        named |= more
+        grown = bool(more)
+    return named
+
+
+def named_errors(nodes, imports):
+    members = [member for node in nodes for member in (node.elts if isinstance(node, ast.Tuple) else [node])]
+    return {resolved(dotted_name(member), imports).split(".")[-1] for member in members}
+
+
+def caught_errors(node, imports):
+    if isinstance(node, ast.ExceptHandler):
+        return CATCH_EVERY_ERROR if node.type is None else named_errors([node.type], imports)
+    if isinstance(node, ast.Call) and resolved(dotted_name(node.func), imports).split(".")[-1] == SUPPRESS:
+        return named_errors(node.args, imports)
+    return set()
+
+
+def catches_in(tree, named):
+    imports = imported_as(tree)
+    for name, top in places(tree):
+        for node in ast.walk(top):
+            if caught_errors(node, imports) & (named | CATCH_EVERY_ERROR):
+                yield name, node.lineno
+
+
+def could_not_run_catches(module_paths, named):
+    found = {}
+    for path in module_paths:
+        for name, line in catches_in(ast.parse(path.read_text(encoding="utf-8")), named):
+            found.setdefault(f"{path.stem}.{name}", line)
+    return found
+
+
+def package_trees():
+    return [ast.parse(path.read_text(encoding="utf-8")) for path in package_modules()]
+
+
+class TheRatchetAloneTurnsCouldNotRunIntoDidNotRun(unittest.TestCase):
+    def test_outside_the_ratchet_no_module_catches_the_could_not_run_error_or_a_subclass(self):
+        outside = [path for path in package_modules() if path.stem != RATCHET_MODULE]
+        found = could_not_run_catches(outside, could_not_run_types(package_trees()))
+        self.assertEqual({where: line for where, line in found.items() if where not in CATCHES_ALLOWED}, {})
+
+    def test_inside_the_ratchet_only_attempt_catches_the_could_not_run_error(self):
+        inside = [PACKAGE / f"{RATCHET_MODULE}.py"]
+        found = could_not_run_catches(inside, could_not_run_types(package_trees()))
+        self.assertEqual(set(found), {RATCHET_CATCH})
+
+    def test_the_check_knows_every_subclass_of_the_could_not_run_error(self):
+        self.assertIn("Untagged", could_not_run_types(package_trees()))
+
+    def test_the_check_recognises_every_way_of_naming_the_caught_error(self):
+        sources = [
+            "try:\n    f()\nexcept ToolError:\n    pass\n",
+            "try:\n    f()\nexcept errors.ToolError as e:\n    pass\n",
+            "try:\n    f()\nexcept (OSError, Untagged):\n    pass\n",
+            "def g():\n    try:\n        f()\n    except Untagged:\n        pass\n",
+            "from quality_gates.errors import ToolError as CouldNotRun\ntry:\n    f()\nexcept CouldNotRun:\n    pass\n",
+            "import contextlib\nwith contextlib.suppress(ToolError):\n    f()\n",
+            "from contextlib import suppress\nwith suppress(OSError, Untagged):\n    f()\n",
+        ]
+        for source in sources:
+            with self.subTest(source):
+                self.assertTrue(any(catches_in(ast.parse(source), {COULD_NOT_RUN, "Untagged"})))
+
+    def test_the_check_counts_a_catch_of_every_error_as_a_catch_of_the_could_not_run_error(self):
+        sources = [
+            "try:\n    f()\nexcept:\n    pass\n",
+            "try:\n    f()\nexcept Exception:\n    pass\n",
+            "try:\n    f()\nexcept (OSError, BaseException):\n    pass\n",
+            "import contextlib\nwith contextlib.suppress(Exception):\n    f()\n",
+        ]
+        for source in sources:
+            with self.subTest(source):
+                self.assertTrue(any(catches_in(ast.parse(source), {COULD_NOT_RUN})))
+
+    def test_the_check_knows_a_name_given_to_the_could_not_run_error_by_assignment(self):
+        trees = [ast.parse("CouldNotRun = ToolError\nEXPECTED = (OSError, CouldNotRun)\n")]
+        self.assertTrue({"CouldNotRun", "EXPECTED"} <= could_not_run_types(trees))
+
+    def test_the_check_ignores_catching_other_errors(self):
+        source = (
+            "import contextlib\ntry:\n    f()\nexcept (OSError, ValueError):\n    pass\n"
+            "with contextlib.suppress(KeyError):\n    f()\n"
+        )
+        self.assertFalse(any(catches_in(ast.parse(source), {COULD_NOT_RUN})))
+
+    def test_every_allowed_catch_still_catches_so_the_list_holds_no_dead_entry(self):
+        found = could_not_run_catches(package_modules(), could_not_run_types(package_trees()))
+        self.assertEqual(set(CATCHES_ALLOWED) - set(found), set())
+
+
+def imports_baseline_format(node):
+    if isinstance(node, ast.Import):
+        return any(alias.name == BASELINE_FORMAT for alias in node.names)
+    return isinstance(node, ast.ImportFrom) and node.module == BASELINE_FORMAT
+
+
+def ratchet_names(node, imports):
+    if isinstance(node, ast.ImportFrom) and node.module == RATCHET_PATH:
+        return [f"{RATCHET_PATH}.{alias.name}" for alias in node.names]
+    if isinstance(node, (ast.Name, ast.Attribute)):
+        return [resolved(dotted_name(node), imports)]
+    return []
+
+
+def ratchet_parts(tree):
+    imports = imported_as(tree)
+    prefix = RATCHET_PATH + "."
+    for node in ast.walk(tree):
+        for name in ratchet_names(node, imports):
+            if name.startswith(prefix):
+                yield node.lineno, name[len(prefix):].split(".")[0]
+
+
+def ratchet_bypasses(tree):
+    for node in ast.walk(tree):
+        if imports_baseline_format(node):
+            yield node.lineno, BASELINE_FORMAT
+    for line, part in ratchet_parts(tree):
+        if part not in GATE_INTERFACE:
+            yield line, f"ratchet.{part}"
+
+
+def gate_tree(module):
+    return ast.parse((PACKAGE / f"{module}.py").read_text(encoding="utf-8"))
+
+
+class GatesReachTheRatchetOnlyThroughEnforce(unittest.TestCase):
+    def test_no_gate_imports_json_or_uses_any_part_of_the_ratchet_outside_its_gate_interface(self):
+        for module in GATE_MODULES:
+            with self.subTest(module):
+                self.assertEqual(list(ratchet_bypasses(gate_tree(module))), [])
+
+    def test_every_part_of_the_gate_interface_is_used_by_a_gate_so_the_list_holds_no_dead_entry(self):
+        used = {part for module in GATE_MODULES for _, part in ratchet_parts(gate_tree(module))}
+        self.assertEqual(GATE_INTERFACE - used, set())
+
+    def test_the_check_recognises_every_way_of_bypassing_enforce(self):
+        sources = [
+            "import json",
+            "import json as j",
+            "from json import loads",
+            "from quality_gates import ratchet\nratchet.judge(found, {})",
+            "from quality_gates import ratchet\nratchet.settle(find, file, False)",
+            "from quality_gates import ratchet as r\nr.write(file, {})",
+            "from quality_gates.ratchet import judge\njudge(found, {})",
+            "from quality_gates import ratchet\nkeep = ratchet.write",
+            "from quality_gates import ratchet\nratchet.read_baseline(file)",
+            "from quality_gates import ratchet\nif result.having(ratchet.Outcome.FAILED):\n    pass",
+            "import quality_gates.ratchet\nquality_gates.ratchet.stored_baseline(file, False)",
+            "from quality_gates.ratchet import *",
+            "from quality_gates.ratchet import Asked, attempt",
+        ]
+        for source in sources:
+            with self.subTest(source):
+                self.assertTrue(any(ratchet_bypasses(ast.parse(source))))
+
+    def test_the_check_ignores_going_through_enforce_and_run_gate(self):
+        source = (
+            "from quality_gates import ratchet\nfrom quality_gates.ratchet import Result\n"
+            "ratchet.enforce(find, ratchet.Asked(), out)\nratchet.run_gate(gate, argv, root, tag)\n"
+            "ratchet.Finding(ratchet.Location(file), 1, kind, shown)\nratchet.Wording\n"
+        )
+        self.assertFalse(any(ratchet_bypasses(ast.parse(source))))
+
+
 CONVENTIONS_DOC = ROOT / "docs" / "recognised-conventions.md"
 
 

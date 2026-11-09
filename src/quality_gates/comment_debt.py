@@ -1,16 +1,16 @@
 #!/usr/bin/env python3
 import argparse
 import ast
+import functools
 import io
-import json
 import re
 import sys
 import tokenize
 import warnings
 from pathlib import Path
 
-from quality_gates import languages, project_files
-from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
+from quality_gates import languages, project_files, ratchet
+from quality_gates.errors import Untagged
 
 
 PRAGMA = re.compile(
@@ -22,6 +22,9 @@ PRAGMA = re.compile(
     r")\s*$"
 )
 CODING = re.compile(r"^#.*coding[:=]")
+FINDING_KIND = "comment lines"
+TAG = "comment-debt: "
+UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,
@@ -90,88 +93,47 @@ def measure(root, listed):
     return current
 
 
-def ratchet(current, baseline):
-    over, under = {}, {}
-    for path, lines in current.items():
-        allowed = baseline.get(path, 0)
-        if len(lines) > allowed:
-            over[path] = (lines, allowed)
-        elif len(lines) < allowed:
-            under[path] = (len(lines), allowed)
-    stale = sorted(p for p in baseline if p not in current)
-    return over, under, stale
+def to_finding(path, lines):
+    return ratchet.Finding(ratchet.Location(path), len(lines), FINDING_KIND, ", ".join(str(n) for n in lines))
 
 
-def lowered(current, baseline):
-    return {
-        path: min(len(lines), baseline.get(path, 0))
-        for path, lines in sorted(current.items())
-        if min(len(lines), baseline.get(path, 0)) > 0
-    }
+def findings(root, excluded):
+    return [to_finding(path, lines) for path, lines in sorted(measure(root, tracked_files(root, excluded)).items())]
 
 
-def load_baseline(file):
-    if not file.exists():
-        return None
-    return json.loads(file.read_text(encoding="utf-8"))
-
-
-def write_baseline(file, counts):
-    text = json.dumps(counts, indent=2, sort_keys=True) + "\n"
-    file.write_text(text, encoding="utf-8")
-
-
-def report_over(over, out):
-    for path, (lines, allowed) in sorted(over.items()):
-        where = ", ".join(str(n) for n in lines)
-        out.write(f"FAIL {path}: {len(lines)} comment lines, baseline allows {allowed} — lines {where}\n")
+def describe_failed(settled, out):
+    for verdict in settled.failed:
+        allowed = verdict.allowed or 0
+        out.write(f"FAIL {verdict.location.key}: {verdict.now} comment lines, baseline allows {allowed} — lines {settled.shown(verdict)}\n")
     out.write(
         "\nNew comments are not allowed (no-code-comments policy). Move the knowledge to a test, "
         "a named constant, an ADR or an issue — see the quality-gates README for where each kind goes.\n"
     )
 
 
-def report_behind(under, stale, file, out):
-    for path, (count, allowed) in sorted(under.items()):
-        out.write(f"PAID {path}: {count} lines, baseline still says {allowed}\n")
-    for path in stale:
-        out.write(f"GONE {path}: in the baseline but no longer tracked\n")
+def describe_behind(behind, file, out):
+    for verdict in behind:
+        if verdict.now is not None:
+            out.write(f"PAID {verdict.location.key}: {verdict.now} lines, baseline still says {verdict.allowed}\n")
+    for verdict in behind:
+        if verdict.now is None:
+            out.write(f"GONE {verdict.location.key}: in the baseline but no longer tracked\n")
     out.write(
         f"\nThe baseline is behind. Run `comment-debt --update` "
         f"and commit {file.name} so the paid debt cannot come back.\n"
     )
 
 
-def check(root, file, excluded, out):
-    baseline = load_baseline(file)
-    if baseline is None:
-        out.write(f"No baseline at {file}. Run with --update to create one.\n")
-        return TOOL_ERROR_EXIT
-    over, under, stale = ratchet(measure(root, tracked_files(root, excluded)), baseline)
-    if over:
-        report_over(over, out)
-        return 1
-    if under or stale:
-        report_behind(under, stale, file, out)
-        return 1
-    out.write(f"comment debt: {sum(baseline.values())} lines in {len(baseline)} files, none new\n")
-    return 0
+def describe_passed(result, out):
+    allowed = [verdict.allowed for verdict in result.verdicts if verdict.allowed is not None]
+    out.write(f"comment debt: {sum(allowed)} lines in {len(allowed)} files, none new\n")
 
 
-def update(root, file, excluded, out):
-    current = measure(root, tracked_files(root, excluded))
-    baseline = load_baseline(file)
-    if baseline is None:
-        baseline = {path: len(lines) for path, lines in current.items()}
-    over, _, _ = ratchet(current, baseline)
-    if over:
-        report_over(over, out)
-        out.write("--update only lowers the baseline. It will not record new comments.\n")
-        return 1
-    counts = lowered(current, baseline)
-    write_baseline(file, counts)
+def describe_recorded(counts, out):
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
-    return 0
+
+
+WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL)
 
 
 def area(path):
@@ -206,14 +168,13 @@ def status(root, excluded, out):
     out.write("Columns: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n")
     for name in sorted(areas, key=lambda a: -sum(n for _, n, _ in areas[a])):
         write_area(name, areas[name], out)
-    return 0
 
 
 def labels():
     return " and ".join(languages.LANGUAGES[name].label for name in LANGUAGES)
 
 
-def main(argv=None, root=None, baseline=None, out=sys.stdout):
+def parse_args(argv):
     parser = argparse.ArgumentParser(
         description=f"Ratchet on comment lines in tracked {labels()} files.",
     )
@@ -222,25 +183,29 @@ def main(argv=None, root=None, baseline=None, out=sys.stdout):
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
     parser.add_argument("--baseline", help=f"baseline file (default: {project_files.COMMENT_DEBT_BASELINE} at the repo root)")
     parser.add_argument("--exclude", action="append", default=[], metavar="PREFIX", help="skip tracked paths with this prefix")
-    args = parser.parse_args(argv)
-    if args.baseline is not None and not args.baseline.strip():
-        out.write("--baseline was given an empty path\n")
-        return TOOL_ERROR_EXIT
-    try:
-        root = root or project_files.git_root()
-    except ToolError as error:
-        out.write(f"comment-debt: {error}\n")
-        return TOOL_ERROR_EXIT
-    return run_mode(args, root, baseline, out)
+    return parser.parse_args(argv)
 
 
-def run_mode(args, root, baseline, out):
-    baseline = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
-    if args.update:
-        return update(root, baseline, args.exclude, out)
+def asked(args, root, baseline) -> ratchet.Asked:
     if args.status:
-        return status(root, args.exclude, out)
-    return check(root, baseline, args.exclude, out)
+        return ratchet.Asked(judged=False)
+    return ratchet.Asked(Path(baseline or args.baseline or project_files.comment_debt_baseline(root)), args.update)
+
+
+def gate(argv, root, baseline=None, out=None):
+    out = sys.stdout if out is None else out
+    args = parse_args(argv)
+    if args.baseline is not None and not args.baseline.strip():
+        raise Untagged("--baseline was given an empty path")
+    root = root or project_files.git_root()
+    if args.status:
+        status(root, args.exclude, out)
+    return ratchet.enforce(functools.partial(findings, root, args.exclude), asked(args, root, baseline), out, WORDING)
+
+
+def main(argv=None, root=None, baseline=None, out=None):
+    out = sys.stdout if out is None else out
+    return ratchet.run_gate(functools.partial(gate, baseline=baseline, out=out), argv, root, TAG, out)
 
 
 if __name__ == "__main__":

@@ -31,9 +31,27 @@ repo's docs, not a consumer command.
 
 ## One gate interface and one ratchet
 
-Decided, not built yet (with the runner, quality-gates#138): gates only find,
-returning findings with a location, a number and a kind; one ratchet module
-applies reasons, baseline and outcome. See
+Built: `comment-debt`, `cc-check` and `crap` only find, returning findings
+with a location, a number and a kind; each turns its flags into one
+`ratchet.Asked` and reads no baseline file. Two runs skip judging until
+quality-gates#138: for `cc-check --format json` without `--baseline` and for
+`comment-debt --status` the gate sets `judged` to false in its `Asked`, and
+`ratchet.enforce` then returns no verdicts. Otherwise `ratchet` reads the
+baseline, keys each location by its real path from the root only when a
+baseline is used, compares, writes the baseline on `--update` and returns a
+result with one outcome per location: passed, failed, behind the baseline,
+unmeasured or did not run. A gate that could not run raises
+`errors.ToolError`, and so does `ratchet` for a missing, unreadable or
+malformed baseline; the one place that catches it is `ratchet.attempt`,
+reached through `ratchet.run_gate`, which turns it into *did not run* and
+exits 2. On a gate's path the one other catch, in
+`project_files.root_of_scanned`, is a retry: when the scanned path is not
+inside a git repository, it looks for the root from the working folder
+instead. Outside the gates, the setup commands and `qg status` catch it to
+report their own errors.
+Decided, not built yet: the one common baseline format, the line for a
+language a gate does not support and the runner's record of *did not run*
+(quality-gates#138), and recorded reasons (quality-gates#115). See
 [Baselines and loosening](baselines-and-loosening.md).
 
 ## Coverage matching in one place

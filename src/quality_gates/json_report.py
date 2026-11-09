@@ -4,6 +4,11 @@ from quality_gates.errors import ToolError
 
 MALFORMED_RECORD = (AttributeError, IndexError, KeyError, TypeError, ValueError)
 KIND_NAMES = {dict: "an object", list: "a list", str: "text"}
+PRINTED_INDENT = 2
+
+
+def dumped(payload: object) -> str:
+    return json.dumps(payload, indent=PRINTED_INDENT)
 
 
 def load_json(path: str, open_label: str, parse_label: str) -> object:
