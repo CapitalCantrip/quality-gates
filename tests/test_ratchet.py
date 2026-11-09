@@ -156,10 +156,66 @@ class SettleTest(unittest.TestCase):
 
     def test_a_check_without_a_baseline_file_did_not_run_and_exits_2(self):
         out = io.StringIO()
-        result = ratchet.enforce(lambda: [finding("a.py", 5)], ratchet.Asked(self.file), out)
+
+        def gate(argv, root):
+            return ratchet.enforce(lambda: [finding("a.py", 5)], ratchet.Asked(self.file), out)
+
+        result = ratchet.result_of(gate, [], None, "[t] ")
         self.assertEqual([v.outcome for v in result.verdicts], [ratchet.Outcome.DID_NOT_RUN])
         self.assertEqual(ratchet.exit_code(result), 2)
         self.assertEqual(out.getvalue(), f"No baseline at {self.file}. Run with --update to create one.\n")
+
+    def test_a_baseline_error_is_printed_untagged_on_the_report_stream_the_gate_gave_the_ratchet(self):
+        self.file.write_text("[]")
+        out, err = io.StringIO(), io.StringIO()
+
+        def gate(argv, root):
+            return ratchet.enforce(lambda: [finding("a.py", 5)], ratchet.Asked(self.file), out)
+
+        with redirect_stderr(err):
+            code = ratchet.run_gate(gate, [], None, "[t] ")
+        self.assertEqual((code, out.getvalue(), err.getvalue()), (2, f"bad baseline {self.file}: must be an object, got list\n", ""))
+
+    def test_a_tool_error_while_keying_reaches_run_gate_tagged_on_its_error_stream(self):
+        self.file.write_text("{}")
+
+        def unresolvable():
+            raise ToolError("cannot resolve path 'x'")
+
+        def gate(argv, root):
+            return ratchet.enforce(lambda: [finding("a.py", 5)], ratchet.Asked(self.file), io.StringIO(), root=unresolvable)
+
+        err = io.StringIO()
+        with redirect_stderr(err):
+            code = ratchet.run_gate(gate, [], None, "[t] ")
+        self.assertEqual((code, err.getvalue()), (2, "[t] cannot resolve path 'x'\n"))
+
+    def test_a_tool_error_while_keying_comes_before_a_missing_baseline(self):
+        def unresolvable():
+            raise ToolError("cannot resolve path 'x'")
+
+        with self.assertRaisesRegex(ToolError, "cannot resolve"):
+            ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=False, root=unresolvable)
+
+    def test_a_baseline_with_text_that_is_not_json_names_the_file(self):
+        self.file.write_text("<<<<<<< ours\n")
+        with self.assertRaisesRegex(ratchet.BaselineError, f"^bad baseline {self.file}: Expecting value"):
+            ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=False)
+
+    def test_a_baseline_that_cannot_be_read_gives_the_os_error(self):
+        self.file.mkdir()
+        with self.assertRaisesRegex(ratchet.BaselineError, "Errno"):
+            ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=False)
+
+    def test_update_into_a_folder_that_does_not_exist_gives_the_os_error_naming_the_file(self):
+        file = self.file.parent / "nodir" / "b.json"
+        with self.assertRaisesRegex(ratchet.BaselineError, "No such file or directory"):
+            ratchet.settle(lambda: [finding("a.py", 5)], file, updating=True)
+
+    def test_a_result_sorts_its_verdicts_by_outcome_once(self):
+        result = ratchet.judge([finding("a.py", 5), finding("b.py", 3)], {"a.py::f": 5})
+        self.assertIs(result.having(ratchet.Outcome.FAILED), result.having(ratchet.Outcome.FAILED))
+        self.assertEqual([v.location.key for v in result.having(ratchet.Outcome.FAILED)], ["b.py::f"])
 
     def test_a_check_without_a_baseline_file_never_asks_the_gate_to_find(self):
         def find():

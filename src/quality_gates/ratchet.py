@@ -3,6 +3,7 @@ import os
 import sys
 from dataclasses import dataclass, replace
 from enum import Enum
+from functools import cached_property
 from pathlib import Path
 from typing import Callable, Optional, Union
 
@@ -11,6 +12,8 @@ from quality_gates.real_path import real_path
 
 KEY_SEPARATOR = "::"
 MISSING_BASELINE = "No baseline at {}. Run with --update to create one."
+BAD_BASELINE = "bad baseline {}: {}"
+NOT_AN_OBJECT = "must be an object, got {}"
 UNMEASURED_ADVICE = (
     "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
     "the baseline keeps any entry they already have and records none for them."
@@ -62,8 +65,15 @@ class Verdict:
 class Result:
     verdicts: tuple
 
+    @cached_property
+    def by_outcome(self) -> dict:
+        grouped: dict = {outcome: [] for outcome in Outcome}
+        for verdict in self.verdicts:
+            grouped[verdict.outcome].append(verdict)
+        return grouped
+
     def having(self, outcome: Outcome) -> list:
-        return [verdict for verdict in self.verdicts if verdict.outcome is outcome]
+        return self.by_outcome[outcome]
 
 
 DID_NOT_RUN = Result((Verdict(None, Outcome.DID_NOT_RUN),))
@@ -82,11 +92,18 @@ def location(root, file, function) -> Location:
     return Location(Path(relative).as_posix(), function)
 
 
-def keyed(findings, root: Optional[Callable[[], Path]]) -> list:
+class BaselineError(Untagged):
+    def __init__(self, message: str, stream=None):
+        super().__init__(message)
+        self.stream = stream
+
+
+def keyed(find: Callable[[], list], root: Optional[Callable[[], Path]]) -> Callable[[], list]:
     if root is None:
-        return findings
+        return find
     base = root()
-    return [replace(f, location=location(base, f.location.file, f.location.function)) for f in findings]
+    found = [replace(f, location=location(base, f.location.file, f.location.function)) for f in find()]
+    return lambda: found
 
 
 def record(scores, name, score):
@@ -152,8 +169,35 @@ def lowered(result: Result) -> dict:
     return dict(sorted({**kept, **held}.items()))
 
 
-def write(file, scores):
-    file.write_text(json.dumps(scores, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+def write(file, scores, out=None):
+    try:
+        file.write_text(json.dumps(scores, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    except OSError as error:
+        raise BaselineError(str(error), out) from None
+
+
+def read_baseline(file: Path, out=None) -> dict:
+    try:
+        baseline = json.loads(file.read_text(encoding="utf-8"))
+    except OSError as error:
+        raise BaselineError(str(error), out) from None
+    except (ValueError, RecursionError) as error:
+        raise BaselineError(BAD_BASELINE.format(file, error), out) from None
+    if not isinstance(baseline, dict):
+        raise BaselineError(BAD_BASELINE.format(file, NOT_AN_OBJECT.format(type(baseline).__name__)), out)
+    return baseline
+
+
+def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
+    if file.exists():
+        return read_baseline(file, out)
+    if updating:
+        return None
+    raise BaselineError(MISSING_BASELINE.format(file), out)
+
+
+def told_on(error: ToolError, err):
+    return getattr(error, "stream", None) or err or sys.stderr
 
 
 def attempt(run: Callable[[], Result], told: Callable[[ToolError], None]) -> Result:
@@ -168,24 +212,36 @@ def attempt(run: Callable[[], Result], told: Callable[[ToolError], None]) -> Res
 class Settled:
     findings: list
     result: Result
+    unmeasured: frozenset
     recorded: Optional[dict] = None
 
+    @property
+    def failed(self) -> list:
+        return self.result.having(Outcome.FAILED)
 
-def settle(find: Callable[[], list], file: Path, updating: bool, root=None) -> Settled:
-    if not file.exists() and not updating:
-        raise Untagged(MISSING_BASELINE.format(file))
-    findings = keyed(find(), root)
-    baseline = json.loads(file.read_text(encoding="utf-8")) if file.exists() else strongest(findings)
-    result = judge(findings, baseline)
+    @cached_property
+    def displays(self) -> dict:
+        return {finding.location.key: finding.display for finding in self.findings}
+
+    def shown(self, verdict: Verdict) -> str:
+        return self.displays[verdict.location.key]
+
+
+def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=None) -> Settled:
+    find = keyed(find, root)
+    stored = stored_baseline(file, updating, out)
+    findings = find()
+    unmeasured = frozenset(unmeasured_keys(findings))
+    result = judge(findings, strongest(findings) if stored is None else stored)
     if not updating or result.having(Outcome.FAILED):
-        return Settled(findings, result)
+        return Settled(findings, result, unmeasured)
     counts = lowered(result)
-    write(file, counts)
-    return Settled(findings, judge(findings, counts), counts)
+    write(file, counts, out)
+    return Settled(findings, judge(findings, counts), unmeasured, counts)
 
 
-def describe_over(over, displays, out):
-    for verdict in over:
+def describe_over(settled: Settled, out):
+    for verdict in settled.failed:
         was = "new" if verdict.allowed is None else f"baseline allows {verdict.allowed}"
         out.write(f"FAIL {verdict.location.key}: {verdict.now}, {was}\n")
 
@@ -212,7 +268,6 @@ class Wording:
     passed: Callable
     recorded: Callable
     refusal: str
-    tag: str = ""
 
 
 FUNCTION_WORDING = Wording(
@@ -222,8 +277,7 @@ FUNCTION_WORDING = Wording(
 
 
 def unmeasured_in(settled: Settled) -> list:
-    dark = unmeasured_keys(settled.findings)
-    return [verdict for verdict in settled.result.verdicts if verdict.location.key in dark]
+    return [verdict for verdict in settled.result.verdicts if verdict.location.key in settled.unmeasured]
 
 
 def describe_unmeasured(unmeasured, out):
@@ -234,17 +288,13 @@ def describe_unmeasured(unmeasured, out):
     out.write(f"\n{UNMEASURED_ADVICE}\n")
 
 
-def describe_failed(settled: Settled, out, wording: Wording):
-    displays = {finding.location.key: finding.display for finding in settled.findings}
-    wording.failed(settled.result.having(Outcome.FAILED), displays, out)
-
-
 def describe_check(settled: Settled, file, out, wording: Wording):
     result = settled.result
-    if result.having(Outcome.FAILED):
-        describe_failed(settled, out, wording)
-    elif result.having(Outcome.BEHIND):
-        wording.behind(result.having(Outcome.BEHIND), file, out)
+    behind = result.having(Outcome.BEHIND)
+    if settled.failed:
+        wording.failed(settled, out)
+    elif behind:
+        wording.behind(behind, file, out)
     describe_unmeasured(unmeasured_in(settled), out)
     if exit_code(result) == 0:
         wording.passed(result, out)
@@ -252,7 +302,7 @@ def describe_check(settled: Settled, file, out, wording: Wording):
 
 def describe_update(settled: Settled, out, wording: Wording):
     if settled.recorded is None:
-        describe_failed(settled, out, wording)
+        wording.failed(settled, out)
         out.write(wording.refusal)
         return
     wording.recorded(settled.recorded, out)
@@ -271,17 +321,13 @@ def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNC
         return NOT_JUDGED
     if asked.baseline is None:
         return judge(find(), {})
-    try:
-        settled = settle(find, asked.baseline, asked.updating, root)
-    except ToolError as error:
-        out.write(f"{shown(error, wording.tag)}\n")
-        return DID_NOT_RUN
+    settled = settle(find, asked.baseline, asked.updating, root, out)
     describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result
 
 
 def result_of(gate: Callable, argv, root, tag: str, err=None) -> Result:
-    return attempt(lambda: gate(argv, root), lambda error: print(shown(error, tag), file=err or sys.stderr))
+    return attempt(lambda: gate(argv, root), lambda error: print(shown(error, tag), file=told_on(error, err)))
 
 
 def run_gate(gate: Callable, argv, root, tag: str, err=None) -> int:

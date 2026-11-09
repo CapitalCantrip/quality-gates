@@ -101,10 +101,10 @@ def findings(root, excluded):
     return [to_finding(path, lines) for path, lines in sorted(measure(root, tracked_files(root, excluded)).items())]
 
 
-def describe_failed(failed, lines, out):
-    for verdict in failed:
+def describe_failed(settled, out):
+    for verdict in settled.failed:
         allowed = verdict.allowed or 0
-        out.write(f"FAIL {verdict.location.key}: {verdict.now} comment lines, baseline allows {allowed} — lines {lines[verdict.location.key]}\n")
+        out.write(f"FAIL {verdict.location.key}: {verdict.now} comment lines, baseline allows {allowed} — lines {settled.shown(verdict)}\n")
     out.write(
         "\nNew comments are not allowed (no-code-comments policy). Move the knowledge to a test, "
         "a named constant, an ADR or an issue — see the quality-gates README for where each kind goes.\n"
@@ -133,7 +133,7 @@ def describe_recorded(counts, out):
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
 
 
-WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL, TAG)
+WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL)
 
 
 def area(path):
