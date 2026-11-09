@@ -14,6 +14,8 @@ KEY_SEPARATOR = "::"
 MISSING_BASELINE = "No baseline at {}. Run with --update to create one."
 BAD_BASELINE = "bad baseline {}: {}"
 NOT_AN_OBJECT = "must be an object, got {}"
+NOT_A_NUMBER = "value for {} must be a number, got {}"
+NAN = "NaN"
 UNMEASURED_ADVICE = (
     "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
     "the baseline keeps any entry they already have and records none for them."
@@ -176,24 +178,37 @@ def write(file, scores, out=None):
         raise BaselineError(str(error), out) from None
 
 
-def read_baseline(file: Path, out=None) -> dict:
+def value_kind(value) -> Optional[str]:
+    if not isinstance(value, (int, float)):
+        return type(value).__name__
+    return NAN if value != value else None
+
+
+def wrong_with(baseline) -> Optional[str]:
+    if not isinstance(baseline, dict):
+        return NOT_AN_OBJECT.format(type(baseline).__name__)
+    kinds = ((key, value_kind(value)) for key, value in baseline.items())
+    return next((NOT_A_NUMBER.format(key, kind) for key, kind in kinds if kind is not None), None)
+
+
+def absent(file: Path, updating: bool, out=None) -> None:
+    if not updating:
+        raise BaselineError(MISSING_BASELINE.format(file), out)
+
+
+def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
     try:
+        if not file.exists():
+            return absent(file, updating, out)
         baseline = json.loads(file.read_text(encoding="utf-8"))
     except OSError as error:
         raise BaselineError(str(error), out) from None
     except (ValueError, RecursionError) as error:
         raise BaselineError(BAD_BASELINE.format(file, error), out) from None
-    if not isinstance(baseline, dict):
-        raise BaselineError(BAD_BASELINE.format(file, NOT_AN_OBJECT.format(type(baseline).__name__)), out)
+    wrong = wrong_with(baseline)
+    if wrong is not None:
+        raise BaselineError(BAD_BASELINE.format(file, wrong), out)
     return baseline
-
-
-def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
-    if file.exists():
-        return read_baseline(file, out)
-    if updating:
-        return None
-    raise BaselineError(MISSING_BASELINE.format(file), out)
 
 
 def told_on(error: ToolError, err):

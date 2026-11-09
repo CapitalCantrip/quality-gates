@@ -21,6 +21,9 @@ CONFLICTED = "<<<<<<< ours\n{}\n=======\n{\"x\": 1}\n>>>>>>> theirs\n"
 NO_FOLDER = "[Errno 2] No such file or directory: 'nodir/b.json'\n"
 BAD_JSON = "bad baseline <ROOT>/comment-debt.json: Expecting value: line 1 column 1 (char 0)\n"
 NOT_AN_OBJECT = "bad baseline <ROOT>/comment-debt.json: must be an object, got list\n"
+NULL_VALUE = "bad baseline <ROOT>/comment-debt.json: value for a.py must be a number, got NoneType\n"
+TEXT_VALUE = "bad baseline <ROOT>/comment-debt.json: value for a.py must be a number, got str\n"
+LOCKED = "[Errno 13] Permission denied: 'locked/b.json'\n"
 
 
 class PinTest(unittest.TestCase):
@@ -189,6 +192,34 @@ class BaselineFileTest(PinTest):
         made = self.baselined({"a.py": TWO_COMMENTS}, "[]\n")
         self.assertRan(made.run(COMMENT_DEBT, "--update"), 2, NOT_AN_OBJECT)
         self.assertEqual(made.read("comment-debt.json"), b"[]\n")
+
+    def test_a_baseline_value_of_null_cannot_run_and_exits_2_naming_the_file(self):
+        made = self.baselined({"a.py": TWO_COMMENTS}, '{"a.py": null}\n')
+        self.assertRan(made.run(COMMENT_DEBT), 2, NULL_VALUE)
+
+    def test_update_over_a_baseline_value_of_null_cannot_run_and_leaves_it_untouched(self):
+        made = self.baselined({"a.py": TWO_COMMENTS}, '{"a.py": null}\n')
+        self.assertRan(made.run(COMMENT_DEBT, "--update"), 2, NULL_VALUE)
+        self.assertEqual(made.read("comment-debt.json"), b'{"a.py": null}\n')
+
+    def test_a_baseline_value_that_is_a_string_cannot_run_and_exits_2_naming_the_file(self):
+        made = self.baselined({"a.py": TWO_COMMENTS}, '{"a.py": "10"}\n')
+        self.assertRan(made.run(COMMENT_DEBT), 2, TEXT_VALUE)
+
+    def test_update_over_a_baseline_value_that_is_a_string_cannot_run_and_leaves_it_untouched(self):
+        made = self.baselined({"a.py": TWO_COMMENTS}, '{"a.py": "10"}\n')
+        self.assertRan(made.run(COMMENT_DEBT, "--update"), 2, TEXT_VALUE)
+        self.assertEqual(made.read("comment-debt.json"), b'{"a.py": "10"}\n')
+
+    def test_a_baseline_in_a_folder_that_cannot_be_searched_cannot_run_and_exits_2_naming_the_file(self):
+        made = project(self, {"a.py": TWO_COMMENTS})
+        made.lock("locked")
+        self.assertRan(made.run(COMMENT_DEBT, "--baseline", "locked/b.json"), 2, LOCKED)
+
+    def test_update_into_a_folder_that_cannot_be_searched_cannot_run_and_exits_2_naming_the_file(self):
+        made = project(self, {"a.py": TWO_COMMENTS})
+        made.lock("locked")
+        self.assertRan(made.run(COMMENT_DEBT, "--update", "--baseline", "locked/b.json"), 2, LOCKED)
 
 
 if __name__ == "__main__":

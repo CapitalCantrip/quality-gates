@@ -75,6 +75,10 @@ CONFLICTED = "<<<<<<< ours\n{}\n=======\n{\"x\": 1}\n>>>>>>> theirs\n"
 NO_FOLDER = "[Errno 2] No such file or directory: 'nodir/b.json'\n"
 BAD_JSON = "bad baseline crap.json: Expecting value: line 1 column 1 (char 0)\n"
 NOT_AN_OBJECT = "bad baseline crap.json: must be an object, got list\n"
+NULL_VALUE = "bad baseline crap.json: value for m.py::g must be a number, got NoneType\n"
+TEXT_VALUE = "bad baseline crap.json: value for m.py::g must be a number, got str\n"
+NAN_VALUE = "bad baseline crap.json: value for m.py::g must be a number, got NaN\n"
+LOCKED = "[Errno 13] Permission denied: 'locked/b.json'\n"
 UNRESOLVABLE = "[crap] cannot resolve path 'loop1': Symlink loop from '<ROOT>/loop1'\n"
 
 
@@ -349,6 +353,45 @@ class BaselineFileTest(PinTest):
         ran = made.run_unresolvable(CRAP, *FLAGS, "m.py", *COVERAGE, "--baseline", "crap.json", "--update")
         self.assertRan(ran, 2, ONE_FAIL, NO_BRANCHES + UNRESOLVABLE)
         self.assertEqual(made.read("crap.json"), b"{}\n")
+
+    def test_a_baseline_value_of_null_prints_the_table_then_cannot_run_and_exits_2(self):
+        made = self.failing('{"m.py::g": null}\n')
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json")
+        self.assertRan(ran, 2, ONE_FAIL + NULL_VALUE, NO_BRANCHES)
+
+    def test_update_over_a_baseline_value_of_null_cannot_run_and_leaves_it_untouched(self):
+        made = self.failing('{"m.py::g": null}\n')
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json", "--update")
+        self.assertRan(ran, 2, ONE_FAIL + NULL_VALUE, NO_BRANCHES)
+        self.assertEqual(made.read("crap.json"), b'{"m.py::g": null}\n')
+
+    def test_a_baseline_value_that_is_a_string_prints_the_table_then_cannot_run_and_exits_2(self):
+        made = self.failing('{"m.py::g": "10"}\n')
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json")
+        self.assertRan(ran, 2, ONE_FAIL + TEXT_VALUE, NO_BRANCHES)
+
+    def test_update_over_a_baseline_value_that_is_a_string_cannot_run_and_leaves_it_untouched(self):
+        made = self.failing('{"m.py::g": "10"}\n')
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json", "--update")
+        self.assertRan(ran, 2, ONE_FAIL + TEXT_VALUE, NO_BRANCHES)
+        self.assertEqual(made.read("crap.json"), b'{"m.py::g": "10"}\n')
+
+    def test_a_baseline_value_of_nan_prints_the_table_then_cannot_run_and_exits_2(self):
+        made = self.failing('{"m.py::g": NaN}\n')
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json")
+        self.assertRan(ran, 2, ONE_FAIL + NAN_VALUE, NO_BRANCHES)
+
+    def test_a_baseline_in_a_folder_that_cannot_be_searched_prints_the_table_then_cannot_run_and_exits_2(self):
+        made = self.uncovered()
+        made.lock("locked")
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "locked/b.json")
+        self.assertRan(ran, 2, ONE_FAIL + LOCKED, NO_BRANCHES)
+
+    def test_update_into_a_folder_that_cannot_be_searched_cannot_run_and_exits_2(self):
+        made = self.uncovered()
+        made.lock("locked")
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "locked/b.json", "--update")
+        self.assertRan(ran, 2, ONE_FAIL + LOCKED, NO_BRANCHES)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,8 @@ GIT_IDENTITY = ("-c", "user.name=pin", "-c", "user.email=pin@example.invalid", "
 COMMENT_DEBT = "quality_gates.comment_debt"
 CC_CHECK = "quality_gates.quality_check"
 CRAP = "quality_gates.crap"
+UNSEARCHABLE = 0o600
+SEARCHABLE = 0o700
 OLD = 1_000_000_000
 NEW = 2_000_000_000
 UNRESOLVABLE = (
@@ -36,6 +38,7 @@ class Project:
     def __init__(self, files=None, repo=True, commit=True):
         self.root = Path(os.path.realpath(tempfile.mkdtemp(prefix="gate-pin-")))
         self.repo = repo
+        self.locked = []
         if repo:
             self.git("init", "-q", ".")
         for name, text in (files or {}).items():
@@ -61,6 +64,12 @@ class Project:
 
     def date(self, name, stamp):
         os.utime(self.root / name, (stamp, stamp))
+
+    def lock(self, name):
+        folder = self.root / name
+        folder.mkdir()
+        folder.chmod(UNSEARCHABLE)
+        self.locked.append(folder)
 
     def read(self, name):
         return (self.root / name).read_bytes()
@@ -90,6 +99,8 @@ class Project:
         )
 
     def cleanup(self):
+        for folder in self.locked:
+            folder.chmod(SEARCHABLE)
         shutil.rmtree(self.root, ignore_errors=True)
 
 
