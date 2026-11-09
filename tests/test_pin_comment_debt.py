@@ -17,6 +17,10 @@ NOT_A_REPO = (
     "comment-debt: not inside a git repository: quality-gates looks at the files git would commit, "
     "so run it inside the project's repository, or run `git init` there first\n"
 )
+CONFLICTED = "<<<<<<< ours\n{}\n=======\n{\"x\": 1}\n>>>>>>> theirs\n"
+NO_FOLDER = "[Errno 2] No such file or directory: 'nodir/b.json'\n"
+BAD_JSON = "bad baseline <ROOT>/comment-debt.json: Expecting value: line 1 column 1 (char 0)\n"
+NOT_AN_OBJECT = "bad baseline <ROOT>/comment-debt.json: must be an object, got list\n"
 
 
 class PinTest(unittest.TestCase):
@@ -160,6 +164,31 @@ class UpdateTest(PinTest):
         made = project(self, {"a.py": CLEAN})
         self.assertRan(made.run(COMMENT_DEBT, "--update", "--baseline", ""), 2, "--baseline was given an empty path\n")
         self.assertFalse(made.exists("comment-debt.json"))
+
+
+class BaselineFileTest(PinTest):
+
+    def test_update_into_a_folder_that_does_not_exist_cannot_run_and_exits_2_naming_the_file(self):
+        made = project(self, {"a.py": TWO_COMMENTS})
+        self.assertRan(made.run(COMMENT_DEBT, "--update", "--baseline", "nodir/b.json"), 2, NO_FOLDER)
+
+    def test_a_baseline_with_merge_conflict_markers_cannot_run_and_exits_2_naming_the_file(self):
+        made = self.baselined({"a.py": TWO_COMMENTS}, CONFLICTED)
+        self.assertRan(made.run(COMMENT_DEBT), 2, BAD_JSON)
+
+    def test_update_over_a_baseline_with_merge_conflict_markers_cannot_run_and_leaves_it_untouched(self):
+        made = self.baselined({"a.py": TWO_COMMENTS}, CONFLICTED)
+        self.assertRan(made.run(COMMENT_DEBT, "--update"), 2, BAD_JSON)
+        self.assertEqual(made.read("comment-debt.json"), CONFLICTED.encode("utf-8"))
+
+    def test_a_baseline_that_is_not_a_json_object_cannot_run_and_exits_2_naming_the_file(self):
+        made = self.baselined({"a.py": TWO_COMMENTS}, "[]\n")
+        self.assertRan(made.run(COMMENT_DEBT), 2, NOT_AN_OBJECT)
+
+    def test_update_over_a_baseline_that_is_not_a_json_object_cannot_run_and_leaves_it_untouched(self):
+        made = self.baselined({"a.py": TWO_COMMENTS}, "[]\n")
+        self.assertRan(made.run(COMMENT_DEBT, "--update"), 2, NOT_AN_OBJECT)
+        self.assertEqual(made.read("comment-debt.json"), b"[]\n")
 
 
 if __name__ == "__main__":

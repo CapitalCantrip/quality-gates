@@ -12,6 +12,14 @@ CC_CHECK = "quality_gates.quality_check"
 CRAP = "quality_gates.crap"
 OLD = 1_000_000_000
 NEW = 2_000_000_000
+UNRESOLVABLE = (
+    "import os, runpy, sys\n"
+    "from quality_gates import ratchet, real_path\n"
+    "os.path.lexists('loop1') or (os.symlink('loop2', 'loop1'), os.symlink('loop1', 'loop2'))\n"
+    "ratchet.real_path = lambda name: real_path.real_path('loop1')\n"
+    "sys.argv = sys.argv[1:]\n"
+    "runpy.run_module(sys.argv[0], run_name='__main__', alter_sys=True)\n"
+)
 
 
 class Ran:
@@ -67,11 +75,14 @@ class Project:
         return text
 
     def run(self, module, *args):
+        return self.ran([sys.executable, "-m", module, *args])
+
+    def run_unresolvable(self, module, *args):
+        return self.ran([sys.executable, "-c", UNRESOLVABLE, module, *args])
+
+    def ran(self, command):
         env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="1", NO_COLOR="1")
-        done = subprocess.run(
-            [sys.executable, "-m", module, *args],
-            cwd=self.root, capture_output=True, env=env,
-        )
+        done = subprocess.run(command, cwd=self.root, capture_output=True, env=env)
         return Ran(
             done.returncode,
             self.normalise(done.stdout.decode("utf-8")),

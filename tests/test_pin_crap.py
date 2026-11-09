@@ -71,6 +71,11 @@ NOT_A_REPO = (
     "so run it inside the project's repository, or run `git init` there first\n"
 )
 WORST_CASE_NOTICE = "[crap] No coverage source given — computing worst-case scores (0% coverage assumed).\n\n"
+CONFLICTED = "<<<<<<< ours\n{}\n=======\n{\"x\": 1}\n>>>>>>> theirs\n"
+NO_FOLDER = "[Errno 2] No such file or directory: 'nodir/b.json'\n"
+BAD_JSON = "bad baseline crap.json: Expecting value: line 1 column 1 (char 0)\n"
+NOT_AN_OBJECT = "bad baseline crap.json: must be an object, got list\n"
+UNRESOLVABLE = "[crap] cannot resolve path 'loop1': Symlink loop from '<ROOT>/loop1'\n"
 
 
 def report(m_lines):
@@ -298,6 +303,52 @@ class UpdateTest(PinTest):
         ran = self.go(made, ".", *COVERAGE, "--baseline", "crap.json", "--update")
         self.assertEqual((ran.code, ran.out, ran.err.endswith(NOT_A_REPO)), (2, "", True))
         self.assertFalse(made.exists("crap.json"))
+
+
+class BaselineFileTest(PinTest):
+
+    def failing(self, baseline):
+        made = self.uncovered()
+        made.write("crap.json", baseline)
+        return made
+
+    def test_update_into_a_folder_that_does_not_exist_prints_the_table_and_the_os_error_and_exits_2(self):
+        made = self.uncovered()
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "nodir/b.json", "--update")
+        self.assertRan(ran, 2, ONE_FAIL + NO_FOLDER, NO_BRANCHES)
+
+    def test_a_baseline_with_merge_conflict_markers_prints_the_table_then_cannot_run_and_exits_2(self):
+        made = self.failing(CONFLICTED)
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json")
+        self.assertRan(ran, 2, ONE_FAIL + BAD_JSON, NO_BRANCHES)
+
+    def test_update_over_a_baseline_with_merge_conflict_markers_cannot_run_and_leaves_it_untouched(self):
+        made = self.failing(CONFLICTED)
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json", "--update")
+        self.assertRan(ran, 2, ONE_FAIL + BAD_JSON, NO_BRANCHES)
+        self.assertEqual(made.read("crap.json"), CONFLICTED.encode("utf-8"))
+
+    def test_a_baseline_that_is_not_a_json_object_prints_the_table_then_cannot_run_and_exits_2(self):
+        made = self.failing("[]\n")
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json")
+        self.assertRan(ran, 2, ONE_FAIL + NOT_AN_OBJECT, NO_BRANCHES)
+
+    def test_update_over_a_baseline_that_is_not_a_json_object_cannot_run_and_leaves_it_untouched(self):
+        made = self.failing("[]\n")
+        ran = self.go(made, "m.py", *COVERAGE, "--baseline", "crap.json", "--update")
+        self.assertRan(ran, 2, ONE_FAIL + NOT_AN_OBJECT, NO_BRANCHES)
+        self.assertEqual(made.read("crap.json"), b"[]\n")
+
+    def test_a_path_that_cannot_be_resolved_while_keying_prints_the_tagged_error_on_stderr_and_exits_2(self):
+        made = self.failing("{}\n")
+        ran = made.run_unresolvable(CRAP, *FLAGS, "m.py", *COVERAGE, "--baseline", "crap.json")
+        self.assertRan(ran, 2, ONE_FAIL, NO_BRANCHES + UNRESOLVABLE)
+
+    def test_update_with_a_path_that_cannot_be_resolved_prints_the_tagged_error_and_leaves_the_baseline(self):
+        made = self.failing("{}\n")
+        ran = made.run_unresolvable(CRAP, *FLAGS, "m.py", *COVERAGE, "--baseline", "crap.json", "--update")
+        self.assertRan(ran, 2, ONE_FAIL, NO_BRANCHES + UNRESOLVABLE)
+        self.assertEqual(made.read("crap.json"), b"{}\n")
 
 
 if __name__ == "__main__":
