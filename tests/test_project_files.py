@@ -413,6 +413,144 @@ class ProjectModuleReadsAndWritesTheKeptFiles(unittest.TestCase):
         self.assertEqual(set(OPENS_ALLOWED) - set(found), set())
 
 
+RATCHET_MODULE = "ratchet"
+RATCHET_CATCH = "ratchet.attempt"
+COULD_NOT_RUN = "ToolError"
+CATCHES_ALLOWED = {
+    "project_files.root_of_scanned": "falls back to the root of the folder the command ran in",
+    "setup_choices.main": "a setup command, not a gate (quality-gates#138 moves it under qg)",
+    "skills_sync.main": "a setup command, not a gate (quality-gates#138 moves it under qg)",
+    "agent_docs.main": "a setup command, not a gate (quality-gates#138 moves it under qg)",
+    "status.main": "qg status reports, it does not gate",
+}
+GATE_MODULES = ("comment_debt", "quality_check", "crap")
+RATCHET_INSIDES = {"quality_gates.ratchet.judge", "quality_gates.ratchet.settle", "quality_gates.ratchet.write"}
+BASELINE_FORMAT = "json"
+
+
+def class_bases(tree):
+    return {node.name: {dotted_name(base).split(".")[-1] for base in node.bases}
+            for node in ast.walk(tree) if isinstance(node, ast.ClassDef)}
+
+
+def could_not_run_types(trees):
+    bases = {name: found for tree in trees for name, found in class_bases(tree).items()}
+    named = {COULD_NOT_RUN}
+    grown = True
+    while grown:
+        more = {name for name, found in bases.items() if found & named} - named
+        named |= more
+        grown = bool(more)
+    return named
+
+
+def caught_names(handler):
+    caught = handler.type
+    members = caught.elts if isinstance(caught, ast.Tuple) else [caught] if caught else []
+    return {dotted_name(member).split(".")[-1] for member in members}
+
+
+def catches_in(tree, named):
+    for name, top in places(tree):
+        for node in ast.walk(top):
+            if isinstance(node, ast.ExceptHandler) and caught_names(node) & named:
+                yield name, node.lineno
+
+
+def could_not_run_catches(module_paths, named):
+    found = {}
+    for path in module_paths:
+        for name, line in catches_in(ast.parse(path.read_text(encoding="utf-8")), named):
+            found.setdefault(f"{path.stem}.{name}", line)
+    return found
+
+
+def package_trees():
+    return [ast.parse(path.read_text(encoding="utf-8")) for path in package_modules()]
+
+
+class TheRatchetAloneTurnsCouldNotRunIntoDidNotRun(unittest.TestCase):
+    def test_outside_the_ratchet_no_module_catches_the_could_not_run_error_or_a_subclass(self):
+        outside = [path for path in package_modules() if path.stem != RATCHET_MODULE]
+        found = could_not_run_catches(outside, could_not_run_types(package_trees()))
+        self.assertEqual({where: line for where, line in found.items() if where not in CATCHES_ALLOWED}, {})
+
+    def test_inside_the_ratchet_only_attempt_catches_the_could_not_run_error(self):
+        inside = [PACKAGE / f"{RATCHET_MODULE}.py"]
+        found = could_not_run_catches(inside, could_not_run_types(package_trees()))
+        self.assertEqual(set(found), {RATCHET_CATCH})
+
+    def test_the_check_knows_every_subclass_of_the_could_not_run_error(self):
+        self.assertIn("Untagged", could_not_run_types(package_trees()))
+
+    def test_the_check_recognises_every_way_of_naming_the_caught_error(self):
+        sources = [
+            "try:\n    f()\nexcept ToolError:\n    pass\n",
+            "try:\n    f()\nexcept errors.ToolError as e:\n    pass\n",
+            "try:\n    f()\nexcept (OSError, Untagged):\n    pass\n",
+            "def g():\n    try:\n        f()\n    except Untagged:\n        pass\n",
+        ]
+        for source in sources:
+            with self.subTest(source):
+                self.assertTrue(any(catches_in(ast.parse(source), {COULD_NOT_RUN, "Untagged"})))
+
+    def test_the_check_ignores_catching_other_errors(self):
+        source = "try:\n    f()\nexcept (OSError, ValueError):\n    pass\nexcept:\n    pass\n"
+        self.assertFalse(any(catches_in(ast.parse(source), {COULD_NOT_RUN})))
+
+    def test_every_allowed_catch_still_catches_so_the_list_holds_no_dead_entry(self):
+        found = could_not_run_catches(package_modules(), could_not_run_types(package_trees()))
+        self.assertEqual(set(CATCHES_ALLOWED) - set(found), set())
+
+
+def imports_baseline_format(node):
+    if isinstance(node, ast.Import):
+        return any(alias.name == BASELINE_FORMAT for alias in node.names)
+    return isinstance(node, ast.ImportFrom) and node.module == BASELINE_FORMAT
+
+
+def ratchet_inside(node, imports):
+    if not isinstance(node, (ast.Name, ast.Attribute)):
+        return None
+    name = resolved(dotted_name(node), imports)
+    return name if name in RATCHET_INSIDES else None
+
+
+def ratchet_bypasses(tree):
+    imports = imported_as(tree)
+    for node in ast.walk(tree):
+        label = BASELINE_FORMAT if imports_baseline_format(node) else ratchet_inside(node, imports)
+        if label:
+            yield node.lineno, label
+
+
+class GatesReachTheRatchetOnlyThroughEnforce(unittest.TestCase):
+    def test_no_gate_imports_json_or_calls_the_ratchets_judge_settle_or_write(self):
+        for module in GATE_MODULES:
+            with self.subTest(module):
+                tree = ast.parse((PACKAGE / f"{module}.py").read_text(encoding="utf-8"))
+                self.assertEqual(list(ratchet_bypasses(tree)), [])
+
+    def test_the_check_recognises_every_way_of_bypassing_enforce(self):
+        sources = [
+            "import json",
+            "import json as j",
+            "from json import loads",
+            "from quality_gates import ratchet\nratchet.judge(found, {})",
+            "from quality_gates import ratchet\nratchet.settle(find, file, False)",
+            "from quality_gates import ratchet as r\nr.write(file, {})",
+            "from quality_gates.ratchet import judge\njudge(found, {})",
+            "from quality_gates import ratchet\nkeep = ratchet.write",
+        ]
+        for source in sources:
+            with self.subTest(source):
+                self.assertTrue(any(ratchet_bypasses(ast.parse(source))))
+
+    def test_the_check_ignores_going_through_enforce_and_run_gate(self):
+        source = "from quality_gates import ratchet\nratchet.enforce(find, asked, out)\nratchet.run_gate(gate, argv, root, tag)"
+        self.assertFalse(any(ratchet_bypasses(ast.parse(source))))
+
+
 CONVENTIONS_DOC = ROOT / "docs" / "recognised-conventions.md"
 
 
