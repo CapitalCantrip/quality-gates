@@ -82,8 +82,9 @@ often.
   builder's yes as a merge of its own `loosening` pull request, a review date
   at most 90 days away, and always shows as a warning. Both live in
   `quality-gates-reasons.json`. ([ADR-009](archive/ADR-009-recorded-reasons-and-loosening.md))
-- **Built: one ratchet module.** Gates only find; the ratchet applies the
-  baseline, then the outcome, and turns a gate that could not run into exit
+- **Built: one ratchet module.** Gates only find, except `cc-check --format
+  json` without `--baseline` and `comment-debt --status`, which skip judging
+  until quality-gates#138; the ratchet applies the baseline, then the outcome, and turns a gate that could not run into exit
   2, never a pass. Each gate keeps its own baseline file and format.
   ([ADR-011 § 3](archive/ADR-011-code-structure.md#3-one-gate-interface-and-one-ratchet))
 - **Decided, not built yet (quality-gates#138): one baseline format,** the

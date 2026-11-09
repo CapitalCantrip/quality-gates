@@ -32,16 +32,21 @@ repo's docs, not a consumer command.
 ## One gate interface and one ratchet
 
 Built: `comment-debt`, `cc-check` and `crap` only find, returning findings
-with a location, a number and a kind; they read no baseline and no flag that
-picks the outcome, except `cc-check --format json` without `--baseline` and
-`comment-debt --status`, which skip judging until quality-gates#138.
-`ratchet` decides whether a run is judged and against which baseline, keys
-each location by its real path from the root only when a baseline is used,
-compares, writes the baseline on `--update` and returns a result with one
-outcome per location: passed, failed, behind the baseline, unmeasured or did
-not run. A gate that could not run raises `errors.ToolError`, and so does
-`ratchet` for a missing, unreadable or malformed baseline; `ratchet.run_gate`
-is the one place that catches it, turns it into *did not run* and exits 2.
+with a location, a number and a kind; each turns its flags into one
+`ratchet.Asked` and reads no baseline file. Two runs skip judging until
+quality-gates#138: for `cc-check --format json` without `--baseline` and for
+`comment-debt --status` the gate sets `judged` to false in its `Asked`, and
+`ratchet.enforce` then returns no verdicts. Otherwise `ratchet` reads the
+baseline, keys each location by its real path from the root only when a
+baseline is used, compares, writes the baseline on `--update` and returns a
+result with one outcome per location: passed, failed, behind the baseline,
+unmeasured or did not run. A gate that could not run raises
+`errors.ToolError`, and so does `ratchet` for a missing, unreadable or
+malformed baseline; the one place that catches it is `ratchet.attempt`,
+reached through `ratchet.run_gate`, which turns it into *did not run* and
+exits 2. The one other catch, in `project_files.root_of_scanned`, is a retry:
+when the scanned path is not inside a git repository, it looks for the root
+from the working folder instead.
 Decided, not built yet: the one common baseline format, the line for a
 language a gate does not support and the runner's record of *did not run*
 (quality-gates#138), and recorded reasons (quality-gates#115). See
