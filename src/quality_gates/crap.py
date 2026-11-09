@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 import argparse
-import json
 import sys
 import textwrap
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Callable, Optional
 
-from quality_gates import complexity_scan, coverage_json, istanbul, languages, llvm_cov, project_files, ratchet, xccov
+from quality_gates import complexity_scan, coverage_json, istanbul, json_report, languages, llvm_cov, project_files, ratchet, xccov
 from quality_gates.errors import ToolError, given_path
 
 if TYPE_CHECKING:
@@ -425,7 +424,7 @@ def _print_json(results: list, args, n_fail: int, skipped: list, cov_source: str
         "unmeasured":      unmeasured_files(results),
         "skipped":         skipped,
     }
-    print(json.dumps(payload, indent=2))
+    print(json_report.dumped(payload))
 
 
 def _emit_output(results: list, args, n_fail: int, skipped: list, cov_source: str) -> None:

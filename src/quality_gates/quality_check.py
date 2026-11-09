@@ -1,10 +1,9 @@
 #!/usr/bin/env python3
 import argparse
-import json
 import sys
 from pathlib import Path
 
-from quality_gates import complexity_scan, languages, project_files, ratchet
+from quality_gates import complexity_scan, json_report, languages, project_files, ratchet
 from quality_gates.errors import Untagged, given_path
 
 AGENT_CC_CEILING = 8
@@ -96,7 +95,7 @@ def findings(functions, threshold):
 
 def report(found, flagged, args):
     if args.format == "json":
-        print(json.dumps([to_result(fn, args.threshold) for fn in found.functions], indent=2))
+        print(json_report.dumped([to_result(fn, args.threshold) for fn in found.functions]))
     else:
         print_text(flagged, found.functions, found.files, args.threshold)
 
