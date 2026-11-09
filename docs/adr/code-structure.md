@@ -44,9 +44,11 @@ unmeasured or did not run. A gate that could not run raises
 `errors.ToolError`, and so does `ratchet` for a missing, unreadable or
 malformed baseline; the one place that catches it is `ratchet.attempt`,
 reached through `ratchet.run_gate`, which turns it into *did not run* and
-exits 2. The one other catch, in `project_files.root_of_scanned`, is a retry:
-when the scanned path is not inside a git repository, it looks for the root
-from the working folder instead.
+exits 2. On a gate's path the one other catch, in
+`project_files.root_of_scanned`, is a retry: when the scanned path is not
+inside a git repository, it looks for the root from the working folder
+instead. Outside the gates, the setup commands and `qg status` catch it to
+report their own errors.
 Decided, not built yet: the one common baseline format, the line for a
 language a gate does not support and the runner's record of *did not run*
 (quality-gates#138), and recorded reasons (quality-gates#115). See

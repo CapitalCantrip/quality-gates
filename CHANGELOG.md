@@ -11,7 +11,7 @@
   not valid JSON, is not an object, holds a value that is not a number, or
   cannot be reached, read or written now makes `comment-debt`, `cc-check` and
   `crap` exit 2 with one line naming the file, instead of a traceback or, for
-  a `null` value, a wrong verdict. `comment-debt` no longer crashes when the
+  a `null` or `NaN` value, a wrong verdict. `comment-debt` no longer crashes when the
   terminal's encoding is plain ASCII. Nothing to do on bumping the pin.
 
 ## 0.13.0 — 2026-11-04
