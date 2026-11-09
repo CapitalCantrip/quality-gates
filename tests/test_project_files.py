@@ -418,9 +418,9 @@ RATCHET_CATCH = "ratchet.attempt"
 COULD_NOT_RUN = "ToolError"
 CATCHES_ALLOWED = {
     "project_files.root_of_scanned": "falls back to the root of the folder the command ran in",
-    "setup_choices.main": "a setup command, not a gate (quality-gates#138 moves it under qg)",
-    "skills_sync.main": "a setup command, not a gate (quality-gates#138 moves it under qg)",
-    "agent_docs.main": "a setup command, not a gate (quality-gates#138 moves it under qg)",
+    "setup_choices.main": "a non-gate command that reports its own setup errors",
+    "skills_sync.main": "a non-gate command that reports its own setup errors",
+    "agent_docs.main": "a non-gate command that reports its own setup errors",
     "status.main": "qg status reports, it does not gate",
 }
 CATCH_EVERY_ERROR = {"Exception", "BaseException"}
