@@ -7,6 +7,10 @@
   which is where the current rules live. Every generated reference file's
   second line now names its compendium page instead of an ADR. Nothing to do
   beyond the pin bump.
+- **A broken baseline no longer crashes a gate (#174).** A baseline that is
+  not valid JSON, is not an object, or cannot be read or written now makes
+  `comment-debt`, `cc-check` and `crap` exit 2 with one line naming the file,
+  instead of a traceback. Nothing to do on bumping the pin.
 
 ## 0.13.0 — 2026-11-04
 
