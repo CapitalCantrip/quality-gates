@@ -2,65 +2,45 @@
 
 Written for: the builder and the quality-gates maintainers, a technical reader who is not a software engineer by trade.
 
-Date of research: 2026-11-14. All pages below were read on 2026-11-14 unless a different date is given. Source numbers refer to the Sources list at the end.
+Researched 2026-11-14 from primary sources (GitHub docs, the runner-images repository, GitHub changelog); numbered source references point to the Sources list at the end.
 
-Terms used once: a **runner** is a machine that executes CI jobs; **hosted** means GitHub operates it, **self-hosted** means the team operates it. A **label** is the name a workflow file uses to request a runner type. A **VM** (virtual machine) is a software-simulated computer. The **orchestrator** is GitHub Actions itself, which schedules jobs onto runners. A **pipeline** or **harness** is the workflow that runs the checks. **Ecosystem** means the wider set of tools and images around it.
+## Quick answers
 
-## Summary
+Read this section first. Each row points to the section with the evidence; every claim in this table is sourced there.
 
-- **Public repositories:** Standard macOS runners are free and unlimited on public repositories, with no plan condition found; larger runners are billed [1][26]. Fork pull requests get no secrets and may need maintainer approval [28][29].
-- **Availability:** GitHub provides macOS runners for both public and private repositories, as managed VMs [1][4][17]. macOS 14 images were retired on 2026-11-02 [4][5]. macOS 13 was retired by 2025-12-04 [21].
-- **For this repo:** Python 3.9, the repo's floor, is not preinstalled on the macOS 26 or 15 arm64 images, and `setup-python` lists arm64 builds of 3.9 only up to 3.9.13 [6][7][32]. Pin macOS labels rather than use `macos-latest`.
-- **Labels and images:** Current macOS labels include `macos-latest` (macOS 26 on arm64), `macos-26`, `macos-15`, `macos-15-intel`, `macos-26-intel`, `macos-26-large`, `macos-15-large`, `macos-26-xlarge`, `macos-15-xlarge` and `xcode-27` (preview) [4][8]. Which label is "latest" for the larger runners is unresolved (see Availability).
-- **Hardware:** Standard runners are arm64 (3 vCPU, 7 GB RAM, 14 GB disk) or Intel (4 vCPU, 14 GB RAM, 14 GB disk) [1]. Larger runners are Intel "large" (12 vCPU, 30 GB RAM) and arm64 "xlarge" (5 vCPU, 14 GB RAM) [8]. There is no Intel "xlarge" and no arm64 "large" in the sources.
-- **Cost:** Standard macOS costs $0.062 per minute [2][9]. Standard runners are free and unlimited on public repositories; larger runners are billed on public repositories too [2][9]. On private repositories, usage is deducted from a monthly dollar allowance: $12 (Free), $18 (Pro and Team), $300 (Enterprise Cloud) [2][13]. The pricing docs no longer publish a macOS multiplier; the widely quoted "10x" is unconfirmed [14].
-- **Conditions:** Each job may run for up to 6 hours, and the default job timeout is 360 minutes [3][24]. A workflow run may last 35 days [3]. Hosted macOS jobs share a concurrency cap of 5 on Free, Pro and Team and 50 on Enterprise [3]. Larger runners need a credit card on file and a non-zero spending limit [8].
-- **Limitations:** Each hosted job gets a new VM that is destroyed at the end of the job, so no keychain or signing identity persists between jobs [17][18]. Each macOS runner has 14 GB of disk [1]. macOS larger runners lack static IPs, Azure private networking and nested virtualization [8]. The README's Xcode policy says only one major Xcode version is supported per macOS version [4].
-- **Self-hosted alternative:** Self-hosted runners are free to use with GitHub Actions, but the team pays for and maintains the machine [15]. GitHub's own guidance says self-hosted runners should almost never be used with public repositories [16]. A $0.002/min platform charge for self-hosted runners was announced for 2026-03-01 and then postponed; the current docs show no such charge [10][12][2][9].
+| Question | Answer | Detail |
+|---|---|---|
+| Is macOS CI free on a public repo? | Yes for standard runners: free and unlimited. Larger runners (`-large`, `-xlarge`) are billed. No plan condition found. | Public repositories |
+| What does it cost on a private repo? | Standard macOS $0.062 per minute, drawn from a monthly dollar allowance: $12 Free, $18 Pro and Team, $300 Enterprise Cloud. The "10x multiplier" is no longer stated by GitHub. | Cost |
+| Which labels exist? | `macos-latest` (macOS 26 arm64), `macos-26`, `macos-15` (arm64); `macos-26-intel`, `macos-15-intel` (Intel). macOS 14 and 13 are retired. | Availability |
+| Is Intel still available? | Yes, but being phased out: last Intel image supported until August or Fall 2027. Extra-large is arm64 only; the larger Intel size is "large". | Availability, Limitations |
+| What hardware? | Standard arm64: 3 vCPU, 7 GB RAM, 14 GB disk. Standard Intel: 4 vCPU, 14 GB RAM, 14 GB disk. | Availability |
+| Job and concurrency limits? | 6 hours per hosted job; 5 concurrent macOS jobs on Free, Pro and Team, 50 on Enterprise. | Conditions |
+| Does code signing work? | Each job gets a fresh VM; import certificates into a temporary keychain every job. | Limitations |
+| Fork pull requests? | No secrets except a read-only `GITHUB_TOKEN`; may need maintainer approval. | Public repositories |
+| Self-hosted Mac instead? | No GitHub charge today; you pay for and maintain the machine. A $0.002 per minute platform fee was announced and postponed with no new date. Almost never use it with public repos. | Self-hosted alternative |
+| Does it suit this repo (Python 3.9 floor)? | Python 3.9 is not preinstalled on macOS 26 or 15 arm64 images; `setup-python` has arm64 3.9 only up to 3.9.13. Pin labels, do not use `macos-latest`. Swift version is not listed; read it at run time. | Fit for this repo and its consumers |
+| Which draft claims were wrong? | Extra-large is not Intel; allowances are dollars not minutes; "10x" is unconfirmed; macOS 13 and 14 labels are gone. | Verification table |
+| What is unresolved? | Multiplier, larger-runner plan eligibility, regions, outages, Swift version. | Open questions |
 
-## Verification table
+## Public repositories
 
-Verdicts are one of: Confirmed, Corrected, Outdated, Unverified.
+- **Free and unlimited.** "Use of the standard GitHub-hosted runners is free and unlimited on public repositories" [1]. The billing concepts page lists "Standard GitHub-hosted runners in public repositories" as usage that "remains free independently and does not reduce the included compute usage" [26]. It lists self-hosted runner usage, GitHub Pages and Dependabot as free in the same way [26].
+- **Applies to macOS.** The macOS standard runners (arm64 `macos-latest`, `macos-15`, `macos-26`, `xcode-27`; Intel `macos-15-intel`, `macos-26-intel`) appear in the standard table, whose notes carry the public-repository rule [1]. The macOS specs are identical for public and private repositories [1].
+- **Not free.** "Larger runners are billed for public repositories" [26][9]. That covers every `-large` and `-xlarge` label [8].
+- **No plan condition found.** The pages read name no plan, spending-limit or credit-card requirement for standard runners on public repositories. The account plan does not change this in the sources read [1][26].
+- **Demand.** "During periods of high demand, jobs that run on macOS runners may take longer to start." No start-time guarantee is given [1].
+- **Usage terms.** GitHub's terms bar cryptomining, using Actions as a CDN or serverless backend, and activity unrelated to "the production, testing, deployment, or publication of the software project" on hosted runners. They also bar "any activity that places a burden on our servers, where that burden is disproportionate to the benefits provided to users" [27]. The terms set no numeric fair-use cap for free public usage; the burden clause is GitHub's discretion [27].
+- **Fork pull requests.** Runs triggered by a fork's pull request may need manual approval from a maintainer with write access [28]. Secrets are not passed to the runner for a fork's `pull_request` run, except `GITHUB_TOKEN`, which is read-only [29]. Any gate that needs a secret cannot run on fork pull requests.
+- **Rate limits that still apply.** `GITHUB_TOKEN` is limited to 1,000 requests per hour per repository; 256 jobs per matrix; 6 hours per hosted job [3].
 
-| # | Draft claim | Verdict | Note | Source |
-|---|---|---|---|---|
-| 1 | GitHub provides macOS CI natively through GitHub Actions | Confirmed | The glossary terms are definitions, not checkable facts. | [1], [17] |
-| 2 | Hosted runners are preconfigured, managed macOS VMs | Confirmed | "each GitHub-hosted runner is a new virtual machine (VM) hosted by GitHub" and "comes with the runner application and other tools preinstalled." | [17] |
-| 3 | Labels such as `macos-latest`, `macos-26`, `macos-15` exist | Corrected | The named labels exist. The draft omits that macOS 14 labels were retired 2026-11-02 and macOS 13 by 2025-12-04. | [4], [5], [21] |
-| 4a | Both Apple Silicon (arm64) and Intel (x64) VMs are available | Confirmed | Standard and larger runners in both architectures. | [1], [4], [8] |
-| 4b | Both architectures come in "standard and extra-large" sizes | Corrected | The extra-large size is arm64 only. The bigger Intel size is "large" (12 vCPU, 30 GB RAM). | [4], [8] |
-| 4c | Intel runners are still offered | Outdated | Still offered, but Apple has discontinued Intel. The 2025 notices say `macos-15-intel` is the last x86_64 image and that Intel support ends when the macOS 15 image retires, dated "August 2027" in one notice and "Fall 2027" in the changelog. | [4], [21], [22] |
-| 5a | Images include Xcode and Homebrew | Confirmed | Several Xcode versions (default 26.6 on macOS 26 arm64, 16.4 on macOS 15 arm64) and Homebrew 7.0.11 / 7.0.12. | [6], [7] |
-| 5b | Images include Swift and other Apple dev tools | Unverified | The macOS 26 arm64 readme lists SwiftFormat 0.64.5 but no Swift compiler version. | [6] |
-| 6a | Standard macOS runners are free for public repos | Confirmed | Two pages state it directly (see Public repositories below); larger runners are billed. The billing-rates page [9] does not state it. | [1], [26] |
-| 6b | Private repos draw from included usage and are charged per minute | Confirmed | Per-minute macOS cost is about 10.3 times Linux 2-core ($0.062 vs $0.006; derived). | [2], [9], [13] |
-| 6c | Multipliers: Linux 1x, Windows 2x, macOS 10x | Outdated | The docs now publish per-minute rates and state no multiplier. Windows 2-core is $0.010/min (about 1.7x Linux 2-core; derived). The 10x figure is unconfirmed; its removal is disputed. | [9], [14] |
-| 6d | Included minutes per plan | Corrected | The allowance is in dollars: $12 Free, $18 Pro and Team, $300 Enterprise Cloud. The pricing page shows 2,000 / 3,000 / 50,000 Linux-equivalent minutes. | [2], [13] |
-| 6e | macOS minutes are billed in the included pool | Confirmed | Per-minute rates "determine the cost deducted from your included compute usage." | [9] |
-| 7a | Self-hosted Mac can cut costs | Confirmed | Self-hosted usage carries no GitHub per-minute charge today; maintenance cost is yours. | [15], [2], [9] |
-| 7b | Requires managing uptime and code signing manually | Confirmed | The team maintains the OS and runner software; self-hosted keychains may persist after a job. | [15], [18] |
-| 7c | Public-repo warning and ephemeral runners | Confirmed | "self-hosted runners should almost never be used for public repositories"; GitHub recommends just-in-time (JIT) ephemeral runners. | [16] |
-| 7d | Labels for self-hosted runners | Unverified | The labels page lists custom labels, case-insensitive, but does not list macOS or arm64 as default labels. | [25] |
-| 7e | Self-hosted runners carry no GitHub fee (not in the draft; checked because it changes the cost claim) | Confirmed for now | No fee in the current docs. A $0.002/min fee was announced, then postponed with no restart date. | [10], [12], [2], [9] |
+## Fit for this repo and its consumers
 
-## Availability
-
-**Labels and images.** The runner-images README lists these macOS labels: `macos-latest-large`, `macos-26-intel`, `macos-26-large` (macOS 26, x64); `macos-latest`, `macos-26`, `macos-26-xlarge` (macOS 26, arm64); `macos-15-large`, `macos-15-intel` (macOS 15, x64); `macos-15`, `macos-15-xlarge` (macOS 15, arm64); `macos-14` (macOS 14, x64, deprecated and retired); and `xcode-27`, `xcode-27-xlarge` (Xcode 27, preview) [4]. The hosted-runner reference lists the standard labels, including `macos-latest`, `macos-15`, `macos-26`, `xcode-27` and the Intel `macos-15-intel` and `macos-26-intel` [1]. The larger-runner reference adds the large and xlarge labels [8].
-
-**What "latest" means for larger runners (unresolved).** The README maps `macos-latest-large` to macOS 26 x64 and lists no `macos-latest-xlarge` [4]. The larger-runner reference marks `macos-15-large` and `macos-15-xlarge` as "(latest)" [8]. The sources disagree; this report does not pick one. For standard runners, `macos-latest` is macOS 26 arm64 [4].
-
-**Architecture and sizes.**
-- Standard arm64 (M1): 3 vCPU, 7 GB RAM, 14 GB SSD [1].
-- Standard Intel: 4 vCPU, 14 GB RAM, 14 GB SSD [1].
-- Larger Intel "large": 12 vCPU, 30 GB RAM, 14 GB SSD [8].
-- Larger arm64 "xlarge": 5 vCPU (plus 8 GPU-accelerated hardware units) on M2, 14 GB RAM, 14 GB SSD [8]. The billing page calls the same class a "5-core (M2 Pro)" [9]; the two sources disagree on the chip name.
-
-**Regions.** The hosted-runner page says "GitHub hosts macOS runners in Azure data centers" [17]. No region list is published in the pages read, so regional availability is unverified [17].
-
-**Retirements.**
-- macOS 13: "will be retired by December 4th, 2025" [21].
-- macOS 14 (Intel and arm64): retired on 2026-11-02; macOS 14 Intel stays on Azure DevOps until 2026-11-23 [4][5]. The retirement notice lists brownout (temporary failure) windows on 11-05, 11-12, 11-15 and 11-19 [5]. Brownout windows after 11-02 conflict with the retirement date and are flagged in Open questions.
-- macOS 15 Intel: the last x86_64 image, "available from now until August 2027" [22]; the changelog says "Fall 2027" [21].
+- **Python 3.9 is not preinstalled on macOS images.** The macOS 26 arm64 and macOS 15 arm64 images carry Python 3.11 to 3.14 as cached versions and 3.15.2 as the system version; 3.9 is absent from both [6][7][30][31]. The repo's floor is 3.9 (CLAUDE.md), so a macOS job must install it.
+- **3.9 on arm64 is limited.** The `actions/python-versions` manifest, which `setup-python` draws from, lists darwin arm64 builds for 3.9 only up to 3.9.13. Intel (x64) builds go to 3.9.25 [32]. Whether `setup-python` resolves 3.9 on `macos-latest` was not run; settle it with a test job.
+- **Label drift.** `-latest` labels move to a newer OS [1][4]. This repo already hit that on Linux, where `ubuntu-latest` moved to 26.04 and dropped Python 3.9 (git history, commit 3c794f5). Pin macOS labels (`macos-26`, `macos-15`) for the same reason.
+- **Swift.** No images list a Swift compiler version; Swift comes with the Xcode versions installed [6][7]. A Swift gate should read the version from `xcodebuild -version` or `swift --version` at run time, or select Xcode explicitly.
+- **Cost for private consumers.** A consumer on a private repository on Free gets $12 per month, about 193 standard macOS minutes (derived, see Cost). Pin-bump checks on macOS should be kept short or run only on Linux unless a gate needs Apple tooling.
 
 ## Cost
 
@@ -84,6 +64,25 @@ Verdicts are one of: Confirmed, Corrected, Outdated, Unverified.
 **Public vs private.** Standard hosted runners on public repos are free [2][4][9]. "Larger runners are not free for public repositories" [9]. On private repos, usage draws from the included allowance and then is charged per minute [2].
 
 **Self-hosted fee.** On 2025-12-16, GitHub announced a "$0.002 per-minute Actions cloud platform charge" for self-hosted runners starting 2026-03-01 [10]. The same page then says GitHub is "postponing the announced billing change for self-hosted GitHub Actions to take time to re-evaluate our approach" [10][12]. No new date is given [10][12]. The current billing docs show no self-hosted charge [2][9].
+
+## Availability
+
+**Labels and images.** The runner-images README lists these macOS labels: `macos-latest-large`, `macos-26-intel`, `macos-26-large` (macOS 26, x64); `macos-latest`, `macos-26`, `macos-26-xlarge` (macOS 26, arm64); `macos-15-large`, `macos-15-intel` (macOS 15, x64); `macos-15`, `macos-15-xlarge` (macOS 15, arm64); `macos-14` (macOS 14, x64, deprecated and retired); and `xcode-27`, `xcode-27-xlarge` (Xcode 27, preview) [4]. The hosted-runner reference lists the standard labels, including `macos-latest`, `macos-15`, `macos-26`, `xcode-27` and the Intel `macos-15-intel` and `macos-26-intel` [1]. The larger-runner reference adds the large and xlarge labels [8].
+
+**What "latest" means for larger runners (unresolved).** The README maps `macos-latest-large` to macOS 26 x64 and lists no `macos-latest-xlarge` [4]. The larger-runner reference marks `macos-15-large` and `macos-15-xlarge` as "(latest)" [8]. The sources disagree; this report does not pick one. For standard runners, `macos-latest` is macOS 26 arm64 [4].
+
+**Architecture and sizes.**
+- Standard arm64 (M1): 3 vCPU, 7 GB RAM, 14 GB SSD [1].
+- Standard Intel: 4 vCPU, 14 GB RAM, 14 GB SSD [1].
+- Larger Intel "large": 12 vCPU, 30 GB RAM, 14 GB SSD [8].
+- Larger arm64 "xlarge": 5 vCPU (plus 8 GPU-accelerated hardware units) on M2, 14 GB RAM, 14 GB SSD [8]. The billing page calls the same class a "5-core (M2 Pro)" [9]; the two sources disagree on the chip name.
+
+**Regions.** The hosted-runner page says "GitHub hosts macOS runners in Azure data centers" [17]. No region list is published in the pages read, so regional availability is unverified [17].
+
+**Retirements.**
+- macOS 13: "will be retired by December 4th, 2025" [21].
+- macOS 14 (Intel and arm64): retired on 2026-11-02; macOS 14 Intel stays on Azure DevOps until 2026-11-23 [4][5]. The retirement notice lists brownout (temporary failure) windows on 11-05, 11-12, 11-15 and 11-19 [5]. Brownout windows after 11-02 conflict with the retirement date and are flagged in Open questions.
+- macOS 15 Intel: the last x86_64 image, "available from now until August 2027" [22]; the changelog says "Fall 2027" [21].
 
 ## Conditions
 
@@ -115,24 +114,30 @@ Verdicts are one of: Confirmed, Corrected, Outdated, Unverified.
 - **Keychain.** Self-hosted machines may keep keychains and profiles after a job; the guide adds an explicit clean-up step [18].
 - **Fee risk.** GitHub's note says the $0.002/min platform charge for self-hosted runners is postponed, not cancelled [10]. A future fee would change the cost claim.
 
-## Public repositories
+## Verification table
 
-- **Free and unlimited.** "Use of the standard GitHub-hosted runners is free and unlimited on public repositories" [1]. The billing concepts page lists "Standard GitHub-hosted runners in public repositories" as usage that "remains free independently and does not reduce the included compute usage" [26]. It lists self-hosted runner usage, GitHub Pages and Dependabot as free in the same way [26].
-- **Applies to macOS.** The macOS standard runners (arm64 `macos-latest`, `macos-15`, `macos-26`, `xcode-27`; Intel `macos-15-intel`, `macos-26-intel`) appear in the standard table, whose notes carry the public-repository rule [1]. The macOS specs are identical for public and private repositories [1].
-- **Not free.** "Larger runners are billed for public repositories" [26][9]. That covers every `-large` and `-xlarge` label [8].
-- **No plan condition found.** The pages read name no plan, spending-limit or credit-card requirement for standard runners on public repositories. The account plan does not change this in the sources read [1][26].
-- **Demand.** "During periods of high demand, jobs that run on macOS runners may take longer to start." No start-time guarantee is given [1].
-- **Usage terms.** GitHub's terms bar cryptomining, using Actions as a CDN or serverless backend, and activity unrelated to "the production, testing, deployment, or publication of the software project" on hosted runners. They also bar "any activity that places a burden on our servers, where that burden is disproportionate to the benefits provided to users" [27]. The terms set no numeric fair-use cap for free public usage; the burden clause is GitHub's discretion [27].
-- **Fork pull requests.** Runs triggered by a fork's pull request may need manual approval from a maintainer with write access [28]. Secrets are not passed to the runner for a fork's `pull_request` run, except `GITHUB_TOKEN`, which is read-only [29]. Any gate that needs a secret cannot run on fork pull requests.
-- **Rate limits that still apply.** `GITHUB_TOKEN` is limited to 1,000 requests per hour per repository; 256 jobs per matrix; 6 hours per hosted job [3].
+Verdicts are one of: Confirmed, Corrected, Outdated, Unverified.
 
-## Fit for this repo and its consumers
-
-- **Python 3.9 is not preinstalled on macOS images.** The macOS 26 arm64 and macOS 15 arm64 images carry Python 3.11 to 3.14 as cached versions and 3.15.2 as the system version; 3.9 is absent from both [6][7][30][31]. The repo's floor is 3.9 (CLAUDE.md), so a macOS job must install it.
-- **3.9 on arm64 is limited.** The `actions/python-versions` manifest, which `setup-python` draws from, lists darwin arm64 builds for 3.9 only up to 3.9.13. Intel (x64) builds go to 3.9.25 [32]. Whether `setup-python` resolves 3.9 on `macos-latest` was not run; settle it with a test job.
-- **Label drift.** `-latest` labels move to a newer OS [1][4]. This repo already hit that on Linux, where `ubuntu-latest` moved to 26.04 and dropped Python 3.9 (git history, commit 3c794f5). Pin macOS labels (`macos-26`, `macos-15`) for the same reason.
-- **Swift.** No images list a Swift compiler version; Swift comes with the Xcode versions installed [6][7]. A Swift gate should read the version from `xcodebuild -version` or `swift --version` at run time, or select Xcode explicitly.
-- **Cost for private consumers.** A consumer on a private repository on Free gets $12 per month, about 193 standard macOS minutes (derived, see Cost). Pin-bump checks on macOS should be kept short or run only on Linux unless a gate needs Apple tooling.
+| # | Draft claim | Verdict | Note | Source |
+|---|---|---|---|---|
+| 1 | GitHub provides macOS CI natively through GitHub Actions | Confirmed | The glossary terms are definitions, not checkable facts. | [1], [17] |
+| 2 | Hosted runners are preconfigured, managed macOS VMs | Confirmed | "each GitHub-hosted runner is a new virtual machine (VM) hosted by GitHub" and "comes with the runner application and other tools preinstalled." | [17] |
+| 3 | Labels such as `macos-latest`, `macos-26`, `macos-15` exist | Corrected | The named labels exist. The draft omits that macOS 14 labels were retired 2026-11-02 and macOS 13 by 2025-12-04. | [4], [5], [21] |
+| 4a | Both Apple Silicon (arm64) and Intel (x64) VMs are available | Confirmed | Standard and larger runners in both architectures. | [1], [4], [8] |
+| 4b | Both architectures come in "standard and extra-large" sizes | Corrected | The extra-large size is arm64 only. The bigger Intel size is "large" (12 vCPU, 30 GB RAM). | [4], [8] |
+| 4c | Intel runners are still offered | Outdated | Still offered, but Apple has discontinued Intel. The 2025 notices say `macos-15-intel` is the last x86_64 image and that Intel support ends when the macOS 15 image retires, dated "August 2027" in one notice and "Fall 2027" in the changelog. | [4], [21], [22] |
+| 5a | Images include Xcode and Homebrew | Confirmed | Several Xcode versions (default 26.6 on macOS 26 arm64, 16.4 on macOS 15 arm64) and Homebrew 7.0.11 / 7.0.12. | [6], [7] |
+| 5b | Images include Swift and other Apple dev tools | Unverified | The macOS 26 arm64 readme lists SwiftFormat 0.64.5 but no Swift compiler version. | [6] |
+| 6a | Standard macOS runners are free for public repos | Confirmed | Two pages state it directly (see Public repositories below); larger runners are billed. The billing-rates page [9] does not state it. | [1], [26] |
+| 6b | Private repos draw from included usage and are charged per minute | Confirmed | Per-minute macOS cost is about 10.3 times Linux 2-core ($0.062 vs $0.006; derived). | [2], [9], [13] |
+| 6c | Multipliers: Linux 1x, Windows 2x, macOS 10x | Outdated | The docs now publish per-minute rates and state no multiplier. Windows 2-core is $0.010/min (about 1.7x Linux 2-core; derived). The 10x figure is unconfirmed; its removal is disputed. | [9], [14] |
+| 6d | Included minutes per plan | Corrected | The allowance is in dollars: $12 Free, $18 Pro and Team, $300 Enterprise Cloud. The pricing page shows 2,000 / 3,000 / 50,000 Linux-equivalent minutes. | [2], [13] |
+| 6e | macOS minutes are billed in the included pool | Confirmed | Per-minute rates "determine the cost deducted from your included compute usage." | [9] |
+| 7a | Self-hosted Mac can cut costs | Confirmed | Self-hosted usage carries no GitHub per-minute charge today; maintenance cost is yours. | [15], [2], [9] |
+| 7b | Requires managing uptime and code signing manually | Confirmed | The team maintains the OS and runner software; self-hosted keychains may persist after a job. | [15], [18] |
+| 7c | Public-repo warning and ephemeral runners | Confirmed | "self-hosted runners should almost never be used for public repositories"; GitHub recommends just-in-time (JIT) ephemeral runners. | [16] |
+| 7d | Labels for self-hosted runners | Unverified | The labels page lists custom labels, case-insensitive, but does not list macOS or arm64 as default labels. | [25] |
+| 7e | Self-hosted runners carry no GitHub fee (not in the draft; checked because it changes the cost claim) | Confirmed for now | No fee in the current docs. A $0.002/min fee was announced, then postponed with no restart date. | [10], [12], [2], [9] |
 
 ## Open questions
 
@@ -148,6 +153,10 @@ Verdicts are one of: Confirmed, Corrected, Outdated, Unverified.
 10. **Self-hosted fee restart.** No new date [10][12]. Settled by a dated GitHub changelog entry.
 11. **Self-hosted labels for macOS.** The labels page does not list macOS or arm64 as default labels [25]. Settled by the self-hosted runner configuration page for macOS.
 12. **Outages.** Not checked. Settled by the GitHub status history page, if the builder needs it.
+
+## Terms
+
+a **runner** is a machine that executes CI jobs; **hosted** means GitHub operates it, **self-hosted** means the team operates it. A **label** is the name a workflow file uses to request a runner type. A **VM** (virtual machine) is a software-simulated computer. The **orchestrator** is GitHub Actions itself, which schedules jobs onto runners. A **pipeline** or **harness** is the workflow that runs the checks. **Ecosystem** means the wider set of tools and images around it.
 
 ## Sources
 
