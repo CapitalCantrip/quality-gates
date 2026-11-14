@@ -121,6 +121,42 @@ _Avoid_: rule summary, consolidated rule
 The gate that refuses an agent's bulk staging of changed files.
 _Avoid_: git guardrail, commit guard
 
+## Shaping a build
+
+**Module**:
+A named part of the code that hides one thing behind a small set of operations.
+_Avoid_: component, file, package
+
+**Module map**:
+The agreed list of a project's modules, what each hides and how they connect;
+new code goes where it says.
+_Avoid_: architecture diagram, structure doc, project map
+
+**Walking skeleton**:
+The smallest working version of a build: every module on the module map in
+place and connected, with one end-to-end test passing. It is permanent and is
+filled in, never thrown away.
+_Avoid_: scaffold, stub build, prototype
+
+**Skeleton ticket**:
+The first ticket of a build, which creates the walking skeleton.
+_Avoid_: scaffold ticket, setup ticket, tracer-bullet ticket
+
+**Tracer-bullet ticket**:
+Any ticket after the skeleton ticket: one thin, working slice of behaviour
+through modules the walking skeleton already holds.
+_Avoid_: feature ticket, slice
+
+**Shape check**:
+A reviewer's comparison of a build in progress against the module map, made
+before more tickets start and whenever the map changes.
+_Avoid_: checkpoint, shape checkpoint, midpoint review
+
+**Implementer**:
+The agent that builds one ticket and reports back; never the builder, who is a
+person.
+_Avoid_: builder, builder agent, coder
+
 ## Understanding
 
 **Project map**:
