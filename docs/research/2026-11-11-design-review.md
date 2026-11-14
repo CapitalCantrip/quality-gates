@@ -115,6 +115,13 @@ Two of those answers changed the picture.
   a public Swift project can add a Mac job, and the "measured on" setting
   (#200) shrinks to two narrower cases.
 
+Later the same day the protocol retro (section 12) was acted on. The
+review skill was rewritten from it, and the drafts in section 12 are now
+history. The builder also agreed to two more design reviews: the runner's
+spec before its tickets are cut, and the whole package at the end of
+foundations. Whether the review ships with this package as a step every
+project gets is decided then; the note is a comment on #37.
+
 ## 1. Written before reading the ADRs
 
 The only project text seen at this point is `CLAUDE.md`, which loads
