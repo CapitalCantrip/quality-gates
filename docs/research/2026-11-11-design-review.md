@@ -933,23 +933,39 @@ The gap is timing. The largest multi-ticket builds in the plan, the runner
 the baselines. The plan's stand-in is one line telling the session to run
 `/improve-codebase-architecture` on the modules first.
 
-### Recommendation
+### Decided
+
+The builder agreed to all of this on 2026-11-14.
 
 1. **Sprint 3a's ticket cut writes a module map and a scaffold ticket by
    hand.** One comment listing the modules the seven tickets touch, what is
    new, and its names; one first ticket that puts the empty pieces in
-   place; the other tickets blocked on it. This is also the dry run #122
-   asks for.
-2. **Build #122 beside sprint 3a,** so the runner's ticket cut uses the
-   real skill and the shape checkpoints.
-3. **Tickets run in parallel only when the map says they touch different
-   modules.** Others run one after another, each on top of the last.
-4. **Count the cost of not preventing.** The between-sprints routine
-   records review rounds and refactor commits after each build. R3 took
-   four review rounds. That number, not a count of catches, shows whether
-   the front of the process is improving.
-5. **Decide #101 with #122,** since the rule lives in the agent
-   definitions.
-
-None of this is decided. Item 2 moves a ticket ahead of the runner, which
-is the builder's call.
+   place; the other tickets blocked on it. This is a stopgap for building
+   quality-gates and the dry run #122 asks for.
+2. **#122 is built beside sprint 3a,** so the runner's ticket cut uses the
+   real skill and the shape checkpoints. The aim is a shipped part of the
+   framework, so every consumer project follows the practice the same way
+   at low cost.
+3. **#101, shipping the builder and reviewer agents, is built with #122,**
+   because the rule "check the map before adding a module" lives in them.
+4. **Tickets run in parallel only when four things hold.** The module map
+   is agreed, so every builder knows which modules exist and how they
+   connect. The scaffold ticket is merged, so the modules, their interfaces
+   and the wiring between them exist in the code. The tickets fill in
+   different modules. None of them changes an interface or the wiring; a
+   ticket that must change either runs alone, and the map is updated before
+   the next one starts. The second condition is the builder's addition: a
+   map on paper is not enough, because two builders can still wire the same
+   two modules together in two different ways.
+5. **The between-sprints routine counts review rounds and rework commits
+   for each build.** A review round is one time a reviewer sent the work
+   back. A rework commit is a change made after the build was first
+   reported done, to fix its shape, not to add anything. Together they are
+   the price paid for what was not prevented. They do three jobs: they show
+   whether the module map is working (R3 took four review rounds; the
+   builds after #122 should take fewer); they warn early when a sprint went
+   badly, while the cause is fresh; and they show if the map ever becomes
+   paperwork that changes nothing. The numbers are small and uneven, so
+   they are read as a trend over several builds. They are for the builder
+   to read and are never a target given to agents, because an agent told to
+   lower them would skip review findings.
