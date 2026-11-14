@@ -79,7 +79,7 @@ Each row says what is wrong today, what changes, and what you would notice.
 | Sprint 4 | The runner (#138), now also carrying issues 3, 8, 9, 12, 13 and 14 | Each project re-runs setup once, as already planned |
 | Sprint 5 | Explainers, recorded reasons, the track record (#140, #115, #141), with the track record also counting escapes | The usual |
 | Sprint 6 | The project map and checkpoints (#112); the "proven" checkpoint shows tolerated-list growth and escapes | The usual |
-| End of foundations | The planned architecture pass and the gate-order decision in issue 6. The trial in issue 11 was placed here; the review now recommends running it beside sprint 3a (see below) | One decision session |
+| End of foundations | The planned architecture pass and the gate-order decision in issue 6. Issue 11 was placed here and is closed (see below) | One decision session |
 | After | The new gates, one release each | One release at a time |
 
 ### Why this order
@@ -103,13 +103,17 @@ sprint order is a comment on the build plan (#37), and notes are on #141,
 #115 and #173. The builder's answers to the review's six questions are in
 section 8.
 
-Two of those answers changed the picture. The one thing that has visibly
-gone wrong so far is duplicate code written by separate subagents, which no
-gate looks for, so the review now recommends running the trial in issue 11
-(#202) beside sprint 3a. And Mac CI is free on public repos
-(`2026-11-14-github-macos-ci.md`), so a public Swift project can simply
-add a Mac job; the "measured on" setting (#200) shrinks to two narrower
-cases.
+Two of those answers changed the picture.
+
+- **The one thing that has visibly gone wrong is duplicate code written by
+  separate subagents.** The review proposed a finder for it; the builder
+  said no, and issue 11 (#202) is closed. The fix belongs at the front of
+  the process: settle the shape of the code before tickets are cut (#122).
+  The review missed this because it looked only at gates. Section 13 says
+  what it missed and what it now recommends.
+- **Mac CI is free on public repos** (`2026-11-14-github-macos-ci.md`), so
+  a public Swift project can add a Mac job, and the "measured on" setting
+  (#200) shrinks to two narrower cases.
 
 ## 1. Written before reading the ADRs
 
@@ -572,15 +576,11 @@ changes.
    refactor rounds were needed to bring the build to acceptable quality.
    That experience is one of the main reasons the project map and the
    module map are being built.
-   What it changes: this is the first recorded escape, and it is the kind in
-   M7 that no gate, shipped or planned, looks for. Tangled functions,
-   untested code and comments were not what went wrong. Two consequences.
-   The trial of duplicate-code checks (#202) is worth more than its place at
-   the end of the foundations suggested, and the review now recommends
-   running it beside sprint 3a. And prevention sits upstream of any gate: a
-   module map and a scaffold before tickets are cut (#122) stop the second
-   copy being written, while a duplicate finder only reports it afterwards.
-   Both are needed; neither is a substitute for the other.
+   What it changes: this is the first recorded escape, and no gate, shipped
+   or planned, looks for it. The review first answered with a finder (the
+   trial in issue 11, #202). The builder rejected that on 2026-11-14 and
+   #202 is closed: the review cycle already catches duplicates after the
+   fact, and the aim is to stop them being written. See section 13.
 2. **Do the agents and you act under one GitHub account in every repo?**
    Answer: yes, one account.
    So the label in #192 cannot be a lock, because an agent could apply it.
@@ -730,7 +730,7 @@ interrupted.
 | 5 | #140, #115, #141, **amended**: #141 also counts escapes and survives cloud sessions; #115 warns before a review date and the tolerated-list check covers the reasons file | as planned |
 | 6 | #112, **amended**: the "proven" checkpoint shows growth of the tolerated list and the escape count | as planned |
 | side | R4, then batch 2, unchanged | as planned |
-| end of foundations | the planned architecture pass; issue 6 gate order, decided with the escape log. Issue 11, research on duplicate, dead and out-of-scope code (settles #22), was placed here on 2026-11-14; after the builder's answer in section 8 the review recommends running it beside sprint 3a instead | none |
+| end of foundations | the planned architecture pass; issue 6 gate order, decided with the escape log. Issue 11 was placed here and is closed (section 13) | none |
 | stage 5 | the new gates. Recommended order, for the decision: secrets and dependencies, test weakening, swallowed errors, mutation testing, escape hatches. Mutation testing moves up one place because it is the only thing that closes the tests-that-check-nothing gap in M6 | one release each |
 
 Sprint 4 grows. The plan's rule to keep #138 alone is about consumers
@@ -875,3 +875,81 @@ not one. Add to the report format:
 > Before writing, name the reader. For a reader who is not an engineer,
 > open with the verdict and what to do in plain sentences, explain each
 > severity word once, and put the tags second.
+
+## 13. What this review under-weighted: prevention
+
+Added 2026-11-14, after the builder's feedback.
+
+### The blind spot
+
+The brief was about the gates, and the review stayed there. For every
+problem it asked "which check would catch this?" and proposed fourteen
+issues, thirteen of them checks or plumbing for checks. It did not ask
+"where could this have been stopped before it was written?". The builder
+named the gap: a check can only report what is easy to count, after the
+work is done, and the expensive part is the refactor that follows.
+
+The evidence was in front of the review. Its own pre-registered list in 1.3
+had "a second copy of something that exists", and finding M7 noted that the
+only guard was a sentence in `CLAUDE.md`. Its answer was still a finder.
+Even the escape log's template asked "which gate should have caught it".
+
+### What was decided
+
+- No finder for duplicate, dead or out-of-task code. Issue 11 (#202) is
+  closed. The review cycle catches these after the fact: the two-axis
+  review against the spec, the bug-hunting code review, the architecture
+  pass and the retro.
+- The escape log (#196) now asks for the earliest point a miss could have
+  been stopped: idea, spec, module map, ticket brief, build, review or
+  gate. Its count then says whether to improve the planning or add a gate.
+
+### Why separate subagents write duplicates
+
+Each builder starts with only its ticket. It cannot see what the builder
+beside it is adding, and nothing tells it what already exists or what the
+new parts should be called. So each one invents its own. Three things would
+have to be true before the tickets start for this not to happen:
+
+1. The shape is settled: which modules exist, what each one hides, what the
+   new ones are called.
+2. The shape exists in the code, as empty modules with their interfaces, so
+   a builder fills in a place that is already there.
+3. Each ticket says what it builds on and what it must not re-create.
+
+### What the plan already has, and the gap
+
+| Piece | What it does | State |
+|---|---|---|
+| #122 module map, scaffold ticket, shape checkpoints | All three points above, plus a pause every four tickets to compare the build with the map | Designed in detail; no sprint; listed as "grill when its stage comes up" |
+| ADR-011 and the *Code structure* section in each brief | Point 3, for the modules ADR-011 names | In use |
+| #101 ship the builder and reviewer agents | Every project's builders carry the rule "check the map before adding a module" | Open choice, no sprint |
+| #92 check a brief's claims before an agent takes it | Stops a builder finding out mid-build that its brief was wrong | Tried locally; not shipped |
+| #145 challenge the idea; #112 project map | The same thinking one stage earlier | #145 undecided; #112 in sprint 6 |
+
+The gap is timing. The largest multi-ticket builds in the plan, the runner
+(#138, now with six added tickets) and the project map (#112), come before
+#122. Sprint 3a adds seven tickets, most of them touching the ratchet and
+the baselines. The plan's stand-in is one line telling the session to run
+`/improve-codebase-architecture` on the modules first.
+
+### Recommendation
+
+1. **Sprint 3a's ticket cut writes a module map and a scaffold ticket by
+   hand.** One comment listing the modules the seven tickets touch, what is
+   new, and its names; one first ticket that puts the empty pieces in
+   place; the other tickets blocked on it. This is also the dry run #122
+   asks for.
+2. **Build #122 beside sprint 3a,** so the runner's ticket cut uses the
+   real skill and the shape checkpoints.
+3. **Tickets run in parallel only when the map says they touch different
+   modules.** Others run one after another, each on top of the last.
+4. **Count the cost of not preventing.** The between-sprints routine
+   records review rounds and refactor commits after each build. R3 took
+   four review rounds. That number, not a count of catches, shows whether
+   the front of the process is improving.
+5. **Decide #101 with #122,** since the rule lives in the agent
+   definitions.
+
+None of this is decided. Item 2 moves a ticket ahead of the runner, which
+is the builder's call.
