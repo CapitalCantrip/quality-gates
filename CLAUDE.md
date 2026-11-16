@@ -43,9 +43,9 @@ Shell is zsh: an unquoted `$VAR` stays one word, so pass file lists with
 
 ## Issues
 
-The build plan is #37: sprints, the between-sprints routine and model tiers.
+The build plan is #207: sprints, the between-sprints routine and model tiers.
 Its body changes only in the routine's "update the plan" step; any other
-session posts a comment on #37 instead. The tracker and the five triage
+session posts a comment on #207 instead. #37 is the history up to 2026-11-16. The tracker and the five triage
 labels: see Agent skills below.
 
 ## Agent skills
