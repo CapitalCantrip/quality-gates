@@ -77,6 +77,24 @@ scan:
   spelling met.
 <!-- /rule:symlinked-folders -->
 
+## A gate that measures on one system
+
+Decided, not built yet (quality-gates#200).
+
+- **A project may record that a gate measures on one system,** such as CRAP on
+  macOS for Swift code under `#if os(macOS)`. On any other system the gate
+  prints "not measured here, by choice" and exits 0. Merging needs a result from
+  the named system for the commit being merged; without one the gate fails,
+  wherever it runs.
+- **On a public repo that result is a GitHub-hosted macOS job:** free and
+  unlimited there, and no agent can fake it. A self-hosted runner is not offered
+  on a public repo.
+- **On a private repo the project chooses** the hosted macOS job, billed per
+  minute against the plan's allowance, or the builder's own Mac. Whether "own
+  Mac" is a self-hosted runner or a result the laptop reports is not decided.
+  ([ADR-007 addendum 2026-11-16](archive/ADR-007-component-install.md#addendum-2026-11-16-stored-baselines-stay-a-gate-may-measure-on-one-system),
+  [research, 2026-11-14](../research/2026-11-14-github-macos-ci.md))
+
 ## Decisions behind these rules
 
 - **Git is required, and there is no fallback to the current folder.**

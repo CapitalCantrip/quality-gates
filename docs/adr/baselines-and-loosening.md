@@ -87,6 +87,9 @@ often.
   until quality-gates#138; the ratchet applies the baseline, then the outcome, and turns a gate that could not run into exit
   2, never a pass. Each gate keeps its own baseline file and format.
   ([ADR-011 § 3](archive/ADR-011-code-structure.md#3-one-gate-interface-and-one-ratchet))
+- **Decided: baselines stay stored and committed.** The runner builds on them;
+  comparing the branch against main on every run was declined.
+  ([ADR-007 addendum 2026-11-16](archive/ADR-007-component-install.md#addendum-2026-11-16-stored-baselines-stay-a-gate-may-measure-on-one-system))
 - **Decided, not built yet (quality-gates#138): one baseline format,** the
   line for a language a gate does not support, and the runner's record of a
   gate that did not run. Recorded reasons go in before the baseline with
