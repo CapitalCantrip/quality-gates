@@ -133,6 +133,8 @@ flaky test gets one rerun.
 
 ### Order
 
+Amended by: [Addendum 2026-11-16: the secret check ships right after the runner](#addendum-2026-11-16-the-secret-check-ships-right-after-the-runner)
+
 1. Secret check and dependency check, in one release. A leaked key is the
    costliest mistake and cannot be undone, both wrap existing tools, and they
    share the download-and-verify machinery.
@@ -168,6 +170,7 @@ a slow hook.
 ### Reaching the builder
 
 Amended by: [ADR-008 § The "proven" checkpoint](ADR-008-project-map-and-checkpoints.md#the-proven-checkpoint)
+Amended by: [Addendum 2026-11-16: the secret check ships right after the runner](#addendum-2026-11-16-the-secret-check-ships-right-after-the-runner)
 
 Each gate shows in the "proven" checkpoint (#112) as pass, fail or could not
 check, never letting a gate that did not run read as a pass, then its open
@@ -179,6 +182,7 @@ reason last. The wording agreed for each gate is on its issue.
 
 Amended by: [Addendum 2026-10-31: the "proven" checkpoint comes first](#addendum-2026-10-31-the-proven-checkpoint-comes-first)
 Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md)
+Amended by: [Addendum 2026-11-16: the secret check ships right after the runner](#addendum-2026-11-16-the-secret-check-ships-right-after-the-runner)
 
 Every gate here except #3 waits on component install (ADR-005 rollout step 2)
 and recorded loosening (#115). The secret, dependency and mutation gates, and
@@ -220,6 +224,7 @@ rule (#114). Each gate gets one build issue, blocked by these.
 ## Addendum 2026-10-31: the "proven" checkpoint comes first
 
 Amends: [Prerequisites](#prerequisites)
+Amended by: [Addendum 2026-11-16: the secret check ships right after the runner](#addendum-2026-11-16-the-secret-check-ships-right-after-the-runner)
 
 Every gate here except #3 also waits on the "proven" checkpoint (#112). Each
 gate's failure wording, its open reasons and its "could not check" reach the
@@ -232,3 +237,32 @@ gap: the gate issues required the checkpoint, but nothing here listed it.
 Reporting through the runner and `qg status` until the checkpoint shipped was
 rejected. The first gate would then reach the builder without the plain-words
 report that keeps the builder in control (ADR-005).
+
+## Addendum 2026-11-16: the secret check ships right after the runner
+
+Amends: [Order](#order), [Reaching the builder](#reaching-the-builder), [Prerequisites](#prerequisites), [Addendum 2026-10-31](#addendum-2026-10-31-the-proven-checkpoint-comes-first)
+
+The secret check (#31, built in #129) ships in sprint 4, right after the
+runner (#138) and ahead of the "proven" checkpoint (#112). The builder decided
+it on 2026-11-16 (comments on #197 and #37). A leaked key is the one failure
+that cannot be undone once pushed, and the tool is off the shelf. It is the
+only gate that skips the checkpoint.
+
+What it still waits on: component install (done), the admission rule (done)
+and recorded reasons (#115). Each key found in history at adoption needs a
+reason, and so does a `.gitleaksignore` fingerprint (§ Two kinds of exception).
+
+How the builder is told without the checkpoint: the gate prints what is wrong,
+why it matters and the sentence to give the agent, on commit and in CI. A
+missing gitleaks fails with "could not check" in both (ADR-007 § Prerequisites),
+so a scan that did not run never reads as a pass. When the checkpoint ships it
+adds the secret check's row and open reasons, with no rework.
+
+§ Order changes in one way: the secret check no longer ships in one release
+with the dependency check (#130). The dependency check keeps its place among
+the gates that wait for the checkpoint. The order of the rest is decided at the
+end of foundations, with the escape count by kind (#196, #197).
+
+Rejected: reporting every gate through the runner and `qg status` until the
+checkpoint ships. The 2026-10-31 addendum's reasoning stands for every other
+gate; a leaked key alone justifies the exception.

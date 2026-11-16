@@ -45,6 +45,7 @@ this project; it never writes an explanation fresh (ADR-005, Understanding).
 ### The choice file
 
 Amended by: [ADR-010: admission and the comment gate's new languages](ADR-010-admission-and-recognised-conventions.md), [Addendum 2026-11-01: test folders count toward the languages](#addendum-2026-11-01-test-folders-count-toward-the-languages)
+Amended by: [Addendum 2026-11-16: stored baselines stay; a gate may measure on one system](#addendum-2026-11-16-stored-baselines-stay-a-gate-may-measure-on-one-system)
 
 A committed `quality-gates.json` at the project root records the chosen
 components, the ones offered and declined, the project's languages, and its
@@ -80,6 +81,8 @@ the recommended set. The CHANGELOG entry says: bump, then run
 `/setup-standards`.
 
 ### The runner
+
+Amended by: [Addendum 2026-11-16: stored baselines stay; a gate may measure on one system](#addendum-2026-11-16-stored-baselines-stay-a-gate-may-measure-on-one-system)
 
 The pre-commit hook holds one gate line, `qg run commit`, and CI holds
 `qg run ci`. Each reads the choice file and runs the chosen components' steps
@@ -199,3 +202,48 @@ is `tests/sample.ts` is proposed `typescript`. The reason is ADR-011's: test
 code is agent-written code the gates hold to the standard, so its language is
 one the project uses, while a fixture is sample input in whatever language the
 test needs.
+
+## Addendum 2026-11-16: stored baselines stay; a gate may measure on one system
+
+Amends: [The runner](#the-runner), [The choice file](#the-choice-file)
+
+The builder decided both in the session held before sprint 4 (comment on #37,
+2026-11-16; detail on #200). The design review of 2026-11-11 asked for them
+(findings M8 and m3).
+
+**Stored baselines stay.** The runner (#138) keeps committed baseline files.
+Comparing the branch against main on every run, so that nothing is stored, was
+weighed and declined: CRAP would run each test suite twice, all five repos
+would migrate, and sprint 3a (#192, #193, #194, #203) already closes the known
+ways to edit a baseline unseen. The review of the runner's spec still happens
+before its tickets are cut, and starts from this decision.
+
+**A gate may measure on one system (#200).** A project records in the choice
+file that a gate measures on one system, such as CRAP on macOS for Swift code
+under `#if os(macOS)`. On any other system the gate prints "not measured here,
+by choice" and exits 0. Merging needs a result from the named system for the
+commit being merged; without one the gate fails, wherever it runs.
+
+What counts as that result depends on the repo:
+
+- **Public repo:** a GitHub-hosted macOS job. It is free and unlimited on
+  public repos, an agent cannot fake it, and it does not depend on a laptop
+  being on. A self-hosted runner is not offered: GitHub says self-hosted
+  runners should almost never be used with public repos (researched
+  2026-11-14, `docs/research/2026-11-14-github-macos-ci.md`).
+- **Private repo:** the same hosted macOS job, billed per minute against the
+  plan's allowance ($0.062 a minute; about 193 free minutes a month on the free
+  plan). The builder's own Mac is not offered for now, neither as a self-hosted
+  runner nor as a result the laptop reports. The builder decided this later on
+  2026-11-16, narrowing the choice first recorded on #37. The own-Mac form is
+  designed when a project has a strong call for it.
+
+Rejected:
+
+- **No stored baseline, compare against main.** See above.
+- **A self-hosted Mac on a public repo.** Anyone can open a pull request, and
+  the code in it would run on the builder's machine.
+- **The builder's own Mac on a private repo, for now.** A self-hosted runner
+  puts pull-request code on the builder's machine and must be kept up; a result
+  the laptop reports needs a new build and, as a committed file, can be edited
+  by an agent. The free allowance covers a small project's macOS minutes.

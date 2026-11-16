@@ -123,10 +123,15 @@ Source: [ADR-006](archive/ADR-006-gates-beyond-complexity.md) and
 [ADR-010](archive/ADR-010-admission-and-recognised-conventions.md). Only the
 comment gate in Python ships today.
 
-- **Planned, in this order:** secret check and dependency check (one release),
-  test weakening, swallowed errors, escape hatches, mutation testing. Each
-  waits on the runner, recorded loosening and the "proven" checkpoint; the
+- **Planned, in this order:** the secret check, right after the runner and
+  ahead of the "proven" checkpoint (the only gate that skips it, because a
+  pushed key cannot be undone); then the dependency check, test weakening,
+  swallowed errors, escape hatches and mutation testing, in an order decided at
+  the end of foundations with the count of problems that got past the gates
+  (quality-gates#197). The secret check waits on the runner and recorded
+  loosening; every other gate also waits on the "proven" checkpoint. The
   comment gate in more languages ships first, after the choice file.
+  ([ADR-006 addendum 2026-11-16](archive/ADR-006-gates-beyond-complexity.md#addendum-2026-11-16-the-secret-check-ships-right-after-the-runner))
 - **The comment gate in more languages** (quality-gates#3): Rust, TypeScript,
   Swift and shell join Python, with one baseline, `comment-debt.json`. Every
   comment counts, documentation comments included; bare tool pragmas stay
