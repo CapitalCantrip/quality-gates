@@ -89,9 +89,10 @@ Decided, not built yet (quality-gates#200).
 - **On a public repo that result is a GitHub-hosted macOS job:** free and
   unlimited there, and no agent can fake it. A self-hosted runner is not offered
   on a public repo.
-- **On a private repo the project chooses** the hosted macOS job, billed per
-  minute against the plan's allowance, or the builder's own Mac. Whether "own
-  Mac" is a self-hosted runner or a result the laptop reports is not decided.
+- **On a private repo it is the same hosted macOS job,** billed per minute
+  against the plan's allowance (about 193 free minutes a month on the free
+  plan). The builder's own Mac is not offered for now; it is designed when a
+  project has a strong call for it.
   ([ADR-007 addendum 2026-11-16](archive/ADR-007-component-install.md#addendum-2026-11-16-stored-baselines-stay-a-gate-may-measure-on-one-system),
   [research, 2026-11-14](../research/2026-11-14-github-macos-ci.md))
 

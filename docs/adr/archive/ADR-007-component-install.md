@@ -231,14 +231,19 @@ What counts as that result depends on the repo:
   being on. A self-hosted runner is not offered: GitHub says self-hosted
   runners should almost never be used with public repos (researched
   2026-11-14, `docs/research/2026-11-14-github-macos-ci.md`).
-- **Private repo:** the project chooses between the hosted macOS job, billed
-  per minute against the plan's allowance ($0.062 a minute; about 193 minutes
-  a month on the free plan), and the builder's own Mac. Which form "own Mac"
-  takes, a self-hosted runner or a result the laptop reports, is not decided:
-  it is open on #200 and gets its own dated addendum when the builder chooses.
+- **Private repo:** the same hosted macOS job, billed per minute against the
+  plan's allowance ($0.062 a minute; about 193 free minutes a month on the free
+  plan). The builder's own Mac is not offered for now, neither as a self-hosted
+  runner nor as a result the laptop reports. The builder decided this later on
+  2026-11-16, narrowing the choice first recorded on #37. The own-Mac form is
+  designed when a project has a strong call for it.
 
 Rejected:
 
 - **No stored baseline, compare against main.** See above.
 - **A self-hosted Mac on a public repo.** Anyone can open a pull request, and
   the code in it would run on the builder's machine.
+- **The builder's own Mac on a private repo, for now.** A self-hosted runner
+  puts pull-request code on the builder's machine and must be kept up; a result
+  the laptop reports needs a new build and, as a committed file, can be edited
+  by an agent. The free allowance covers a small project's macOS minutes.
