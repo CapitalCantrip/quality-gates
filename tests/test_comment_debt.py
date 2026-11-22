@@ -173,6 +173,24 @@ class TypeScriptCountingTest(unittest.TestCase):
                   'return /\\/\\/ x/i\nconst c = x / 2 // half\n')
         self.assertEqual(typescript_lines(source), [5])
 
+    def test_a_slash_after_an_increment_a_decrement_or_a_name_spelled_like_a_keyword_divides(self):
+        for line in ('let y = x++ / 2; // c /', 'let y = i-- / 2; // c /', 'const y = i++ / 2 // half',
+                     'let of = 4; let y = of / 2; // c /', 'let y = a.return / 2; // c /',
+                     'let y = $typeof / 2; // c /', 'let y = a?.delete / 2; // c /'):
+            with self.subTest(line=line):
+                self.assertEqual(typescript_lines(f'{line}\n'), [1])
+
+    def test_a_slash_after_a_keyword_that_takes_a_value_opens_a_regex(self):
+        for line in ('return /\\/\\/ x/i', 'x = typeof /a\\/\\//', 'yield /\\/\\//g', 'if (a) {} else /\\/\\//.test(s)',
+                     'let y = a + /\\/\\//.source.length', 'let y = a - /\\/\\//.source.length'):
+            with self.subTest(line=line):
+                self.assertEqual(typescript_lines(f'{line}\n'), [])
+
+    def test_a_closing_jsx_tag_does_not_open_a_regex_so_a_comment_after_it_counts(self):
+        for line in ('const a = <b>x</b>; // note', '<a href="/x">link</a>; // why'):
+            with self.subTest(line=line):
+                self.assertEqual(typescript_lines(f'{line}\n'), [1])
+
     def test_slashes_in_strings_and_template_literals_are_not_a_comment_however_deep_the_interpolation(self):
         source = ("const a = 'it\\'s // here', b = \"// \\\" //\"\n"
                   "const c = `http://${host}:${port}/api // not a comment`\n"
@@ -610,6 +628,14 @@ class RepositoryTest(unittest.TestCase):
         self.put('main.rs', 'fn main() {\n    // a comment\n}\n')
         self.file.write_text('{"main.rs": 1}\n')
         self.assertEqual(self.run_gate(), (0, 'comment debt: 1 lines in 1 files, none new\n'))
+
+    def test_a_tsx_file_is_checked_when_no_comments_typescript_is_chosen_and_a_comment_after_a_closing_tag_fails(self):
+        self.choose(chosen=['no-comments-typescript'])
+        self.put('view.tsx', 'export const View = () => <div>x</div>; // why\n')
+        self.file.write_text('{}\n')
+        code, out = self.run_gate()
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL view.tsx: 1 comment lines, baseline allows 0 — lines 1\n', out)
 
     def test_rust_is_not_checked_when_the_choice_file_does_not_choose_no_comments_rust(self):
         self.choose()
