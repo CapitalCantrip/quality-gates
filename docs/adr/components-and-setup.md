@@ -33,10 +33,39 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   and declined components, `exclude`, the commit time limit and the comment
   gate's settings. Languages are confirmed by the builder and then the file,
   not detection, is the source of truth.
+  `comment-debt` reads it: Python is checked only when `no-comments` is chosen
+  (with no choice file, as before), over the
+  [files in scope](what-gets-scored.md), less the comment gate's own `exclude`
+  setting, which matches whole path segments. `--exclude` is removed;
+  `comment-debt --exclude x` exits non-zero and says to run `/setup-standards`,
+  which moves the prefixes into the file.
 - **Pin bumps:** a component a release adds is off until accepted. Setup
   offers it, and an offer is recorded only when the builder chooses or
   declines it. A gate whose only part present is the skill `qg-skills` copied
   does not count as installed.
+- **Each comment language is its own component:** `no-comments` is Python's,
+  and `no-comments-rust`, `no-comments-typescript`, `no-comments-swift` and
+  `no-comments-shell` are offered like any component a release adds. Before the
+  builder chooses one, setup shows that language's debt report (total, count by
+  kind and by area, top culprits by comment lines and by rationale lines), then
+  asks *record as debt* or *clean first*. Clean first pays down a scope the
+  builder picks, optionally opens an issue for the rest, and records what
+  remains; the language is switched on only once its comments are recorded.
+  The comment gate checks a language only when its component is chosen, and
+  with no choice file only Python. Built in part: `no-comments-rust` is offered
+  for Rust's `//` lines, `comment-debt --report <language>` shows the total
+  only, and `qg setup --go --choose no-comments-<language>` records as debt:
+  in one step it records that language's comments, in place of its older
+  entries, then records the choice, so no state has a language's entries
+  recorded while the language is off. The full report, clean first and the
+  other languages arrive with the later builds of quality-gates#3. Setup never
+  infers a new comment language's component as installed: the hook, CI step
+  and baseline it shares with `no-comments` say nothing about which languages
+  were switched on, so only the choice file or `--choose` switches it on, and
+  `--choose` is the step that records its comments. Declining one that was
+  never chosen is not loosening (ADR-007 § Pin bumps: a component a release
+  adds is off until accepted).
+  ([ADR-010 addendum 2026-11-10](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt))
 - **Switching off** never applies to the core. Switching off a gate the
   project has is loosening (see [Baselines and loosening](baselines-and-loosening.md));
   helpers and components for unused languages switch off freely.

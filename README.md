@@ -172,7 +172,7 @@ them. Why each number is what it is: [ADR-001](docs/adr/archive/ADR-001-complexi
 
 | Gate | Language | Tool | Fails above | Warns above |
 |---|---|---|---|---|
-| No new comments | Python | `comment-debt` | the file's baseline | — |
+| No new comments | Python, Rust | `comment-debt` | the file's baseline | — |
 | Cyclomatic complexity | Python | `cc-check` (radon) | 8 | — |
 | Cyclomatic complexity | TypeScript, JavaScript | `cc-check --lang typescript` (lizard) | 8 | — |
 | Cyclomatic complexity | Swift | SwiftLint, `ignores_case_statements: true` | 8 | 6 |
@@ -195,10 +195,25 @@ permission. Put the knowledge where it shows when it stops being true: a test,
 a named constant, an ADR or an issue. Existing comments are debt, held in
 `comment-debt.json` as a line count per file. The gate fails if a file gains a
 comment, and also if it loses one without the baseline being lowered, so paid
-debt is always recorded. Python only for now
-([#3](../../issues/3) adds Rust,
-TypeScript, Swift and shell:
-[ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md)).
+debt is always recorded. It checks the
+[files in scope](src/quality_gates/skills/crap/references/files-in-scope.md),
+untracked files included, less `settings.no-comments.exclude` in the choice
+file. A file the gate cannot open, parse or decode as UTF-8 is `UNMEASURED`: the gate
+names it and fails, and `--update` keeps any entry it has. What happens to the
+baseline entries of a language left unchecked, or of a file that left the
+scope, is in [the comment gate's files](src/quality_gates/skills/no-comments/references/comment-gate-files.md). It checks Python only when `no-comments` is chosen there (with no choice
+file, as before), and Rust only when `no-comments-rust` is chosen (never with
+no choice file). In Rust it counts only `//` line comments for now, and a
+`//` inside a string counts as one too until [#186](../../issues/186) reads strings.
+`comment-debt --report <language>` prints a language's comment lines, chosen or
+not; `/setup-standards` shows it when it offers a language. Choosing a comment
+language with `qg setup --go --choose <id>` records its comments as debt in the
+same step, in place of any older entries for that language, so the gate never
+checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run
+`/setup-standards`. ([#3](../../issues/3) adds the rest of Rust, then
+TypeScript, Swift and shell, each its own component, with the full debt report
+and the record-or-clean choice:
+[ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
 
 ### `cc-check`: cyclomatic complexity
 
@@ -548,8 +563,8 @@ line, like any other tool error.
 - `settings`: per-component settings. Only `no-comments` has any so far:
   `exclude`, path prefixes the comment gate leaves out, and `conventions`, the
   ids of the [recognised conventions](docs/recognised-conventions.md) the
-  project has switched on. Both default to empty. `comment-debt` does not read
-  them yet (#3), so keep its `--exclude` flags until then.
+  project has switched on. Both default to empty. `comment-debt` reads
+  `exclude`, by whole path segments; it does not read `conventions` yet (#3).
 
 ## Setup details
 
@@ -640,8 +655,15 @@ line, like any other tool error.
 - `qg setup` proposes the project's languages and one row per component, with
   its description, its cost (commit delay, CI time, outside tools) and a tick
   on the recommended set, and lists the files it would change. It writes
-  nothing until `--go`, and then only `quality-gates.json`. Without a choice
-  file it records what is installed as chosen. Every other component that
+  nothing until `--go`, and then only `quality-gates.json`, plus
+  `comment-debt.json` when it switches a comment language on: that language's
+  comments are recorded there as debt, replacing its older entries and leaving
+  the others as they were. Without a choice
+  file it records what is installed as chosen, except a new comment language
+  such as `no-comments-rust`: the hook, CI step and baseline it shares with
+  `no-comments` never make it look installed, so it is switched on only by
+  `--choose`, which records its comments, and declining it is not loosening
+  until it is chosen. Every other component that
   applies and that the file does not list is *offered*, whatever is
   installed, so a component a release adds stays off after `qg-skills`
   copies its skill: ticked as recommended, and recorded only when `--choose`
@@ -659,7 +681,8 @@ line, like any other tool error.
   'Python'; quality-gates knows python, rust, shell, swift, typescript`. It copies the
   `--exclude` prefixes of the `comment-debt` commands in `.githooks/pre-commit`
   and the CI workflows into `settings` › `no-comments` › `exclude`, and leaves
-  the flags in place. Only `comment-debt`'s own flags count, not those of a
+  the flags in place; remove them by hand, because `comment-debt` refuses
+  `--exclude`. Only `comment-debt`'s own flags count, not those of a
   command joined to it by `&&`, `||`, `|` or `;`, and a flag on a `\`
   continuation line counts. Run again with every offer answered, it changes
   nothing and says the file is up to date, with or without `--go`. `--json` prints the

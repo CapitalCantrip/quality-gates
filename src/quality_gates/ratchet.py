@@ -82,11 +82,16 @@ DID_NOT_RUN = Result((Verdict(None, Outcome.DID_NOT_RUN),))
 NOT_JUDGED = Result(())
 
 
+def covers_every_file(path: str) -> bool:
+    return True
+
+
 @dataclass(frozen=True)
 class Asked:
     baseline: Optional[Path] = None
     updating: bool = False
     judged: bool = True
+    covers: Callable[[str], bool] = covers_every_file
 
 
 def location(root, file, function) -> Location:
@@ -171,9 +176,13 @@ def lowered(result: Result) -> dict:
     return dict(sorted({**kept, **held}.items()))
 
 
+def baseline_text(scores: dict) -> str:
+    return json.dumps(scores, indent=2, sort_keys=True) + "\n"
+
+
 def write(file, scores, out=None):
     try:
-        file.write_text(json.dumps(scores, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        file.write_text(baseline_text(scores), encoding="utf-8")
     except OSError as error:
         raise BaselineError(str(error), out) from None
 
@@ -242,17 +251,34 @@ class Settled:
         return self.displays[verdict.location.key]
 
 
-def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=None) -> Settled:
+def held_back(stored: Optional[dict], covers: Callable[[str], bool]) -> dict:
+    return {key: number for key, number in (stored or {}).items() if not covers(Location.from_key(key).file)}
+
+
+def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=None,
+           covers: Callable[[str], bool] = covers_every_file) -> Settled:
     find = keyed(find, root)
     stored = stored_baseline(file, updating, out)
+    held = held_back(stored, covers)
     findings = find()
     unmeasured = frozenset(unmeasured_keys(findings))
-    result = judge(findings, strongest(findings) if stored is None else stored)
+    judged = strongest(findings) if stored is None else {k: v for k, v in stored.items() if k not in held}
+    result = judge(findings, judged)
     if not updating or result.having(Outcome.FAILED):
         return Settled(findings, result, unmeasured)
     counts = lowered(result)
-    write(file, counts, out)
-    return Settled(findings, judge(findings, counts), unmeasured, counts)
+    written = dict(sorted({**counts, **held}.items()))
+    write(file, written, out)
+    return Settled(findings, judge(findings, counts), unmeasured, written)
+
+
+def recorded(findings: list, file: Path, replaces: Callable[[str], bool]) -> dict:
+    stored = stored_baseline(file, True) or {}
+    counts = {key: number for key, number in strongest(findings).items() if number}
+    unmeasured = unmeasured_keys(findings)
+    kept = {key: number for key, number in stored.items()
+            if key in unmeasured or not replaces(Location.from_key(key).file)}
+    return dict(sorted({**kept, **counts}.items()))
 
 
 def describe_over(settled: Settled, out):
@@ -283,6 +309,8 @@ class Wording:
     passed: Callable
     recorded: Callable
     refusal: str
+    unmeasured: str = "no coverage figure"
+    unmeasured_advice: str = UNMEASURED_ADVICE
 
 
 FUNCTION_WORDING = Wording(
@@ -295,12 +323,12 @@ def unmeasured_in(settled: Settled) -> list:
     return [verdict for verdict in settled.result.verdicts if verdict.location.key in settled.unmeasured]
 
 
-def describe_unmeasured(unmeasured, out):
+def describe_unmeasured(unmeasured, out, wording: Wording):
     if not unmeasured:
         return
     for verdict in unmeasured:
-        out.write(f"UNMEASURED {verdict.location.key}: no coverage figure\n")
-    out.write(f"\n{UNMEASURED_ADVICE}\n")
+        out.write(f"UNMEASURED {verdict.location.key}: {wording.unmeasured}\n")
+    out.write(f"\n{wording.unmeasured_advice}\n")
 
 
 def describe_check(settled: Settled, file, out, wording: Wording):
@@ -310,7 +338,7 @@ def describe_check(settled: Settled, file, out, wording: Wording):
         wording.failed(settled, out)
     elif behind:
         wording.behind(behind, file, out)
-    describe_unmeasured(unmeasured_in(settled), out)
+    describe_unmeasured(unmeasured_in(settled), out, wording)
     if exit_code(result) == 0:
         wording.passed(result, out)
 
@@ -321,7 +349,7 @@ def describe_update(settled: Settled, out, wording: Wording):
         out.write(wording.refusal)
         return
     wording.recorded(settled.recorded, out)
-    describe_unmeasured(unmeasured_in(settled), out)
+    describe_unmeasured(unmeasured_in(settled), out, wording)
 
 
 def describe(settled: Settled, file: Path, updating: bool, out, wording: Wording = FUNCTION_WORDING):
@@ -336,7 +364,7 @@ def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNC
         return NOT_JUDGED
     if asked.baseline is None:
         return judge(find(), {})
-    settled = settle(find, asked.baseline, asked.updating, root, out)
+    settled = settle(find, asked.baseline, asked.updating, root, out, asked.covers)
     describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result
 

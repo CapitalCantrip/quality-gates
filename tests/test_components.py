@@ -7,6 +7,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
+from quality_gates import comment_debt  # noqa: E402
 from quality_gates import manifest  # noqa: E402
 from quality_gates import quality_check  # noqa: E402
 
@@ -18,12 +19,11 @@ SOURCES = manifest.load_sources()
 PYPROJECT = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
-COMMENT_DEBT_LANGUAGES = {"python"}
 HOOK_SECTION = "\n## 4. Hooks\n"
 UPSTREAM_LABELS = {"mattpocock/skills": "Pocock"}
 SKILLS_PREFIX = "src/quality_gates/skills/"
-EXPLAINER_GAPS = frozenset({"core", "no-comments", "complexity-python", "complexity-typescript", "complexity-swift",
-                            "complexity-rust", "design-helpers", "session-helpers"})
+EXPLAINER_GAPS = frozenset({"core", "no-comments", "no-comments-rust", "complexity-python", "complexity-typescript",
+                            "complexity-swift", "complexity-rust", "design-helpers", "session-helpers"})
 
 
 def admissions_of(kind):
@@ -152,9 +152,12 @@ class ComponentManifest(unittest.TestCase):
         for component, _ in (pair for pair in parts("command") if pair[1].id == "cc-check"):
             self.assertLessEqual(set(component.languages), set(quality_check.LANGUAGES), component.id)
 
-    def test_the_comment_gate_names_only_the_languages_comment_debt_reads(self):
-        for component, _ in (pair for pair in parts("command") if pair[1].id == "comment-debt"):
-            self.assertEqual(set(component.languages), COMMENT_DEBT_LANGUAGES, component.id)
+    def test_each_comment_gate_component_names_exactly_the_languages_comment_debt_checks_under_it(self):
+        named = {component.id: set(component.languages) for component, part in parts("command") if part.id == "comment-debt"}
+        checked = {}
+        for language, row in comment_debt.LANGUAGES.items():
+            checked.setdefault(row.component, set()).add(language)
+        self.assertEqual(named, checked)
 
     def test_the_swift_and_rust_complexity_gates_list_their_lint_config_and_ci_step(self):
         for component_id, config in (("complexity-swift", ".swiftlint.yml"), ("complexity-rust", "clippy.toml")):

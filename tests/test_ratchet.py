@@ -251,6 +251,45 @@ class SettleTest(unittest.TestCase):
         self.assertEqual(ratchet.exit_code(result), 1)
 
 
+class RecordingTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.file = Path(tmp.name) / "baseline.json"
+
+    def record(self, found):
+        return ratchet.baseline_text(ratchet.recorded(found, self.file, lambda path: path.endswith(".rs")))
+
+    def test_recording_adds_an_entry_for_each_location_with_debt_and_keeps_every_other_entry_byte_for_byte(self):
+        before = '{\n  "z.py": 3,\n  "zz.py": 1.5\n}\n'
+        self.file.write_text(before)
+        self.assertEqual(self.record([finding("a.rs", 2), finding("b.rs", 0)]), '{\n  "a.rs::f": 2,\n' + before[2:])
+
+    def test_recording_sets_the_entry_of_each_location_it_finds_to_its_count_now(self):
+        self.file.write_text('{\n  "a.rs::f": 5,\n  "z.py": 3\n}\n')
+        self.assertEqual(json.loads(self.record([finding("a.rs", 2)])), {"a.rs::f": 2, "z.py": 3})
+
+    def test_recording_drops_the_recorded_languages_entries_it_no_longer_finds_debt_for(self):
+        self.file.write_text('{\n  "gone.rs": 4,\n  "paid.rs": 1,\n  "z.py": 3\n}\n')
+        self.assertEqual(json.loads(self.record([finding("a.rs", 2), finding("paid.rs", 0)])), {"a.rs::f": 2, "z.py": 3})
+
+    def test_recording_keeps_the_entry_of_a_file_it_cannot_measure_and_adds_none_for_one_without_an_entry(self):
+        self.file.write_text('{\n  "broken.rs": 5,\n  "z.py": 3\n}\n')
+        found = [ratchet.Finding(ratchet.Location(path), None, "comment lines", "") for path in ("broken.rs", "new.rs")]
+        self.assertEqual(json.loads(self.record(found)), {"broken.rs": 5, "z.py": 3})
+
+    def test_recording_without_a_baseline_file_starts_from_nothing(self):
+        self.assertEqual(json.loads(self.record([finding("a.rs", 2)])), {"a.rs::f": 2})
+        self.assertFalse(self.file.exists())
+
+    def test_recording_over_a_malformed_baseline_is_a_tool_error_and_leaves_it_alone(self):
+        self.file.write_text("[]")
+        with self.assertRaises(ToolError):
+            self.record([finding("a.rs", 2)])
+        self.assertEqual(self.file.read_text(), "[]")
+
+
 class SharedKeyTest(unittest.TestCase):
 
     def setUp(self):
@@ -344,7 +383,7 @@ class CommentDebtFindsTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "add", "a.py", "pkg/b.py"], check=True)
 
     def located(self):
-        return [f.location for f in cd.findings(self.root, [])]
+        return [f.location for f in cd.findings(self.root)]
 
     def test_the_same_code_gives_the_same_locations_on_two_runs(self):
         first = self.located()

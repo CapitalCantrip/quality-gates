@@ -7,9 +7,11 @@ import re
 import sys
 import tokenize
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
-from quality_gates import languages, project_files, ratchet
+from quality_gates import code_reader, languages, project_files, ratchet
 from quality_gates.errors import Untagged
 
 
@@ -25,6 +27,12 @@ CODING = re.compile(r"^#.*coding[:=]")
 FINDING_KIND = "comment lines"
 TAG = "comment-debt: "
 UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
+UNREAD = "could not be opened, does not parse or is not UTF-8, so its comments were not counted"
+UNREAD_ADVICE = (
+    "Unmeasured files fail the gate. Finish or fix them, or leave them out with settings.no-comments.exclude; "
+    "the baseline keeps any entry they already have and records none for them."
+)
+UNREADABLE = (OSError, SyntaxError, ValueError, tokenize.TokenError)
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,
@@ -71,34 +79,92 @@ def debt_lines(source):
     return sorted(comment_lines(source) | string_lines(source))
 
 
+def read_debt_lines(syntax, source):
+    comments = code_reader.read(source, syntax).comments
+    return sorted({line for comment in comments for line in range(comment.start, comment.end + 1)})
+
+
+@dataclass(frozen=True)
+class CommentLanguage:
+    component: str
+    checker: Callable
+
+
 LANGUAGES = {
-    "python": debt_lines,
+    "python": CommentLanguage("no-comments", debt_lines),
+    "rust": CommentLanguage("no-comments-rust", functools.partial(read_debt_lines, code_reader.Syntax(line=("//",)))),
 }
+EXCLUDE_REFUSAL = (
+    "comment-debt: --exclude is removed. Run /setup-standards: it moves the --exclude prefixes of your "
+    "comment-debt commands into settings.no-comments.exclude in quality-gates.json, and the gate reads them there."
+)
 
 
-def tracked_files(root, excluded):
+def checked_files(root):
     return {
-        path: checker
-        for name, checker in LANGUAGES.items()
-        for path in project_files.tracked_files(root, languages.suffixes_of([name]), excluded)
+        path: row.checker
+        for name, row in LANGUAGES.items()
+        for path in project_files.comment_gate_files(root, row.component, languages.suffixes_of([name]))
     }
 
 
+def lines_in(file, checker):
+    try:
+        return checker(file.read_text(encoding="utf-8"))
+    except UNREADABLE:
+        return None
+
+
 def measure(root, listed):
-    current = {}
-    for path, checker in listed.items():
-        file = root / path
-        if file.exists():
-            current[path] = checker(file.read_text(encoding="utf-8"))
-    return current
+    return {path: lines_in(root / path, checker) for path, checker in listed.items() if (root / path).exists()}
 
 
 def to_finding(path, lines):
+    if lines is None:
+        return ratchet.Finding(ratchet.Location(path), None, FINDING_KIND, UNREAD)
     return ratchet.Finding(ratchet.Location(path), len(lines), FINDING_KIND, ", ".join(str(n) for n in lines))
 
 
-def findings(root, excluded):
-    return [to_finding(path, lines) for path, lines in sorted(measure(root, tracked_files(root, excluded)).items())]
+def findings(root, listed=checked_files):
+    return [to_finding(path, lines) for path, lines in sorted(measure(root, listed(root)).items())]
+
+
+def files_before_choosing(root, name):
+    suffixes = languages.suffixes_of([name])
+    return {path: LANGUAGES[name].checker for path in project_files.comment_gate_files_before_choosing(root, suffixes)}
+
+
+def files_on_choosing(root, names, choice):
+    return {
+        path: LANGUAGES[name].checker
+        for name in names
+        for path in project_files.comment_gate_files_under(root, choice, languages.suffixes_of([name]))
+    }
+
+
+def chosen_only_on_asking():
+    return frozenset(row.component for row in LANGUAGES.values()) - project_files.ON_WITHOUT_A_CHOICE_FILE
+
+
+def languages_switched_on(components):
+    return frozenset(name for name, row in LANGUAGES.items() if row.component in components)
+
+
+def findings_on_choosing(root, names, choice):
+    return findings(root, lambda _: files_on_choosing(root, names, choice))
+
+
+def written_in(names):
+    return lambda path: languages.language_of_file(path) in names
+
+
+def one_language(name):
+    return functools.partial(files_before_choosing, name=name)
+
+
+def debt_report(root, name, out):
+    owed = [finding.number for finding in findings(root, one_language(name)) if finding.number]
+    out.write(f"# {languages.LANGUAGES[name].label} comment debt: {sum(owed)} lines in {len(owed)} files\n")
 
 
 def describe_failed(settled, out):
@@ -117,7 +183,7 @@ def describe_behind(behind, file, out):
             out.write(f"PAID {verdict.location.key}: {verdict.now} lines, baseline still says {verdict.allowed}\n")
     for verdict in behind:
         if verdict.now is None:
-            out.write(f"GONE {verdict.location.key}: in the baseline but no longer tracked\n")
+            out.write(f"GONE {verdict.location.key}: in the baseline but no longer in scope\n")
     out.write(
         f"\nThe baseline is behind. Run `comment-debt --update` "
         f"and commit {file.name} so the paid debt cannot come back.\n"
@@ -133,7 +199,8 @@ def describe_recorded(counts, out):
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
 
 
-WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL)
+WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL,
+                          UNREAD, UNREAD_ADVICE)
 
 
 def area(path):
@@ -160,8 +227,8 @@ def write_area(name, rows, out):
         out.write(f"{count:5} {flagged:4}  {path}\n")
 
 
-def status(root, excluded, out):
-    current = {p: ls for p, ls in measure(root, tracked_files(root, excluded)).items() if ls}
+def status(root, out):
+    current = {p: ls for p, ls in measure(root, checked_files(root)).items() if ls}
     areas = group_by_area(root, current)
     total = sum(len(ls) for ls in current.values())
     out.write(f"# Comment debt: {total} lines in {len(current)} files\n\n")
@@ -176,31 +243,47 @@ def labels():
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description=f"Ratchet on comment lines in tracked {labels()} files.",
+        description=f"Ratchet on comment lines in {labels()} files in scope.",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
+    mode.add_argument("--report", choices=sorted(LANGUAGES), metavar="LANGUAGE",
+                      help="print one language's comment debt, chosen or not")
     parser.add_argument("--baseline", help=f"baseline file (default: {project_files.COMMENT_DEBT_BASELINE} at the repo root)")
-    parser.add_argument("--exclude", action="append", default=[], metavar="PREFIX", help="skip tracked paths with this prefix")
+    parser.add_argument("--exclude", action="append", default=[], help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
+def chosen_languages(root):
+    choice = project_files.checked_choice(root)
+    return frozenset(name for name, row in LANGUAGES.items() if project_files.is_chosen(choice, row.component))
+
+
 def asked(args, root, baseline) -> ratchet.Asked:
-    if args.status:
+    if args.status or args.report:
         return ratchet.Asked(judged=False)
-    return ratchet.Asked(Path(baseline or args.baseline or project_files.comment_debt_baseline(root)), args.update)
+    file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
+    return ratchet.Asked(file, args.update, covers=written_in(chosen_languages(root)))
+
+
+def shown_first(args, root, out):
+    if args.status:
+        status(root, out)
+    if args.report:
+        debt_report(root, args.report, out)
 
 
 def gate(argv, root, baseline=None, out=None):
     out = sys.stdout if out is None else out
     args = parse_args(argv)
+    if args.exclude:
+        raise Untagged(EXCLUDE_REFUSAL)
     if args.baseline is not None and not args.baseline.strip():
         raise Untagged("--baseline was given an empty path")
     root = root or project_files.git_root()
-    if args.status:
-        status(root, args.exclude, out)
-    return ratchet.enforce(functools.partial(findings, root, args.exclude), asked(args, root, baseline), out, WORDING)
+    shown_first(args, root, out)
+    return ratchet.enforce(functools.partial(findings, root), asked(args, root, baseline), out, WORDING)
 
 
 def main(argv=None, root=None, baseline=None, out=None):

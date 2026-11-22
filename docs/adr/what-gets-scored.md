@@ -8,10 +8,10 @@ submodules, or running outside the repo.
 
 <!-- rule:files-in-scope -->
 **The files in scope** are the files git would commit: tracked files plus
-untracked files that the project's `.gitignore` does not ignore. Both gates and
-language detection use them; outside a git repo, every command that looks for
-the project's root stops with exit 2 and one line saying so. The paths given on the command line narrow the set,
-and `exclude` in `quality-gates.json` applies on top: each entry names a
+untracked files that the project's `.gitignore` does not ignore. Every gate,
+`comment-debt` included, and language detection use them; outside a git repo,
+every command that looks for the project's root stops with exit 2 and one line
+saying so. The paths given on the command line narrow the set, and `exclude` in `quality-gates.json` applies on top: each entry names a
 folder or file by its path from the repo root, such as `tests/fixtures/`, and
 matches whole path segments, so `build` leaves out the folder or file `build`
 and never `buildscripts/` or `build_utils.py`. A trailing `/` changes nothing.
@@ -33,6 +33,23 @@ The *Skipped N folder(s)* line names it, marked `libs/core (a submodule: scan
 it from inside)`; scan a path inside it to score it by its own git. Besides
 submodules, that line names only folders marked `(already scanned)`.
 <!-- /rule:files-in-scope -->
+
+## The comment gate's files
+
+<!-- rule:comment-gate-files -->
+**The comment gate's files** are the files in scope less
+`settings.no-comments.exclude` in `quality-gates.json`, which matches whole
+path segments as `exclude` does. `comment-debt` checks a language only when
+that language's comment component is chosen in the choice file: `no-comments`
+for Python, `no-comments-rust` for Rust. Without a choice file it checks Python
+only. It has no `--exclude` flag. A file it cannot read, because it could not
+be opened, does not parse or is not UTF-8, is unmeasured: the gate names it and fails, keeps any
+baseline entry it has and records none for it. A baseline entry for a language
+it does not check is left alone: it is not judged, `--update` keeps it, and
+choosing that language replaces it. An entry for a checked language whose file
+is no longer among the comment gate's files, because it is untracked, excluded
+or deleted, is reported `GONE ... no longer in scope`, and `--update` drops it.
+<!-- /rule:comment-gate-files -->
 
 ## Symlinked folders
 

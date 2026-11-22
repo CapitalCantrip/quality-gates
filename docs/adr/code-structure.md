@@ -12,7 +12,9 @@ needs it.
 ## One project module
 
 `project_files` owns finding the root, deciding which files the gates look at
-(see [What gets scored](what-gets-scored.md)), and reading and writing every
+(see [What gets scored](what-gets-scored.md)); the comment gate asks it for the
+files of each language, and it applies the choice file, so the gate lists no
+files itself. It also owns reading and writing every
 file quality-gates keeps in a project: the choice file, baselines, the hook,
 CI, the instruction file, `docs/agents/*` and the PR template. Every write goes
 through one planned-changes step that setup shows before the builder's "go".
@@ -40,7 +42,15 @@ quality-gates#138: for `cc-check --format json` without `--baseline` and for
 baseline, keys each location by its real path from the root only when a
 baseline is used, compares, writes the baseline on `--update` and returns a
 result with one outcome per location: passed, failed, behind the baseline,
-unmeasured or did not run. A gate that could not run raises
+unmeasured or did not run. `ratchet.recorded` is the record step: given what
+a gate finds for one comment language and which baseline paths belong to it,
+it returns the baseline with that language's entries set to their counts now
+and every other entry as it was. Setup puts the result among its planned
+changes when it switches a comment language on, so recording and choosing are
+one step, while `--update` still only lowers. A gate may say which baseline
+paths it covers: entries outside them are not judged and `--update` writes
+them back as they were, which is how `comment-debt` keeps the entries of a
+language that is not chosen. A gate that could not run raises
 `errors.ToolError`, and so does `ratchet` for a missing, unreadable or
 malformed baseline; the one place that catches it is `ratchet.attempt`,
 reached through `ratchet.run_gate`, which turns it into *did not run* and
@@ -53,6 +63,27 @@ Decided, not built yet: the one common baseline format, the line for a
 language a gate does not support and the runner's record of *did not run*
 (quality-gates#138), and recorded reasons (quality-gates#115). See
 [Baselines and loosening](baselines-and-loosening.md).
+
+## One code reader
+
+Built in part (quality-gates#210, which reads Rust's `//` lines only; #186 and
+#187 fill it in): `code_reader` is the one reader of
+comments and strings for the non-Python languages. For one file and one
+language's syntax it returns each comment (kind, text, start and end line) and
+a copy of the source with strings and comments blanked, line numbers kept. It
+is a module-level function, not private to `comment-debt`, because the
+swallowed-error and escape-hatch gates (quality-gates#132, #133) search that
+copy. Each language's comment syntax is a row in `comment-debt`'s own table,
+keyed by registry name, not a module and not part of the registry. Python keeps
+its own reader.
+
+## Left to the runner
+
+`comment-debt` reads the choice file for its files and exclusions and has no
+`--exclude`; `--update`, `--status`, `--report` and `--baseline` stay.
+Decided, not built yet (quality-gates#138): the one common baseline format,
+which makes `comment-debt.json` a location in it instead of a count per file, and every
+gate flag other than `--exclude` going away.
 
 ## Coverage matching in one place
 
