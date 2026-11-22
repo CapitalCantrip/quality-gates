@@ -22,6 +22,8 @@ LOOSENING_ISSUE = "#115"
 BOTH_FLAGS = "--choose and --decline"
 UP_TO_DATE = f"{project_files.CHOICE_FILE} is up to date."
 RUN_GO = "Run `qg setup --go` to record these choices."
+OFFER_CHOICES = ("To accept {0}: record its comments as debt with `qg setup --go --choose {0}`, "
+                 "or clean first: /setup-standards pays down the part you pick, then records the rest.")
 ANSWER_OFFERS = "Not yet answered: {}. Answer each with `qg setup --go --choose <id>` or `--decline <id>`."
 
 
@@ -36,6 +38,7 @@ class Proposal:
     components: tuple
     choice: object
     switched_on: tuple = ()
+    debt_reports: tuple = ()
 
 
 def proposed_languages(choice, detected, add, remove):
@@ -131,13 +134,18 @@ def propose(project, manifest, flags):
     used = proposed_languages(choice, detected, flags.add_language, flags.remove_language)
     check_component_names(manifest, flags.choose + flags.decline)
     project_files.check_not_both(flags.choose, flags.decline, BOTH_FLAGS)
-    installed = status.components_present(project, manifest, set(used)) - comment_debt.chosen_only_on_asking()
+    installed = status.components_present(project, manifest, set(used))
     check_declines(manifest, flags.decline, installed | set(choice.chosen if choice else ()))
     made = {c.id: made_choice(c, choice, installed, flags) for c in manifest.components if not c.core}
     rows = tuple(component_row(c, shown_choice(c, set(used), made.get(c.id))) for c in manifest.components)
     by_hand = tuple(name for name in used if name not in detected)
     return Proposal(used, by_hand, rows, recorded_choice(root, choice, used, made, scope),
-                    switched_on(manifest, choice, installed, made))
+                    switched_on(manifest, choice, installed, made), offered_reports(root, rows))
+
+
+def offered_reports(root, rows):
+    offered = comment_debt.languages_of({row["id"] for row in rows if row["choice"] == OFFERED})
+    return tuple((name, comment_debt.debt_report_text(root, name)) for name in sorted(offered))
 
 
 def names_with(proposal, *made):
@@ -152,6 +160,7 @@ def report_of(proposal, planned):
         "comment_gate_exclude": list(proposal.choice.comment_gate_exclude),
         "components": list(proposal.components),
         "planned_changes": [{"file": change.name, "state": state} for change, state in planned],
+        "debt_reports": dict(proposal.debt_reports),
     }
 
 
@@ -186,12 +195,20 @@ def closing_lines(proposal, written, planned):
     return lines or [UP_TO_DATE]
 
 
+def offer_lines(proposal):
+    lines = []
+    for name, text in proposal.debt_reports:
+        lines += ["", *text.rstrip("\n").split("\n"), "", OFFER_CHOICES.format(comment_debt.LANGUAGES[name].component)]
+    return lines
+
+
 def render(proposal, planned, written):
     lines = ["Languages: " + (", ".join(proposal.languages) or "none"), "", "Components"]
     lines += [line for row in proposal.components for line in row_lines(row)]
     lines += ["", "Excluded from detection and the gates: " + (", ".join(proposal.choice.exclude) or "nothing")]
     lines += ["Comment gate exclusions: " + (", ".join(proposal.choice.comment_gate_exclude) or "none")]
     lines += your_components(proposal)
+    lines += offer_lines(proposal)
     lines += ["", "Planned changes"] + [f"  {change.name}: {state}" for change, state in planned]
     lines += [""] + closing_lines(proposal, written, planned)
     return "\n".join(lines)
@@ -215,7 +232,7 @@ def failed(error, code):
 
 
 def recording_changes(root, proposal):
-    names = comment_debt.languages_switched_on(proposal.switched_on)
+    names = comment_debt.languages_of(proposal.switched_on)
     if not names:
         return []
     found = comment_debt.findings_on_choosing(root, names, proposal.choice)

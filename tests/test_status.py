@@ -11,7 +11,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
 
-from quality_gates import languages, manifest as manifests, project_files, skills_sync, status
+from quality_gates import comment_debt, languages, manifest as manifests, project_files, skills_sync, status
 
 
 def git_init(folder):
@@ -669,6 +669,111 @@ class Status(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(report["format_version"], manifests.load_components().format_version)
         self.assertEqual(len(report["components"]), len(manifests.load_components().components))
+
+
+class CommentLanguagesTest(unittest.TestCase):
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.repo = Path(self.tmp.name)
+        git_init(self.repo)
+        for name, text in (("app.py", "x = 1\n"), ("main.rs", "fn main() {}\n"), ("comment-debt.json", "{}\n"),
+                           (".githooks/pre-commit", "#!/bin/sh\ncomment-debt\n")):
+            self.write(name, text)
+
+    def write(self, name, text):
+        path = self.repo / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text, encoding="utf-8")
+        subprocess.run(["git", "add", name], cwd=self.repo, check=True)
+
+    def with_ci_step(self):
+        self.write(".github/workflows/ci.yml", "steps:\n  - run: comment-debt\n")
+
+    def choose(self, chosen=(), declined=()):
+        choice = project_files.Choice(languages=("python", "rust"), chosen=tuple(chosen), declined=tuple(declined))
+        project_files.write_kept(self.repo, project_files.CHOICE_FILE, project_files.choice_text(choice))
+
+    def rust(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(status.main(["--json"], root=self.repo), 0)
+        return component(json.loads(out.getvalue()), "no-comments-rust")
+
+    def table_line(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            status.main([], root=self.repo)
+        return next(line for line in out.getvalue().splitlines() if line.strip().startswith("no-comments-rust"))
+
+    def test_without_a_choice_file_the_parts_rust_shares_with_python_do_not_make_it_installed(self):
+        self.assertEqual((self.rust()["status"], self.rust()["install_status"]), ("missing", "missing"))
+        self.assertEqual(self.rust()["needs_attention"], [])
+
+    def test_a_ci_step_running_comment_debt_does_not_make_rust_installed(self):
+        self.with_ci_step()
+        self.assertEqual(self.rust()["status"], "missing")
+
+    def test_a_declined_rust_shows_offered_declined_without_a_partly_installed_suffix(self):
+        self.choose(chosen=("no-comments",), declined=("no-comments-rust",))
+        self.assertEqual(self.table_line().split()[1:3], ["offered,", "declined"])
+        self.assertNotIn("installed", self.table_line())
+
+    def test_a_rust_the_choice_file_does_not_list_shows_not_yet_offered_without_a_suffix(self):
+        self.choose(chosen=("no-comments",))
+        self.with_ci_step()
+        self.assertEqual(self.rust()["status"], "not yet offered")
+        self.assertNotIn("installed", self.table_line())
+
+    def test_a_chosen_rust_is_judged_by_its_parts_like_any_component(self):
+        self.choose(chosen=("no-comments", "no-comments-rust"))
+        self.assertEqual(self.rust()["status"], "partly installed")
+        self.with_ci_step()
+        self.assertEqual(self.rust()["status"], "installed")
+
+    def test_python_comments_are_still_judged_by_their_parts_without_a_choice_file(self):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            status.main(["--json"], root=self.repo)
+        self.assertEqual(component(json.loads(out.getvalue()), "no-comments")["install_status"], "partly installed")
+
+
+def detected_by(part):
+    return part.marker or part.id
+
+
+def owners_of(loaded):
+    owners = {}
+    for c in loaded.components:
+        for p in c.parts:
+            owners.setdefault(detected_by(p), set()).add(c.id)
+    return owners
+
+
+def counted(component):
+    return [p for p in component.parts if p.kind not in status.PROVIDED_BY_PACKAGE]
+
+
+def wholly_shared(loaded):
+    owners = owners_of(loaded)
+    return {c.id for c in loaded.components
+            if counted(c) and all(owners[detected_by(p)] - {c.id} for p in counted(c))}
+
+
+class EveryComponentHasAPartOfItsOwn(unittest.TestCase):
+    def test_a_component_whose_parts_all_belong_to_others_too_is_switched_on_only_by_the_choice_file(self):
+        shared = wholly_shared(manifests.load_components())
+        self.assertIn("no-comments-rust", shared)
+        self.assertLessEqual(shared, comment_debt.chosen_only_on_asking())
+
+    def test_the_check_flags_a_new_component_built_only_from_another_components_parts(self):
+        loaded = manifests.components_from(admitted({"format_version": 2, "components": [
+            {"id": "a", "name": "A", "description": "A.", "core": False, "languages": ["python"], "origin": OURS,
+             "parts": [{"kind": "skill", "id": "tdd"}, {"kind": "baseline", "id": "a.json"}]},
+            {"id": "b", "name": "B", "description": "B.", "core": False, "languages": ["python"], "origin": OURS,
+             "parts": [{"kind": "command", "id": "x"}, {"kind": "baseline", "id": "a.json"}]},
+        ]}))
+        self.assertEqual(wholly_shared(loaded), {"b"})
 
 
 if __name__ == "__main__":

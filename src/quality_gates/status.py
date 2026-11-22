@@ -5,7 +5,7 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from quality_gates import project_files, skills_sync
+from quality_gates import comment_debt, project_files, skills_sync
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
 from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, BrokenFileError, load_components
 
@@ -180,9 +180,18 @@ def is_present(parts):
     return roll_up([p["status"] for p in own_parts(parts)]) in HAS_SOMETHING
 
 
+def is_chosen(component, choice):
+    return choice is not None and choice.recorded(component.id) == project_files.CHOSEN
+
+
 def wants_attention(component, choice, parts):
-    chosen = choice is not None and choice.recorded(component.id) == project_files.CHOSEN
-    return component.core or chosen or is_present(parts)
+    return component.core or is_chosen(component, choice) or is_present(parts)
+
+
+def counted_parts(component, parts, choice):
+    if component.id in comment_debt.chosen_only_on_asking() and not is_chosen(component, choice):
+        return []
+    return parts
 
 
 def needs_attention(component, parts, choice, rolled):
@@ -200,7 +209,8 @@ def installed_state(component, parts, used):
 def component_report(project, component, used, choice=None):
     wanted = list(component.languages)
     parts = [part_report(project, p, used) for p in component.parts]
-    rolled = installed_state(component, parts, used)
+    counted = counted_parts(component, parts, choice)
+    rolled = installed_state(component, counted, used)
     return {
         "id": component.id,
         "name": component.name,
@@ -211,13 +221,14 @@ def component_report(project, component, used, choice=None):
         "origin": component.origin.as_dict(),
         "languages": wanted,
         "parts": parts,
-        "needs_attention": needs_attention(component, parts, choice, rolled),
+        "needs_attention": needs_attention(component, counted, choice, rolled),
     }
 
 
 def components_present(project, manifest, used):
     return {component.id for component in manifest.components
-            if component.applies_to(used) and is_present([part_report(project, p, used) for p in component.parts])}
+            if component.applies_to(used)
+            and is_present(counted_parts(component, [part_report(project, p, used) for p in component.parts], None))}
 
 
 def read_pin(project):
