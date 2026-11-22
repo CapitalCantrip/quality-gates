@@ -77,9 +77,9 @@ its own reader.
 ## Left to the runner
 
 `comment-debt` reads the choice file for its files and exclusions and has no
-`--exclude`; `--update`, `--status` and `--baseline` stay. Decided, not built
-yet (quality-gates#138): the one common baseline format, which makes
-`comment-debt.json` a location in it instead of a count per file, and every
+`--exclude`; `--update`, `--status`, `--report` and `--baseline` stay.
+Decided, not built yet (quality-gates#138): the one common baseline format,
+which makes `comment-debt.json` a location in it instead of a count per file, and every
 gate flag other than `--exclude` going away.
 
 ## Coverage matching in one place
