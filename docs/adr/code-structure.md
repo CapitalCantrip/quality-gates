@@ -66,15 +66,18 @@ language a gate does not support and the runner's record of *did not run*
 
 ## One code reader
 
-Built for Rust (quality-gates#210, #186; #187 adds TypeScript, Swift and
-shell): `code_reader` is the one reader of
+Built for Rust, TypeScript, Swift and shell (quality-gates#210, #186, #187):
+`code_reader` is the one reader of
 comments and strings for the non-Python languages. For one file and one
 language's syntax it returns each comment (kind, text, start and end line) and
 a copy of the source with strings and comments blanked, line numbers kept. It
 is a module-level function, not private to `comment-debt`, because the
 swallowed-error and escape-hatch gates (quality-gates#132, #133) search that
 copy. Each language's comment syntax is a row in `comment-debt`'s own table,
-keyed by registry name, not a module and not part of the registry. Python keeps
+keyed by registry name, not a module and not part of the registry. A literal
+with interpolation, such as TypeScript's `${}` or Swift's `\( )`, names its
+bracket pair and the pattern that reads the literal on after the closing
+bracket; the reader reads the code between the brackets as code. Python keeps
 its own reader.
 
 ## Left to the runner

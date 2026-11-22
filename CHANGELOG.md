@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- **`comment-debt` reads TypeScript, Swift and shell (#187).** Three new
+  components, `no-comments-typescript`, `no-comments-swift` and
+  `no-comments-shell`, are offered by the next `/setup-standards` run to a
+  project with that language. Each is off until chosen; choosing it with
+  `qg setup --go --choose <id>` records that language's comments as debt, so
+  only new ones fail. A comment marker inside a string, template literal,
+  regex literal, interpolation or heredoc does not count; bare tool pragmas
+  (`eslint-disable`, `@ts-expect-error`, `@ts-ignore`, `prettier-ignore`,
+  `swiftlint:disable`, `# shellcheck disable=`) and a shell shebang on line 1
+  are exempt. Shell covers `.sh`, `.bash` and `.zsh` files and files with no
+  suffix whose first line is a shell shebang. Nothing to do on the bump
+  unless you choose one; run `comment-debt --report <language>` first to see
+  what choosing it records.
 - **`comment-debt` reads Rust fully (#186).** With `no-comments-rust`
   chosen, every Rust comment counts once per line: block comments and doc
   comments (`///`, `//!`, `/** */`) as well as `//` lines. A `//` inside a

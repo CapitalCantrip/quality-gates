@@ -121,7 +121,7 @@ its MIT notice. ([ADR-002](archive/ADR-002-engineering-standards.md#writing-for-
 
 Source: [ADR-006](archive/ADR-006-gates-beyond-complexity.md) and
 [ADR-010](archive/ADR-010-admission-and-recognised-conventions.md). Only the
-comment gate ships today, in Python and Rust.
+comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
 
 - **Planned, in this order:** the secret check, right after the runner and
   ahead of the "proven" checkpoint (the only gate that skips it, because a
