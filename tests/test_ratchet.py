@@ -354,6 +354,14 @@ class SurvivalTest(unittest.TestCase):
         stored = {"zz.py": 1.5, "z.py": 3}
         self.assertEqual(self.choosing(stored, found, lambda path: path.endswith(".rs")), {"a.rs": 2, **stored})
 
+    def test_a_file_found_outside_the_language_being_chosen_is_recorded_at_its_count_now(self):
+        found = [comment_finding("a.py", 9), comment_finding("a.rs", 2)]
+        self.assertEqual(self.choosing({"a.py": 3}, found, lambda path: path.endswith(".rs")), {"a.py": 9, "a.rs": 2})
+
+    def test_a_file_counted_zero_and_unmeasured_at_once_gets_no_entry_it_did_not_have(self):
+        found = [comment_finding("dark.rs", 0), comment_finding("dark.rs", None)]
+        self.assertEqual(self.choosing({"z.py": 3}, found, lambda path: path.endswith(".rs")), {"z.py": 3})
+
     def test_update_decides_what_survives_through_the_one_function(self):
         self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
         with mock.patch.object(ratchet, "surviving", wraps=ratchet.surviving) as deciding:

@@ -177,7 +177,7 @@ def surviving(stored: Optional[dict], result: Result, covers: Callable[[str], bo
         for verdict in result.having(Outcome.UNMEASURED)
         if verdict.allowed is not None
     }
-    return dict(sorted({**kept, **unmeasured, **held_back(stored, covers)}.items()))
+    return dict(sorted({**held_back(stored, covers), **kept, **unmeasured}.items()))
 
 
 def lowered(result: Result, stored: Optional[dict] = None, covers: Callable[[str], bool] = covers_every_file) -> dict:
@@ -281,7 +281,8 @@ def without(scores: dict, held: dict) -> dict:
 
 def recorded(findings: list, file: Path, replaces: Callable[[str], bool]) -> dict:
     stored = stored_baseline(file, True) or {}
-    result = judge(findings, {**stored, **strongest(findings)})
+    counts = {key: number for key, number in strongest(findings).items() if number}
+    result = judge(findings, {**stored, **counts})
     return surviving(stored, result, replaces)
 
 
