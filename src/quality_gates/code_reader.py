@@ -1,11 +1,13 @@
 import functools
 import re
 from dataclasses import dataclass
+from typing import Optional
 
 LINE = "line"
 BLOCK = "block"
 DOC = "doc"
 STRING = "string"
+BRACKET = "bracket"
 NEWLINE = "\n"
 CARRIAGE_RETURN = "\r"
 NOT_A_LINE_END = re.compile(r"[^\r\n]")
@@ -14,9 +16,16 @@ NOTHING = "(?!)"
 
 
 @dataclass(frozen=True)
+class Interpolation:
+    pair: tuple
+    rest: str
+
+
+@dataclass(frozen=True)
 class Literal:
     start: str
     whole: str
+    interpolation: Optional[Interpolation] = None
 
 
 @dataclass(frozen=True)
@@ -55,6 +64,23 @@ class Scanner:
     opener: re.Pattern
     literals: tuple
     doc: re.Pattern
+    rests: tuple
+
+
+@dataclass
+class Interpolating:
+    literal: int
+    depth: int = 0
+
+
+@dataclass
+class Inside:
+    scanner: Scanner
+    open: list
+
+    @property
+    def syntax(self):
+        return self.scanner.syntax
 
 
 def group(name, pattern):
@@ -65,13 +91,24 @@ def alternatives(patterns):
     return re.compile("|".join(patterns) or NOTHING)
 
 
+def bracket_opener(literals):
+    marks = sorted({mark for literal in literals if literal.interpolation for mark in literal.interpolation.pair})
+    return [group(BRACKET, "|".join(map(re.escape, marks)))] if marks else []
+
+
+def rest_of(literal):
+    return re.compile(literal.interpolation.rest) if literal.interpolation else None
+
+
 @functools.lru_cache(maxsize=None)
 def scanner_for(syntax):
     openers = [group(f"{LINE}{n}", marker) for n, marker in enumerate(syntax.line)]
     openers += [group(f"{BLOCK}{n}", re.escape(pair[0])) for n, pair in enumerate(syntax.block)]
     openers += [group(f"{STRING}{n}", literal.start) for n, literal in enumerate(syntax.literals)]
+    openers += bracket_opener(syntax.literals)
     literals = tuple(re.compile(literal.whole) for literal in syntax.literals)
-    return Scanner(syntax, alternatives(openers), literals, alternatives(syntax.doc))
+    rests = tuple(map(rest_of, syntax.literals))
+    return Scanner(syntax, alternatives(openers), literals, alternatives(syntax.doc), rests)
 
 
 def line_comment_end(source, start):
@@ -96,25 +133,54 @@ def block_comment_end(source, start, pair, nested):
     return at
 
 
-def literal_at(source, start, whole):
-    found = whole.match(source, start)
-    return Token(STRING, start, found.end()) if found else None
+def piece(source, start, at, literal, pattern, inside):
+    found = pattern.match(source, at)
+    if not found:
+        return None
+    interpolation = inside.syntax.literals[literal].interpolation
+    if interpolation and found.group().endswith(interpolation.pair[0]):
+        inside.open.append(Interpolating(literal))
+    return Token(STRING, start, found.end())
 
 
-def token_at(found, source, scanner):
+def literal_at(source, start, literal, inside):
+    return piece(source, start, start, literal, inside.scanner.literals[literal], inside)
+
+
+def bracket_at(source, start, inside):
+    if not inside.open:
+        return None
+    top, mark = inside.open[-1], source[start]
+    opening, closing = inside.syntax.literals[top.literal].interpolation.pair
+    if mark == opening:
+        top.depth += 1
+        return None
+    if mark != closing:
+        return None
+    if top.depth:
+        top.depth -= 1
+        return None
+    inside.open.pop()
+    return piece(source, start, start + len(closing), top.literal, inside.scanner.rests[top.literal], inside)
+
+
+def token_at(found, source, inside):
     name, start = found.lastgroup, found.start()
     if name.startswith(LINE):
         return Token(LINE, start, line_comment_end(source, start))
     if name.startswith(STRING):
-        return literal_at(source, start, scanner.literals[int(name[len(STRING):])])
-    pair = scanner.syntax.block[int(name[len(BLOCK):])]
-    return Token(BLOCK, start, block_comment_end(source, start, pair, scanner.syntax.nested))
+        return literal_at(source, start, int(name[len(STRING):]), inside)
+    if name == BRACKET:
+        return bracket_at(source, start, inside)
+    pair = inside.syntax.block[int(name[len(BLOCK):])]
+    return Token(BLOCK, start, block_comment_end(source, start, pair, inside.syntax.nested))
 
 
 def tokens(source, scanner):
+    inside = Inside(scanner, [])
     found = scanner.opener.search(source)
     while found:
-        token = token_at(found, source, scanner)
+        token = token_at(found, source, inside)
         if token:
             yield token
         found = scanner.opener.search(source, token.end if token else found.start() + 1)

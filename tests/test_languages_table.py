@@ -12,9 +12,9 @@ SHIPPED = ROOT / "docs" / "languages-by-gates.md"
 HEADER = "| Language | comment-debt | cc-check | crap | Components installed for it |"
 EVERY_LANGUAGE = "core, design-helpers, session-helpers"
 PYTHON_ROW = "| Python | scores | scores | scores | core, no-comments, complexity-python, crap, design-helpers, session-helpers |"
-SWIFT_ROW = "| Swift | — | — | scores | core, complexity-swift, crap, design-helpers, session-helpers |"
+SWIFT_ROW = "| Swift | scores | — | scores | core, no-comments-swift, complexity-swift, crap, design-helpers, session-helpers |"
 RUST_ROW = "| Rust | scores | — | — | core, no-comments-rust, complexity-rust, design-helpers, session-helpers |"
-SHELL_ROW = f"| Shell | — | — | — | {EVERY_LANGUAGE} |"
+SHELL_ROW = "| Shell | scores | — | — | core, no-comments-shell, design-helpers, session-helpers |"
 
 
 class Rendered(unittest.TestCase):
@@ -69,7 +69,7 @@ class Checked(unittest.TestCase):
                          [f"{self.path}: missing; run python -m quality_gates.languages_table"])
 
     def test_a_table_edited_by_hand_fails_the_check(self):
-        self.path.write_text(languages_table.render().replace(SHELL_ROW, "| Shell | scores | — | — | none |"),
+        self.path.write_text(languages_table.render().replace(SHELL_ROW, "| Shell | — | — | — | none |"),
                              encoding="utf-8")
         self.assertEqual(languages_table.check(self.path),
                          [f"{self.path}: differs from the gate tables; run python -m quality_gates.languages_table"])

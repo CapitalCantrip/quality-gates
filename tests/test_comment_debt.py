@@ -8,7 +8,7 @@ import unittest
 from pathlib import Path
 
 from quality_gates import comment_debt as cd
-from quality_gates import ratchet, setup_choices
+from quality_gates import code_reader, ratchet, setup_choices
 from test_project_files import recorded_convention_ids
 
 REPO = Path(__file__).resolve().parents[1]
@@ -155,6 +155,122 @@ class LocalBarRustFixturesTest(unittest.TestCase):
 
     def test_a_stray_comment_after_a_safety_comment_fails_even_with_rust_safety_on(self):
         self.assertEqual(rust_lines(self.fixture('fail_stray_after_safety.rs'), SAFETY), [2, 4])
+
+
+def typescript_lines(source):
+    return cd.LANGUAGES['typescript'].checker(source, ())
+
+
+class TypeScriptCountingTest(unittest.TestCase):
+
+    def test_a_doc_comment_counts_on_every_line(self):
+        source = '/**\n * Adds.\n */\nexport function add(a: number, b: number) { return a + b }\n'
+        self.assertEqual(typescript_lines(source), [1, 2, 3])
+        self.assertEqual([c.kind for c in code_reader.read(source, cd.TYPESCRIPT.syntax).comments], ['doc'])
+
+    def test_slashes_in_a_regex_literal_are_not_a_comment(self):
+        source = ('const a = /a\\/\\/b/\nconst b = [/https?:\\/\\//g, /[/]/]\nif (/x\\/\\//.test(s)) {}\n'
+                  'return /\\/\\/ x/i\nconst c = x / 2 // half\n')
+        self.assertEqual(typescript_lines(source), [5])
+
+    def test_slashes_in_strings_and_template_literals_are_not_a_comment_however_deep_the_interpolation(self):
+        source = ("const a = 'it\\'s // here', b = \"// \\\" //\"\n"
+                  "const c = `http://${host}:${port}/api // not a comment`\n"
+                  "const d = `${items.map((i) => `${i.name} // ${ {k: '}'}.k }`)} //`\n"
+                  "const e = `one\n// two ${'`'} \\` // three\n` // four\n")
+        self.assertEqual(typescript_lines(source), [6])
+
+    def test_a_comment_inside_an_interpolation_counts(self):
+        self.assertEqual(typescript_lines('const a = `x ${ /* why */ y } z`\n'), [1])
+
+    def test_a_bare_pragma_is_exempt(self):
+        for pragma in ('// eslint-disable-next-line no-console', '/* eslint-disable */',
+                       '/* eslint-disable no-alert, @typescript-eslint/no-explicit-any */',
+                       '// eslint-disable-line', '/* eslint-enable no-alert */', '// @ts-expect-error',
+                       '// @ts-ignore', '// prettier-ignore'):
+            with self.subTest(pragma=pragma):
+                self.assertEqual(typescript_lines(f'{pragma}\nconst a = 1\n'), [])
+
+    def test_a_pragma_that_carries_prose_counts(self):
+        for pragma in ('// eslint-disable-next-line no-console -- the CLI prints', '// @ts-expect-error: wrong types',
+                       '// @ts-ignore because the types lag', '// prettier-ignore the table'):
+            with self.subTest(pragma=pragma):
+                self.assertEqual(typescript_lines(f'{pragma}\nconst a = 1\n'), [1])
+
+
+TYPESCRIPT_FIXTURES = REPO / 'tests' / 'fixtures' / 'typescript'
+
+
+class LocalBarTypeScriptFixturesTest(unittest.TestCase):
+
+    def test_each_localbar_fixture_passes_or_fails_as_its_name_says(self):
+        paths = sorted(TYPESCRIPT_FIXTURES.glob('pass_*.ts')) + sorted(TYPESCRIPT_FIXTURES.glob('fail_*.ts'))
+        self.assertEqual([path.name for path in paths], ['pass_template_literal.ts', 'pass_ts_regex.ts'])
+        for path in paths:
+            with self.subTest(name=path.name):
+                self.assertEqual(typescript_lines(path.read_text(encoding='utf-8')) == [], path.name.startswith('pass_'))
+
+
+def swift_lines(source):
+    return cd.LANGUAGES['swift'].checker(source, ())
+
+
+class SwiftCountingTest(unittest.TestCase):
+
+    def test_a_mark_comment_counts(self):
+        self.assertEqual(swift_lines('// MARK: - Layout\nfunc layout() {}\n'), [1])
+
+    def test_a_nested_block_comment_counts_once_per_line_until_its_outer_comment_closes(self):
+        self.assertEqual(swift_lines('/* a\n/* b */\nc */\nlet x = 1 /* d /* e */ f */\n'), [1, 2, 3, 4])
+
+    def test_doc_comments_count_on_every_line(self):
+        self.assertEqual(swift_lines('/// Adds.\n/** Block\n doc. */\nfunc add() {}\n'), [1, 2, 3])
+
+    def test_a_bare_swiftlint_pragma_is_exempt_and_one_that_carries_prose_counts(self):
+        for pragma in ('// swiftlint:disable force_cast', '// swiftlint:disable:next force_try line_length',
+                       '// swiftlint:disable:this force_cast', '// swiftlint:enable force_cast'):
+            with self.subTest(pragma=pragma):
+                self.assertEqual(swift_lines(f'{pragma}\nlet a = 1\n'), [])
+        self.assertEqual(swift_lines('// swiftlint:disable force_cast, the API returns Any\nlet a = 1\n'), [1])
+
+    def test_slashes_in_strings_and_interpolations_are_not_a_comment(self):
+        source = ('let a = "https://x // \\" //"\nlet b = "\\(dict["k // v"] ?? "//") // \\(f(g(1)))" // why\n'
+                  'let c = """\n  // inside\n  \\(x) "// still"\n  """\nlet d = #"raw \\(no) // "quoted" "#\n'
+                  'let e = "\\( /* inner */ x)"\nlet f = "\\(g(1)) // not \\(x)"\n')
+        self.assertEqual(swift_lines(source), [2, 8])
+
+
+def shell_lines(source):
+    return cd.LANGUAGES['shell'].checker(source, ())
+
+
+class ShellCountingTest(unittest.TestCase):
+
+    def test_a_hash_comment_counts_on_its_own_line_and_after_code(self):
+        self.assertEqual(shell_lines('# why\necho hi # also why\nls;# and\n'), [1, 2, 3])
+
+    def test_a_hash_in_quotes_or_inside_a_word_is_not_a_comment(self):
+        source = ("echo 'a # b' \"c # d \\\" # e\" $'f\\' # g'\n"
+                  "echo it\\'s # one 'x'\nurl=http://x/#top\n")
+        self.assertEqual(shell_lines(source), [2])
+
+    def test_the_argument_count_and_a_length_expansion_are_not_comments(self):
+        self.assertEqual(shell_lines('echo $# ${#x} ${#arr[@]} ${x#pre} $((16#ff))\n'), [])
+
+    def test_a_heredoc_body_is_not_a_comment_and_what_follows_it_is_read_again(self):
+        source = ("cat <<EOF\n# not a comment\nEOF\n# counted\ncat <<-'END'\n\t# no\n\tEND\n"
+                  "cat <<< \"# no\"\nx=$((1<<2)) # counted\n")
+        self.assertEqual(shell_lines(source), [4, 9])
+
+    def test_the_shebang_on_line_one_is_exempt_and_anywhere_else_counts(self):
+        self.assertEqual(shell_lines('#!/usr/bin/env bash\necho hi\n'), [])
+        self.assertEqual(shell_lines('echo hi\n#!/bin/sh\n'), [2])
+
+    def test_a_bare_shellcheck_directive_is_exempt_and_one_that_carries_prose_counts(self):
+        for pragma in ('# shellcheck disable=SC2034', '# shellcheck disable=SC2034,SC2086', 'x=1 # shellcheck disable=SC2154'):
+            with self.subTest(pragma=pragma):
+                self.assertEqual(shell_lines(f'{pragma}\necho hi\n'), [])
+        self.assertEqual(shell_lines('# shellcheck disable=SC2034 because it is exported\necho hi\n'), [1])
 
 
 class RatchetTest(unittest.TestCase):
@@ -423,6 +539,36 @@ class RepositoryTest(unittest.TestCase):
         self.file.write_text('{}\n')
         self.assertEqual(self.run_gate(), (0, 'comment debt: 0 lines in 0 files, none new\n'))
 
+    def test_shell_files_named_by_suffix_or_by_a_shell_shebang_are_checked_when_no_comments_shell_is_chosen(self):
+        self.choose(chosen=['no-comments-shell'])
+        (self.root / 'bin').mkdir()
+        self.put('setup.zsh', '# one\n')
+        self.put('bin/deploy', '#!/usr/bin/env bash\n# two\necho hi\n')
+        self.put('bin/tool', '#!/usr/bin/env python3\n# not shell\n')
+        self.put('notes.txt', '#!/bin/sh\n# not code\n')
+        self.file.write_text('{}\n')
+        code, out = self.run_gate()
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL bin/deploy: 1 comment lines, baseline allows 0 — lines 2\n', out)
+        self.assertIn('FAIL setup.zsh: 1 comment lines, baseline allows 0 — lines 1\n', out)
+        self.assertNotIn('bin/tool', out)
+        self.assertNotIn('notes.txt', out)
+
+    def test_an_entry_for_a_shell_file_named_only_by_its_shebang_is_judged_and_kept_by_update(self):
+        self.choose(chosen=['no-comments-shell'])
+        self.put('deploy', '#!/bin/sh\n# one\n# two\n')
+        self.file.write_text('{"deploy": 2}\n')
+        self.assertEqual(self.run_gate(), (0, 'comment debt: 2 lines in 1 files, none new\n'))
+        self.put('deploy', '#!/bin/sh\n# one\n')
+        self.assertEqual(self.run_gate('--update')[0], 0)
+        self.assertEqual(self.baseline(), {'deploy': 1})
+
+    def test_shell_is_not_checked_when_no_comments_shell_is_not_chosen(self):
+        self.choose()
+        self.put('run.sh', '# one\n')
+        self.file.write_text('{}\n')
+        self.assertEqual(self.run_gate(), (0, 'comment debt: 0 lines in 0 files, none new\n'))
+
     def test_rust_is_not_checked_without_a_choice_file(self):
         self.put('main.rs', 'fn main() {\n    // a comment\n}\n')
         self.file.write_text('{}\n')
@@ -633,6 +779,42 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.setup('--go', '--decline', 'no-comments-rust')
         self.assertEqual(json.loads((self.root / 'quality-gates.json').read_text())['components']['declined'],
                          ['no-comments-rust'])
+
+
+class AcceptingShellEndToEndTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
+        self.file = self.root / 'comment-debt.json'
+        (self.root / 'bin').mkdir()
+        (self.root / 'bin' / 'deploy').write_text('#!/usr/bin/env bash\n# one\necho "# not one"\n')
+        (self.root / 'bin' / 'clean').write_text('#!/bin/sh\necho ok\n')
+        (self.root / 'setup.zsh').write_text('# two\n# three\n')
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def setup(self, *argv):
+        err = io.StringIO()
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
+            code = setup_choices.main(list(argv), root=self.root)
+        self.assertEqual(code, 0, err.getvalue())
+
+    def gate(self, *argv):
+        out = io.StringIO()
+        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
+
+    def test_choosing_shell_replaces_every_shell_files_entry_so_the_gate_passes_and_a_new_comment_fails(self):
+        self.file.write_text('{\n  "bin/clean": 3,\n  "bin/deploy": 7\n}\n')
+        self.setup('--go', '--choose', 'no-comments-shell')
+        self.assertEqual(json.loads(self.file.read_text()), {'bin/deploy': 1, 'setup.zsh': 2})
+        self.assertEqual(self.gate(), (0, 'comment debt: 3 lines in 2 files, none new\n'))
+        (self.root / 'bin' / 'deploy').write_text('#!/usr/bin/env bash\n# one\necho hi # new\n')
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL bin/deploy: 2 comment lines, baseline allows 1 — lines 2, 3', out)
 
 
 class LiveRepositoryTest(unittest.TestCase):

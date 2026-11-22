@@ -1,7 +1,7 @@
 import unittest
 
 from quality_gates import code_reader
-from quality_gates.code_reader import Comment, Literal, Syntax
+from quality_gates.code_reader import Comment, Interpolation, Literal, Syntax
 from quality_gates.comment_debt import RUST
 
 SLASHES = Syntax(line=("//",))
@@ -9,6 +9,10 @@ C_LIKE = Syntax(line=("//",), block=(("/*", "*/"),))
 NESTING = Syntax(line=("//",), block=(("/*", "*/"),), nested=True)
 QUOTED = Syntax(line=("//",), block=(("/*", "*/"),),
                 literals=(Literal('"', r'"(?:\\[\s\S]|[^"\\])*"'), Literal("'", r"'[^'\n]'")))
+TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
+TEMPLATED = Syntax(line=("//",), block=(("/*", "*/"),),
+                   literals=(Literal("'", r"'[^'\n]*'"),
+                             Literal("`", "`" + TEMPLATE_PIECE, Interpolation(("{", "}"), TEMPLATE_PIECE))))
 
 
 class ReadingLineComments(unittest.TestCase):
@@ -84,6 +88,23 @@ class ReadingLiterals(unittest.TestCase):
         reading = code_reader.read("fn f<'a>(x: &'a str) {} // why\n", QUOTED)
         self.assertEqual(reading.comments, (Comment("line", "// why", 1, 1),))
         self.assertEqual(reading.blanked, "fn f<'a>(x: &'a str) {}       \n")
+
+
+class ReadingInterpolatedLiterals(unittest.TestCase):
+
+    def test_the_code_inside_an_interpolation_is_read_as_code_and_the_literal_around_it_is_blanked(self):
+        reading = code_reader.read("x = `a // ${ f({k: '}'}) /* why */ } b // ${`c`}` // end\n", TEMPLATED)
+        self.assertEqual([c.text for c in reading.comments], ["/* why */", "// end"])
+        self.assertEqual(reading.blanked, "x =          f({k:    })                                \n")
+
+    def test_a_bracket_outside_any_interpolation_is_code(self):
+        reading = code_reader.read("f({}) } // why\n", TEMPLATED)
+        self.assertEqual(reading.comments, (Comment("line", "// why", 1, 1),))
+
+    def test_an_interpolation_that_never_closes_leaves_the_rest_of_the_file_as_code(self):
+        reading = code_reader.read("x = `a ${ b\n// why\n", TEMPLATED)
+        self.assertEqual(reading.comments, (Comment("line", "// why", 2, 2),))
+        self.assertEqual(reading.blanked, "x =       b\n      \n")
 
 
 RUST_SOURCE = (

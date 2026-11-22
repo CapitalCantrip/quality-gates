@@ -280,6 +280,105 @@
       ]
     },
     {
+      "id": "no-comments-typescript",
+      "name": "No code comments in TypeScript",
+      "description": "Stops comments from creeping into TypeScript code: shows the ones already there, records them as debt and blocks new ones.",
+      "core": false,
+      "languages": [
+        "typescript"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "command",
+          "id": "comment-debt"
+        },
+        {
+          "kind": "baseline",
+          "id": "comment-debt.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "comment-debt-typescript",
+          "file": "skills/setup-standards/SKILL.md",
+          "marker": "comment-debt"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "comment-debt",
+          "marker": "comment-debt"
+        }
+      ]
+    },
+    {
+      "id": "no-comments-swift",
+      "name": "No code comments in Swift",
+      "description": "Stops comments from creeping into Swift code: shows the ones already there, records them as debt and blocks new ones.",
+      "core": false,
+      "languages": [
+        "swift"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "command",
+          "id": "comment-debt"
+        },
+        {
+          "kind": "baseline",
+          "id": "comment-debt.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "comment-debt-swift",
+          "file": "skills/setup-standards/SKILL.md",
+          "marker": "comment-debt"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "comment-debt",
+          "marker": "comment-debt"
+        }
+      ]
+    },
+    {
+      "id": "no-comments-shell",
+      "name": "No code comments in Shell",
+      "description": "Stops comments from creeping into Shell code: shows the ones already there, records them as debt and blocks new ones.",
+      "core": false,
+      "languages": [
+        "shell"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "command",
+          "id": "comment-debt"
+        },
+        {
+          "kind": "baseline",
+          "id": "comment-debt.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "comment-debt-shell",
+          "file": "skills/setup-standards/SKILL.md",
+          "marker": "comment-debt"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "comment-debt",
+          "marker": "comment-debt"
+        }
+      ]
+    },
+    {
       "id": "complexity-python",
       "name": "Complexity gate for Python",
       "description": "Flags Python functions that are too tangled to follow, and proposes how to simplify them.",
