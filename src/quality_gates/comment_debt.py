@@ -9,7 +9,7 @@ import tokenize
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Optional
 
 from quality_gates import code_reader, languages, project_files, ratchet
 from quality_gates.errors import Untagged
@@ -79,30 +79,105 @@ def debt_lines(source):
     return sorted(comment_lines(source) | string_lines(source))
 
 
-def read_debt_lines(syntax, source):
-    comments = code_reader.read(source, syntax).comments
-    return sorted({line for comment in comments for line in range(comment.start, comment.end + 1)})
+SAFETY_START = "// SAFETY:"
+UNSAFE_BELOW = re.compile(r"\bunsafe\s*\{|^\s*unsafe\s+impl\b")
+
+
+def own_line_comments(reading, source):
+    lines = source.split(code_reader.NEWLINE)
+    return {
+        comment.start: comment for comment in reading.comments
+        if comment.kind == code_reader.LINE and lines[comment.start - 1].strip() == comment.text.strip()
+    }
+
+
+def run_from(own, number):
+    run = [number]
+    while run[-1] + 1 in own:
+        run.append(run[-1] + 1)
+    return run
+
+
+def unsafe_below(code, line):
+    return line < len(code) and bool(UNSAFE_BELOW.search(code[line]))
+
+
+def safety_comments(reading, source):
+    own, code = own_line_comments(reading, source), reading.blanked.split(code_reader.NEWLINE)
+    runs = [run_from(own, number) for number, comment in own.items() if comment.text.startswith(SAFETY_START)]
+    return {own[number] for run in runs if unsafe_below(code, run[-1]) for number in run}
+
+
+@dataclass(frozen=True)
+class CommentSyntax:
+    syntax: code_reader.Syntax
+    pragma: re.Pattern
+    conventions: dict
+
+
+def allowed_by(language, conventions, reading, source):
+    return set().union(*(language.conventions[name](reading, source) for name in conventions
+                         if name in language.conventions))
+
+
+def read_debt_lines(language, source, conventions):
+    reading = code_reader.read(source, language.syntax)
+    allowed = allowed_by(language, conventions, reading, source)
+    counted = [c for c in reading.comments if c not in allowed and not language.pragma.fullmatch(c.text)]
+    return sorted({line for comment in counted for line in range(comment.start, comment.end + 1)})
+
+
+RUST = CommentSyntax(code_reader.Syntax(
+    line=("//",),
+    block=(("/*", "*/"),),
+    nested=True,
+    doc=(r"///(?!/)", r"//!", r"/\*\*(?![*/])", r"/\*!"),
+    literals=(
+        code_reader.Literal(r'r#*"', r'r(#*)"[\s\S]*?"\1'),
+        code_reader.Literal(r'"', r'"(?:\\[\s\S]|[^"\\])*"'),
+        code_reader.Literal(r"'", r"'(?:\\(?:u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|[\s\S])|[^'\\\n])'"),
+    ),
+), re.compile(r"//\s*@generated\s*"), {"rust-safety": safety_comments})
 
 
 @dataclass(frozen=True)
 class CommentLanguage:
     component: str
-    checker: Callable
+    syntax: Optional[CommentSyntax] = None
+
+    def checker(self, source, conventions):
+        if self.syntax is None:
+            return debt_lines(source)
+        return read_debt_lines(self.syntax, source, conventions)
+
+    def conventions(self):
+        return frozenset(self.syntax.conventions) if self.syntax else frozenset()
 
 
 LANGUAGES = {
-    "python": CommentLanguage("no-comments", debt_lines),
-    "rust": CommentLanguage("no-comments-rust", functools.partial(read_debt_lines, code_reader.Syntax(line=("//",)))),
+    "python": CommentLanguage("no-comments"),
+    "rust": CommentLanguage("no-comments-rust", RUST),
 }
+
+
+def allowed_conventions():
+    return frozenset().union(*(row.conventions() for row in LANGUAGES.values()))
+
+
 EXCLUDE_REFUSAL = (
     "comment-debt: --exclude is removed. Run /setup-standards: it moves the --exclude prefixes of your "
     "comment-debt commands into settings.no-comments.exclude in quality-gates.json, and the gate reads them there."
 )
 
 
+def checker_of(name, choice):
+    return functools.partial(LANGUAGES[name].checker, conventions=choice.conventions if choice else ())
+
+
 def checked_files(root):
+    choice = project_files.checked_choice(root)
     return {
-        path: row.checker
+        path: checker_of(name, choice)
         for name, row in LANGUAGES.items()
         for path in project_files.comment_gate_files(root, row.component, languages.suffixes_of([name]))
     }
@@ -130,13 +205,13 @@ def findings(root, listed=checked_files):
 
 
 def files_before_choosing(root, name):
-    suffixes = languages.suffixes_of([name])
-    return {path: LANGUAGES[name].checker for path in project_files.comment_gate_files_before_choosing(root, suffixes)}
+    suffixes, checker = languages.suffixes_of([name]), checker_of(name, project_files.checked_choice(root))
+    return {path: checker for path in project_files.comment_gate_files_before_choosing(root, suffixes)}
 
 
 def files_on_choosing(root, names, choice):
     return {
-        path: LANGUAGES[name].checker
+        path: checker_of(name, choice)
         for name in names
         for path in project_files.comment_gate_files_under(root, choice, languages.suffixes_of([name]))
     }
