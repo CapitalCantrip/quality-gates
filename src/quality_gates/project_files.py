@@ -59,6 +59,7 @@ CHOICE_REQUIRED = ("format_version", "languages", "exclude", "components", "comm
 COMPONENTS_REQUIRED = ("chosen", "declined")
 COMMENT_GATE = "no-comments"
 COMMENT_GATE_REQUIRED = ("exclude", "conventions")
+ON_WITHOUT_A_CHOICE_FILE = frozenset({COMMENT_GATE})
 RECOGNISED_CONVENTIONS = frozenset({"rust-safety"})
 DEFAULT_COMMIT_TIME_LIMIT_SECONDS = 2
 KEPT_BY_QUALITY_GATES = (".claude/skills/", ".claude/hooks/", PRE_COMMIT_HOOK)
@@ -402,20 +403,27 @@ def scope_of(root, excluded=None):
 
 
 def is_chosen(choice, component):
-    return choice is None or choice.recorded(component) == CHOSEN
+    if choice is None:
+        return component in ON_WITHOUT_A_CHOICE_FILE
+    return choice.recorded(component) == CHOSEN
 
 
 def comment_gate_skips(choice, scope):
     return scope.excluded if choice is None else scope.excluded + choice.comment_gate_exclude
 
 
-def comment_gate_files(root, component, suffixes):
-    choice = checked_choice(root)
-    if not is_chosen(choice, component):
-        return []
+def comment_gate_is_on(root, component):
+    return is_chosen(checked_choice(root), component)
+
+
+def comment_gate_files_before_choosing(root, suffixes):
     scope = scope_of(root)
-    skipped = comment_gate_skips(choice, scope)
+    skipped = comment_gate_skips(checked_choice(root), scope)
     return sorted(name for name in scope.listed if name.endswith(suffixes) and not excluded_by(name, skipped))
+
+
+def comment_gate_files(root, component, suffixes):
+    return comment_gate_files_before_choosing(root, suffixes) if comment_gate_is_on(root, component) else []
 
 
 def first_line(path):

@@ -87,6 +87,7 @@ class Asked:
     baseline: Optional[Path] = None
     updating: bool = False
     judged: bool = True
+    recording: bool = False
 
 
 def location(root, file, function) -> Location:
@@ -255,6 +256,15 @@ def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=
     return Settled(findings, judge(findings, counts), unmeasured, counts)
 
 
+def record_debt(find: Callable[[], list], file: Path, root=None, out=None) -> Settled:
+    find = keyed(find, root)
+    stored = stored_baseline(file, True, out) or {}
+    findings = find()
+    counts = {key: number for key, number in strongest(findings).items() if number}
+    write(file, dict(sorted({**stored, **counts}.items())), out)
+    return Settled(findings, judge(findings, counts), frozenset(unmeasured_keys(findings)), counts)
+
+
 def describe_over(settled: Settled, out):
     for verdict in settled.failed:
         was = "new" if verdict.allowed is None else f"baseline allows {verdict.allowed}"
@@ -336,6 +346,10 @@ def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNC
         return NOT_JUDGED
     if asked.baseline is None:
         return judge(find(), {})
+    if asked.recording:
+        settled = record_debt(find, asked.baseline, root, out)
+        wording.recorded(settled.recorded, out)
+        return settled.result
     settled = settle(find, asked.baseline, asked.updating, root, out)
     describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result

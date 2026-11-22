@@ -247,6 +247,39 @@
       ]
     },
     {
+      "id": "no-comments-rust",
+      "name": "No code comments in Rust",
+      "description": "Stops comments from creeping into Rust code: shows the ones already there, records them as debt and blocks new ones.",
+      "core": false,
+      "languages": [
+        "rust"
+      ],
+      "origin": {
+        "type": "ours"
+      },
+      "parts": [
+        {
+          "kind": "command",
+          "id": "comment-debt"
+        },
+        {
+          "kind": "baseline",
+          "id": "comment-debt.json"
+        },
+        {
+          "kind": "ci_step",
+          "id": "comment-debt-rust",
+          "file": "skills/setup-standards/SKILL.md",
+          "marker": "comment-debt"
+        },
+        {
+          "kind": "precommit_step",
+          "id": "comment-debt",
+          "marker": "comment-debt"
+        }
+      ]
+    },
+    {
       "id": "complexity-python",
       "name": "Complexity gate for Python",
       "description": "Flags Python functions that are too tangled to follow, and proposes how to simplify them.",

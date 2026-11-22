@@ -1,3 +1,4 @@
+import contextlib
 import io
 import json
 import subprocess
@@ -6,7 +7,7 @@ import unittest
 from pathlib import Path
 
 from quality_gates import comment_debt as cd
-from quality_gates import ratchet
+from quality_gates import ratchet, setup_choices
 
 REPO = Path(__file__).resolve().parents[1]
 
@@ -222,6 +223,60 @@ class RepositoryTest(unittest.TestCase):
         self.run_gate('--update')
         self.assertEqual(self.baseline(), {'a.py': 1})
 
+    def test_rust_is_checked_when_the_choice_file_chooses_no_comments_rust(self):
+        self.choose(chosen=['no-comments', 'no-comments-rust'])
+        self.put('main.rs', 'fn main() {\n    // a comment\n}\n')
+        self.file.write_text('{"main.rs": 1}\n')
+        self.assertEqual(self.run_gate(), (0, 'comment debt: 1 lines in 1 files, none new\n'))
+
+    def test_rust_is_not_checked_when_the_choice_file_does_not_choose_no_comments_rust(self):
+        self.choose()
+        self.put('main.rs', 'fn main() {\n    // a comment\n}\n')
+        self.file.write_text('{}\n')
+        self.assertEqual(self.run_gate(), (0, 'comment debt: 0 lines in 0 files, none new\n'))
+
+    def test_rust_is_not_checked_without_a_choice_file(self):
+        self.put('main.rs', 'fn main() {\n    // a comment\n}\n')
+        self.file.write_text('{}\n')
+        self.assertEqual(self.run_gate(), (0, 'comment debt: 0 lines in 0 files, none new\n'))
+
+    def test_update_still_refuses_to_add_an_entry_for_a_chosen_language(self):
+        self.choose(chosen=['no-comments', 'no-comments-rust'])
+        self.put('main.rs', 'fn main() {\n    // a comment\n}\n')
+        self.file.write_text('{}\n')
+        code, out = self.run_gate('--update')
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL main.rs: 1 comment lines, baseline allows 0', out)
+        self.assertIn(cd.UPDATE_REFUSAL, out)
+        self.assertEqual(self.file.read_text(), '{}\n')
+
+    def test_the_report_totals_one_languages_comments_before_it_is_chosen_and_judges_nothing(self):
+        self.choose()
+        self.put('a.py', '# one\n')
+        self.put('main.rs', '// one\nfn main() {\n    // two\n}\n')
+        self.put('lib.rs', '// three\n')
+        self.put('plain.rs', 'fn f() {}\n')
+        self.assertEqual(self.run_gate('--report', 'rust'), (0, '# Rust comment debt: 3 lines in 2 files\n'))
+        self.assertFalse(self.file.exists())
+
+    def test_record_adds_one_languages_entries_before_it_is_chosen_and_leaves_the_rest(self):
+        self.choose()
+        self.put('a.py', '# one\n')
+        self.put('main.rs', '// one\nfn main() {\n    // two\n}\n')
+        self.put('plain.rs', 'fn f() {}\n')
+        self.file.write_text('{\n  "a.py": 1,\n  "old.py": 4\n}\n')
+        self.assertEqual(self.run_gate('--record', 'rust'), (0, 'baseline: 2 lines in 1 files\n'))
+        self.assertEqual(self.file.read_text(), '{\n  "a.py": 1,\n  "main.rs": 2,\n  "old.py": 4\n}\n')
+
+    def test_record_is_refused_for_a_language_already_checked_and_writes_nothing(self):
+        self.choose(chosen=['no-comments', 'no-comments-rust'])
+        self.put('main.rs', '// one\n')
+        self.file.write_text('{}\n')
+        code, out = self.run_gate('--record', 'rust')
+        self.assertEqual(code, 2)
+        self.assertIn('no-comments-rust is chosen', out)
+        self.assertEqual(self.file.read_text(), '{}\n')
+
     def test_the_exclude_flag_is_refused_and_names_setup_standards(self):
         self.put('a.py', 'x = 1\n')
         for argv in (['--exclude', 'x'], ['--exclude=x'], ['--status', '--exclude', 'x'], ['--update', '--exclude', 'x']):
@@ -259,6 +314,56 @@ class RepositoryTest(unittest.TestCase):
         code, out = self.run_gate('--status')
         self.assertEqual(code, 0)
         self.assertIn('## pkg — 1 lines', out)
+
+
+class AcceptingRustEndToEndTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
+        self.file = self.root / 'comment-debt.json'
+        (self.root / 'src').mkdir()
+        (self.root / 'src' / 'app.py').write_text('# why\nx = 1\n')
+        (self.root / 'main.rs').write_text('fn main() {\n    // a comment\n}\n')
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def setup(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = setup_choices.main(list(argv), root=self.root)
+        self.assertEqual(code, 0, err.getvalue())
+        return out.getvalue()
+
+    def gate(self, *argv):
+        out = io.StringIO()
+        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
+
+    def offered(self):
+        rows = json.loads(self.setup('--json'))['components']
+        return next(row['choice'] for row in rows if row['id'] == 'no-comments-rust')
+
+    def test_setup_offers_rust_shows_its_total_records_it_beside_python_and_then_new_rust_comments_fail(self):
+        self.setup('--go', '--choose', 'no-comments')
+        self.assertEqual(self.gate('--update'), (0, 'baseline: 1 lines in 1 files\n'))
+        python_only = self.file.read_text()
+
+        self.assertEqual(self.offered(), 'offered')
+        self.assertEqual(self.gate('--report', 'rust'), (0, '# Rust comment debt: 1 lines in 1 files\n'))
+        self.assertEqual(self.gate('--record', 'rust')[0], 0)
+        self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})
+        self.assertEqual(self.file.read_text().replace('  "main.rs": 1,\n', ''), python_only)
+
+        self.setup('--go', '--choose', 'no-comments-rust')
+        self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 2 files, none new\n'))
+
+        (self.root / 'main.rs').write_text('fn main() {\n    // a comment\n    // another\n}\n')
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL main.rs: 2 comment lines, baseline allows 1 — lines 2, 3', out)
+
 
 class LiveRepositoryTest(unittest.TestCase):
 

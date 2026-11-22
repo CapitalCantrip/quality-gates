@@ -13,7 +13,7 @@ HEADER = "| Language | comment-debt | cc-check | crap | Components installed for
 EVERY_LANGUAGE = "core, design-helpers, session-helpers"
 PYTHON_ROW = "| Python | scores | scores | scores | core, no-comments, complexity-python, crap, design-helpers, session-helpers |"
 SWIFT_ROW = "| Swift | — | — | scores | core, complexity-swift, crap, design-helpers, session-helpers |"
-RUST_ROW = "| Rust | — | — | — | core, complexity-rust, design-helpers, session-helpers |"
+RUST_ROW = "| Rust | scores | — | — | core, no-comments-rust, complexity-rust, design-helpers, session-helpers |"
 SHELL_ROW = f"| Shell | — | — | — | {EVERY_LANGUAGE} |"
 
 

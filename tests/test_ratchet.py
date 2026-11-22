@@ -251,6 +251,45 @@ class SettleTest(unittest.TestCase):
         self.assertEqual(ratchet.exit_code(result), 1)
 
 
+class RecordingTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.file = Path(tmp.name) / "baseline.json"
+
+    def record(self, found):
+        out = io.StringIO()
+        result = ratchet.enforce(lambda: found, ratchet.Asked(self.file, recording=True), out, cd.WORDING)
+        return result, out.getvalue()
+
+    def test_recording_adds_an_entry_for_each_location_with_debt_and_keeps_every_other_entry_byte_for_byte(self):
+        before = '{\n  "z.py": 3,\n  "zz.py": 1.5\n}\n'
+        self.file.write_text(before)
+        result, out = self.record([finding("a.rs", 2), finding("b.rs", 0)])
+        self.assertEqual(self.file.read_text(), '{\n  "a.rs::f": 2,\n' + before[2:])
+        self.assertEqual(ratchet.exit_code(result), 0)
+        self.assertEqual(out, "baseline: 2 lines in 1 files\n")
+
+    def test_recording_sets_the_entry_of_each_location_it_finds_to_its_count_now(self):
+        self.file.write_text('{\n  "a.rs::f": 5,\n  "z.py": 3\n}\n')
+        self.record([finding("a.rs", 2)])
+        self.assertEqual(json.loads(self.file.read_text()), {"a.rs::f": 2, "z.py": 3})
+
+    def test_recording_without_a_baseline_file_creates_one(self):
+        self.record([finding("a.rs", 2)])
+        self.assertEqual(json.loads(self.file.read_text()), {"a.rs::f": 2})
+
+    def test_recording_leaves_a_malformed_baseline_alone_and_did_not_run(self):
+        self.file.write_text("[]")
+
+        def gate(argv, root):
+            return ratchet.enforce(lambda: [finding("a.rs", 2)], ratchet.Asked(self.file, recording=True), io.StringIO())
+
+        self.assertEqual(ratchet.exit_code(ratchet.result_of(gate, [], None, "[t] ", io.StringIO())), 2)
+        self.assertEqual(self.file.read_text(), "[]")
+
+
 class SharedKeyTest(unittest.TestCase):
 
     def setUp(self):

@@ -9,7 +9,7 @@ import tokenize
 import warnings
 from pathlib import Path
 
-from quality_gates import languages, project_files, ratchet
+from quality_gates import code_reader, languages, project_files, ratchet
 from quality_gates.errors import Untagged
 
 
@@ -71,15 +71,29 @@ def debt_lines(source):
     return sorted(comment_lines(source) | string_lines(source))
 
 
+def read_debt_lines(syntax, source):
+    comments = code_reader.read(source, syntax).comments
+    return sorted({line for comment in comments for line in range(comment.start, comment.end + 1)})
+
+
+SYNTAX = {
+    "rust": code_reader.Syntax(line=("//",)),
+}
 LANGUAGES = {
     "python": debt_lines,
+    **{name: functools.partial(read_debt_lines, syntax) for name, syntax in SYNTAX.items()},
 }
 COMPONENT_OF = {
     "python": "no-comments",
+    "rust": "no-comments-rust",
 }
 EXCLUDE_REFUSAL = (
     "comment-debt: --exclude is removed. Run /setup-standards: it moves the --exclude prefixes of your "
     "comment-debt commands into settings.no-comments.exclude in quality-gates.json, and the gate reads them there."
+)
+RECORD_REFUSAL = (
+    "comment-debt: {component} is chosen, so {label} comments are already checked. --record takes a language only "
+    "before /setup-standards switches it on; new comments fail, and paid-down ones leave the baseline through --update."
 )
 
 
@@ -104,8 +118,22 @@ def to_finding(path, lines):
     return ratchet.Finding(ratchet.Location(path), len(lines), FINDING_KIND, ", ".join(str(n) for n in lines))
 
 
-def findings(root):
-    return [to_finding(path, lines) for path, lines in sorted(measure(root, files_in_scope(root)).items())]
+def findings(root, listed=files_in_scope):
+    return [to_finding(path, lines) for path, lines in sorted(measure(root, listed(root)).items())]
+
+
+def files_before_choosing(root, name):
+    suffixes = languages.suffixes_of([name])
+    return {path: LANGUAGES[name] for path in project_files.comment_gate_files_before_choosing(root, suffixes)}
+
+
+def one_language(name):
+    return functools.partial(files_before_choosing, name=name)
+
+
+def debt_report(root, name, out):
+    owed = [finding.number for finding in findings(root, one_language(name)) if finding.number]
+    out.write(f"# {languages.LANGUAGES[name].label} comment debt: {sum(owed)} lines in {len(owed)} files\n")
 
 
 def describe_failed(settled, out):
@@ -188,15 +216,39 @@ def parse_args(argv):
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
+    mode.add_argument("--report", choices=sorted(LANGUAGES), metavar="LANGUAGE",
+                      help="print one language's comment debt, chosen or not")
+    mode.add_argument("--record", choices=sorted(LANGUAGES), metavar="LANGUAGE",
+                      help="record one language's comments as debt, before it is chosen")
     parser.add_argument("--baseline", help=f"baseline file (default: {project_files.COMMENT_DEBT_BASELINE} at the repo root)")
     parser.add_argument("--exclude", action="append", default=[], help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
 def asked(args, root, baseline) -> ratchet.Asked:
-    if args.status:
+    if args.status or args.report:
         return ratchet.Asked(judged=False)
-    return ratchet.Asked(Path(baseline or args.baseline or project_files.comment_debt_baseline(root)), args.update)
+    return ratchet.Asked(Path(baseline or args.baseline or project_files.comment_debt_baseline(root)), args.update,
+                         recording=args.record is not None)
+
+
+def recorded_files(root, name):
+    component = COMPONENT_OF[name]
+    if project_files.comment_gate_is_on(root, component):
+        raise Untagged(RECORD_REFUSAL.format(component=component, label=languages.LANGUAGES[name].label))
+    return one_language(name)
+
+
+def found_by(args, root):
+    listed = files_in_scope if args.record is None else recorded_files(root, args.record)
+    return functools.partial(findings, root, listed)
+
+
+def shown_first(args, root, out):
+    if args.status:
+        status(root, out)
+    if args.report:
+        debt_report(root, args.report, out)
 
 
 def gate(argv, root, baseline=None, out=None):
@@ -207,9 +259,8 @@ def gate(argv, root, baseline=None, out=None):
     if args.baseline is not None and not args.baseline.strip():
         raise Untagged("--baseline was given an empty path")
     root = root or project_files.git_root()
-    if args.status:
-        status(root, out)
-    return ratchet.enforce(functools.partial(findings, root), asked(args, root, baseline), out, WORDING)
+    shown_first(args, root, out)
+    return ratchet.enforce(found_by(args, root), asked(args, root, baseline), out, WORDING)
 
 
 def main(argv=None, root=None, baseline=None, out=None):

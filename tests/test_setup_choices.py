@@ -34,6 +34,14 @@ FRESH = {"id": "fresh", "name": "Fresh gate", "description": "A gate a later rel
 FRESH_WITH_SKILL = {"id": "fresh", "name": "Fresh gate", "description": "A component a later release adds.",
                     "core": False, "languages": ["python"], "origin": OURS,
                     "parts": [{"kind": "skill", "id": "fresh-skill"}, {"kind": "baseline", "id": "fresh-baseline.json"}]}
+COMMENTS = {"id": "comments", "name": "No comments", "description": "Blocks new Python comments.", "core": False,
+            "languages": ["python"], "origin": OURS,
+            "parts": [{"kind": "command", "id": "comment-debt"}, {"kind": "baseline", "id": "comment-debt.json"},
+                      {"kind": "precommit_step", "id": "comment-debt", "marker": "comment-debt"}]}
+COMMENTS_RUST = {"id": "comments-rust", "name": "No Rust comments", "description": "Blocks new Rust comments.",
+                 "core": False, "languages": ["rust"], "origin": OURS,
+                 "parts": [{"kind": "command", "id": "comment-debt"}, {"kind": "baseline", "id": "comment-debt.json"},
+                           {"kind": "precommit_step", "id": "comment-debt", "marker": "comment-debt"}]}
 ABSENT = {"id": "absent", "name": "Absent", "description": "A component nothing installed.", "core": False,
           "languages": [], "origin": OURS, "parts": [{"kind": "baseline", "id": "absent-baseline.json"}]}
 
@@ -180,6 +188,28 @@ class Setup(unittest.TestCase):
         self.run_setup("--go", manifest=with_absent)
         self.assertEqual((self.recorded().chosen, self.recorded().declined), (("helpers", "risk"), ()))
         self.assertEqual(self.choice_of(self.proposal(manifest=with_absent), "absent"), "offered")
+
+    def set_up_with_python_comments_and_rust_code(self):
+        self.write(self.repo / "src" / "app.py", "x = 1\n")
+        self.write(self.repo / "main.rs", "fn main() {}\n")
+        self.write(self.repo / "comment-debt.json", "{}\n")
+        self.write(self.repo / ".githooks" / "pre-commit", "#!/bin/sh\ncomment-debt\n")
+        return manifest_of(CORE, COMMENTS, COMMENTS_RUST)
+
+    def test_a_language_component_sharing_every_part_with_one_already_installed_is_offered_not_chosen(self):
+        with_rust = self.set_up_with_python_comments_and_rust_code()
+        proposal = self.proposal(manifest=with_rust)
+        self.assertEqual((self.choice_of(proposal, "comments"), self.choice_of(proposal, "comments-rust")),
+                         ("chosen", "offered"))
+        self.run_setup("--go", manifest=with_rust)
+        self.assertEqual(self.recorded().chosen, ("comments",))
+
+    def test_declining_a_language_component_whose_parts_another_component_installed_is_not_loosening(self):
+        with_rust = self.set_up_with_python_comments_and_rust_code()
+        self.run_setup("--go", manifest=with_rust)
+        code, _, err = self.run_setup("--decline", "comments-rust", "--go", manifest=with_rust)
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.recorded().declined, ("comments-rust",))
 
     def copy_skills_only(self):
         self.write(self.repo / "pyproject.toml", "[project]\nname = 'consumer'\n")
