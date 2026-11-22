@@ -40,6 +40,8 @@ one. "Reason unknown" is allowed at setup and flagged separately.
 
 ### Who writes them
 
+Amended by: [Addendum 2026-11-23: warn before a review date; reasons count as tolerated growth](#addendum-2026-11-23-warn-before-a-review-date-reasons-count-as-tolerated-growth)
+
 The agent may write and renew a recorded reason for one case. A renewal is
 never silent: the next checkpoint lists what was renewed, why, and the new
 date (ADR-008).
@@ -59,6 +61,8 @@ This is a rule with visibility, not a lock: GitHub cannot tell the builder's
 merge from an agent's under the same account.
 
 ### Review dates
+
+Amended by: [Addendum 2026-11-23: warn before a review date; reasons count as tolerated growth](#addendum-2026-11-23-warn-before-a-review-date-reasons-count-as-tolerated-growth)
 
 A loosening needs a review date at most 90 days away, renewed only by the
 builder's yes through the same route. When a date passes or a trigger fires,
@@ -108,3 +112,60 @@ nothing project-wide is loosened before the checkpoint can show it.
   would stay off.
 - **Shipping both ADRs in one release.** Loosening would be allowed before
   anything shows it to the builder.
+
+## Addendum 2026-11-23: warn before a review date; reasons count as tolerated growth
+
+Amends: [Who writes them](#who-writes-them), [Review dates](#review-dates)
+
+The builder decided both in a grilling session on #115 (2026-11-23). The
+design review of 2026-11-11 asked for them (section 9, the comment on #115).
+
+**A passed review date warns on commit and fails on the pull request.** A
+commit is often unrelated work, and a date passing looks to the agent like a
+gate failing at random. So:
+
+- The review date is the last day a record holds, compared in UTC so a laptop
+  and CI agree on the day.
+- From 14 days before the date, `qg run commit` and `qg status` warn. A record
+  allowed fewer than 14 days, such as a critical dependency flaw at 7, warns
+  from the day it is written.
+- After the date, `qg run commit` still only warns. `qg run ci` on a pull
+  request fails until the record is renewed or removed. CI on the main branch
+  warns, so a merge that lands just after midnight does not turn main red.
+- The agent may renew or remove a reason for one case in the same pull
+  request. A lapsed loosening blocks every pull request until the builder
+  merges its own renewal pull request, which is how the builder is asked.
+
+**Triggers are unchanged.** A dependency version and a function edited (#134)
+fire on the change that caused them; an issue closing fires in CI only. None
+of them lands on unrelated work, and none can be warned about ahead.
+
+**Recorded reasons are part of the tolerated list (#192).** #192 fails CI when
+the tolerated list grows without the builder's label. The reasons file is in
+that list, so:
+
+- A new record, including "reason unknown" at setup, is growth and needs the
+  builder's label. The agent still writes it; the label is the yes. This
+  replaces "the agent may write a recorded reason for one case" without asking.
+- A renewal is not growth and needs no label. #192's one line names it, such
+  as "1 reason renewed to 2027-02-20", and the next checkpoint lists it as
+  before.
+- On a loosening pull request, the `loosening` label counts as the builder's
+  label for #192.
+- #192 ships first; #115 adds the reasons file to its check.
+
+Rejected:
+
+- **Failing the commit once a date passes.** It stops unrelated work and looks
+  random.
+- **A warning period set as a share of each record's life.** Harder to
+  predict, and `qg status` already flags 14 days.
+- **Every renewal in a pull request of its own.** Unrelated work would stall on
+  a separate pull request each time.
+- **Treating triggers like dates.** They already fire on related work.
+- **Reasons counted but never failing #192.** A well-worded reason would stay
+  a quiet way past a gate.
+- **A renewal needing the builder's label.** Every lapsed single-case reason
+  would wait on the builder.
+- **Both labels on a loosening pull request.** The loosening route is already
+  stricter.
