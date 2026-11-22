@@ -26,7 +26,6 @@ ASKING_LINE = (
     "would notice, and a recommendation with its reason (`standards` skill, *ask the builder*)."
 )
 GIT_ROOT = ("git", "rev-parse", "--show-toplevel")
-TRACKED_FILES = ("git", "ls-files")
 FILES_GIT_WOULD_COMMIT = ("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
 NOT_A_GIT_REPO = (
     "not inside a git repository: quality-gates looks at the files git would commit, so run it inside the "
@@ -282,14 +281,6 @@ def root_of_skills_folder(dest):
     return dest.resolve().parent.parent
 
 
-def tracked_files(root, suffixes, excluded=()):
-    listing = subprocess.run(
-        [*TRACKED_FILES, *(f"*{suffix}" for suffix in suffixes)],
-        cwd=root, check=True, capture_output=True, text=True,
-    ).stdout.splitlines()
-    return [p for p in listing if not p.startswith(tuple(excluded))]
-
-
 def workflow_files(root):
     folder = root / WORKFLOWS
     if not folder.is_dir():
@@ -392,11 +383,15 @@ def default_exclusions(listed):
     return tuple(prefix for prefix in found if not excluded_by(prefix, tuple(other for other in found if other != prefix)))
 
 
-def scope_exclusions(root, listed):
+def checked_choice(root):
     try:
-        choice = read_choice(root)
+        return read_choice(root)
     except BrokenFileError as error:
         raise ToolError(str(error)) from error
+
+
+def scope_exclusions(root, listed):
+    choice = checked_choice(root)
     return default_exclusions(listed) if choice is None else choice.exclude
 
 
@@ -404,6 +399,23 @@ def scope_of(root, excluded=None):
     listed = committable_files(root)
     excluded = scope_exclusions(root, listed) if excluded is None else tuple(excluded)
     return Scope(os.path.realpath(root), listed, listed | parent_folders(listed), excluded)
+
+
+def is_chosen(choice, component):
+    return choice is None or choice.recorded(component) == CHOSEN
+
+
+def comment_gate_skips(choice, scope):
+    return scope.excluded if choice is None else scope.excluded + choice.comment_gate_exclude
+
+
+def comment_gate_files(root, component, suffixes):
+    choice = checked_choice(root)
+    if not is_chosen(choice, component):
+        return []
+    scope = scope_of(root)
+    skipped = comment_gate_skips(choice, scope)
+    return sorted(name for name in scope.listed if name.endswith(suffixes) and not excluded_by(name, skipped))
 
 
 def first_line(path):

@@ -344,7 +344,7 @@ class CommentDebtFindsTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "add", "a.py", "pkg/b.py"], check=True)
 
     def located(self):
-        return [f.location for f in cd.findings(self.root, [])]
+        return [f.location for f in cd.findings(self.root)]
 
     def test_the_same_code_gives_the_same_locations_on_two_runs(self):
         first = self.located()

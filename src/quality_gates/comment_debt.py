@@ -74,13 +74,20 @@ def debt_lines(source):
 LANGUAGES = {
     "python": debt_lines,
 }
+COMPONENT_OF = {
+    "python": "no-comments",
+}
+EXCLUDE_REFUSAL = (
+    "comment-debt: --exclude is removed. Run /setup-standards: it moves the --exclude prefixes of your "
+    "comment-debt commands into settings.no-comments.exclude in quality-gates.json, and the gate reads them there."
+)
 
 
-def tracked_files(root, excluded):
+def files_in_scope(root):
     return {
         path: checker
         for name, checker in LANGUAGES.items()
-        for path in project_files.tracked_files(root, languages.suffixes_of([name]), excluded)
+        for path in project_files.comment_gate_files(root, COMPONENT_OF[name], languages.suffixes_of([name]))
     }
 
 
@@ -97,8 +104,8 @@ def to_finding(path, lines):
     return ratchet.Finding(ratchet.Location(path), len(lines), FINDING_KIND, ", ".join(str(n) for n in lines))
 
 
-def findings(root, excluded):
-    return [to_finding(path, lines) for path, lines in sorted(measure(root, tracked_files(root, excluded)).items())]
+def findings(root):
+    return [to_finding(path, lines) for path, lines in sorted(measure(root, files_in_scope(root)).items())]
 
 
 def describe_failed(settled, out):
@@ -160,8 +167,8 @@ def write_area(name, rows, out):
         out.write(f"{count:5} {flagged:4}  {path}\n")
 
 
-def status(root, excluded, out):
-    current = {p: ls for p, ls in measure(root, tracked_files(root, excluded)).items() if ls}
+def status(root, out):
+    current = {p: ls for p, ls in measure(root, files_in_scope(root)).items() if ls}
     areas = group_by_area(root, current)
     total = sum(len(ls) for ls in current.values())
     out.write(f"# Comment debt: {total} lines in {len(current)} files\n\n")
@@ -176,13 +183,13 @@ def labels():
 
 def parse_args(argv):
     parser = argparse.ArgumentParser(
-        description=f"Ratchet on comment lines in tracked {labels()} files.",
+        description=f"Ratchet on comment lines in {labels()} files in scope.",
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
     parser.add_argument("--baseline", help=f"baseline file (default: {project_files.COMMENT_DEBT_BASELINE} at the repo root)")
-    parser.add_argument("--exclude", action="append", default=[], metavar="PREFIX", help="skip tracked paths with this prefix")
+    parser.add_argument("--exclude", action="append", default=[], help=argparse.SUPPRESS)
     return parser.parse_args(argv)
 
 
@@ -195,12 +202,14 @@ def asked(args, root, baseline) -> ratchet.Asked:
 def gate(argv, root, baseline=None, out=None):
     out = sys.stdout if out is None else out
     args = parse_args(argv)
+    if args.exclude:
+        raise Untagged(EXCLUDE_REFUSAL)
     if args.baseline is not None and not args.baseline.strip():
         raise Untagged("--baseline was given an empty path")
     root = root or project_files.git_root()
     if args.status:
-        status(root, args.exclude, out)
-    return ratchet.enforce(functools.partial(findings, root, args.exclude), asked(args, root, baseline), out, WORDING)
+        status(root, out)
+    return ratchet.enforce(functools.partial(findings, root), asked(args, root, baseline), out, WORDING)
 
 
 def main(argv=None, root=None, baseline=None, out=None):

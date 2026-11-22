@@ -70,9 +70,10 @@ class CheckTest(PinTest):
         expected = "PAID a.py: 0 lines, baseline still says 2\n" + BEHIND_LINE
         self.assertRan(made.run(COMMENT_DEBT), 1, expected)
 
-    def test_a_baselined_file_that_is_no_longer_tracked_is_reported_gone_and_exit_1(self):
+    def test_a_baselined_file_that_is_deleted_and_no_longer_tracked_is_reported_gone_and_exit_1(self):
         made = self.baselined({"a.py": TWO_COMMENTS, "b.py": CLEAN}, '{\n  "a.py": 2\n}\n')
         made.untrack("a.py")
+        (made.root / "a.py").unlink()
         expected = "GONE a.py: in the baseline but no longer tracked\n" + BEHIND_LINE
         self.assertRan(made.run(COMMENT_DEBT), 1, expected)
 

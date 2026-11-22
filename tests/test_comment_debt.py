@@ -1,11 +1,9 @@
 import io
 import json
-import os
 import subprocess
 import tempfile
 import unittest
 from pathlib import Path
-from unittest import mock
 
 from quality_gates import comment_debt as cd
 from quality_gates import ratchet
@@ -165,16 +163,79 @@ class RepositoryTest(unittest.TestCase):
                     self.assertIn('--baseline was given an empty path', out.getvalue())
         self.assertFalse(self.file.exists())
 
-    def test_an_excluded_prefix_is_not_counted(self):
-        (self.root / 'backups').mkdir()
-        self.put('backups/old.py', '# old\nx = 1\n')
-        self.run_gate('--update', '--exclude', 'backups/')
+    def choose(self, chosen=('no-comments',), exclude=(), comment_gate_exclude=()):
+        (self.root / 'quality-gates.json').write_text(json.dumps({
+            'format_version': 1,
+            'languages': ['python'],
+            'exclude': list(exclude),
+            'components': {'chosen': list(chosen), 'declined': []},
+            'commit_time_limit_seconds': 2,
+            'settings': {'no-comments': {'exclude': list(comment_gate_exclude), 'conventions': []}},
+        }))
+
+    def keep_untracked(self, name, text):
+        path = self.root / name
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
+
+    def test_a_tracked_file_under_the_choice_files_exclude_is_not_checked(self):
+        self.choose(exclude=['vendor'])
+        self.keep_untracked('vendor/v.py', '# vendored\n')
+        subprocess.run(['git', 'add', 'vendor/v.py'], cwd=self.root, check=True)
+        self.assertEqual(self.run_gate('--update')[0], 0)
         self.assertEqual(self.baseline(), {})
+        self.assertEqual(self.run_gate()[0], 0)
+
+    def test_a_file_in_a_default_fixture_folder_is_not_checked_without_a_choice_file(self):
+        self.keep_untracked('tests/fixtures/f.py', '# fixture\n')
+        subprocess.run(['git', 'add', 'tests/fixtures/f.py'], cwd=self.root, check=True)
+        self.assertEqual(self.run_gate('--update')[0], 0)
+        self.assertEqual(self.baseline(), {})
+
+    def test_the_comment_gates_own_exclude_skips_whole_path_segments_only(self):
+        self.choose(comment_gate_exclude=['build'])
+        self.keep_untracked('build/x.py', '# built\n')
+        self.keep_untracked('buildscripts/x.py', '# scripted\n')
+        self.run_gate('--update')
+        self.assertEqual(self.baseline(), {'buildscripts/x.py': 1})
+
+    def test_an_untracked_file_that_git_would_commit_is_checked(self):
+        self.keep_untracked('new.py', '# new\n')
+        self.run_gate('--update')
+        self.assertEqual(self.baseline(), {'new.py': 1})
+
+    def test_an_untracked_file_the_gitignore_lists_is_not_checked(self):
+        self.put('.gitignore', 'gen/\n')
+        self.keep_untracked('gen/g.py', '# generated\n')
+        self.run_gate('--update')
+        self.assertEqual(self.baseline(), {})
+
+    def test_python_is_not_checked_when_the_choice_file_does_not_choose_no_comments(self):
+        self.choose(chosen=[])
+        self.put('a.py', '# one\n')
+        self.run_gate('--update')
+        self.assertEqual(self.baseline(), {})
+
+    def test_python_is_checked_when_the_choice_file_chooses_no_comments(self):
+        self.choose()
+        self.put('a.py', '# one\n')
+        self.run_gate('--update')
+        self.assertEqual(self.baseline(), {'a.py': 1})
+
+    def test_the_exclude_flag_is_refused_and_names_setup_standards(self):
+        self.put('a.py', 'x = 1\n')
+        for argv in (['--exclude', 'x'], ['--exclude=x'], ['--status', '--exclude', 'x'], ['--update', '--exclude', 'x']):
+            with self.subTest(argv=argv):
+                code, out = self.run_gate(*argv)
+                self.assertEqual(code, 2)
+                self.assertIn('/setup-standards', out)
+                self.assertIn('--exclude', out)
+        self.assertFalse(self.file.exists())
 
     def test_each_tracked_file_is_one_finding_with_its_comment_count_and_line_numbers(self):
         self.put('a.py', '# one\nx = 1\ny = 2  # two\n')
         self.put('b.py', 'x = 1\n')
-        self.assertEqual(cd.findings(self.root, []), [
+        self.assertEqual(cd.findings(self.root), [
             ratchet.Finding(ratchet.Location('a.py'), 2, 'comment lines', '1, 3'),
             ratchet.Finding(ratchet.Location('b.py'), 0, 'comment lines', ''),
         ])
@@ -198,14 +259,6 @@ class RepositoryTest(unittest.TestCase):
         code, out = self.run_gate('--status')
         self.assertEqual(code, 0)
         self.assertIn('## pkg — 1 lines', out)
-
-
-    def test_a_file_git_lists_under_a_case_insensitive_pathspec_is_counted_by_the_checker_it_was_listed_for(self):
-        self.put('Foo.PY', '# a workaround for now\nx = 1\n')
-        with mock.patch.dict(os.environ, {'GIT_ICASE_PATHSPECS': '1'}):
-            code, out = self.run_gate('--status')
-        self.assertEqual(code, 0)
-        self.assertIn('    1    1  Foo.PY', out)
 
 class LiveRepositoryTest(unittest.TestCase):
 
