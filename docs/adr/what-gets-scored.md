@@ -8,10 +8,10 @@ submodules, or running outside the repo.
 
 <!-- rule:files-in-scope -->
 **The files in scope** are the files git would commit: tracked files plus
-untracked files that the project's `.gitignore` does not ignore. Both gates and
-language detection use them; outside a git repo, every command that looks for
-the project's root stops with exit 2 and one line saying so. The paths given on the command line narrow the set,
-and `exclude` in `quality-gates.json` applies on top: each entry names a
+untracked files that the project's `.gitignore` does not ignore. Every gate,
+`comment-debt` included, and language detection use them; outside a git repo,
+every command that looks for the project's root stops with exit 2 and one line
+saying so. The paths given on the command line narrow the set, and `exclude` in `quality-gates.json` applies on top: each entry names a
 folder or file by its path from the repo root, such as `tests/fixtures/`, and
 matches whole path segments, so `build` leaves out the folder or file `build`
 and never `buildscripts/` or `build_utils.py`. A trailing `/` changes nothing.
@@ -33,6 +33,10 @@ The *Skipped N folder(s)* line names it, marked `libs/core (a submodule: scan
 it from inside)`; scan a path inside it to score it by its own git. Besides
 submodules, that line names only folders marked `(already scanned)`.
 <!-- /rule:files-in-scope -->
+
+`comment-debt` also applies `settings.no-comments.exclude` on top, by the same
+whole-segment rule, and checks Python only when `no-comments` is chosen in the
+choice file (without a choice file, as before). It has no `--exclude` flag.
 
 ## Symlinked folders
 

@@ -195,10 +195,16 @@ permission. Put the knowledge where it shows when it stops being true: a test,
 a named constant, an ADR or an issue. Existing comments are debt, held in
 `comment-debt.json` as a line count per file. The gate fails if a file gains a
 comment, and also if it loses one without the baseline being lowered, so paid
-debt is always recorded. Python only for now
+debt is always recorded. It checks the
+[files in scope](src/quality_gates/skills/crap/references/files-in-scope.md),
+untracked files included, less `settings.no-comments.exclude` in the choice
+file, and checks Python only when `no-comments` is chosen there (with no choice
+file, as before). `--exclude` is removed: it exits non-zero and says to run
+`/setup-standards`. Python only for now
 ([#3](../../issues/3) adds Rust,
-TypeScript, Swift and shell:
-[ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md)).
+TypeScript, Swift and shell, each its own component with a debt report and a
+record-or-clean choice:
+[ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
 
 ### `cc-check`: cyclomatic complexity
 
@@ -548,8 +554,8 @@ line, like any other tool error.
 - `settings`: per-component settings. Only `no-comments` has any so far:
   `exclude`, path prefixes the comment gate leaves out, and `conventions`, the
   ids of the [recognised conventions](docs/recognised-conventions.md) the
-  project has switched on. Both default to empty. `comment-debt` does not read
-  them yet (#3), so keep its `--exclude` flags until then.
+  project has switched on. Both default to empty. `comment-debt` reads
+  `exclude`, by whole path segments; it does not read `conventions` yet (#3).
 
 ## Setup details
 
@@ -659,7 +665,8 @@ line, like any other tool error.
   'Python'; quality-gates knows python, rust, shell, swift, typescript`. It copies the
   `--exclude` prefixes of the `comment-debt` commands in `.githooks/pre-commit`
   and the CI workflows into `settings` › `no-comments` › `exclude`, and leaves
-  the flags in place. Only `comment-debt`'s own flags count, not those of a
+  the flags in place; remove them by hand, because `comment-debt` refuses
+  `--exclude`. Only `comment-debt`'s own flags count, not those of a
   command joined to it by `&&`, `||`, `|` or `;`, and a flag on a `\`
   continuation line counts. Run again with every offer answered, it changes
   nothing and says the file is up to date, with or without `--go`. `--json` prints the

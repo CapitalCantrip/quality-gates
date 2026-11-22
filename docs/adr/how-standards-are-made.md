@@ -139,5 +139,17 @@ comment gate in Python ships today.
   `unsafe` block, is a comment form a language's community requires; a project
   may switch it on in its choice file, and each one is argued in
   `docs/recognised-conventions.md`.
+  - **Each new language is its own component** (`no-comments-rust`,
+    `no-comments-typescript`, `no-comments-swift`, `no-comments-shell`);
+    `no-comments` stays Python's. A language is checked only when its
+    component is chosen.
+  - **The builder decides what happens to the comments already there, after
+    seeing them.** Setup first shows that language's debt report: the total,
+    the count by kind and by area, and the top culprits by comment lines and
+    by rationale lines. The builder then chooses *record as debt* (all of it
+    goes into `comment-debt.json`) or *clean first* (pay down a scope the
+    builder picks, optionally open an issue for the rest, record what
+    remains). The language is never switched on with its comments unrecorded.
+    ([ADR-010 addendum 2026-11-10](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt))
 - **All commit-time gates together stay under about 2 seconds;** slower checks
   run at ticket end and in CI. An agent routes around a slow hook.

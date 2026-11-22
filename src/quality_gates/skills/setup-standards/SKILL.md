@@ -95,8 +95,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    switching those off waits on recorded reasons, and nothing was changed.
 5. Run `qg setup --go` with the same flags. It writes `quality-gates.json`
    only, and moves the `--exclude` prefixes of the `comment-debt` commands in
-   the hook and CI into the file; leave those flags where they are. Commit the
-   file.
+   the hook and CI into the file. Then remove those flags from the hook and CI,
+   since `comment-debt` refuses `--exclude`. Commit both.
 
 From here on, do only the blocks for the languages the file records, and only
 for chosen components.

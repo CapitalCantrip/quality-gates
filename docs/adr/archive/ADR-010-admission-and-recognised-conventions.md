@@ -69,6 +69,8 @@ never reach a consumer.
 
 ### The comment gate in more languages
 
+Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)
+
 **Languages.** Rust, TypeScript (including `.tsx`, `.js`, `.jsx`, `.mjs` and
 `.cjs`), Swift and shell join Python. Shell becomes a language in the choice
 file (ADR-007): setup proposes it when the repo tracks `.sh`, `.bash` or `.zsh`
@@ -159,3 +161,69 @@ outside tool.
   addendum, and the case would sit in two places.
 - **A separate ADR for each issue.** One rule, a written case before anything
   comes in, would be split in two.
+
+## Addendum 2026-11-10: a component per comment language, and a choice about existing debt
+
+Amends: [The comment gate in more languages](#the-comment-gate-in-more-languages)
+
+The builder decided this on #3 (2026-11-10), when the brief was re-checked
+against `main` after the choice file (#137) and the shared ratchet (#178) landed.
+
+**Each new comment language is its own component.** `no-comments-rust`,
+`no-comments-typescript`, `no-comments-swift` and `no-comments-shell` are
+offered, chosen or declined like any other component, as a release adds them
+(ADR-007 § Pin bumps). `no-comments` stays Python's, so its id does not change.
+A language is checked only when its component is chosen in the choice file.
+Python follows the same rule: it is checked only when `no-comments` is chosen,
+and a project with no choice file is checked as before.
+
+**Existing comments are the builder's choice, made after seeing them.** This
+replaces "accepting it records the comments already there as debt". Before the
+builder chooses, setup shows that language's debt report, computed by the
+gate's own finder:
+
+- the total, and the count by kind (line, block, doc) and by area;
+- the top culprits: the files and folders with the most comment lines, and
+  those with the most rationale lines (workaround, for now, TODO and the like).
+
+The builder then chooses one of two:
+
+- **Record as debt.** Every existing comment of that language goes into
+  `comment-debt.json`; only new ones fail.
+- **Clean first.** The builder picks a scope from the report (an area, a file
+  or a kind), and may ask for an issue for the rest. The scope is paid down,
+  whatever remains is recorded as debt, and the language is switched on once
+  the paydown is done.
+
+The gate never switches a language on with its comments unrecorded, so the
+reason for rejecting "new languages switched on by the bump" stands.
+
+**The comment gate checks the files in scope.** It takes them from the project
+module, as `cc-check` and `crap` do (*What gets scored*): the files git would
+commit, less the choice file's `exclude` and, without a choice file, the
+default fixture folders. `settings.no-comments.exclude` applies on top and
+matches whole path segments (ADR-001 addendum 2026-11-01), so `build` skips
+`build/` and never `buildscripts/`. An untracked file that git would commit is
+checked; before, only tracked files were.
+
+**`--exclude` is refused.** `comment-debt --exclude x` exits non-zero with a
+message that says to run `/setup-standards`, which moves the prefixes into
+`settings.no-comments.exclude`. A hook or CI line that still passes the flag
+fails until setup has moved it.
+
+**Left to a later build.** The one common baseline format and the gate flags
+other than `--exclude` wait for the runner (#138): `comment-debt.json` stays a
+per-file count, and `--update`, `--status` and `--baseline` stay. The shared
+code reader is a module of its own, `code_reader` (#210 puts it in place);
+the swallowed-error and escape-hatch gates (#132, #133) reuse it.
+
+Rejected:
+
+- **One component for all four languages.** A project that wants Rust but not
+  Swift would take both, or neither.
+- **Recording existing debt with no choice.** The builder would not see what
+  the gate swallowed, and could not choose to pay a folder down first.
+- **Cleaning first with the gate already on.** Every commit would fail until
+  the paydown finished, which an agent routes around.
+- **Counting only tracked files.** A new file could carry comments until its
+  first commit, unlike every other gate.

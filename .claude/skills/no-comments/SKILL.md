@@ -20,8 +20,10 @@ comment-debt --status   # remaining debt by area, rationale-flagged files first
 comment-debt --update   # lower the baseline after paying debt; never raises
 ```
 
-Options: `--baseline PATH` (default `comment-debt.json` at the repo root),
-`--exclude PREFIX` (repeatable).
+Option: `--baseline PATH` (default `comment-debt.json` at the repo root). It
+checks the files in scope, less `settings.no-comments.exclude` in
+`quality-gates.json`, and Python only when `no-comments` is chosen there.
+`--exclude` is refused: run `/setup-standards` to move the prefixes into the file.
 
 ## Set up in a repo
 
