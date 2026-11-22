@@ -200,7 +200,8 @@ debt is always recorded. It checks the
 untracked files included, less `settings.no-comments.exclude` in the choice
 file. It checks Python only when `no-comments` is chosen there (with no choice
 file, as before), and Rust only when `no-comments-rust` is chosen (never with
-no choice file); in Rust it counts `//` line comments so far.
+no choice file). In Rust it counts only `//` line comments for now, and a
+`//` inside a string counts as one too until [#186](../../issues/186) reads strings.
 `comment-debt --report <language>` prints a language's comment lines, chosen or
 not; `/setup-standards` shows it when it offers a language. Choosing a comment
 language with `qg setup --go --choose <id>` records its comments as debt in the
