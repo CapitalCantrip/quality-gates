@@ -275,7 +275,9 @@ def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=
 def recorded(findings: list, file: Path, replaces: Callable[[str], bool]) -> dict:
     stored = stored_baseline(file, True) or {}
     counts = {key: number for key, number in strongest(findings).items() if number}
-    kept = {key: number for key, number in stored.items() if not replaces(Location.from_key(key).file)}
+    unmeasured = unmeasured_keys(findings)
+    kept = {key: number for key, number in stored.items()
+            if key in unmeasured or not replaces(Location.from_key(key).file)}
     return dict(sorted({**kept, **counts}.items()))
 
 

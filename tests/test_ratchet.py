@@ -274,6 +274,11 @@ class RecordingTest(unittest.TestCase):
         self.file.write_text('{\n  "gone.rs": 4,\n  "paid.rs": 1,\n  "z.py": 3\n}\n')
         self.assertEqual(json.loads(self.record([finding("a.rs", 2), finding("paid.rs", 0)])), {"a.rs::f": 2, "z.py": 3})
 
+    def test_recording_keeps_the_entry_of_a_file_it_cannot_measure_and_adds_none_for_one_without_an_entry(self):
+        self.file.write_text('{\n  "broken.rs": 5,\n  "z.py": 3\n}\n')
+        found = [ratchet.Finding(ratchet.Location(path), None, "comment lines", "") for path in ("broken.rs", "new.rs")]
+        self.assertEqual(json.loads(self.record(found)), {"broken.rs": 5, "z.py": 3})
+
     def test_recording_without_a_baseline_file_starts_from_nothing(self):
         self.assertEqual(json.loads(self.record([finding("a.rs", 2)])), {"a.rs::f": 2})
         self.assertFalse(self.file.exists())
