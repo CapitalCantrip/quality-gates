@@ -203,8 +203,11 @@ names it and fails, and `--update` keeps any entry it has. What happens to the
 baseline entries of a language left unchecked, or of a file that left the
 scope, is in [the comment gate's files](src/quality_gates/skills/no-comments/references/comment-gate-files.md). It checks Python only when `no-comments` is chosen there (with no choice
 file, as before), and Rust only when `no-comments-rust` is chosen (never with
-no choice file). In Rust it counts only `//` line comments for now, and a
-`//` inside a string counts as one too until [#186](../../issues/186) reads strings.
+no choice file). In Rust every comment counts, doc comments included, once
+per line; a `//` inside a string, raw string or char literal does not, and
+neither does a bare `// @generated`. With `rust-safety` switched on, a
+`// SAFETY:` comment directly above `unsafe` does not count either
+([recognised conventions](docs/recognised-conventions.md)).
 `comment-debt --report <language>` prints a language's comment lines, chosen or
 not; `/setup-standards` shows it when it offers a language. Choosing a comment
 language with `qg setup --go --choose <id>` records its comments as debt in the
@@ -564,7 +567,7 @@ line, like any other tool error.
   `exclude`, path prefixes the comment gate leaves out, and `conventions`, the
   ids of the [recognised conventions](docs/recognised-conventions.md) the
   project has switched on. Both default to empty. `comment-debt` reads
-  `exclude`, by whole path segments; it does not read `conventions` yet (#3).
+  `exclude`, by whole path segments, and `conventions`.
 
 ## Setup details
 

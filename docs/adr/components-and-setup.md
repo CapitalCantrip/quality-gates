@@ -53,7 +53,7 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   remains; the language is switched on only once its comments are recorded.
   The comment gate checks a language only when its component is chosen, and
   with no choice file only Python. Built in part: `no-comments-rust` is offered
-  for Rust's `//` lines, `comment-debt --report <language>` shows the total
+  for Rust's comments, `comment-debt --report <language>` shows the total
   only, and `qg setup --go --choose no-comments-<language>` records as debt:
   in one step it records that language's comments, in place of its older
   entries, then records the choice, so no state has a language's entries

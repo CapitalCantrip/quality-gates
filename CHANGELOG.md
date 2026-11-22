@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- **`comment-debt` reads Rust fully (#186).** With `no-comments-rust`
+  chosen, every Rust comment counts once per line: block comments and doc
+  comments (`///`, `//!`, `/** */`) as well as `//` lines. A `//` inside a
+  string, raw string or char literal no longer counts, and a bare
+  `// @generated` is exempt. `rust-safety` in
+  `settings.no-comments.conventions` now takes effect: `// SAFETY:` and the
+  `//` lines after it, directly above an `unsafe` block or `unsafe impl`, do
+  not count. A Rust project with `// SAFETY:` comments adds `rust-safety` to
+  the choice file before it chooses `no-comments-rust`, so those comments are
+  not recorded as debt.
 - **`comment-debt` reads its exclusions from the choice file (#185, #210).**
   It now checks untracked files as well as tracked ones, reads
   `settings.no-comments.exclude` from `quality-gates.json`, and refuses

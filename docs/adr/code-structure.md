@@ -66,8 +66,8 @@ language a gate does not support and the runner's record of *did not run*
 
 ## One code reader
 
-Built in part (quality-gates#210, which reads Rust's `//` lines only; #186 and
-#187 fill it in): `code_reader` is the one reader of
+Built for Rust (quality-gates#210, #186; #187 adds TypeScript, Swift and
+shell): `code_reader` is the one reader of
 comments and strings for the non-Python languages. For one file and one
 language's syntax it returns each comment (kind, text, start and end line) and
 a copy of the source with strings and comments blanked, line numbers kept. It
