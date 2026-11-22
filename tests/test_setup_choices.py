@@ -211,6 +211,14 @@ class Setup(unittest.TestCase):
         self.assertEqual(code, 0, err)
         self.assertEqual(self.recorded().declined, ("no-comments-rust",))
 
+    def test_a_typescript_only_project_with_the_shared_complexity_baseline_has_its_complexity_gate_chosen(self):
+        self.write(self.repo / "src" / "app.ts", "export const x = 1;\n")
+        self.write(self.repo / "cc-baseline.json", "{}\n")
+        code, _, err = self.run_setup("--go", manifest=manifests.load_components())
+        self.assertEqual(code, 0, err)
+        self.assertEqual(self.recorded().languages, ("typescript",))
+        self.assertIn("complexity-typescript", self.recorded().chosen)
+
     def copy_skills_only(self):
         self.write(self.repo / "pyproject.toml", "[project]\nname = 'consumer'\n")
         self.write(self.repo / "src" / "app.py", "x = 1\n")
