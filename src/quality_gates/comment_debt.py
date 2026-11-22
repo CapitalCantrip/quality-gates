@@ -7,7 +7,9 @@ import re
 import sys
 import tokenize
 import warnings
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Callable
 
 from quality_gates import code_reader, languages, project_files, ratchet
 from quality_gates.errors import Untagged
@@ -76,16 +78,15 @@ def read_debt_lines(syntax, source):
     return sorted({line for comment in comments for line in range(comment.start, comment.end + 1)})
 
 
-SYNTAX = {
-    "rust": code_reader.Syntax(line=("//",)),
-}
+@dataclass(frozen=True)
+class CommentLanguage:
+    component: str
+    checker: Callable
+
+
 LANGUAGES = {
-    "python": debt_lines,
-    **{name: functools.partial(read_debt_lines, syntax) for name, syntax in SYNTAX.items()},
-}
-COMPONENT_OF = {
-    "python": "no-comments",
-    "rust": "no-comments-rust",
+    "python": CommentLanguage("no-comments", debt_lines),
+    "rust": CommentLanguage("no-comments-rust", functools.partial(read_debt_lines, code_reader.Syntax(line=("//",)))),
 }
 EXCLUDE_REFUSAL = (
     "comment-debt: --exclude is removed. Run /setup-standards: it moves the --exclude prefixes of your "
@@ -95,9 +96,9 @@ EXCLUDE_REFUSAL = (
 
 def files_in_scope(root):
     return {
-        path: checker
-        for name, checker in LANGUAGES.items()
-        for path in project_files.comment_gate_files(root, COMPONENT_OF[name], languages.suffixes_of([name]))
+        path: row.checker
+        for name, row in LANGUAGES.items()
+        for path in project_files.comment_gate_files(root, row.component, languages.suffixes_of([name]))
     }
 
 
@@ -120,19 +121,19 @@ def findings(root, listed=files_in_scope):
 
 def files_before_choosing(root, name):
     suffixes = languages.suffixes_of([name])
-    return {path: LANGUAGES[name] for path in project_files.comment_gate_files_before_choosing(root, suffixes)}
+    return {path: LANGUAGES[name].checker for path in project_files.comment_gate_files_before_choosing(root, suffixes)}
 
 
 def files_on_choosing(root, names, choice):
     return {
-        path: LANGUAGES[name]
+        path: LANGUAGES[name].checker
         for name in names
         for path in project_files.comment_gate_files_under(root, choice, languages.suffixes_of([name]))
     }
 
 
 def languages_switched_on(components):
-    return frozenset(name for name, component in COMPONENT_OF.items() if component in components)
+    return frozenset(name for name, row in LANGUAGES.items() if row.component in components)
 
 
 def findings_on_choosing(root, names, choice):

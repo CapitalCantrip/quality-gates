@@ -155,10 +155,9 @@ class ComponentManifest(unittest.TestCase):
     def test_each_comment_gate_component_names_exactly_the_languages_comment_debt_checks_under_it(self):
         named = {component.id: set(component.languages) for component, part in parts("command") if part.id == "comment-debt"}
         checked = {}
-        for language, component_id in comment_debt.COMPONENT_OF.items():
-            checked.setdefault(component_id, set()).add(language)
+        for language, row in comment_debt.LANGUAGES.items():
+            checked.setdefault(row.component, set()).add(language)
         self.assertEqual(named, checked)
-        self.assertEqual(set(comment_debt.COMPONENT_OF), set(comment_debt.LANGUAGES))
 
     def test_the_swift_and_rust_complexity_gates_list_their_lint_config_and_ci_step(self):
         for component_id, config in (("complexity-swift", ".swiftlint.yml"), ("complexity-rust", "clippy.toml")):
