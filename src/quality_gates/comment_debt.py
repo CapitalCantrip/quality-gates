@@ -94,7 +94,7 @@ EXCLUDE_REFUSAL = (
 )
 
 
-def files_in_scope(root):
+def checked_files(root):
     return {
         path: row.checker
         for name, row in LANGUAGES.items()
@@ -115,7 +115,7 @@ def to_finding(path, lines):
     return ratchet.Finding(ratchet.Location(path), len(lines), FINDING_KIND, ", ".join(str(n) for n in lines))
 
 
-def findings(root, listed=files_in_scope):
+def findings(root, listed=checked_files):
     return [to_finding(path, lines) for path, lines in sorted(measure(root, listed(root)).items())]
 
 
@@ -213,7 +213,7 @@ def write_area(name, rows, out):
 
 
 def status(root, out):
-    current = {p: ls for p, ls in measure(root, files_in_scope(root)).items() if ls}
+    current = {p: ls for p, ls in measure(root, checked_files(root)).items() if ls}
     areas = group_by_area(root, current)
     total = sum(len(ls) for ls in current.values())
     out.write(f"# Comment debt: {total} lines in {len(current)} files\n\n")
