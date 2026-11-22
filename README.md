@@ -205,14 +205,16 @@ scope, is in [the comment gate's files](src/quality_gates/skills/no-comments/ref
 file, as before), and Rust only when `no-comments-rust` is chosen (never with
 no choice file). In Rust it counts only `//` line comments for now, and a
 `//` inside a string counts as one too until [#186](../../issues/186) reads strings.
-`comment-debt --report <language>` prints a language's comment lines, chosen or
-not; `/setup-standards` shows it when it offers a language. Choosing a comment
+`comment-debt --report <language>` prints a language's comment debt, chosen or
+not: the total, the count by kind and by area, and the files with the most
+comment lines and the most rationale lines. It and `--status` name any file they
+could not read, which the gate would fail. `qg setup` prints the report of each
+comment language it offers, with the two ways to accept it, before it asks. Choosing a comment
 language with `qg setup --go --choose <id>` records its comments as debt in the
 same step, in place of any older entries for that language, so the gate never
 checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run
 `/setup-standards`. ([#3](../../issues/3) adds the rest of Rust, then
-TypeScript, Swift and shell, each its own component, with the full debt report
-and the record-or-clean choice:
+TypeScript, Swift and shell, each its own component, and clean first:
 [ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
 
 ### `cc-check`: cyclomatic complexity
