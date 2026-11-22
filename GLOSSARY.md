@@ -199,6 +199,12 @@ language that still has code. It needs the builder's explicit yes and always
 shows as a warning.
 _Avoid_: override, opt-out, exemption
 
+**Tolerated list**:
+Everything that lets a gate pass on code it would otherwise fail: the
+baselines, the files a project excludes, in-code silencers, and recorded
+reasons, loosenings included. It may grow only with the builder's yes.
+_Avoid_: allowlist, ignore list, exceptions
+
 **Recognised convention**:
 A comment form a language's own community requires, such as Rust's `SAFETY:`
 above an `unsafe` block, that a project may switch on as an ordinary choice.

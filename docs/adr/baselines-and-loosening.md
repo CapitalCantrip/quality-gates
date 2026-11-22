@@ -76,12 +76,25 @@ often.
   refuses to switch off a gate the project has, or to remove a language that
   still has code. ([ADR-005](archive/ADR-005-direction-idea-to-release.md#loosening-a-standard))
 - **Decided, not built yet (quality-gates#115):** a *recorded reason* relaxes a
-  gate for one case and the agent may write it; a *loosening* relaxes a
+  gate for one case and the agent may write it, with the builder's label on a
+  new one (below); a *loosening* relaxes a
   standard for the whole project (switching off a gate it has, raising a limit
   or the commit time limit, removing a language with code), needs the
   builder's yes as a merge of its own `loosening` pull request, a review date
   at most 90 days away, and always shows as a warning. Both live in
   `quality-gates-reasons.json`. ([ADR-009](archive/ADR-009-recorded-reasons-and-loosening.md))
+- **Decided, not built yet (quality-gates#115): a passed review date warns on
+  commit and fails on the pull request.** The warning starts 14 days ahead, or
+  on the day written for a shorter record; dates are in UTC and the review
+  date is the last day a record holds. CI on main only warns. The agent may
+  renew a one-case reason in the same pull request; a lapsed loosening blocks
+  every pull request until its own renewal is merged. Triggers fire as before.
+  ([ADR-009 addendum 2026-11-23](archive/ADR-009-recorded-reasons-and-loosening.md#addendum-2026-11-23-warn-before-a-review-date-reasons-count-as-tolerated-growth))
+- **Decided, not built yet (quality-gates#192, #115): recorded reasons are part
+  of the tolerated list.** A new record needs the builder's label on its pull
+  request; a renewal does not, and is named in the check's one line. The
+  `loosening` label counts as that label.
+  ([ADR-009 addendum 2026-11-23](archive/ADR-009-recorded-reasons-and-loosening.md#addendum-2026-11-23-warn-before-a-review-date-reasons-count-as-tolerated-growth))
 - **Built: one ratchet module.** Gates only find, except `cc-check --format
   json` without `--baseline` and `comment-debt --status`, which skip judging
   until quality-gates#138; the ratchet applies the baseline, then the outcome, and turns a gate that could not run into exit
