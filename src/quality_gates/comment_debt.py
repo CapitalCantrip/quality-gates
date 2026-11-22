@@ -91,10 +91,6 @@ EXCLUDE_REFUSAL = (
     "comment-debt: --exclude is removed. Run /setup-standards: it moves the --exclude prefixes of your "
     "comment-debt commands into settings.no-comments.exclude in quality-gates.json, and the gate reads them there."
 )
-RECORD_REFUSAL = (
-    "comment-debt: {component} is chosen, so {label} comments are already checked. --record takes a language only "
-    "before /setup-standards switches it on; new comments fail, and paid-down ones leave the baseline through --update."
-)
 
 
 def files_in_scope(root):
@@ -125,6 +121,26 @@ def findings(root, listed=files_in_scope):
 def files_before_choosing(root, name):
     suffixes = languages.suffixes_of([name])
     return {path: LANGUAGES[name] for path in project_files.comment_gate_files_before_choosing(root, suffixes)}
+
+
+def files_on_choosing(root, names, choice):
+    return {
+        path: LANGUAGES[name]
+        for name in names
+        for path in project_files.comment_gate_files_under(root, choice, languages.suffixes_of([name]))
+    }
+
+
+def languages_switched_on(components):
+    return frozenset(name for name, component in COMPONENT_OF.items() if component in components)
+
+
+def findings_on_choosing(root, names, choice):
+    return findings(root, lambda _: files_on_choosing(root, names, choice))
+
+
+def written_in(names):
+    return lambda path: languages.language_of_file(path) in names
 
 
 def one_language(name):
@@ -218,8 +234,6 @@ def parse_args(argv):
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
     mode.add_argument("--report", choices=sorted(LANGUAGES), metavar="LANGUAGE",
                       help="print one language's comment debt, chosen or not")
-    mode.add_argument("--record", choices=sorted(LANGUAGES), metavar="LANGUAGE",
-                      help="record one language's comments as debt, before it is chosen")
     parser.add_argument("--baseline", help=f"baseline file (default: {project_files.COMMENT_DEBT_BASELINE} at the repo root)")
     parser.add_argument("--exclude", action="append", default=[], help=argparse.SUPPRESS)
     return parser.parse_args(argv)
@@ -228,20 +242,7 @@ def parse_args(argv):
 def asked(args, root, baseline) -> ratchet.Asked:
     if args.status or args.report:
         return ratchet.Asked(judged=False)
-    return ratchet.Asked(Path(baseline or args.baseline or project_files.comment_debt_baseline(root)), args.update,
-                         recording=args.record is not None)
-
-
-def recorded_files(root, name):
-    component = COMPONENT_OF[name]
-    if project_files.comment_gate_is_on(root, component):
-        raise Untagged(RECORD_REFUSAL.format(component=component, label=languages.LANGUAGES[name].label))
-    return one_language(name)
-
-
-def found_by(args, root):
-    listed = files_in_scope if args.record is None else recorded_files(root, args.record)
-    return functools.partial(findings, root, listed)
+    return ratchet.Asked(Path(baseline or args.baseline or project_files.comment_debt_baseline(root)), args.update)
 
 
 def shown_first(args, root, out):
@@ -260,7 +261,7 @@ def gate(argv, root, baseline=None, out=None):
         raise Untagged("--baseline was given an empty path")
     root = root or project_files.git_root()
     shown_first(args, root, out)
-    return ratchet.enforce(found_by(args, root), asked(args, root, baseline), out, WORDING)
+    return ratchet.enforce(functools.partial(findings, root), asked(args, root, baseline), out, WORDING)
 
 
 def main(argv=None, root=None, baseline=None, out=None):

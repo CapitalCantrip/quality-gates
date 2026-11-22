@@ -3,7 +3,7 @@ import json
 import sys
 from dataclasses import dataclass, replace
 
-from quality_gates import project_files, skills_sync, status
+from quality_gates import comment_debt, project_files, ratchet, skills_sync, status
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
 from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, STEP_KINDS, BrokenFileError, known_languages, load_components
 
@@ -35,6 +35,7 @@ class Proposal:
     added_by_hand: tuple
     components: tuple
     choice: object
+    switched_on: tuple = ()
 
 
 def proposed_languages(choice, detected, add, remove):
@@ -101,6 +102,11 @@ def made_choice(component, choice, installed, flags):
     return previous_choice(component, choice, installed)
 
 
+def switched_on(manifest, choice, installed, made):
+    return tuple(sorted(c.id for c in manifest.components
+                        if made.get(c.id) == CHOSEN and previous_choice(c, choice, installed) != CHOSEN))
+
+
 def shown_choice(component, used, made):
     if component.core:
         return CORE
@@ -138,7 +144,8 @@ def propose(project, manifest, flags):
     made = {c.id: made_choice(c, choice, installed, flags) for c in manifest.components if not c.core}
     rows = tuple(component_row(c, shown_choice(c, set(used), made.get(c.id))) for c in manifest.components)
     by_hand = tuple(name for name in used if name not in detected)
-    return Proposal(used, by_hand, rows, recorded_choice(root, choice, used, made, scope))
+    return Proposal(used, by_hand, rows, recorded_choice(root, choice, used, made, scope),
+                    switched_on(manifest, choice, installed, made))
 
 
 def names_with(proposal, *made):
@@ -215,9 +222,18 @@ def failed(error, code):
     return code
 
 
+def recording_changes(root, proposal):
+    names = comment_debt.languages_switched_on(proposal.switched_on)
+    if not names:
+        return []
+    found = comment_debt.findings_on_choosing(root, names, proposal.choice)
+    scores = ratchet.recorded(found, project_files.comment_debt_baseline(root), comment_debt.written_in(names))
+    return [project_files.comment_debt_change(ratchet.baseline_text(scores))]
+
+
 def run(args, project, manifest):
     proposal = propose(project, manifest, args)
-    changes = [project_files.choice_change(proposal.choice)]
+    changes = recording_changes(project.root, proposal) + [project_files.choice_change(proposal.choice)]
     planned = [(change, project_files.planned_state(project.root, change)) for change in changes]
     written = project_files.apply_planned(project.root, changes) if args.go else []
     print(json.dumps(report_of(proposal, planned), indent=2) if args.json else render(proposal, planned, written))

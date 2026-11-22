@@ -412,18 +412,19 @@ def comment_gate_skips(choice, scope):
     return scope.excluded if choice is None else scope.excluded + choice.comment_gate_exclude
 
 
-def comment_gate_is_on(root, component):
-    return is_chosen(checked_choice(root), component)
-
-
-def comment_gate_files_before_choosing(root, suffixes):
-    scope = scope_of(root)
-    skipped = comment_gate_skips(checked_choice(root), scope)
+def comment_gate_files_under(root, choice, suffixes):
+    scope = scope_of(root, choice.exclude if choice else None)
+    skipped = comment_gate_skips(choice, scope)
     return sorted(name for name in scope.listed if name.endswith(suffixes) and not excluded_by(name, skipped))
 
 
+def comment_gate_files_before_choosing(root, suffixes):
+    return comment_gate_files_under(root, checked_choice(root), suffixes)
+
+
 def comment_gate_files(root, component, suffixes):
-    return comment_gate_files_before_choosing(root, suffixes) if comment_gate_is_on(root, component) else []
+    choice = checked_choice(root)
+    return comment_gate_files_under(root, choice, suffixes) if is_chosen(choice, component) else []
 
 
 def first_line(path):
@@ -725,3 +726,7 @@ def apply_planned(root, changes):
 
 def choice_change(choice):
     return PlannedChange(CHOICE_FILE, choice_text(choice))
+
+
+def comment_debt_change(text):
+    return PlannedChange(COMMENT_DEBT_BASELINE, text)

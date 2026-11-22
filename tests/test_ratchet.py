@@ -259,34 +259,29 @@ class RecordingTest(unittest.TestCase):
         self.file = Path(tmp.name) / "baseline.json"
 
     def record(self, found):
-        out = io.StringIO()
-        result = ratchet.enforce(lambda: found, ratchet.Asked(self.file, recording=True), out, cd.WORDING)
-        return result, out.getvalue()
+        return ratchet.baseline_text(ratchet.recorded(found, self.file, lambda path: path.endswith(".rs")))
 
     def test_recording_adds_an_entry_for_each_location_with_debt_and_keeps_every_other_entry_byte_for_byte(self):
         before = '{\n  "z.py": 3,\n  "zz.py": 1.5\n}\n'
         self.file.write_text(before)
-        result, out = self.record([finding("a.rs", 2), finding("b.rs", 0)])
-        self.assertEqual(self.file.read_text(), '{\n  "a.rs::f": 2,\n' + before[2:])
-        self.assertEqual(ratchet.exit_code(result), 0)
-        self.assertEqual(out, "baseline: 2 lines in 1 files\n")
+        self.assertEqual(self.record([finding("a.rs", 2), finding("b.rs", 0)]), '{\n  "a.rs::f": 2,\n' + before[2:])
 
     def test_recording_sets_the_entry_of_each_location_it_finds_to_its_count_now(self):
         self.file.write_text('{\n  "a.rs::f": 5,\n  "z.py": 3\n}\n')
-        self.record([finding("a.rs", 2)])
-        self.assertEqual(json.loads(self.file.read_text()), {"a.rs::f": 2, "z.py": 3})
+        self.assertEqual(json.loads(self.record([finding("a.rs", 2)])), {"a.rs::f": 2, "z.py": 3})
 
-    def test_recording_without_a_baseline_file_creates_one(self):
-        self.record([finding("a.rs", 2)])
-        self.assertEqual(json.loads(self.file.read_text()), {"a.rs::f": 2})
+    def test_recording_drops_the_recorded_languages_entries_it_no_longer_finds_debt_for(self):
+        self.file.write_text('{\n  "gone.rs": 4,\n  "paid.rs": 1,\n  "z.py": 3\n}\n')
+        self.assertEqual(json.loads(self.record([finding("a.rs", 2), finding("paid.rs", 0)])), {"a.rs::f": 2, "z.py": 3})
 
-    def test_recording_leaves_a_malformed_baseline_alone_and_did_not_run(self):
+    def test_recording_without_a_baseline_file_starts_from_nothing(self):
+        self.assertEqual(json.loads(self.record([finding("a.rs", 2)])), {"a.rs::f": 2})
+        self.assertFalse(self.file.exists())
+
+    def test_recording_over_a_malformed_baseline_is_a_tool_error_and_leaves_it_alone(self):
         self.file.write_text("[]")
-
-        def gate(argv, root):
-            return ratchet.enforce(lambda: [finding("a.rs", 2)], ratchet.Asked(self.file, recording=True), io.StringIO())
-
-        self.assertEqual(ratchet.exit_code(ratchet.result_of(gate, [], None, "[t] ", io.StringIO())), 2)
+        with self.assertRaises(ToolError):
+            self.record([finding("a.rs", 2)])
         self.assertEqual(self.file.read_text(), "[]")
 
 

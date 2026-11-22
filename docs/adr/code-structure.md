@@ -42,11 +42,12 @@ quality-gates#138: for `cc-check --format json` without `--baseline` and for
 baseline, keys each location by its real path from the root only when a
 baseline is used, compares, writes the baseline on `--update` and returns a
 result with one outcome per location: passed, failed, behind the baseline,
-unmeasured or did not run. When the gate sets `recording` in its `Asked`
-(`comment-debt --record <language>`), `ratchet` instead adds an entry for each
-location the gate found with debt and leaves every other entry as it was; this
-is how setup records one comment language's existing debt before switching it
-on, while `--update` still only lowers. A gate that could not run raises
+unmeasured or did not run. `ratchet.recorded` is the record step: given what
+a gate finds for one comment language and which baseline paths belong to it,
+it returns the baseline with that language's entries set to their counts now
+and every other entry as it was. Setup puts the result among its planned
+changes when it switches a comment language on, so recording and choosing are
+one step, while `--update` still only lowers. A gate that could not run raises
 `errors.ToolError`, and so does `ratchet` for a missing, unreadable or
 malformed baseline; the one place that catches it is `ratchet.attempt`,
 reached through `ratchet.run_gate`, which turns it into *did not run* and

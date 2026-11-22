@@ -87,7 +87,6 @@ class Asked:
     baseline: Optional[Path] = None
     updating: bool = False
     judged: bool = True
-    recording: bool = False
 
 
 def location(root, file, function) -> Location:
@@ -172,9 +171,13 @@ def lowered(result: Result) -> dict:
     return dict(sorted({**kept, **held}.items()))
 
 
+def baseline_text(scores: dict) -> str:
+    return json.dumps(scores, indent=2, sort_keys=True) + "\n"
+
+
 def write(file, scores, out=None):
     try:
-        file.write_text(json.dumps(scores, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+        file.write_text(baseline_text(scores), encoding="utf-8")
     except OSError as error:
         raise BaselineError(str(error), out) from None
 
@@ -256,13 +259,11 @@ def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=
     return Settled(findings, judge(findings, counts), unmeasured, counts)
 
 
-def record_debt(find: Callable[[], list], file: Path, root=None, out=None) -> Settled:
-    find = keyed(find, root)
-    stored = stored_baseline(file, True, out) or {}
-    findings = find()
+def recorded(findings: list, file: Path, replaces: Callable[[str], bool]) -> dict:
+    stored = stored_baseline(file, True) or {}
     counts = {key: number for key, number in strongest(findings).items() if number}
-    write(file, dict(sorted({**stored, **counts}.items())), out)
-    return Settled(findings, judge(findings, counts), frozenset(unmeasured_keys(findings)), counts)
+    kept = {key: number for key, number in stored.items() if not replaces(Location.from_key(key).file)}
+    return dict(sorted({**kept, **counts}.items()))
 
 
 def describe_over(settled: Settled, out):
@@ -346,10 +347,6 @@ def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNC
         return NOT_JUDGED
     if asked.baseline is None:
         return judge(find(), {})
-    if asked.recording:
-        settled = record_debt(find, asked.baseline, root, out)
-        wording.recorded(settled.recorded, out)
-        return settled.result
     settled = settle(find, asked.baseline, asked.updating, root, out)
     describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result

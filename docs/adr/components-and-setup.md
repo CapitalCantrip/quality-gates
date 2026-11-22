@@ -54,9 +54,11 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   The comment gate checks a language only when its component is chosen, and
   with no choice file only Python. Built in part: `no-comments-rust` is offered
   for Rust's `//` lines, `comment-debt --report <language>` shows the total
-  only, and `comment-debt --record <language>` records as debt; the full
-  report, clean first and the other languages arrive with the later builds of
-  quality-gates#3. When setup infers what is installed, a part that an earlier
+  only, and `qg setup --go --choose no-comments-<language>` records as debt:
+  in one step it records that language's comments, in place of its older
+  entries, then records the choice, so no state has a language's entries
+  recorded while the language is off. The full report, clean first and the
+  other languages arrive with the later builds of quality-gates#3. When setup infers what is installed, a part that an earlier
   component also lists counts only for that earlier one, so the shared
   `comment-debt` hook and baseline never make a new language look installed
   (ADR-007 § Pin bumps: a component a release adds is off until accepted).

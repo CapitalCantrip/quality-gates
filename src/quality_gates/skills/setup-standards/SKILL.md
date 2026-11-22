@@ -91,22 +91,20 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    changes, and end with one line: *Ask me about any row, or run
    `qg explain <name>`.*
 4. "Go" accepts every ticked row: add `--choose <id>` for each **offered** row
-   the builder did not turn down. For each comment language row accepted, run
-   `comment-debt --record <language>` first: it adds that language's entries
-   to `comment-debt.json` and leaves every other entry as it was. It refuses
-   a language already chosen. Turn each change into a flag on `qg setup`:
+   the builder did not turn down. Turn each change into a flag on `qg setup`:
    `--add-language <name>` (a
    language may be added before it has code), `--remove-language <name>`,
    `--choose <id>`, `--decline <id>`. When it refuses (the core, a gate the
    project has, or a language that still has code), tell the builder plainly:
    switching those off waits on recorded reasons, and nothing was changed.
-5. Run `qg setup --go` with the same flags. It writes `quality-gates.json`
-   only, and moves the `--exclude` prefixes of the `comment-debt` commands in
-   the hook and CI into the file. Then remove those flags from the hook and CI,
-   since `comment-debt` refuses `--exclude`. Run `comment-debt`: it passes
-   once each recorded language is chosen. Commit `quality-gates.json`,
-   `comment-debt.json`, the hook and CI together, since a recorded language
-   that is not yet chosen shows as paid debt.
+5. Run `qg setup --go` with the same flags. It writes `quality-gates.json`,
+   and moves the `--exclude` prefixes of the `comment-debt` commands in the
+   hook and CI into the file. For each comment language it switches on, it
+   first records that language's comments in `comment-debt.json` as debt,
+   in place of any older entries for that language; every other entry stays
+   as it was. Then remove the `--exclude` flags from the hook and CI, since
+   `comment-debt` refuses them. Run `comment-debt`: it passes. Commit
+   `quality-gates.json`, `comment-debt.json`, the hook and CI together.
 
 From here on, do only the blocks for the languages the file records, and only
 for chosen components.
@@ -125,7 +123,7 @@ for chosen components.
   report that.
 - **Rust:** run the setup steps of `/cc-rust`: `clippy.toml` and the deny
   attributes. With `no-comments-rust` chosen, `comment-debt` checks Rust too,
-  against the entries `comment-debt --record rust` wrote above.
+  against the entries `qg setup --go` recorded above.
 - **TypeScript / JavaScript:** `cc-check --lang typescript` and
   `crap --lang typescript`, as `/cc-typescript` and `/crap` describe. CRAP
   needs Istanbul's `coverage-final.json`: Vitest with `@vitest/coverage-v8`

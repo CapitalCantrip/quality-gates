@@ -202,10 +202,10 @@ file. It checks Python only when `no-comments` is chosen there (with no choice
 file, as before), and Rust only when `no-comments-rust` is chosen (never with
 no choice file); in Rust it counts `//` line comments so far.
 `comment-debt --report <language>` prints a language's comment lines, chosen or
-not. `comment-debt --record <language>` adds that language's entries to the
-baseline before it is chosen, leaves every other entry as it was, and refuses a
-language already chosen; `/setup-standards` runs both when it offers a
-language. `--exclude` is removed: it exits non-zero and says to run
+not; `/setup-standards` shows it when it offers a language. Choosing a comment
+language with `qg setup --go --choose <id>` records its comments as debt in the
+same step, in place of any older entries for that language, so the gate never
+checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run
 `/setup-standards`. ([#3](../../issues/3) adds the rest of Rust, then
 TypeScript, Swift and shell, each its own component, with the full debt report
 and the record-or-clean choice:
@@ -651,7 +651,10 @@ line, like any other tool error.
 - `qg setup` proposes the project's languages and one row per component, with
   its description, its cost (commit delay, CI time, outside tools) and a tick
   on the recommended set, and lists the files it would change. It writes
-  nothing until `--go`, and then only `quality-gates.json`. Without a choice
+  nothing until `--go`, and then only `quality-gates.json`, plus
+  `comment-debt.json` when it switches a comment language on: that language's
+  comments are recorded there as debt, replacing its older entries and leaving
+  the others as they were. Without a choice
   file it records what is installed as chosen. Every other component that
   applies and that the file does not list is *offered*, whatever is
   installed, so a component a release adds stays off after `qg-skills`
