@@ -166,14 +166,22 @@ def owes(verdict: Verdict) -> bool:
     return verdict.outcome in (Outcome.PASSED, Outcome.BEHIND) and bool(verdict.now)
 
 
-def lowered(result: Result) -> dict:
+def held_back(stored: Optional[dict], covers: Callable[[str], bool]) -> dict:
+    return {key: number for key, number in (stored or {}).items() if not covers(Location.from_key(key).file)}
+
+
+def surviving(stored: Optional[dict], result: Result, covers: Callable[[str], bool]) -> dict:
     kept = {verdict.location.key: verdict.now for verdict in result.verdicts if owes(verdict)}
-    held = {
+    unmeasured = {
         verdict.location.key: verdict.allowed
         for verdict in result.having(Outcome.UNMEASURED)
         if verdict.allowed is not None
     }
-    return dict(sorted({**kept, **held}.items()))
+    return dict(sorted({**kept, **unmeasured, **held_back(stored, covers)}.items()))
+
+
+def lowered(result: Result, stored: Optional[dict] = None, covers: Callable[[str], bool] = covers_every_file) -> dict:
+    return surviving(stored, result, covers)
 
 
 def baseline_text(scores: dict) -> str:
@@ -251,10 +259,6 @@ class Settled:
         return self.displays[verdict.location.key]
 
 
-def held_back(stored: Optional[dict], covers: Callable[[str], bool]) -> dict:
-    return {key: number for key, number in (stored or {}).items() if not covers(Location.from_key(key).file)}
-
-
 def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=None,
            covers: Callable[[str], bool] = covers_every_file) -> Settled:
     find = keyed(find, root)
@@ -266,19 +270,19 @@ def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=
     result = judge(findings, judged)
     if not updating or result.having(Outcome.FAILED):
         return Settled(findings, result, unmeasured)
-    counts = lowered(result)
-    written = dict(sorted({**counts, **held}.items()))
+    written = lowered(result, stored, covers)
     write(file, written, out)
-    return Settled(findings, judge(findings, counts), unmeasured, written)
+    return Settled(findings, judge(findings, without(written, held)), unmeasured, written)
+
+
+def without(scores: dict, held: dict) -> dict:
+    return {key: number for key, number in scores.items() if key not in held}
 
 
 def recorded(findings: list, file: Path, replaces: Callable[[str], bool]) -> dict:
     stored = stored_baseline(file, True) or {}
-    counts = {key: number for key, number in strongest(findings).items() if number}
-    unmeasured = unmeasured_keys(findings)
-    kept = {key: number for key, number in stored.items()
-            if key in unmeasured or not replaces(Location.from_key(key).file)}
-    return dict(sorted({**kept, **counts}.items()))
+    result = judge(findings, {**stored, **strongest(findings)})
+    return surviving(stored, result, replaces)
 
 
 def describe_over(settled: Settled, out):

@@ -290,6 +290,83 @@ class RecordingTest(unittest.TestCase):
         self.assertEqual(self.file.read_text(), "[]")
 
 
+def comment_finding(file, number):
+    return ratchet.Finding(ratchet.Location(file), number, "comment lines", "")
+
+
+class SurvivalTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.file = Path(tmp.name) / "baseline.json"
+
+    def surviving(self, stored, found, covers=ratchet.covers_every_file):
+        judged = {key: number for key, number in stored.items() if covers(ratchet.Location.from_key(key).file)}
+        return ratchet.surviving(stored, ratchet.judge(found, judged), covers)
+
+    def choosing(self, stored, found, replaces):
+        self.file.write_text(json.dumps(stored))
+        return ratchet.recorded(found, self.file, replaces)
+
+    def test_an_entry_paid_down_is_lowered_to_the_count_now(self):
+        self.assertEqual(self.surviving({"a.py": 5}, [comment_finding("a.py", 2)]), {"a.py": 2})
+
+    def test_an_entry_paid_down_to_zero_is_dropped(self):
+        self.assertEqual(self.surviving({"a.py": 5, "b.py": 1}, [comment_finding("a.py", 0), comment_finding("b.py", 1)]), {"b.py": 1})
+
+    def test_an_entry_for_a_file_gone_from_scope_is_dropped(self):
+        self.assertEqual(self.surviving({"gone.py": 4, "a.py": 1}, [comment_finding("a.py", 1)]), {"a.py": 1})
+
+    def test_a_file_without_an_entry_gets_none_from_a_write_that_only_lowers(self):
+        self.assertEqual(self.surviving({"a.py": 1}, [comment_finding("a.py", 1), comment_finding("new.py", 3)]), {"a.py": 1})
+
+    def test_an_unmeasured_file_keeps_the_entry_it_has(self):
+        self.assertEqual(self.surviving({"dark.py": 7}, [comment_finding("dark.py", None)]), {"dark.py": 7})
+
+    def test_an_unmeasured_file_without_an_entry_gets_none(self):
+        self.assertEqual(self.surviving({"a.py": 1}, [comment_finding("a.py", 1), comment_finding("dark.py", None)]), {"a.py": 1})
+
+    def test_a_language_the_write_does_not_cover_keeps_its_entries_untouched(self):
+        covers = lambda path: path.endswith(".py")
+        stored = {"a.py": 3, "lib.rs": 4, "other.rs": 1.5}
+        self.assertEqual(self.surviving(stored, [comment_finding("a.py", 2)], covers), {"a.py": 2, "lib.rs": 4, "other.rs": 1.5})
+
+    def test_a_language_the_write_does_not_cover_keeps_an_entry_the_scan_found_no_debt_for(self):
+        covers = lambda path: path.endswith(".py")
+        self.assertEqual(self.surviving({"lib.rs": 4}, [], covers), {"lib.rs": 4})
+
+    def test_a_language_being_chosen_has_its_entries_replaced_by_the_counts_now(self):
+        stored = {"a.rs": 9, "gone.rs": 4, "paid.rs": 2, "z.py": 3}
+        found = [comment_finding("a.rs", 2), comment_finding("paid.rs", 0)]
+        self.assertEqual(self.choosing(stored, found, lambda path: path.endswith(".rs")), {"a.rs": 2, "z.py": 3})
+
+    def test_a_language_being_chosen_gets_an_entry_for_debt_above_what_was_stored(self):
+        found = [comment_finding("a.rs", 5)]
+        self.assertEqual(self.choosing({"a.rs": 1}, found, lambda path: path.endswith(".rs")), {"a.rs": 5})
+
+    def test_a_language_being_chosen_keeps_the_entry_of_an_unmeasured_file_and_adds_none_for_a_new_one(self):
+        found = [comment_finding("dark.rs", None), comment_finding("new.rs", None)]
+        self.assertEqual(self.choosing({"dark.rs": 5, "z.py": 3}, found, lambda path: path.endswith(".rs")), {"dark.rs": 5, "z.py": 3})
+
+    def test_a_language_being_chosen_leaves_other_languages_entries_byte_for_byte(self):
+        found = [comment_finding("a.rs", 2)]
+        stored = {"zz.py": 1.5, "z.py": 3}
+        self.assertEqual(self.choosing(stored, found, lambda path: path.endswith(".rs")), {"a.rs": 2, **stored})
+
+    def test_update_decides_what_survives_through_the_one_function(self):
+        self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
+        with mock.patch.object(ratchet, "surviving", wraps=ratchet.surviving) as deciding:
+            ratchet.settle(lambda: [finding("a.py", 5)], self.file, updating=True)
+        self.assertEqual(deciding.call_count, 1)
+
+    def test_choosing_decides_what_survives_through_the_one_function(self):
+        self.file.write_text('{"a.rs": 6}')
+        with mock.patch.object(ratchet, "surviving", wraps=ratchet.surviving) as deciding:
+            ratchet.recorded([comment_finding("a.rs", 2)], self.file, lambda path: path.endswith(".rs"))
+        self.assertEqual(deciding.call_count, 1)
+
+
 class SharedKeyTest(unittest.TestCase):
 
     def setUp(self):
