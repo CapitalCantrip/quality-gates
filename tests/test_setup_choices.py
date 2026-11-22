@@ -34,11 +34,11 @@ FRESH = {"id": "fresh", "name": "Fresh gate", "description": "A gate a later rel
 FRESH_WITH_SKILL = {"id": "fresh", "name": "Fresh gate", "description": "A component a later release adds.",
                     "core": False, "languages": ["python"], "origin": OURS,
                     "parts": [{"kind": "skill", "id": "fresh-skill"}, {"kind": "baseline", "id": "fresh-baseline.json"}]}
-COMMENTS = {"id": "comments", "name": "No comments", "description": "Blocks new Python comments.", "core": False,
+COMMENTS = {"id": "no-comments", "name": "No comments", "description": "Blocks new Python comments.", "core": False,
             "languages": ["python"], "origin": OURS,
             "parts": [{"kind": "command", "id": "comment-debt"}, {"kind": "baseline", "id": "comment-debt.json"},
                       {"kind": "precommit_step", "id": "comment-debt", "marker": "comment-debt"}]}
-COMMENTS_RUST = {"id": "comments-rust", "name": "No Rust comments", "description": "Blocks new Rust comments.",
+COMMENTS_RUST = {"id": "no-comments-rust", "name": "No Rust comments", "description": "Blocks new Rust comments.",
                  "core": False, "languages": ["rust"], "origin": OURS,
                  "parts": [{"kind": "command", "id": "comment-debt"}, {"kind": "baseline", "id": "comment-debt.json"},
                            {"kind": "precommit_step", "id": "comment-debt", "marker": "comment-debt"}]}
@@ -196,25 +196,20 @@ class Setup(unittest.TestCase):
         self.write(self.repo / ".githooks" / "pre-commit", "#!/bin/sh\ncomment-debt\n")
         return manifest_of(CORE, COMMENTS, COMMENTS_RUST)
 
-    def test_a_language_component_sharing_every_part_with_one_already_installed_is_offered_not_chosen(self):
+    def test_a_comment_language_component_sharing_every_part_with_one_already_installed_is_offered_not_chosen(self):
         with_rust = self.set_up_with_python_comments_and_rust_code()
         proposal = self.proposal(manifest=with_rust)
-        self.assertEqual((self.choice_of(proposal, "comments"), self.choice_of(proposal, "comments-rust")),
+        self.assertEqual((self.choice_of(proposal, "no-comments"), self.choice_of(proposal, "no-comments-rust")),
                          ("chosen", "offered"))
         self.run_setup("--go", manifest=with_rust)
-        self.assertEqual(self.recorded().chosen, ("comments",))
+        self.assertEqual(self.recorded().chosen, ("no-comments",))
 
-    def test_inferring_what_is_installed_counts_a_shared_part_only_for_the_first_component_listing_it(self):
-        with_rust = self.set_up_with_python_comments_and_rust_code()
-        project = status.project_at(self.repo, self.source, self.hooks)
-        self.assertEqual(status.components_present(project, with_rust, {"python", "rust"}), {"comments"})
-
-    def test_declining_a_language_component_whose_parts_another_component_installed_is_not_loosening(self):
+    def test_declining_a_comment_language_component_whose_parts_another_component_installed_is_not_loosening(self):
         with_rust = self.set_up_with_python_comments_and_rust_code()
         self.run_setup("--go", manifest=with_rust)
-        code, _, err = self.run_setup("--decline", "comments-rust", "--go", manifest=with_rust)
+        code, _, err = self.run_setup("--decline", "no-comments-rust", "--go", manifest=with_rust)
         self.assertEqual(code, 0, err)
-        self.assertEqual(self.recorded().declined, ("comments-rust",))
+        self.assertEqual(self.recorded().declined, ("no-comments-rust",))
 
     def copy_skills_only(self):
         self.write(self.repo / "pyproject.toml", "[project]\nname = 'consumer'\n")

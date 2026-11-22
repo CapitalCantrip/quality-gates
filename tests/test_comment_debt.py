@@ -394,6 +394,29 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn('FAIL main.rs: 2 comment lines, baseline allows 1 — lines 2, 3', out)
 
+    def install_the_comment_gate_without_a_choice_file(self):
+        (self.root / 'src' / 'app.py').write_text('x = 1\n')
+        self.file.write_text('{}\n')
+        (self.root / '.githooks').mkdir()
+        (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt\n')
+        (self.root / '.github' / 'workflows').mkdir(parents=True)
+        (self.root / '.github' / 'workflows' / 'ci.yml').write_text('steps:\n  - run: comment-debt\n')
+
+    def test_without_a_choice_file_a_workflow_running_the_comment_gate_leaves_rust_offered_and_the_gate_passing(self):
+        self.install_the_comment_gate_without_a_choice_file()
+        self.setup('--go')
+        self.assertEqual(self.offered(), 'offered')
+        self.assertEqual(json.loads((self.root / 'quality-gates.json').read_text())['components']['chosen'],
+                         ['no-comments'])
+        self.assertEqual(self.file.read_text(), '{}\n')
+        self.assertEqual(self.gate(), (0, 'comment debt: 0 lines in 0 files, none new\n'))
+
+    def test_without_a_choice_file_declining_rust_that_was_never_chosen_is_not_loosening(self):
+        self.install_the_comment_gate_without_a_choice_file()
+        self.setup('--go', '--decline', 'no-comments-rust')
+        self.assertEqual(json.loads((self.root / 'quality-gates.json').read_text())['components']['declined'],
+                         ['no-comments-rust'])
+
 
 class LiveRepositoryTest(unittest.TestCase):
 

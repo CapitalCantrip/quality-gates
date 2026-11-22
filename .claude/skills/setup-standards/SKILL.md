@@ -79,7 +79,9 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    counts by suffix or by a shell first line such as `#!/bin/sh`), and one
    row per component: its description, its cost (commit delay, CI time,
    outside tools) and a tick on the recommended set. With no choice file
-   `quality-gates.json` yet, what is installed is **chosen**. Any other
+   `quality-gates.json` yet, what is installed is **chosen**, except a comment
+   language row such as `no-comments-rust`, which is only ever chosen by
+   `--choose`. Any other
    component that applies and that the file does not list is **offered**,
    ticked, even when `qg-skills` already copied its skill: it is recorded
    only when `--choose` or `--decline` names it.

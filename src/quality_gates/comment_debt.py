@@ -132,6 +132,10 @@ def files_on_choosing(root, names, choice):
     }
 
 
+def chosen_only_on_asking():
+    return frozenset(row.component for row in LANGUAGES.values()) - project_files.ON_WITHOUT_A_CHOICE_FILE
+
+
 def languages_switched_on(components):
     return frozenset(name for name, row in LANGUAGES.items() if row.component in components)
 

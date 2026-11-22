@@ -656,7 +656,11 @@ line, like any other tool error.
   `comment-debt.json` when it switches a comment language on: that language's
   comments are recorded there as debt, replacing its older entries and leaving
   the others as they were. Without a choice
-  file it records what is installed as chosen. Every other component that
+  file it records what is installed as chosen, except a new comment language
+  such as `no-comments-rust`: the hook, CI step and baseline it shares with
+  `no-comments` never make it look installed, so it is switched on only by
+  `--choose`, which records its comments, and declining it is not loosening
+  until it is chosen. Every other component that
   applies and that the file does not list is *offered*, whatever is
   installed, so a component a release adds stays off after `qg-skills`
   copies its skill: ticked as recommended, and recorded only when `--choose`

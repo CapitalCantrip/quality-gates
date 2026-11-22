@@ -131,7 +131,7 @@ def propose(project, manifest, flags):
     used = proposed_languages(choice, detected, flags.add_language, flags.remove_language)
     check_component_names(manifest, flags.choose + flags.decline)
     project_files.check_not_both(flags.choose, flags.decline, BOTH_FLAGS)
-    installed = status.components_present(project, manifest, set(used))
+    installed = status.components_present(project, manifest, set(used)) - comment_debt.chosen_only_on_asking()
     check_declines(manifest, flags.decline, installed | set(choice.chosen if choice else ()))
     made = {c.id: made_choice(c, choice, installed, flags) for c in manifest.components if not c.core}
     rows = tuple(component_row(c, shown_choice(c, set(used), made.get(c.id))) for c in manifest.components)

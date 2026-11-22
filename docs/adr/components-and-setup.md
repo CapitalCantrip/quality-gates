@@ -58,10 +58,13 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   in one step it records that language's comments, in place of its older
   entries, then records the choice, so no state has a language's entries
   recorded while the language is off. The full report, clean first and the
-  other languages arrive with the later builds of quality-gates#3. When setup infers what is installed, a part that an earlier
-  component also lists counts only for that earlier one, so the shared
-  `comment-debt` hook and baseline never make a new language look installed
-  (ADR-007 § Pin bumps: a component a release adds is off until accepted).
+  other languages arrive with the later builds of quality-gates#3. Setup never
+  infers a new comment language's component as installed: the hook, CI step
+  and baseline it shares with `no-comments` say nothing about which languages
+  were switched on, so only the choice file or `--choose` switches it on, and
+  `--choose` is the step that records its comments. Declining one that was
+  never chosen is not loosening (ADR-007 § Pin bumps: a component a release
+  adds is off until accepted).
   ([ADR-010 addendum 2026-11-10](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt))
 - **Switching off** never applies to the core. Switching off a gate the
   project has is loosening (see [Baselines and loosening](baselines-and-loosening.md));
