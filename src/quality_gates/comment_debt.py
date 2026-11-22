@@ -27,12 +27,12 @@ CODING = re.compile(r"^#.*coding[:=]")
 FINDING_KIND = "comment lines"
 TAG = "comment-debt: "
 UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
-UNREAD = "does not parse or is not UTF-8, so its comments were not counted"
+UNREAD = "could not be opened, does not parse or is not UTF-8, so its comments were not counted"
 UNREAD_ADVICE = (
     "Unmeasured files fail the gate. Finish or fix them, or leave them out with settings.no-comments.exclude; "
     "the baseline keeps any entry they already have and records none for them."
 )
-UNREADABLE = (SyntaxError, ValueError, tokenize.TokenError)
+UNREADABLE = (OSError, SyntaxError, ValueError, tokenize.TokenError)
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,

@@ -198,7 +198,7 @@ comment, and also if it loses one without the baseline being lowered, so paid
 debt is always recorded. It checks the
 [files in scope](src/quality_gates/skills/crap/references/files-in-scope.md),
 untracked files included, less `settings.no-comments.exclude` in the choice
-file. A file that does not parse or is not UTF-8 is `UNMEASURED`: the gate
+file. A file the gate cannot open, parse or decode as UTF-8 is `UNMEASURED`: the gate
 names it and fails, and `--update` keeps any entry it has. What happens to the
 baseline entries of a language left unchecked, or of a file that left the
 scope, is in [the comment gate's files](src/quality_gates/skills/no-comments/references/comment-gate-files.md). It checks Python only when `no-comments` is chosen there (with no choice

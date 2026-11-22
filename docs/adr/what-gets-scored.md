@@ -42,8 +42,8 @@ submodules, that line names only folders marked `(already scanned)`.
 path segments as `exclude` does. `comment-debt` checks a language only when
 that language's comment component is chosen in the choice file: `no-comments`
 for Python, `no-comments-rust` for Rust. Without a choice file it checks Python
-only. It has no `--exclude` flag. A file it cannot read, because it does not
-parse or is not UTF-8, is unmeasured: the gate names it and fails, keeps any
+only. It has no `--exclude` flag. A file it cannot read, because it could not
+be opened, does not parse or is not UTF-8, is unmeasured: the gate names it and fails, keeps any
 baseline entry it has and records none for it. A baseline entry for a language
 it does not check is left alone: it is not judged, `--update` keeps it, and
 choosing that language replaces it. An entry for a checked language whose file

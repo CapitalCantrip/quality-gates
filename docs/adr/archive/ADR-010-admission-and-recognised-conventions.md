@@ -205,7 +205,8 @@ default fixture folders. `settings.no-comments.exclude` applies on top and
 matches whole path segments (ADR-001 addendum 2026-11-01), so `build` skips
 `build/` and never `buildscripts/`. An untracked file that git would commit is
 checked; before, only tracked files were. A file the gate cannot read, an
-unfinished one that does not parse or one that is not UTF-8, is unmeasured, as
+one it may not open, an unfinished one that does not parse or one that is
+not UTF-8, is unmeasured, as
 in the CRAP gate (ADR-001 addendum 2026-10-25): the gate names it and fails,
 and the baseline keeps any entry it has and records none for it. Entries for
 a language the gate does not check are not judged and `--update` keeps them,

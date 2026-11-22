@@ -1,6 +1,7 @@
 import contextlib
 import io
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -237,6 +238,29 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn(f'UNMEASURED latin.py: {cd.UNREAD}\n', out)
         self.assertIn(f'UNMEASURED latin.rs: {cd.UNREAD}\n', out)
+
+    def test_a_code_file_name_that_points_at_a_folder_fails_the_gate_as_unmeasured_without_a_traceback(self):
+        self.put('a.py', 'x = 1\n')
+        self.file.write_text('{}\n')
+        (self.root / 'folder').mkdir()
+        (self.root / 'gen.py').symlink_to(self.root / 'folder')
+        code, out = self.run_gate()
+        self.assertEqual(code, 1)
+        self.assertIn(f'UNMEASURED gen.py: {cd.UNREAD}\n', out)
+
+    @unittest.skipIf(hasattr(os, 'geteuid') and os.geteuid() == 0, 'root reads any file')
+    def test_a_file_the_gate_may_not_open_fails_the_gate_as_unmeasured_without_a_traceback(self):
+        self.put('a.py', 'x = 1\n')
+        self.file.write_text('{}\n')
+        self.keep_untracked('locked.py', '# hidden\n')
+        locked = self.root / 'locked.py'
+        locked.chmod(0)
+        try:
+            code, out = self.run_gate()
+        finally:
+            locked.chmod(0o644)
+        self.assertEqual(code, 1)
+        self.assertIn(f'UNMEASURED locked.py: {cd.UNREAD}\n', out)
 
     def test_update_keeps_the_entry_of_a_file_that_no_longer_parses_and_records_none_for_a_new_one(self):
         self.put('a.py', '# one\nx = 1\n')
