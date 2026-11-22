@@ -83,11 +83,18 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    component that applies and that the file does not list is **offered**,
    ticked, even when `qg-skills` already copied its skill: it is recorded
    only when `--choose` or `--decline` names it.
-3. Show the builder that table as it stands, and ask them to say "go" or name
-   changes. Under the table, end with one line: *Ask me about any row, or run
+3. Show the builder that table as it stands. Under it, for each **offered**
+   comment language row (`no-comments-rust`), run
+   `comment-debt --report <language>` and show what it prints: the comments
+   that language already has. Say that accepting the row records them as debt,
+   so only new comments fail. Then ask the builder to say "go" or name
+   changes, and end with one line: *Ask me about any row, or run
    `qg explain <name>`.*
 4. "Go" accepts every ticked row: add `--choose <id>` for each **offered** row
-   the builder did not turn down. Turn each change into a flag on `qg setup`:
+   the builder did not turn down. For each comment language row accepted, run
+   `comment-debt --record <language>` first: it adds that language's entries
+   to `comment-debt.json` and leaves every other entry as it was. It refuses
+   a language already chosen. Turn each change into a flag on `qg setup`:
    `--add-language <name>` (a
    language may be added before it has code), `--remove-language <name>`,
    `--choose <id>`, `--decline <id>`. When it refuses (the core, a gate the
@@ -96,7 +103,10 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 5. Run `qg setup --go` with the same flags. It writes `quality-gates.json`
    only, and moves the `--exclude` prefixes of the `comment-debt` commands in
    the hook and CI into the file. Then remove those flags from the hook and CI,
-   since `comment-debt` refuses `--exclude`. Commit both.
+   since `comment-debt` refuses `--exclude`. Run `comment-debt`: it passes
+   once each recorded language is chosen. Commit `quality-gates.json`,
+   `comment-debt.json`, the hook and CI together, since a recorded language
+   that is not yet chosen shows as paid debt.
 
 From here on, do only the blocks for the languages the file records, and only
 for chosen components.
@@ -114,7 +124,8 @@ for chosen components.
   SwiftPM package with no test target has no CRAP gate; step 3 says how to
   report that.
 - **Rust:** run the setup steps of `/cc-rust`: `clippy.toml` and the deny
-  attributes.
+  attributes. With `no-comments-rust` chosen, `comment-debt` checks Rust too,
+  against the entries `comment-debt --record rust` wrote above.
 - **TypeScript / JavaScript:** `cc-check --lang typescript` and
   `crap --lang typescript`, as `/cc-typescript` and `/crap` describe. CRAP
   needs Istanbul's `coverage-final.json`: Vitest with `@vitest/coverage-v8`
@@ -166,7 +177,7 @@ from the repo root and commit the file it writes.
   baseline: report CRAP as not done, as step 2 says.
 - **Rust:** run `cargo clippy --all-targets`. Each function it fails gets
   `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]`;
-  that attribute is its baseline entry.
+  that attribute is its baseline entry. Its comments were recorded in step 2.
 
 A project in any language with no tests has no coverage for `crap` to read, so
 CRAP is not set up for it. Report CRAP as **not done**, with the reason (no
@@ -185,7 +196,8 @@ release's CHANGELOG entry says under *When you bump the pin*.
 
 1. `.githooks/pre-commit` runs every fast gate, stopping at the first failure:
    `comment-debt` and `cc-check <source dirs> --baseline cc-baseline.json` for
-   Python; `cc-check --lang typescript <source dirs> --baseline cc-baseline.json`
+   Python; `comment-debt` for Rust with `no-comments-rust` chosen;
+   `cc-check --lang typescript <source dirs> --baseline cc-baseline.json`
    for TypeScript or JavaScript; `swiftlint` for Swift where installed. Keep any lines the project
    already had. Make it executable. If the project has a `.venv`, the hook's
    first line after the shebang is `[ -d .venv/bin ] && PATH="$PWD/.venv/bin:$PATH"`:
@@ -208,7 +220,13 @@ Make CI enforce what the hooks enforce, plus the slow gates.
 - **Python:** add the test file in [ci-python.md](ci-python.md) to the test
   suite, and the CRAP step from the same file to the CI workflow after the
   tests.
-- **Rust:** a CI step running `cargo clippy --all-targets`.
+- **Rust:** a CI step running `cargo clippy --all-targets`. With
+  `no-comments-rust` chosen and no Python test file from
+  [ci-python.md](ci-python.md) already running the comment gate, also:
+
+  ```yaml
+      - run: comment-debt
+  ```
 - **TypeScript / JavaScript:** the steps in [ci-typescript.md](ci-typescript.md).
 - **Swift:** a CI step running SwiftLint, on a macOS runner. If the project has
   no macOS CI job, report this as not done and say what it would cost. A

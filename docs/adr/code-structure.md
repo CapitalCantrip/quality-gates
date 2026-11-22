@@ -42,7 +42,11 @@ quality-gates#138: for `cc-check --format json` without `--baseline` and for
 baseline, keys each location by its real path from the root only when a
 baseline is used, compares, writes the baseline on `--update` and returns a
 result with one outcome per location: passed, failed, behind the baseline,
-unmeasured or did not run. A gate that could not run raises
+unmeasured or did not run. When the gate sets `recording` in its `Asked`
+(`comment-debt --record <language>`), `ratchet` instead adds an entry for each
+location the gate found with debt and leaves every other entry as it was; this
+is how setup records one comment language's existing debt before switching it
+on, while `--update` still only lowers. A gate that could not run raises
 `errors.ToolError`, and so does `ratchet` for a missing, unreadable or
 malformed baseline; the one place that catches it is `ratchet.attempt`,
 reached through `ratchet.run_gate`, which turns it into *did not run* and
@@ -58,7 +62,8 @@ language a gate does not support and the runner's record of *did not run*
 
 ## One code reader
 
-Decided, not built yet (quality-gates#3): `code_reader` is the one reader of
+Built in part (quality-gates#210, which reads Rust's `//` lines only; #186 and
+#187 fill it in): `code_reader` is the one reader of
 comments and strings for the non-Python languages. For one file and one
 language's syntax it returns each comment (kind, text, start and end line) and
 a copy of the source with strings and comments blanked, line numbers kept. It

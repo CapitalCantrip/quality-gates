@@ -51,9 +51,15 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   asks *record as debt* or *clean first*. Clean first pays down a scope the
   builder picks, optionally opens an issue for the rest, and records what
   remains; the language is switched on only once its comments are recorded.
-  The comment gate checks a language only when its component is chosen. Built
-  in part: the gate reads the choice file today (below), and the new components
-  arrive with the later builds of quality-gates#3.
+  The comment gate checks a language only when its component is chosen, and
+  with no choice file only Python. Built in part: `no-comments-rust` is offered
+  for Rust's `//` lines, `comment-debt --report <language>` shows the total
+  only, and `comment-debt --record <language>` records as debt; the full
+  report, clean first and the other languages arrive with the later builds of
+  quality-gates#3. When setup infers what is installed, a part that an earlier
+  component also lists counts only for that earlier one, so the shared
+  `comment-debt` hook and baseline never make a new language look installed
+  (ADR-007 § Pin bumps: a component a release adds is off until accepted).
   ([ADR-010 addendum 2026-11-10](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt))
 - **Switching off** never applies to the core. Switching off a gate the
   project has is loosening (see [Baselines and loosening](baselines-and-loosening.md));

@@ -172,7 +172,7 @@ them. Why each number is what it is: [ADR-001](docs/adr/archive/ADR-001-complexi
 
 | Gate | Language | Tool | Fails above | Warns above |
 |---|---|---|---|---|
-| No new comments | Python | `comment-debt` | the file's baseline | — |
+| No new comments | Python, Rust | `comment-debt` | the file's baseline | — |
 | Cyclomatic complexity | Python | `cc-check` (radon) | 8 | — |
 | Cyclomatic complexity | TypeScript, JavaScript | `cc-check --lang typescript` (lizard) | 8 | — |
 | Cyclomatic complexity | Swift | SwiftLint, `ignores_case_statements: true` | 8 | 6 |
@@ -198,12 +198,17 @@ comment, and also if it loses one without the baseline being lowered, so paid
 debt is always recorded. It checks the
 [files in scope](src/quality_gates/skills/crap/references/files-in-scope.md),
 untracked files included, less `settings.no-comments.exclude` in the choice
-file, and checks Python only when `no-comments` is chosen there (with no choice
-file, as before). `--exclude` is removed: it exits non-zero and says to run
-`/setup-standards`. Python only for now
-([#3](../../issues/3) adds Rust,
-TypeScript, Swift and shell, each its own component with a debt report and a
-record-or-clean choice:
+file. It checks Python only when `no-comments` is chosen there (with no choice
+file, as before), and Rust only when `no-comments-rust` is chosen (never with
+no choice file); in Rust it counts `//` line comments so far.
+`comment-debt --report <language>` prints a language's comment lines, chosen or
+not. `comment-debt --record <language>` adds that language's entries to the
+baseline before it is chosen, leaves every other entry as it was, and refuses a
+language already chosen; `/setup-standards` runs both when it offers a
+language. `--exclude` is removed: it exits non-zero and says to run
+`/setup-standards`. ([#3](../../issues/3) adds the rest of Rust, then
+TypeScript, Swift and shell, each its own component, with the full debt report
+and the record-or-clean choice:
 [ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
 
 ### `cc-check`: cyclomatic complexity
