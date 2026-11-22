@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- **`comment-debt` reads its exclusions from the choice file (#185, #210).**
+  It now checks untracked files as well as tracked ones, reads
+  `settings.no-comments.exclude` from `quality-gates.json`, and refuses
+  `--exclude`. A project whose pre-commit hook passes `--exclude` must run
+  `/setup-standards` on the bump, which moves the patterns into the choice
+  file.
+- **An untracked file the comment gate cannot read fails as `UNMEASURED`
+  (#210).** Make the file readable, or list it in
+  `settings.no-comments.exclude`.
 - **`/implement-spec` also runs Claude Code's `/code-review high` before it
   hands back.** Step 7 now runs `review-against-spec` and then the built-in
   correctness review, and one implementer fixes the findings of both. A sprint
