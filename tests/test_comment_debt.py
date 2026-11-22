@@ -17,31 +17,31 @@ REPO = Path(__file__).resolve().parents[1]
 class CountingTest(unittest.TestCase):
 
     def test_a_hash_comment_on_its_own_line_is_debt(self):
-        self.assertEqual(cd.debt_lines('x = 1\n# why\ny = 2\n'), [2])
+        self.assertEqual(list(cd.debt_kinds('x = 1\n# why\ny = 2\n')), [2])
 
     def test_a_trailing_comment_is_debt(self):
-        self.assertEqual(cd.debt_lines('x = 1  # why\n'), [1])
+        self.assertEqual(list(cd.debt_kinds('x = 1  # why\n')), [1])
 
     def test_every_line_of_a_docstring_is_debt(self):
         source = 'def f():\n    """One.\n\n    Two.\n    """\n    return 1\n'
-        self.assertEqual(cd.debt_lines(source), [2, 3, 4, 5])
+        self.assertEqual(list(cd.debt_kinds(source)), [2, 3, 4, 5])
 
     def test_a_bare_string_used_as_a_comment_is_debt(self):
         source = 'def f():\n    x = 1\n    "why"\n    return x\n'
-        self.assertEqual(cd.debt_lines(source), [3])
+        self.assertEqual(list(cd.debt_kinds(source)), [3])
 
     def test_a_hash_inside_a_string_is_not_a_comment(self):
-        self.assertEqual(cd.debt_lines('url = "a#b"\ncolour = "#fff"\n'), [])
+        self.assertEqual(list(cd.debt_kinds('url = "a#b"\ncolour = "#fff"\n')), [])
 
     def test_a_string_that_is_assigned_is_not_debt(self):
-        self.assertEqual(cd.debt_lines('HELP = """usage"""\n'), [])
+        self.assertEqual(list(cd.debt_kinds('HELP = """usage"""\n')), [])
 
     def test_a_shebang_and_a_coding_cookie_are_exempt(self):
         source = '#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\nx = 1\n'
-        self.assertEqual(cd.debt_lines(source), [])
+        self.assertEqual(list(cd.debt_kinds(source)), [])
 
     def test_a_shebang_after_line_one_is_debt(self):
-        self.assertEqual(cd.debt_lines('x = 1\n#!/bin/sh\n'), [2])
+        self.assertEqual(list(cd.debt_kinds('x = 1\n#!/bin/sh\n')), [2])
 
     def test_a_bare_pragma_is_exempt(self):
         source = (
@@ -51,14 +51,14 @@ class CountingTest(unittest.TestCase):
             'if y:  # pragma: no cover\n'
             '    pass\n'
         )
-        self.assertEqual(cd.debt_lines(source), [])
+        self.assertEqual(list(cd.debt_kinds(source)), [])
 
     def test_a_pragma_that_carries_prose_is_debt(self):
-        self.assertEqual(cd.debt_lines('import a  # noqa: E402  (path set above)\n'), [1])
+        self.assertEqual(list(cd.debt_kinds('import a  # noqa: E402  (path set above)\n')), [1])
 
 
 def rust_lines(source, conventions=()):
-    return cd.LANGUAGES['rust'].checker(source, conventions)
+    return list(cd.LANGUAGES['rust'].checker(source, conventions))
 
 
 class RustCountingTest(unittest.TestCase):
@@ -158,7 +158,7 @@ class LocalBarRustFixturesTest(unittest.TestCase):
 
 
 def typescript_lines(source):
-    return cd.LANGUAGES['typescript'].checker(source, ())
+    return list(cd.LANGUAGES['typescript'].checker(source, ()))
 
 
 class TypeScriptCountingTest(unittest.TestCase):
@@ -212,7 +212,7 @@ class LocalBarTypeScriptFixturesTest(unittest.TestCase):
 
 
 def swift_lines(source):
-    return cd.LANGUAGES['swift'].checker(source, ())
+    return list(cd.LANGUAGES['swift'].checker(source, ()))
 
 
 class SwiftCountingTest(unittest.TestCase):
@@ -241,7 +241,7 @@ class SwiftCountingTest(unittest.TestCase):
 
 
 def shell_lines(source):
-    return cd.LANGUAGES['shell'].checker(source, ())
+    return list(cd.LANGUAGES['shell'].checker(source, ()))
 
 
 class ShellCountingTest(unittest.TestCase):
@@ -438,13 +438,91 @@ class RepositoryTest(unittest.TestCase):
         self.assertIn(f'UNMEASURED scratch.py: {cd.UNREAD}\n', out)
         self.assertIn(cd.UNREAD_ADVICE, out)
 
-    def test_the_status_and_the_report_skip_a_file_that_does_not_parse(self):
+    def test_the_report_names_a_file_that_does_not_parse_under_its_unchanged_total(self):
         self.put('a.py', '# one\n')
         self.keep_untracked('scratch.py', '# two\ndef f(:\n')
-        self.assertEqual(self.run_gate('--report', 'python'), (0, '# Python comment debt: 1 lines in 1 files\n'))
+        code, out = self.run_gate('--report', 'python')
+        self.assertEqual(code, 0)
+        self.assertEqual(out.splitlines()[:2], ['# Python comment debt: 1 lines in 1 files',
+                                                '# 1 file could not be read: scratch.py'])
+
+    def test_the_status_names_a_file_that_does_not_parse_under_its_unchanged_total(self):
+        self.put('a.py', '# one\n')
+        self.keep_untracked('scratch.py', '# two\ndef f(:\n')
         code, out = self.run_gate('--status')
         self.assertEqual(code, 0)
-        self.assertIn('# Comment debt: 1 lines in 1 files', out)
+        self.assertEqual(out.splitlines()[:2], ['# Comment debt: 1 lines in 1 files',
+                                                '# 1 file could not be read: scratch.py'])
+
+    def test_the_report_names_every_file_it_could_not_read_including_one_that_is_not_utf8(self):
+        self.put('a.py', '# one\n')
+        self.keep_untracked('scratch.py', 'def f(:\n')
+        (self.root / 'latin.py').write_bytes(b'x = "\xff"\n')
+        code, out = self.run_gate('--report', 'python')
+        self.assertEqual(out.splitlines()[1], '# 2 files could not be read: latin.py, scratch.py')
+
+    def test_the_report_and_the_status_add_no_line_when_every_file_reads(self):
+        self.put('a.py', '# one\n')
+        self.assertNotIn('could not be read', self.run_gate('--report', 'python')[1])
+        self.assertNotIn('could not be read', self.run_gate('--status')[1])
+
+    def test_the_report_for_one_language_names_only_that_languages_unread_files(self):
+        self.choose()
+        self.keep_untracked('scratch.py', 'def f(:\n')
+        (self.root / 'latin.rs').write_bytes(b'// \xff\n')
+        self.assertEqual(self.run_gate('--report', 'rust')[1].splitlines()[1], '# 1 file could not be read: latin.rs')
+
+    def test_the_report_shows_totals_counts_by_kind_and_area_and_culprits_in_order(self):
+        self.choose()
+        self.keep_untracked('a.py', '# python is not in the rust report\n')
+        self.keep_untracked('src/core/a.rs', '// TODO fix\nfn a() {}\n// a workaround for now\n// plain\n')
+        self.keep_untracked('src/core/b.rs', '// one\n')
+        self.keep_untracked('src/ui/v.rs', 'fn v() {} // hack\n')
+        self.keep_untracked('tools/t.rs', '// two\n// three\n')
+        self.keep_untracked('clean.rs', 'fn c() {}\n')
+        self.assertEqual(self.run_gate('--report', 'rust'), (0, (
+            '# Rust comment debt: 7 lines in 4 files\n'
+            '\n## By kind\n'
+            '    7  line\n'
+            '\n## By area: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n'
+            '    4    2  src/core\n'
+            '    2    0  tools\n'
+            '    1    1  src/ui\n'
+            '\n## Most comment lines\n'
+            '    3  src/core/a.rs\n'
+            '    2  tools/t.rs\n'
+            '    1  src/core/b.rs\n'
+            '    1  src/ui/v.rs\n'
+            '\n## Most rationale lines\n'
+            '    2  src/core/a.rs\n'
+            '    1  src/ui/v.rs\n'
+            '\n## Areas with most rationale lines\n'
+            '    2  src/core\n'
+            '    1  src/ui\n'
+        )))
+
+    def test_a_form_feed_or_line_separator_does_not_move_a_rationale_onto_another_line(self):
+        self.choose()
+        self.keep_untracked('a.rs', '// plain\n\x0c\nlet s = "\u2028";\n// TODO\n')
+        out = self.run_gate('--report', 'rust')[1]
+        self.assertIn('\n## Most rationale lines\n    1  a.rs\n', out)
+
+    def test_the_report_counts_a_python_docstring_or_bare_string_as_a_string_comment(self):
+        self.put('a.py', '"""A docstring."""\n# a comment\nx = 1\n"why"\n')
+        self.assertIn('\n## By kind\n    1  line\n    2  string\n', self.run_gate('--report', 'python')[1])
+
+    def test_the_report_lists_at_most_five_files_in_each_culprit_list(self):
+        self.choose()
+        for n in range(7):
+            self.keep_untracked(f'f{n}.rs', '// todo\n' * (n + 1))
+        out = self.run_gate('--report', 'rust')[1]
+        culprits = out.split('## Most comment lines\n')[1].split('\n\n')[0].splitlines()
+        self.assertEqual(culprits, ['    7  f6.rs', '    6  f5.rs', '    5  f4.rs', '    4  f3.rs', '    3  f2.rs'])
+
+    def test_the_report_of_a_language_without_comments_is_its_total_alone(self):
+        self.choose()
+        self.keep_untracked('clean.rs', 'fn c() {}\n')
+        self.assertEqual(self.run_gate('--report', 'rust'), (0, '# Rust comment debt: 0 lines in 0 files\n'))
 
     def test_a_file_that_is_not_utf8_fails_the_gate_as_unmeasured_in_either_language(self):
         self.choose(chosen=['no-comments', 'no-comments-rust'])
@@ -579,9 +657,11 @@ class RepositoryTest(unittest.TestCase):
         self.choose(chosen=['no-comments-rust'], conventions=['rust-safety'])
         self.file.write_text('{"main.rs": 1}\n')
         self.assertEqual(self.run_gate(), (0, 'comment debt: 1 lines in 1 files, none new\n'))
-        self.assertEqual(self.run_gate('--report', 'rust'), (0, '# Rust comment debt: 1 lines in 1 files\n'))
+        code, out = self.run_gate('--report', 'rust')
+        self.assertEqual((code, out.splitlines()[0]), (0, '# Rust comment debt: 1 lines in 1 files'))
         self.choose(chosen=['no-comments-rust'])
-        self.assertEqual(self.run_gate('--report', 'rust'), (0, '# Rust comment debt: 2 lines in 1 files\n'))
+        code, out = self.run_gate('--report', 'rust')
+        self.assertEqual((code, out.splitlines()[0]), (0, '# Rust comment debt: 2 lines in 1 files'))
         self.assertEqual(self.run_gate()[0], 1)
 
     def test_update_still_refuses_to_add_an_entry_for_a_chosen_language(self):
@@ -600,7 +680,8 @@ class RepositoryTest(unittest.TestCase):
         self.put('main.rs', '// one\nfn main() {\n    // two\n}\n')
         self.put('lib.rs', '// three\n')
         self.put('plain.rs', 'fn f() {}\n')
-        self.assertEqual(self.run_gate('--report', 'rust'), (0, '# Rust comment debt: 3 lines in 2 files\n'))
+        code, out = self.run_gate('--report', 'rust')
+        self.assertEqual((code, out.splitlines()[0]), (0, '# Rust comment debt: 3 lines in 2 files'))
         self.assertFalse(self.file.exists())
 
     def test_the_exclude_flag_is_refused_and_names_setup_standards(self):
@@ -676,7 +757,8 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         python_only = self.file.read_text()
 
         self.assertEqual(self.offered(), 'offered')
-        self.assertEqual(self.gate('--report', 'rust'), (0, '# Rust comment debt: 1 lines in 1 files\n'))
+        code, out = self.gate('--report', 'rust')
+        self.assertEqual((code, out.splitlines()[0]), (0, '# Rust comment debt: 1 lines in 1 files'))
         self.assertEqual(self.file.read_text(), python_only)
 
         self.setup('--go', '--choose', 'no-comments-rust')
@@ -700,6 +782,28 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         (self.root / 'main.rs').write_text('fn main() {\n    // SAFETY: why.\n    unsafe {}\n    // stray\n}\n')
         self.setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text())['main.rs'], 1)
+
+    def test_setup_shows_an_offered_languages_report_and_both_choices_before_asking(self):
+        self.setup('--go', '--choose', 'no-comments')
+        out = self.setup()
+        report, offer, asking = (out.index('# Rust comment debt: 1 lines in 1 files\n'),
+                                 out.index(setup_choices.OFFER_CHOICES.format('no-comments-rust')),
+                                 out.index('Not yet answered: no-comments-rust'))
+        self.assertLess(report, offer)
+        self.assertLess(offer, asking)
+        self.assertIn('\n## By kind\n    1  line\n', out)
+
+    def test_setup_json_carries_each_offered_languages_report(self):
+        self.setup('--go', '--choose', 'no-comments')
+        reports = json.loads(self.setup('--json'))['debt_reports']
+        self.assertEqual(list(reports), ['rust'])
+        self.assertTrue(reports['rust'].startswith('# Rust comment debt: 1 lines in 1 files\n'))
+
+    def test_setup_shows_no_report_for_a_language_chosen_or_declined(self):
+        self.setup('--go', '--choose', 'no-comments')
+        self.assertNotIn('Rust comment debt', self.setup('--choose', 'no-comments-rust'))
+        self.assertNotIn('Rust comment debt', self.setup('--decline', 'no-comments-rust'))
+        self.assertEqual(json.loads(self.setup('--json', '--decline', 'no-comments-rust'))['debt_reports'], {})
 
     def test_choosing_rust_replaces_every_rust_entry_and_leaves_every_other_entry_as_it_was(self):
         self.setup('--go', '--choose', 'no-comments')
@@ -728,6 +832,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         (self.root / 'vendor' / 'v.rs').write_text('// vendored\n')
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
+        self.assertIn('# Rust comment debt: 1 lines in 1 files\n', self.setup())
         self.setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})
         self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 2 files, none new\n'))

@@ -218,13 +218,15 @@ regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
 `swiftlint:disable`/`swiftlint:enable` are exempt. In shell a `#` counts only
 where it starts a word, so `$#`, `${#x}`, quotes and heredoc bodies do not;
 the shebang on line 1 and a bare `# shellcheck disable=` are exempt.
-`comment-debt --report <language>` prints a language's comment lines, chosen or
-not; `/setup-standards` shows it when it offers a language. Choosing a comment
+`comment-debt --report <language>` prints a language's comment debt, chosen or
+not: the total, the count by kind and by area, and the files with the most
+comment lines and the most rationale lines. It and `--status` name any file they
+could not read, which the gate would fail. `qg setup` prints the report of each
+comment language it offers, with the two ways to accept it, before it asks. Choosing a comment
 language with `qg setup --go --choose <id>` records its comments as debt in the
 same step, in place of any older entries for that language, so the gate never
 checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run
-`/setup-standards`. ([#3](../../issues/3) adds the full debt report and the
-record-or-clean choice:
+`/setup-standards`. ([#3](../../issues/3) adds clean first:
 [ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
 
 ### `cc-check`: cyclomatic complexity

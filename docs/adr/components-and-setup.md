@@ -54,15 +54,22 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   The comment gate checks a language only when its component is chosen, and
   with no choice file only Python. Built in part: `no-comments-rust`,
   `no-comments-typescript`, `no-comments-swift` and `no-comments-shell` are
-  offered, `comment-debt --report <language>` shows the total
-  only, and `qg setup --go --choose no-comments-<language>` records as debt:
+  offered; `comment-debt --report <language>` prints the full
+  report and names any file it could not read, as `--status` does; `qg setup`
+  prints it, then the two choices, for each offered comment language before
+  asking; and `qg setup --go --choose no-comments-<language>` records as debt:
   in one step it records that language's comments, in place of its older
   entries, then records the choice, so no state has a language's entries
-  recorded while the language is off. The full report and clean first
-  arrive with the later builds of quality-gates#3. Setup never
+  recorded while the language is off. Until clean first is built, setup's
+  offer says to pay comments down with the `no-comments` skill and then
+  choose. The report counts the files that choosing would record, after the
+  `--exclude` flags setup moves into the choice file. Clean first
+  arrives with a later build of quality-gates#3. Neither setup nor `qg status`
   infers a new comment language's component as installed: the hook, CI step
   and baseline it shares with `no-comments` say nothing about which languages
-  were switched on, so only the choice file or `--choose` switches it on, and
+  were switched on, so status shows one the choice file does not choose as
+  missing, not yet offered or declined, never installed. Only the choice file
+  or `--choose` switches it on, and
   `--choose` is the step that records its comments. Declining one that was
   never chosen is not loosening (ADR-007 § Pin bumps: a component a release
   adds is off until accepted).

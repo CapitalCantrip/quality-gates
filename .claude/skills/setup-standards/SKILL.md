@@ -85,11 +85,12 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    component that applies and that the file does not list is **offered**,
    ticked, even when `qg-skills` already copied its skill: it is recorded
    only when `--choose` or `--decline` names it.
-3. Show the builder that table as it stands. Under it, for each **offered**
-   comment language row (`no-comments-rust`), run
-   `comment-debt --report <language>` and show what it prints: the comments
-   that language already has. Say that accepting the row records them as debt,
-   so only new comments fail. Then ask the builder to say "go" or name
+3. Show the builder that table as it stands. Under it, `qg setup` prints the
+   debt report of each **offered** comment language row (`no-comments-rust`):
+   the comments that language already has, by kind, by area and the worst
+   files. Show it whole, with the two choices printed under it: record them as
+   debt, so only new comments fail, or clean first: pay comments down with the
+   `no-comments` skill, then choose the row to record the rest. Then ask the builder to say "go" or name
    changes, and end with one line: *Ask me about any row, or run
    `qg explain <name>`.*
 4. "Go" accepts every ticked row: add `--choose <id>` for each **offered** row

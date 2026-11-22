@@ -34,6 +34,30 @@
 - **An untracked file the comment gate cannot read fails as `UNMEASURED`
   (#210).** Make the file readable, or list it in
   `settings.no-comments.exclude`.
+- **`qg setup` shows a comment language's debt before it asks (#188).**
+  For each comment language it offers, setup prints that language's report:
+  the total, the count by kind and by area, and the five files with the most
+  comment lines and the most rationale lines (workaround, deliberately, for
+  now, TODO ...), and the areas with the most rationale lines. The report
+  counts the files choosing would record. It comes with the two ways to
+  accept: record as debt, or clean first by paying comments down with the
+  `no-comments` skill and then choosing. Python docstrings and bare strings
+  count as kind `string`. `comment-debt --report <language>` prints the same
+  report, and
+  `qg setup --json` carries it under `debt_reports`. Nothing to do beyond the
+  pin bump and `qg-skills`.
+- **The report and `--status` name the files they could not read (#214).**
+  `comment-debt --report` and `comment-debt --status` add one line, for
+  example `# 1 file could not be read: scratch.py`, so the builder sees a
+  file before choosing that the gate would fail as `UNMEASURED`. Their totals
+  are unchanged. Rationale lines are now found on the right line in a file
+  with a form feed or a Unicode line separator. Nothing to do on bumping the
+  pin.
+- **`qg status` no longer calls a comment language installed that was never
+  chosen (#213).** The hook, CI step and baseline that `no-comments-rust`
+  shares with `no-comments` used to show it as installed or partly installed
+  with no choice file. Status now shows it as missing until the choice file
+  chooses it, the same rule setup uses. Nothing to do on bumping the pin.
 - **`/implement-spec` also runs Claude Code's `/code-review high` before it
   hands back.** Step 7 now runs `review-against-spec` and then the built-in
   correctness review, and one implementer fixes the findings of both. A sprint
