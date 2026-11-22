@@ -290,6 +290,21 @@ class ShellCountingTest(unittest.TestCase):
         source = 'cmd <<A <<B # note\n# in a\nA\n# in b\nB\n# counted\n'
         self.assertEqual(shell_lines(source), [1, 6])
 
+    def test_a_shift_inside_arithmetic_is_not_a_heredoc(self):
+        for source in ('echo $(( x << y )) # note\n# another\ny\n', '(( x << y )) # note\n# another\ny\n',
+                       'echo $(( (a << b) + c )) # note\n# another\nb\n'):
+            with self.subTest(source=source):
+                self.assertEqual(shell_lines(source), [1, 2])
+
+    def test_a_command_substitution_inside_double_quotes_nests_its_own_quotes(self):
+        for source, lines in (('x="$(echo "a # b")"\n', []), ('x="$(f "$(g "# c")" "# d")" # e\n', [1]),
+                              ('x="$((1 + 2)) # f"\n', []), ('x="$(echo "a # b")\n# g"\n', [])):
+            with self.subTest(source=source):
+                self.assertEqual(shell_lines(source), lines)
+
+    def test_a_comment_inside_a_command_substitution_inside_double_quotes_counts(self):
+        self.assertEqual(shell_lines('x="$(echo hi # why\n)"\n'), [1])
+
     def test_a_heredoc_whose_delimiter_never_comes_is_read_as_code(self):
         self.assertEqual(shell_lines('cat <<EOF\n# counted\n'), [2])
 
