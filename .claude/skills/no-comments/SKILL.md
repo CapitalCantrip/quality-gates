@@ -18,11 +18,14 @@ held by a per-file baseline that only goes down.
 comment-debt            # exit 1 if any file is above or below its baseline
 comment-debt --status   # remaining debt by area, rationale-flagged files first
 comment-debt --update   # lower the baseline after paying debt; never raises
+comment-debt --report rust   # one language's comment lines, chosen or not
 ```
 
 Option: `--baseline PATH` (default `comment-debt.json` at the repo root). It
-checks the files in scope, less `settings.no-comments.exclude` in
-`quality-gates.json`, and Python only when `no-comments` is chosen there.
+checks the [comment gate's files](references/comment-gate-files.md), which start
+from the [files in scope](references/files-in-scope.md). A language's existing
+comments are recorded when `/setup-standards` switches it on with
+`qg setup --go --choose <id>`; `--update` never adds them.
 `--exclude` is refused: run `/setup-standards` to move the prefixes into the file.
 
 ## Set up in a repo

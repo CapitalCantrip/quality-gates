@@ -34,9 +34,16 @@ it from inside)`; scan a path inside it to score it by its own git. Besides
 submodules, that line names only folders marked `(already scanned)`.
 <!-- /rule:files-in-scope -->
 
-`comment-debt` also applies `settings.no-comments.exclude` on top, by the same
-whole-segment rule, and checks Python only when `no-comments` is chosen in the
-choice file (without a choice file, as before). It has no `--exclude` flag.
+## The comment gate's files
+
+<!-- rule:comment-gate-files -->
+**The comment gate's files** are the files in scope less
+`settings.no-comments.exclude` in `quality-gates.json`, which matches whole
+path segments as `exclude` does. `comment-debt` checks a language only when
+that language's comment component is chosen in the choice file: `no-comments`
+for Python, `no-comments-rust` for Rust. Without a choice file it checks Python
+only. It has no `--exclude` flag.
+<!-- /rule:comment-gate-files -->
 
 ## Symlinked folders
 
