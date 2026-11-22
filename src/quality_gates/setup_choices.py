@@ -1,7 +1,7 @@
 import argparse
 import json
 import sys
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 
 from quality_gates import comment_debt, project_files, ratchet, skills_sync, status
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
@@ -58,14 +58,6 @@ def cost_of(component):
 
 def is_gate(component):
     return any(part.kind in STEP_KINDS for part in component.parts)
-
-
-def first_listed(manifest):
-    seen, components = set(), []
-    for component in manifest.components:
-        components.append(replace(component, parts=tuple(p for p in component.parts if (p.kind, p.id) not in seen)))
-        seen.update((p.kind, p.id) for p in component.parts)
-    return replace(manifest, components=tuple(components))
 
 
 def check_component_names(manifest, names):
@@ -139,7 +131,7 @@ def propose(project, manifest, flags):
     used = proposed_languages(choice, detected, flags.add_language, flags.remove_language)
     check_component_names(manifest, flags.choose + flags.decline)
     project_files.check_not_both(flags.choose, flags.decline, BOTH_FLAGS)
-    installed = status.components_present(project, first_listed(manifest), set(used))
+    installed = status.components_present(project, manifest, set(used))
     check_declines(manifest, flags.decline, installed | set(choice.chosen if choice else ()))
     made = {c.id: made_choice(c, choice, installed, flags) for c in manifest.components if not c.core}
     rows = tuple(component_row(c, shown_choice(c, set(used), made.get(c.id))) for c in manifest.components)

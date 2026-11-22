@@ -2,7 +2,7 @@ import argparse
 import json
 import re
 import sys
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 
 from quality_gates import project_files, skills_sync
@@ -215,8 +215,16 @@ def component_report(project, component, used, choice=None):
     }
 
 
+def first_listed(manifest):
+    seen, components = set(), []
+    for component in manifest.components:
+        components.append(replace(component, parts=tuple(p for p in component.parts if (p.kind, p.id) not in seen)))
+        seen.update((p.kind, p.id) for p in component.parts)
+    return replace(manifest, components=tuple(components))
+
+
 def components_present(project, manifest, used):
-    return {component.id for component in manifest.components
+    return {component.id for component in first_listed(manifest).components
             if component.applies_to(used) and is_present([part_report(project, p, used) for p in component.parts])}
 
 

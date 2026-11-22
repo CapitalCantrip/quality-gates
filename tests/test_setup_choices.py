@@ -204,6 +204,11 @@ class Setup(unittest.TestCase):
         self.run_setup("--go", manifest=with_rust)
         self.assertEqual(self.recorded().chosen, ("comments",))
 
+    def test_inferring_what_is_installed_counts_a_shared_part_only_for_the_first_component_listing_it(self):
+        with_rust = self.set_up_with_python_comments_and_rust_code()
+        project = status.project_at(self.repo, self.source, self.hooks)
+        self.assertEqual(status.components_present(project, with_rust, {"python", "rust"}), {"comments"})
+
     def test_declining_a_language_component_whose_parts_another_component_installed_is_not_loosening(self):
         with_rust = self.set_up_with_python_comments_and_rust_code()
         self.run_setup("--go", manifest=with_rust)
