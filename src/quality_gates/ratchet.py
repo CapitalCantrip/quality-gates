@@ -82,11 +82,16 @@ DID_NOT_RUN = Result((Verdict(None, Outcome.DID_NOT_RUN),))
 NOT_JUDGED = Result(())
 
 
+def covers_every_file(path: str) -> bool:
+    return True
+
+
 @dataclass(frozen=True)
 class Asked:
     baseline: Optional[Path] = None
     updating: bool = False
     judged: bool = True
+    covers: Callable[[str], bool] = covers_every_file
 
 
 def location(root, file, function) -> Location:
@@ -246,17 +251,25 @@ class Settled:
         return self.displays[verdict.location.key]
 
 
-def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=None) -> Settled:
+def held_back(stored: Optional[dict], covers: Callable[[str], bool]) -> dict:
+    return {key: number for key, number in (stored or {}).items() if not covers(Location.from_key(key).file)}
+
+
+def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=None,
+           covers: Callable[[str], bool] = covers_every_file) -> Settled:
     find = keyed(find, root)
     stored = stored_baseline(file, updating, out)
+    held = held_back(stored, covers)
     findings = find()
     unmeasured = frozenset(unmeasured_keys(findings))
-    result = judge(findings, strongest(findings) if stored is None else stored)
+    judged = strongest(findings) if stored is None else {k: v for k, v in stored.items() if k not in held}
+    result = judge(findings, judged)
     if not updating or result.having(Outcome.FAILED):
         return Settled(findings, result, unmeasured)
     counts = lowered(result)
-    write(file, counts, out)
-    return Settled(findings, judge(findings, counts), unmeasured, counts)
+    written = dict(sorted({**counts, **held}.items()))
+    write(file, written, out)
+    return Settled(findings, judge(findings, counts), unmeasured, written)
 
 
 def recorded(findings: list, file: Path, replaces: Callable[[str], bool]) -> dict:
@@ -349,7 +362,7 @@ def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNC
         return NOT_JUDGED
     if asked.baseline is None:
         return judge(find(), {})
-    settled = settle(find, asked.baseline, asked.updating, root, out)
+    settled = settle(find, asked.baseline, asked.updating, root, out, asked.covers)
     describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result
 

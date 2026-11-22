@@ -74,7 +74,7 @@ class CheckTest(PinTest):
         made = self.baselined({"a.py": TWO_COMMENTS, "b.py": CLEAN}, '{\n  "a.py": 2\n}\n')
         made.untrack("a.py")
         (made.root / "a.py").unlink()
-        expected = "GONE a.py: in the baseline but no longer tracked\n" + BEHIND_LINE
+        expected = "GONE a.py: in the baseline but no longer in scope\n" + BEHIND_LINE
         self.assertRan(made.run(COMMENT_DEBT), 1, expected)
 
     def test_paid_lines_come_before_gone_lines_under_one_behind_notice(self):
@@ -85,7 +85,7 @@ class CheckTest(PinTest):
         expected = (
             "PAID a.py: 0 lines, baseline still says 1\n"
             "PAID b.py: 0 lines, baseline still says 1\n"
-            "GONE gone.py: in the baseline but no longer tracked\n"
+            "GONE gone.py: in the baseline but no longer in scope\n"
         ) + BEHIND_LINE
         self.assertRan(made.run(COMMENT_DEBT), 1, expected)
 

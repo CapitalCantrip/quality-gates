@@ -183,7 +183,7 @@ def describe_behind(behind, file, out):
             out.write(f"PAID {verdict.location.key}: {verdict.now} lines, baseline still says {verdict.allowed}\n")
     for verdict in behind:
         if verdict.now is None:
-            out.write(f"GONE {verdict.location.key}: in the baseline but no longer tracked\n")
+            out.write(f"GONE {verdict.location.key}: in the baseline but no longer in scope\n")
     out.write(
         f"\nThe baseline is behind. Run `comment-debt --update` "
         f"and commit {file.name} so the paid debt cannot come back.\n"
@@ -255,10 +255,16 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
+def chosen_languages(root):
+    choice = project_files.checked_choice(root)
+    return frozenset(name for name, row in LANGUAGES.items() if project_files.is_chosen(choice, row.component))
+
+
 def asked(args, root, baseline) -> ratchet.Asked:
     if args.status or args.report:
         return ratchet.Asked(judged=False)
-    return ratchet.Asked(Path(baseline or args.baseline or project_files.comment_debt_baseline(root)), args.update)
+    file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
+    return ratchet.Asked(file, args.update, covers=written_in(chosen_languages(root)))
 
 
 def shown_first(args, root, out):

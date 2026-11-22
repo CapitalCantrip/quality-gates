@@ -253,6 +253,33 @@ class RepositoryTest(unittest.TestCase):
         self.run_gate('--update')
         self.assertEqual(self.baseline(), {})
 
+    def test_an_entry_of_a_language_that_is_not_chosen_is_not_judged_and_update_keeps_it(self):
+        self.choose(chosen=[])
+        self.put('a.py', '# one\n# two\n')
+        self.file.write_text('{"a.py": 2}\n')
+        self.assertEqual(self.run_gate(), (0, 'comment debt: 0 lines in 0 files, none new\n'))
+        self.assertEqual(self.run_gate('--update')[0], 0)
+        self.assertEqual(self.baseline(), {'a.py': 2})
+
+    def test_a_rust_entry_is_kept_while_only_python_is_chosen(self):
+        self.choose()
+        self.put('a.py', '# one\n')
+        self.file.write_text('{"a.py": 1, "main.rs": 3}\n')
+        self.assertEqual(self.run_gate(), (0, 'comment debt: 1 lines in 1 files, none new\n'))
+        self.put('a.py', 'x = 1\n')
+        self.assertEqual(self.run_gate('--update')[0], 0)
+        self.assertEqual(self.baseline(), {'main.rs': 3})
+
+    def test_an_entry_of_a_chosen_language_whose_file_left_the_scope_is_gone_no_longer_in_scope(self):
+        self.choose(comment_gate_exclude=['old'])
+        self.put('a.py', 'x = 1\n')
+        (self.root / 'old').mkdir()
+        self.put('old/b.py', '# kept out\n')
+        self.file.write_text('{"old/b.py": 1}\n')
+        code, out = self.run_gate()
+        self.assertEqual(code, 1)
+        self.assertIn('GONE old/b.py: in the baseline but no longer in scope\n', out)
+
     def test_python_is_checked_when_the_choice_file_chooses_no_comments(self):
         self.choose()
         self.put('a.py', '# one\n')

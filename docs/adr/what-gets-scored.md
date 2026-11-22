@@ -44,7 +44,11 @@ that language's comment component is chosen in the choice file: `no-comments`
 for Python, `no-comments-rust` for Rust. Without a choice file it checks Python
 only. It has no `--exclude` flag. A file it cannot read, because it does not
 parse or is not UTF-8, is unmeasured: the gate names it and fails, keeps any
-baseline entry it has and records none for it.
+baseline entry it has and records none for it. A baseline entry for a language
+it does not check is left alone: it is not judged, `--update` keeps it, and
+choosing that language replaces it. An entry for a checked language whose file
+is no longer among the comment gate's files, because it is untracked, excluded
+or deleted, is reported `GONE ... no longer in scope`, and `--update` drops it.
 <!-- /rule:comment-gate-files -->
 
 ## Symlinked folders
