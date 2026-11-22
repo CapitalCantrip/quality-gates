@@ -267,7 +267,7 @@ class RepositoryTest(unittest.TestCase):
             '# Rust comment debt: 7 lines in 4 files\n'
             '\n## By kind\n'
             '    7  line\n'
-            '\n## By area: lines, of which rationale (workaround, for now, TODO ...)\n'
+            '\n## By area: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n'
             '    4    2  src/core\n'
             '    2    0  tools\n'
             '    1    1  src/ui\n'
@@ -279,11 +279,20 @@ class RepositoryTest(unittest.TestCase):
             '\n## Most rationale lines\n'
             '    2  src/core/a.rs\n'
             '    1  src/ui/v.rs\n'
+            '\n## Areas with most rationale lines\n'
+            '    2  src/core\n'
+            '    1  src/ui\n'
         )))
 
-    def test_the_report_counts_a_python_docstring_as_a_doc_comment(self):
-        self.put('a.py', '"""A docstring."""\n# a comment\nx = 1\n')
-        self.assertIn('\n## By kind\n    1  doc\n    1  line\n', self.run_gate('--report', 'python')[1])
+    def test_a_form_feed_or_line_separator_does_not_move_a_rationale_onto_another_line(self):
+        self.choose()
+        self.keep_untracked('a.rs', '// plain\n\x0c\nlet s = "\u2028";\n// TODO\n')
+        out = self.run_gate('--report', 'rust')[1]
+        self.assertIn('\n## Most rationale lines\n    1  a.rs\n', out)
+
+    def test_the_report_counts_a_python_docstring_or_bare_string_as_a_string_comment(self):
+        self.put('a.py', '"""A docstring."""\n# a comment\nx = 1\n"why"\n')
+        self.assertIn('\n## By kind\n    1  line\n    2  string\n', self.run_gate('--report', 'python')[1])
 
     def test_the_report_lists_at_most_five_files_in_each_culprit_list(self):
         self.choose()
@@ -545,6 +554,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         (self.root / 'vendor' / 'v.rs').write_text('// vendored\n')
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
+        self.assertIn('# Rust comment debt: 1 lines in 1 files\n', self.setup())
         self.setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})
         self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 2 files, none new\n'))

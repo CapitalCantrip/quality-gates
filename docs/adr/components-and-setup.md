@@ -59,8 +59,11 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   asking; and `qg setup --go --choose no-comments-<language>` records as debt:
   in one step it records that language's comments, in place of its older
   entries, then records the choice, so no state has a language's entries
-  recorded while the language is off. Clean first and the other languages
-  arrive with the later builds of quality-gates#3. Neither setup nor `qg status`
+  recorded while the language is off. Until clean first is built, setup's
+  offer says to pay comments down with the `no-comments` skill and then
+  choose. The report counts the files that choosing would record, after the
+  `--exclude` flags setup moves into the choice file. Clean first and the
+  other languages arrive with the later builds of quality-gates#3. Neither setup nor `qg status`
   infers a new comment language's component as installed: the hook, CI step
   and baseline it shares with `no-comments` say nothing about which languages
   were switched on, so status shows one the choice file does not choose as

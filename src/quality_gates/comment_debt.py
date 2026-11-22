@@ -34,10 +34,10 @@ UNREAD_ADVICE = (
     "the baseline keeps any entry they already have and records none for them."
 )
 UNREADABLE = (OSError, SyntaxError, ValueError, tokenize.TokenError)
-DOC = "doc"
+STRING = "string"
 TOP_FILES = 5
 FileDebt = collections.namedtuple("FileDebt", "path lines rationale")
-RATIONALE_HEADING = "lines, of which rationale (workaround, for now, TODO ...)"
+RATIONALE_HEADING = "lines, of which rationale (workaround, deliberately, for now, TODO ...)"
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,
@@ -81,7 +81,7 @@ def string_lines(source):
 
 
 def debt_kinds(source):
-    kinds = {**{line: code_reader.LINE for line in comment_lines(source)}, **{line: DOC for line in string_lines(source)}}
+    kinds = {**{line: code_reader.LINE for line in comment_lines(source)}, **{line: STRING for line in string_lines(source)}}
     return dict(sorted(kinds.items()))
 
 
@@ -136,11 +136,6 @@ def findings(root, listed=checked_files):
     return [to_finding(path, lines) for path, lines in sorted(measure(root, listed(root)).items())]
 
 
-def files_before_choosing(root, name):
-    suffixes = languages.suffixes_of([name])
-    return {path: LANGUAGES[name].checker for path in project_files.comment_gate_files_before_choosing(root, suffixes)}
-
-
 def files_on_choosing(root, names, choice):
     return {
         path: LANGUAGES[name].checker
@@ -186,25 +181,38 @@ def kind_rows(current):
     return [f"{count:5}  {kind}" for kind, count in sorted(counts.items())]
 
 
+def area_totals(areas):
+    return [FileDebt(name, sum(r.lines for r in rows), sum(r.rationale for r in rows)) for name, rows in areas.items()]
+
+
+def lines_of(debt):
+    return debt.lines
+
+
+def rationale_of(debt):
+    return debt.rationale
+
+
 def area_rows(areas):
-    totals = [(sum(r.lines for r in rows), sum(r.rationale for r in rows), name) for name, rows in areas.items()]
-    return [f"{lines:5} {flagged:4}  {name}" for lines, flagged, name in sorted(totals, key=lambda t: (-t[0], t[2]))]
+    ranked = sorted(area_totals(areas), key=lambda t: (-t.lines, t.path))
+    return [f"{total.lines:5} {total.rationale:4}  {total.path}" for total in ranked]
 
 
-def top_files(areas, column):
-    files = [row for rows in areas.values() for row in rows if getattr(row, column)]
-    ranked = sorted(files, key=lambda r: (-getattr(r, column), r.path))[:TOP_FILES]
-    return [f"{getattr(row, column):5}  {row.path}" for row in ranked]
+def most(debts, count):
+    ranked = sorted((debt for debt in debts if count(debt)), key=lambda d: (-count(d), d.path))[:TOP_FILES]
+    return [f"{count(debt):5}  {debt.path}" for debt in ranked]
 
 
 def report_sections(root, current):
     areas = group_by_area(root, current)
+    files = [row for rows in areas.values() for row in rows]
     return (("By kind", kind_rows(current)), (f"By area: {RATIONALE_HEADING}", area_rows(areas)),
-            ("Most comment lines", top_files(areas, "lines")), ("Most rationale lines", top_files(areas, "rationale")))
+            ("Most comment lines", most(files, lines_of)), ("Most rationale lines", most(files, rationale_of)),
+            ("Areas with most rationale lines", most(area_totals(areas), rationale_of)))
 
 
-def debt_report(root, name, out):
-    measured = measure(root, files_before_choosing(root, name))
+def debt_report(root, name, choice, out):
+    measured = measure(root, files_on_choosing(root, [name], choice))
     current = with_debt(measured)
     out.write(total_line(f"{languages.LANGUAGES[name].label} comment debt", current))
     out.writelines(unread_lines(measured))
@@ -213,9 +221,9 @@ def debt_report(root, name, out):
             out.write(f"\n## {heading}\n" + "".join(row + "\n" for row in rows))
 
 
-def debt_report_text(root, name):
+def debt_report_text(root, name, choice):
     out = io.StringIO()
-    debt_report(root, name, out)
+    debt_report(root, name, choice, out)
     return out.getvalue()
 
 
@@ -261,7 +269,7 @@ def area(path):
 
 
 def rationale_count(root, path, lines):
-    text = (root / path).read_text(encoding="utf-8").splitlines()
+    text = (root / path).read_text(encoding="utf-8").split(code_reader.NEWLINE)
     return sum(1 for n in lines if RATIONALE.search(text[n - 1]))
 
 
@@ -273,10 +281,10 @@ def group_by_area(root, current):
 
 
 def write_area(name, rows, out):
-    rows = sorted(rows, key=lambda r: (-r[2], r[1]))
-    out.write(f"\n## {name} — {sum(n for _, n, _ in rows)} lines\n")
-    for path, count, flagged in rows:
-        out.write(f"{count:5} {flagged:4}  {path}\n")
+    rows = sorted(rows, key=lambda r: (-r.rationale, r.lines))
+    out.write(f"\n## {name} — {sum(r.lines for r in rows)} lines\n")
+    for row in rows:
+        out.write(f"{row.lines:5} {row.rationale:4}  {row.path}\n")
 
 
 def status(root, out):
@@ -285,8 +293,8 @@ def status(root, out):
     areas = group_by_area(root, current)
     out.write(total_line("Comment debt", current))
     out.writelines(unread_lines(measured))
-    out.write("\nColumns: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n")
-    for name in sorted(areas, key=lambda a: -sum(n for _, n, _ in areas[a])):
+    out.write(f"\nColumns: {RATIONALE_HEADING}\n")
+    for name in sorted(areas, key=lambda a: -sum(r.lines for r in areas[a])):
         write_area(name, areas[name], out)
 
 
@@ -324,7 +332,7 @@ def shown_first(args, root, out):
     if args.status:
         status(root, out)
     if args.report:
-        debt_report(root, args.report, out)
+        debt_report(root, args.report, project_files.checked_choice(root), out)
 
 
 def gate(argv, root, baseline=None, out=None):

@@ -23,7 +23,7 @@ BOTH_FLAGS = "--choose and --decline"
 UP_TO_DATE = f"{project_files.CHOICE_FILE} is up to date."
 RUN_GO = "Run `qg setup --go` to record these choices."
 OFFER_CHOICES = ("To accept {0}: record its comments as debt with `qg setup --go --choose {0}`, "
-                 "or clean first: /setup-standards pays down the part you pick, then records the rest.")
+                 "or clean first: pay comments down with the no-comments skill, then choose it to record the rest.")
 ANSWER_OFFERS = "Not yet answered: {}. Answer each with `qg setup --go --choose <id>` or `--decline <id>`."
 
 
@@ -139,13 +139,14 @@ def propose(project, manifest, flags):
     made = {c.id: made_choice(c, choice, installed, flags) for c in manifest.components if not c.core}
     rows = tuple(component_row(c, shown_choice(c, set(used), made.get(c.id))) for c in manifest.components)
     by_hand = tuple(name for name in used if name not in detected)
-    return Proposal(used, by_hand, rows, recorded_choice(root, choice, used, made, scope),
-                    switched_on(manifest, choice, installed, made), offered_reports(root, rows))
+    recorded = recorded_choice(root, choice, used, made, scope)
+    return Proposal(used, by_hand, rows, recorded, switched_on(manifest, choice, installed, made),
+                    offered_reports(root, rows, recorded))
 
 
-def offered_reports(root, rows):
+def offered_reports(root, rows, choice):
     offered = comment_debt.languages_of({row["id"] for row in rows if row["choice"] == OFFERED})
-    return tuple((name, comment_debt.debt_report_text(root, name)) for name in sorted(offered))
+    return tuple((name, comment_debt.debt_report_text(root, name, choice)) for name in sorted(offered))
 
 
 def names_with(proposal, *made):

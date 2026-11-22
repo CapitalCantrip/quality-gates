@@ -180,16 +180,13 @@ def is_present(parts):
     return roll_up([p["status"] for p in own_parts(parts)]) in HAS_SOMETHING
 
 
-def is_chosen(component, choice):
-    return choice is not None and choice.recorded(component.id) == project_files.CHOSEN
-
-
 def wants_attention(component, choice, parts):
-    return component.core or is_chosen(component, choice) or is_present(parts)
+    chosen = choice is not None and choice.recorded(component.id) == project_files.CHOSEN
+    return component.core or chosen or is_present(parts)
 
 
 def counted_parts(component, parts, choice):
-    if component.id in comment_debt.chosen_only_on_asking() and not is_chosen(component, choice):
+    if component.id in comment_debt.chosen_only_on_asking() and not project_files.is_chosen(choice, component.id):
         return []
     return parts
 
