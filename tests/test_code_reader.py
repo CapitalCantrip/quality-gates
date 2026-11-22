@@ -25,6 +25,14 @@ class ReadingLineComments(unittest.TestCase):
         reading = code_reader.read("let x = 1; // why\r\n// all\nx\n", SLASHES)
         self.assertEqual(reading.blanked, "let x = 1;       \r\n      \nx\n")
 
+    def test_only_a_newline_ends_a_line_so_other_line_breaks_keep_the_line_numbers(self):
+        for separator in ("\x0c", "\x0b", "\x1c", "\x1d", "\x1e", "\x85", "\u2028", "\u2029"):
+            with self.subTest(separator=repr(separator)):
+                source = f"let a = 1;{separator}\n// why\n"
+                reading = code_reader.read(source, SLASHES)
+                self.assertEqual(reading.comments, (Comment("line", "// why", 2, 2),))
+                self.assertEqual(reading.blanked, f"let a = 1;{separator}\n      \n")
+
 
 if __name__ == "__main__":
     unittest.main()

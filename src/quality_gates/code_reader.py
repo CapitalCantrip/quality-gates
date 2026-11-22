@@ -3,6 +3,7 @@ from typing import Optional
 
 LINE = "line"
 LINE_ENDINGS = "\r\n"
+NEWLINE = "\n"
 BLANK = " "
 
 
@@ -30,9 +31,14 @@ def marker_at(body: str, syntax: Syntax) -> Optional[int]:
     return min(found) if found else None
 
 
+def lines_of(source: str) -> list:
+    parts = source.split(NEWLINE)
+    return [part + NEWLINE for part in parts[:-1]] + ([parts[-1]] if parts[-1] else [])
+
+
 def read(source: str, syntax: Syntax) -> Reading:
     comments, blanked = [], []
-    for number, line in enumerate(source.splitlines(keepends=True), 1):
+    for number, line in enumerate(lines_of(source), 1):
         body = line.rstrip(LINE_ENDINGS)
         at = marker_at(body, syntax)
         if at is not None:
