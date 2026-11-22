@@ -1,0 +1,25 @@
+name: changelog
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
+
+jobs:
+  entry:
+    runs-on: ubuntu-24.04
+    if: ${{ !contains(github.event.pull_request.labels.*.name, 'no-consumer-change') }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: A change to what consumers receive has a CHANGELOG entry
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+        run: |
+          changed=$(git diff --name-only "$BASE"...HEAD)
+          if echo "$changed" | grep -q '^src/quality_gates/' && ! echo "$changed" | grep -qx 'CHANGELOG.md'; then
+            echo "This PR changes src/quality_gates/ but not CHANGELOG.md."
+            echo "Add a line under Unreleased saying what a consumer does on bumping the pin,"
+            echo "or label the PR no-consumer-change when nothing a consumer receives changes."
+            exit 1
+          fi

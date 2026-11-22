@@ -734,6 +734,12 @@ reference files. A change only this repo sees (the README, ADRs, CLAUDE.md,
 tests, or a refactor with no change in behaviour) waits for the next release.
 Release at most once a day: tag that day's merged changes together.
 
+The `changelog` workflow fails a pull request that changes
+`src/quality_gates/` without touching `CHANGELOG.md`, so each change a
+consumer receives gets its line under Unreleased when it merges, not at
+release time. Label the pull request `no-consumer-change` when the change
+reaches no consumer, such as a refactor with no change in behaviour.
+
 The `lizard` workflow checks PyPI every Monday and opens an issue when it
 finds a lizard release newer than the last one checked. A lizard release can
 change scores, so read its changelog for Swift and TypeScript changes, run the

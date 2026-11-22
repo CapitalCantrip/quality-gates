@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- **`/implement-spec` also runs Claude Code's `/code-review high` before it
+  hands back.** Step 7 now runs `review-against-spec` and then the built-in
+  correctness review, and one implementer fixes the findings of both. A sprint
+  takes longer, and the builder starts fewer review rounds after it. Nothing
+  to do beyond the pin bump and `qg-skills`.
 - **Decisions are a compendium over an archive (ADR-012).** The numbered ADRs
   moved to `docs/adr/archive/`; `docs/adr/` now holds one page per question,
   which is where the current rules live. Every generated reference file's
