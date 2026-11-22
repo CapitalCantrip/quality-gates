@@ -13,6 +13,7 @@ TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
 TEMPLATED = Syntax(line=("//",), block=(("/*", "*/"),),
                    literals=(Literal("'", r"'[^'\n]*'"),
                              Literal("`", "`" + TEMPLATE_PIECE, Interpolation(("{", "}"), TEMPLATE_PIECE))))
+BODIED = Syntax(line=("#",), literals=(Literal("<<", r"<<(\w+)", body=r"(?:[^\n]*\n)*?\g<1>(?=\n|\Z)"),))
 
 
 class ReadingLineComments(unittest.TestCase):
@@ -105,6 +106,23 @@ class ReadingInterpolatedLiterals(unittest.TestCase):
         reading = code_reader.read("x = `a ${ b\n// why\n", TEMPLATED)
         self.assertEqual(reading.comments, (Comment("line", "// why", 2, 2),))
         self.assertEqual(reading.blanked, "x =       b\n      \n")
+
+
+class ReadingLiteralsWithABodyOnTheLinesBelow(unittest.TestCase):
+
+    def test_the_rest_of_the_opening_line_is_read_as_code_and_the_body_below_is_blanked(self):
+        reading = code_reader.read("cat <<END # why\n# body\nEND\n# after\n", BODIED)
+        self.assertEqual([(c.text, c.start) for c in reading.comments], [("# why", 1), ("# after", 4)])
+        self.assertEqual(reading.blanked, "cat" + " " * 12 + "\n      \n   \n       \n")
+
+    def test_bodies_opened_on_one_line_follow_one_another_in_the_order_they_were_opened(self):
+        reading = code_reader.read("cmd <<A <<B\n# a\nA\n# b\nB\n# after\n", BODIED)
+        self.assertEqual([(c.text, c.start) for c in reading.comments], [("# after", 6)])
+
+    def test_a_body_that_never_ends_leaves_its_opening_as_code(self):
+        reading = code_reader.read("cat <<END\n# why\n", BODIED)
+        self.assertEqual(reading.comments, (Comment("line", "# why", 2, 2),))
+        self.assertEqual(reading.blanked, "cat <<END\n     \n")
 
 
 RUST_SOURCE = (

@@ -13,6 +13,7 @@ CARRIAGE_RETURN = "\r"
 NOT_A_LINE_END = re.compile(r"[^\r\n]")
 BLANK = " "
 NOTHING = "(?!)"
+OPENER_GROUP = re.compile(r"\\g<(\d+)>")
 
 
 @dataclass(frozen=True)
@@ -26,6 +27,7 @@ class Literal:
     start: str
     whole: str
     interpolation: Optional[Interpolation] = None
+    body: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -77,6 +79,7 @@ class Interpolating:
 class Inside:
     scanner: Scanner
     open: list
+    bodies: list
 
     @property
     def syntax(self):
@@ -143,7 +146,35 @@ def piece(source, start, at, literal, pattern, inside):
     return Token(STRING, start, found.end())
 
 
+def body_pattern(template, opener):
+    return re.compile(OPENER_GROUP.sub(lambda group: re.escape(opener.group(int(group.group(1)))), template))
+
+
+def body_start(source, opener, inside):
+    if inside.bodies:
+        return inside.bodies[-1].end + len(NEWLINE)
+    newline = source.find(NEWLINE, opener.end())
+    return None if newline == -1 else newline + len(NEWLINE)
+
+
+def body_below(source, opener, template, inside):
+    start = body_start(source, opener, inside)
+    found = None if start is None else body_pattern(template, opener).match(source, start)
+    return Token(STRING, start, found.end()) if found else None
+
+
+def opener_with_body(source, start, literal, inside):
+    opener = inside.scanner.literals[literal].match(source, start)
+    body = opener and body_below(source, opener, inside.syntax.literals[literal].body, inside)
+    if not body:
+        return None
+    inside.bodies.append(body)
+    return Token(STRING, start, opener.end())
+
+
 def literal_at(source, start, literal, inside):
+    if inside.syntax.literals[literal].body:
+        return opener_with_body(source, start, literal, inside)
     return piece(source, start, start, literal, inside.scanner.literals[literal], inside)
 
 
@@ -176,14 +207,21 @@ def token_at(found, source, inside):
     return Token(BLOCK, start, block_comment_end(source, start, pair, inside.syntax.nested))
 
 
+def step(found, source, inside):
+    if inside.bodies and (not found or found.start() >= inside.bodies[0].start):
+        bodies, inside.bodies = inside.bodies, []
+        return bodies, bodies[-1].end
+    token = token_at(found, source, inside)
+    return ([token], token.end) if token else ([], found.start() + 1)
+
+
 def tokens(source, scanner):
-    inside = Inside(scanner, [])
+    inside = Inside(scanner, [], [])
     found = scanner.opener.search(source)
-    while found:
-        token = token_at(found, source, inside)
-        if token:
-            yield token
-        found = scanner.opener.search(source, token.end if token else found.start() + 1)
+    while found or inside.bodies:
+        produced, at = step(found, source, inside)
+        yield from produced
+        found = scanner.opener.search(source, at)
 
 
 def blanked(source, spans):

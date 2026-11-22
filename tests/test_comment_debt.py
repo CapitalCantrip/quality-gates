@@ -280,6 +280,19 @@ class ShellCountingTest(unittest.TestCase):
                   "cat <<< \"# no\"\nx=$((1<<2)) # counted\n")
         self.assertEqual(shell_lines(source), [4, 9])
 
+    def test_a_comment_after_a_heredoc_opener_counts_because_the_body_starts_on_the_next_line(self):
+        for source in ('cat <<EOF # note\nhi\nEOF\n', 'cat > "$f" <<EOF  # write config\nk=v\nEOF\n',
+                       "cat <<-'END' # note\n\t# no\n\tEND\n"):
+            with self.subTest(source=source):
+                self.assertEqual(shell_lines(source), [1])
+
+    def test_two_heredocs_opened_on_one_line_read_their_bodies_one_after_the_other(self):
+        source = 'cmd <<A <<B # note\n# in a\nA\n# in b\nB\n# counted\n'
+        self.assertEqual(shell_lines(source), [1, 6])
+
+    def test_a_heredoc_whose_delimiter_never_comes_is_read_as_code(self):
+        self.assertEqual(shell_lines('cat <<EOF\n# counted\n'), [2])
+
     def test_the_shebang_on_line_one_is_exempt_and_anywhere_else_counts(self):
         self.assertEqual(shell_lines('#!/usr/bin/env bash\necho hi\n'), [])
         self.assertEqual(shell_lines('echo hi\n#!/bin/sh\n'), [2])
