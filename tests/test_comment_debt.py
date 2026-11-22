@@ -211,6 +211,42 @@ class RepositoryTest(unittest.TestCase):
         self.run_gate('--update')
         self.assertEqual(self.baseline(), {})
 
+    def test_an_untracked_python_file_that_does_not_parse_fails_the_gate_as_unmeasured_and_is_named(self):
+        self.put('a.py', 'x = 1\n')
+        self.file.write_text('{}\n')
+        self.keep_untracked('scratch.py', 'def f(:\n')
+        code, out = self.run_gate()
+        self.assertEqual(code, 1)
+        self.assertIn(f'UNMEASURED scratch.py: {cd.UNREAD}\n', out)
+        self.assertIn(cd.UNREAD_ADVICE, out)
+
+    def test_the_status_and_the_report_skip_a_file_that_does_not_parse(self):
+        self.put('a.py', '# one\n')
+        self.keep_untracked('scratch.py', '# two\ndef f(:\n')
+        self.assertEqual(self.run_gate('--report', 'python'), (0, '# Python comment debt: 1 lines in 1 files\n'))
+        code, out = self.run_gate('--status')
+        self.assertEqual(code, 0)
+        self.assertIn('# Comment debt: 1 lines in 1 files', out)
+
+    def test_a_file_that_is_not_utf8_fails_the_gate_as_unmeasured_in_either_language(self):
+        self.choose(chosen=['no-comments', 'no-comments-rust'])
+        self.file.write_text('{}\n')
+        (self.root / 'latin.py').write_bytes(b'x = "\xff"\n')
+        (self.root / 'latin.rs').write_bytes(b'// \xff\n')
+        code, out = self.run_gate()
+        self.assertEqual(code, 1)
+        self.assertIn(f'UNMEASURED latin.py: {cd.UNREAD}\n', out)
+        self.assertIn(f'UNMEASURED latin.rs: {cd.UNREAD}\n', out)
+
+    def test_update_keeps_the_entry_of_a_file_that_no_longer_parses_and_records_none_for_a_new_one(self):
+        self.put('a.py', '# one\nx = 1\n')
+        self.run_gate('--update')
+        self.put('a.py', '# one\ndef f(:\n')
+        self.keep_untracked('scratch.py', '# two\ndef g(:\n')
+        code, _ = self.run_gate('--update')
+        self.assertEqual(code, 1)
+        self.assertEqual(self.baseline(), {'a.py': 1})
+
     def test_python_is_not_checked_when_the_choice_file_does_not_choose_no_comments(self):
         self.choose(chosen=[])
         self.put('a.py', '# one\n')

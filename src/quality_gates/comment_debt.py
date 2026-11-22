@@ -27,6 +27,12 @@ CODING = re.compile(r"^#.*coding[:=]")
 FINDING_KIND = "comment lines"
 TAG = "comment-debt: "
 UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
+UNREAD = "does not parse or is not UTF-8, so its comments were not counted"
+UNREAD_ADVICE = (
+    "Unmeasured files fail the gate. Finish or fix them, or leave them out with settings.no-comments.exclude; "
+    "the baseline keeps any entry they already have and records none for them."
+)
+UNREADABLE = (SyntaxError, ValueError, tokenize.TokenError)
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,
@@ -102,16 +108,20 @@ def checked_files(root):
     }
 
 
+def lines_in(file, checker):
+    try:
+        return checker(file.read_text(encoding="utf-8"))
+    except UNREADABLE:
+        return None
+
+
 def measure(root, listed):
-    current = {}
-    for path, checker in listed.items():
-        file = root / path
-        if file.exists():
-            current[path] = checker(file.read_text(encoding="utf-8"))
-    return current
+    return {path: lines_in(root / path, checker) for path, checker in listed.items() if (root / path).exists()}
 
 
 def to_finding(path, lines):
+    if lines is None:
+        return ratchet.Finding(ratchet.Location(path), None, FINDING_KIND, UNREAD)
     return ratchet.Finding(ratchet.Location(path), len(lines), FINDING_KIND, ", ".join(str(n) for n in lines))
 
 
@@ -189,7 +199,8 @@ def describe_recorded(counts, out):
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
 
 
-WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL)
+WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL,
+                          UNREAD, UNREAD_ADVICE)
 
 
 def area(path):
