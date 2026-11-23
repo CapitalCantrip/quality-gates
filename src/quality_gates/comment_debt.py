@@ -37,10 +37,10 @@ UNREADABLE = (OSError, SyntaxError, ValueError, tokenize.TokenError)
 STRING = "string"
 TOP_FILES = 5
 TOP_AREAS = 5
-EVERY_FILE = "Every file"
 FileDebt = collections.namedtuple("FileDebt", "path lines rationale")
 AreaDebt = collections.namedtuple("AreaDebt", "name lines rationale")
 RATIONALE_HEADING = "lines, of which rationale (workaround, deliberately, for now, TODO ...)"
+EVERY_FILE = f"Every file: {RATIONALE_HEADING}"
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,

@@ -41,6 +41,7 @@ class ExplainerFormat(unittest.TestCase):
     def test_an_explainer_opens_with_the_name_of_the_component_its_file_is_named_after(self):
         for component, text in explainers():
             owner = COMPONENTS.component(Path(component.explainer).stem)
+            self.assertIsNotNone(owner, component.id)
             self.assertEqual(text.splitlines()[0], f"# {owner.name}", component.id)
 
     def test_an_explainer_has_its_four_sections_in_order(self):

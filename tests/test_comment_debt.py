@@ -576,7 +576,7 @@ class RepositoryTest(unittest.TestCase):
             '\n## Areas with most rationale lines\n'
             '    2  src/core\n'
             '    1  src/ui\n'
-            '\n## Every file\n'
+            '\n## Every file: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n'
             '    3    2  src/core/a.rs\n'
             '    2    0  tools/t.rs\n'
             '    1    0  src/core/b.rs\n'
@@ -632,7 +632,7 @@ class RepositoryTest(unittest.TestCase):
         self.keep_untracked('clean.rs', 'fn c() {}\n')
         out = self.run_gate('--report', 'rust')[1]
         self.assertTrue(out.endswith(
-            '\n## Every file\n'
+            '\n## Every file: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n'
             '    3    1  f2.rs\n'
             '    3    1  f5.rs\n'
             '    2    1  f1.rs\n'
@@ -1111,8 +1111,8 @@ class CleaningFirstEndToEndTest(SetupAndGate, unittest.TestCase):
         code, remainder = self.gate('--report', 'rust')
         self.assertEqual(code, 0)
         self.assertEqual(remainder.splitlines()[0], '# Rust comment debt: 12 lines in 6 files')
-        self.assertTrue(remainder.endswith('\n## Every file\n' + ''.join(f'    2    0  {path}\n' for path in self.kept)),
-                        remainder)
+        heading = '\n## Every file: lines, of which rationale (workaround, deliberately, for now, TODO ...)\n'
+        self.assertTrue(remainder.endswith(heading + ''.join(f'    2    0  {path}\n' for path in self.kept)), remainder)
         self.assertNotIn('paid', remainder)
 
         self.run_setup('--go', '--choose', 'no-comments-rust')
