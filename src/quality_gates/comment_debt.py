@@ -199,8 +199,8 @@ SWIFT = CommentSyntax(code_reader.Syntax(
 
 
 SHELL_WORD_BREAK = r"\s;&|()<>"
-HEREDOC_OPENER = r"<<{dash}[ \t]*(['\"]?)\\?([A-Za-z_]\w*)\1"
-HEREDOC_BODY = r"(?:[^\n]*\n)*?{tabs}\g<2>(?=\n|\Z)"
+HEREDOC_OPENER = (r"<<{dash}[ \t]*(['\"])?\\?((?(1)[^'\"\n]+|[^" + SHELL_WORD_BREAK + r"'\"\\]+))(?(1)\1)")
+HEREDOC_BODY = r"(?:[^\n]*\n)*?{tabs}\g<2>\r?(?=\n|\Z)"
 DOUBLE_QUOTED_PIECE = r'(?:\\[\s\S]|\$(?!\()|[^"\\$])*(?:"|\$\()'
 ARITHMETIC_OPENER = r"\(\("
 

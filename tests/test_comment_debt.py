@@ -317,6 +317,18 @@ class ShellCountingTest(unittest.TestCase):
     def test_a_comment_inside_a_command_substitution_inside_double_quotes_counts(self):
         self.assertEqual(shell_lines('x="$(echo hi # why\n)"\n'), [1])
 
+    def test_a_heredoc_body_starts_after_the_lines_its_opener_joins_with_a_backslash(self):
+        self.assertEqual(shell_lines('cat <<EOF \\\n  | grep x # why\nbody\nEOF\n'), [2])
+
+    def test_a_heredoc_in_a_file_with_crlf_line_ends_closes_at_its_delimiter(self):
+        self.assertEqual(shell_lines('cat <<EOF\r\n# body\r\nEOF\r\n# counted\r\n'), [4])
+
+    def test_a_heredoc_delimiter_may_hold_a_dash_or_a_dot_quoted_or_not(self):
+        for opener, delimiter in (("<<'END-SQL'", 'END-SQL'), ('<<"v1.2"', 'v1.2'), ('<<END-SQL', 'END-SQL'),
+                                  ('<<-END.x', '\tEND.x'), ('<<\\END-SQL', 'END-SQL')):
+            with self.subTest(opener=opener):
+                self.assertEqual(shell_lines(f'cat {opener}\n# not a comment\n{delimiter}\n# counted\n'), [4])
+
     def test_a_heredoc_whose_delimiter_never_comes_is_read_as_code(self):
         self.assertEqual(shell_lines('cat <<EOF\n# counted\n'), [2])
 

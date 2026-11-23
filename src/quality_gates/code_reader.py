@@ -14,6 +14,7 @@ NOT_A_LINE_END = re.compile(r"[^\r\n]")
 BLANK = " "
 NOTHING = "(?!)"
 OPENER_GROUP = re.compile(r"\\g<(\d+)>")
+LOGICAL_LINE = re.compile(r"(?:\\[\s\S]|[^\n\\])*\n")
 
 
 @dataclass(frozen=True)
@@ -165,8 +166,8 @@ def body_pattern(template, opener):
 def body_start(source, opener, inside):
     if inside.bodies:
         return inside.bodies[-1].end + len(NEWLINE)
-    newline = source.find(NEWLINE, opener.end())
-    return None if newline == -1 else newline + len(NEWLINE)
+    line = LOGICAL_LINE.match(source, opener.end())
+    return line.end() if line else None
 
 
 def body_below(source, opener, template, inside):
