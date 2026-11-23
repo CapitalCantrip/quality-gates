@@ -1033,6 +1033,59 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
                          ['no-comments-rust'])
 
 
+class CleaningFirstEndToEndTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.root = Path(self.tmp.name)
+        subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
+        self.file = self.root / 'comment-debt.json'
+        for folder, source in (('paid', 'fn a() {\n    // one\n}\n'), ('kept', 'fn b() {\n    // two\n    // three\n}\n')):
+            (self.root / folder).mkdir()
+            (self.root / folder / 'lib.rs').write_text(source)
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def setup(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = setup_choices.main(list(argv), root=self.root)
+        self.assertEqual(code, 0, err.getvalue())
+        return out.getvalue()
+
+    def gate(self, *argv):
+        out = io.StringIO()
+        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
+
+    def test_paying_one_folder_down_first_leaves_a_report_of_the_other_and_choosing_records_only_that_folder(self):
+        before = self.gate('--report', 'rust')[1]
+        self.assertEqual(before.splitlines()[0], '# Rust comment debt: 3 lines in 2 files')
+        self.assertIn('paid/lib.rs', before)
+
+        (self.root / 'paid' / 'lib.rs').write_text('fn a() {}\n')
+        code, remainder = self.gate('--report', 'rust')
+        self.assertEqual(code, 0)
+        self.assertEqual(remainder.splitlines()[0], '# Rust comment debt: 2 lines in 1 files')
+        self.assertIn('kept/lib.rs', remainder)
+        self.assertNotIn('paid', remainder)
+
+        self.setup('--go', '--choose', 'no-comments-rust')
+        self.assertEqual(json.loads(self.file.read_text()), {'kept/lib.rs': 2})
+        self.assertIn('no-comments-rust', json.loads((self.root / 'quality-gates.json').read_text())['components']['chosen'])
+        self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 1 files, none new\n'))
+
+    def test_setups_clean_first_offer_scopes_the_paydown_reruns_the_report_until_it_shows_none_and_opens_an_issue_only_when_asked(self):
+        out = self.setup()
+        for step in ('the builder scopes what to pay down now, by area, file or kind',
+                     'without changing behaviour',
+                     'a `debt-payer` agent where the project has one',
+                     'rerun `comment-debt --report rust` until the scope shows none',
+                     'only if the builder asks, open an issue for the remainder whose body is that report',
+                     'then `qg setup --go --choose no-comments-rust` records the rest'):
+            self.assertIn(step, ' '.join(out.split()))
+
+
 class AcceptingShellEndToEndTest(unittest.TestCase):
 
     def setUp(self):

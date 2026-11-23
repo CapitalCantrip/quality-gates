@@ -89,14 +89,34 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    debt report of each **offered** comment language row (`no-comments-rust`):
    the comments that language already has, by kind, by area and the worst
    files. Show it whole, with the two choices printed under it: record them as
-   debt, so only new comments fail, or clean first. Clean first: rank files
-   and see progress with `comment-debt --report <language>` (`--status` and
-   `--update` see only chosen languages), pay files down with the
-   `no-comments` skill, then choose the row to record the rest. Then ask the builder to say "go" or name
+   debt, so only new comments fail, or clean first. When the language's code
+   uses a recognised convention, such as Rust's `// SAFETY:` lines above
+   `unsafe`, ask the builder whether to switch it on in
+   `settings.no-comments.conventions` of `quality-gates.json` before the row
+   is chosen, so those comments are not recorded as debt;
+   `qg explain no-comments` names the conventions. Then ask the builder to say "go" or name
    changes, and end with one line: *Ask me about any row, or run
    `qg explain <name>`.*
+
+   For each row the builder wants cleaned first, before it is chosen:
+
+   1. The builder scopes what to pay down now from the report, by area, file
+      or kind.
+   2. Pay that scope down without changing behaviour, with the `no-comments`
+      skill, or for a long run a subagent per batch (a `debt-payer` agent
+      where the project has one).
+   3. Rerun `comment-debt --report <language>` until the scope shows none;
+      `--status` and `--update` see only chosen languages.
+   4. Only if the builder asks, open an issue for the remainder whose body is
+      that report.
+   5. Choose the row in steps 4 and 5: `qg setup --go --choose <id>` records
+      the rest as debt and switches the language on.
+
+   Done when every offered comment row is answered: recorded as debt, cleaned
+   first and then chosen, or declined.
 4. "Go" accepts every ticked row: add `--choose <id>` for each **offered** row
-   the builder did not turn down. Turn each change into a flag on `qg setup`:
+   the builder did not turn down, except a comment row still being cleaned
+   first. Turn each change into a flag on `qg setup`:
    `--add-language <name>` (a
    language may be added before it has code), `--remove-language <name>`,
    `--choose <id>`, `--decline <id>`. When it refuses (the core, a gate the
