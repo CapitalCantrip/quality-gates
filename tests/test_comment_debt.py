@@ -343,6 +343,11 @@ class ShellCountingTest(unittest.TestCase):
             with self.subTest(opener=opener):
                 self.assertEqual(shell_lines(f'cat {opener}\n# not a comment\n{delimiter}\n# counted\n'), [4])
 
+    def test_a_quoted_empty_heredoc_delimiter_closes_at_the_first_empty_line(self):
+        for opener in ("<<''", '<<""'):
+            with self.subTest(opener=opener):
+                self.assertEqual(shell_lines(f'cat {opener}\n# body\n\n# c\n'), [4])
+
     def test_a_heredoc_whose_delimiter_never_comes_is_read_as_code(self):
         self.assertEqual(shell_lines('cat <<EOF\n# counted\n'), [2])
 
