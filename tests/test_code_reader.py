@@ -1,7 +1,7 @@
 import unittest
 
 from quality_gates import code_reader
-from quality_gates.code_reader import Comment, Interpolation, Literal, Syntax
+from quality_gates.code_reader import Balanced, Comment, Interpolation, Literal, Syntax
 from quality_gates.comment_debt import RUST
 
 SLASHES = Syntax(line=("//",))
@@ -13,6 +13,7 @@ TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
 TEMPLATED = Syntax(line=("//",), block=(("/*", "*/"),),
                    literals=(Literal("'", r"'[^'\n]*'"),
                              Literal("`", "`" + TEMPLATE_PIECE, Interpolation(("{", "}"), TEMPLATE_PIECE))))
+DOUBLE_PARENS = Syntax(line=("#",), literals=(Literal(r"\(\(", r"\(\(", balanced=Balanced(("(", ")"), "))")),))
 BODIED = Syntax(line=("#",), literals=(Literal("<<", r"<<(\w+)", body=r"(?:[^\n]*\n)*?\g<1>(?=\n|\Z)"),))
 
 
@@ -106,6 +107,22 @@ class ReadingInterpolatedLiterals(unittest.TestCase):
         reading = code_reader.read("x = `a ${ b\n// why\n", TEMPLATED)
         self.assertEqual(reading.comments, (Comment("line", "// why", 2, 2),))
         self.assertEqual(reading.blanked, "x =       b\n      \n")
+
+
+class ReadingBalancedLiterals(unittest.TestCase):
+
+    def test_a_balanced_literal_ends_where_its_brackets_balance_however_deep_they_nest(self):
+        reading = code_reader.read("x=$(( (1 + (2 * (3 # y))) )) # why\n", DOUBLE_PARENS)
+        self.assertEqual(reading.comments, (Comment("line", "# why", 1, 1),))
+        self.assertEqual(reading.blanked, "x=$" + " " * 25 + "      \n")
+
+    def test_brackets_that_balance_without_the_closing_mark_are_read_as_code(self):
+        reading = code_reader.read("((cd a) # x\n) # why\n", DOUBLE_PARENS)
+        self.assertEqual([c.text for c in reading.comments], ["# x", "# why"])
+
+    def test_brackets_that_never_balance_are_read_as_code(self):
+        reading = code_reader.read("(( a # why\n", DOUBLE_PARENS)
+        self.assertEqual(reading.comments, (Comment("line", "# why", 1, 1),))
 
 
 class ReadingLiteralsWithABodyOnTheLinesBelow(unittest.TestCase):

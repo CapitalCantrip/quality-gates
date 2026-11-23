@@ -300,9 +300,13 @@ class ShellCountingTest(unittest.TestCase):
 
     def test_a_shift_inside_arithmetic_is_not_a_heredoc(self):
         for source in ('echo $(( x << y )) # note\n# another\ny\n', '(( x << y )) # note\n# another\ny\n',
-                       'echo $(( (a << b) + c )) # note\n# another\nb\n'):
+                       'echo $(( (a << b) + c )) # note\n# another\nb\n',
+                       'x=$(( (1 + (2 * (3 << y))) )) # note\n# another\ny\n'):
             with self.subTest(source=source):
                 self.assertEqual(shell_lines(source), [1, 2])
+
+    def test_double_brackets_that_close_singly_are_subshells_and_their_comments_count(self):
+        self.assertEqual(shell_lines('((cd a && make # why\n) || echo no) # and\n'), [1, 2])
 
     def test_a_command_substitution_inside_double_quotes_nests_its_own_quotes(self):
         for source, lines in (('x="$(echo "a # b")"\n', []), ('x="$(f "$(g "# c")" "# d")" # e\n', [1]),

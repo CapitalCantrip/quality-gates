@@ -202,7 +202,7 @@ SHELL_WORD_BREAK = r"\s;&|()<>"
 HEREDOC_OPENER = r"<<{dash}[ \t]*(['\"]?)\\?([A-Za-z_]\w*)\1"
 HEREDOC_BODY = r"(?:[^\n]*\n)*?{tabs}\g<2>(?=\n|\Z)"
 DOUBLE_QUOTED_PIECE = r'(?:\\[\s\S]|\$(?!\()|[^"\\$])*(?:"|\$\()'
-ARITHMETIC = r"\(\((?:[^()]|\((?:[^()]|\([^()]*\))*\))*\)\)"
+ARITHMETIC_OPENER = r"\(\("
 
 SHELL = CommentSyntax(code_reader.Syntax(
     line=(rf"(?<![^{SHELL_WORD_BREAK}])#",),
@@ -211,7 +211,7 @@ SHELL = CommentSyntax(code_reader.Syntax(
         code_reader.Literal(r"\$'", r"\$'(?:\\[\s\S]|[^'\\])*'"),
         code_reader.Literal(r"'", r"'[^']*'"),
         code_reader.Literal(r'"', r'"' + DOUBLE_QUOTED_PIECE, code_reader.Interpolation(("(", ")"), DOUBLE_QUOTED_PIECE)),
-        code_reader.Literal(r"\(\(", ARITHMETIC),
+        code_reader.Literal(ARITHMETIC_OPENER, ARITHMETIC_OPENER, balanced=code_reader.Balanced(("(", ")"), "))")),
         code_reader.Literal(r"(?<!<)<<-", HEREDOC_OPENER.format(dash="-"), body=HEREDOC_BODY.format(tabs=r"\t*")),
         code_reader.Literal(r"(?<!<)<<(?![<-])", HEREDOC_OPENER.format(dash=""), body=HEREDOC_BODY.format(tabs="")),
     ),

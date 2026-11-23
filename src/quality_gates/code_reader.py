@@ -23,11 +23,18 @@ class Interpolation:
 
 
 @dataclass(frozen=True)
+class Balanced:
+    pair: tuple
+    close: str
+
+
+@dataclass(frozen=True)
 class Literal:
     start: str
     whole: str
     interpolation: Optional[Interpolation] = None
     body: Optional[str] = None
+    balanced: Optional[Balanced] = None
 
 
 @dataclass(frozen=True)
@@ -125,15 +132,20 @@ def block_ends(pair, nested):
     return re.compile(re.escape(closing) + ("|" + re.escape(opening) if nested else ""))
 
 
-def block_comment_end(source, start, pair, nested):
+def closing_end(source, start, pair, nested):
     ends, depth, at = block_ends(pair, nested), 1, start + len(pair[0])
     while depth:
         found = ends.search(source, at)
         if not found:
-            return len(source)
+            return None
         depth += -1 if found.group() == pair[1] else 1
         at = found.end()
     return at
+
+
+def block_comment_end(source, start, pair, nested):
+    end = closing_end(source, start, pair, nested)
+    return len(source) if end is None else end
 
 
 def piece(source, start, at, literal, pattern, inside):
@@ -172,8 +184,16 @@ def opener_with_body(source, start, literal, inside):
     return Token(STRING, start, opener.end())
 
 
+def balanced_at(source, start, balanced):
+    end = closing_end(source, start, balanced.pair, True)
+    return Token(STRING, start, end) if end and source.endswith(balanced.close, start, end) else None
+
+
 def literal_at(source, start, literal, inside):
-    if inside.syntax.literals[literal].body:
+    shape = inside.syntax.literals[literal]
+    if shape.balanced:
+        return balanced_at(source, start, shape.balanced)
+    if shape.body:
         return opener_with_body(source, start, literal, inside)
     return piece(source, start, start, literal, inside.scanner.literals[literal], inside)
 
