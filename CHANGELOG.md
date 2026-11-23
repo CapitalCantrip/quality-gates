@@ -19,6 +19,10 @@
   A project that chooses one of them without `no-comments` reruns
   `/setup-standards`, which adds `comment-debt` to the pre-commit hook and CI
   when either lacks it.
+  A file whose whole name is a suffix, such as `scripts/.sh` or `pkg/.py`,
+  now counts as that language when `qg setup` and `qg status` find the
+  languages a project uses, and in the comment gate for every language, as
+  it already did there for Python.
 - **`comment-debt` reads Rust fully (#186).** With `no-comments-rust`
   chosen, every Rust comment counts once per line: block comments and doc
   comments (`///`, `//!`, `/** */`) as well as `//` lines. A `//` inside a
