@@ -33,8 +33,10 @@ Communication to and from subagents should be sparse. Communicate primarily thro
 
 6. If this changes the **frontier** of available tickets, kick off more **implementer subagents** to work on the new tickets. This allows for maximum concurrency.
 
-7. Once all tickets are complete, call the Skill tool with `review-against-spec` on the integration branch, then with Claude Code's own `code-review`, args `high` and the draft PR's number (or the integration branch when there is no PR). Fix all issues raised by both reviews in a single **implementer subagent**.
+7. Once all tickets are complete, call the Skill tool with `review-against-spec` on the integration branch, then with Claude Code's own `code-review`, args `high` and the draft PR's number (or the integration branch when there is no PR). Note the integration branch tip as the **fix base**. Fix all issues raised by both reviews in a single **implementer subagent**, as commits after the fix base.
 
-8. If a draft PR exists, mark it ready for review. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
+8. **Re-check the fixes.** Call the Skill tool with `code-review`, args `high`, the range `<fix base>..<integration branch tip>`, and every finding from step 7. It checks only the fix commits: that each finding is resolved, and that the fixes brought in no new issue. When it reports anything, fix it in one **implementer subagent**, move the fix base to the tip before those fixes, and re-check again. Done when a re-check reports nothing. After three re-checks that still report something, stop, leave the PR in draft and put the open findings to the builder (`standards` skill, *ask the builder*).
 
-9. Clean up all **implementer subagent** worktrees.
+9. Once a re-check comes back clean, mark the draft PR ready for review, if one exists. Otherwise, resolve each ticket the way the issue tracker closes work, and report the integration branch.
+
+10. Clean up all **implementer subagent** worktrees.
