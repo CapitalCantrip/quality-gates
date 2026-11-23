@@ -13,11 +13,10 @@
   choosing already did. Nothing to do on bumping the pin.
 - **No write keeps a zero baseline entry.** The first `--update` with no
   baseline file no longer writes `0` for a file both counted zero and
-  unmeasured, and the next `--update`, or `qg setup --go --choose` of a
-  comment language, removes any
-  stored entry of `0`, including one for a language not chosen. A zero entry
-  allowed nothing, so the gate's verdicts do not change; commit the smaller
-  baseline.
+  unmeasured, and the next `--update`, or `qg setup --go` switching a comment
+  language on, removes any stored entry of `0`, including one for a language
+  not chosen. A zero entry allowed nothing, so the gate's verdicts do not
+  change; commit the smaller baseline.
 - **`comment-debt --status` lists an area's files with the most comment lines
   first** among those with equal rationale lines, then by path, so "pick the
   top file" picks the biggest, and lists areas with equal totals by name.
@@ -26,6 +25,12 @@
   "Needs attention".** With no choice file the comment gate checks Python, so
   a missing hook, CI step or baseline is a real gap. The exit code is
   unchanged. Nothing to do on bumping the pin.
+- **`/implement-spec` re-checks its review fixes before it marks the PR
+  ready.** A new step 8 runs `/code-review high` over only the fix commits,
+  checking that every finding from both reviews is resolved and that the
+  fixes brought in nothing new. It repeats until a re-check is clean; after
+  three that are not, it asks the builder and leaves the PR in draft. Nothing
+  to do beyond the pin bump and `qg-skills`.
 - **`qg setup` shows a comment language's debt before it asks (#188).**
   For each comment language it offers, setup prints that language's report:
   the total, the count by kind and by area, and the five files with the most
