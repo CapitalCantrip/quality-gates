@@ -576,6 +576,11 @@ class RepositoryTest(unittest.TestCase):
             '\n## Areas with most rationale lines\n'
             '    2  src/core\n'
             '    1  src/ui\n'
+            '\n## Every file\n'
+            '    3    2  src/core/a.rs\n'
+            '    2    0  tools/t.rs\n'
+            '    1    0  src/core/b.rs\n'
+            '    1    1  src/ui/v.rs\n'
         )))
 
     def test_status_lists_an_areas_files_by_rationale_then_most_comment_lines_then_path(self):
@@ -600,7 +605,7 @@ class RepositoryTest(unittest.TestCase):
         self.keep_untracked('two/b.rs', '// TODO\n')
         with mock.patch.object(cd, 'TOP_FILES', 1):
             out = self.run_gate('--report', 'rust')[1]
-        self.assertTrue(out.endswith('\n## Areas with most rationale lines\n    1  one\n    1  two\n'), out)
+        self.assertIn('\n## Areas with most rationale lines\n    1  one\n    1  two\n\n', out)
 
     def test_a_form_feed_or_line_separator_does_not_move_a_rationale_onto_another_line(self):
         self.choose()
@@ -619,6 +624,22 @@ class RepositoryTest(unittest.TestCase):
         out = self.run_gate('--report', 'rust')[1]
         culprits = out.split('## Most comment lines\n')[1].split('\n\n')[0].splitlines()
         self.assertEqual(culprits, ['    7  f6.rs', '    6  f5.rs', '    5  f4.rs', '    4  f3.rs', '    3  f2.rs'])
+
+    def test_the_report_ends_with_every_file_with_debt_most_lines_first_then_by_path(self):
+        self.choose()
+        for n in range(7):
+            self.keep_untracked(f'f{n}.rs', '// plain\n' * (n % 3) + '// todo\n')
+        self.keep_untracked('clean.rs', 'fn c() {}\n')
+        out = self.run_gate('--report', 'rust')[1]
+        self.assertTrue(out.endswith(
+            '\n## Every file\n'
+            '    3    1  f2.rs\n'
+            '    3    1  f5.rs\n'
+            '    2    1  f1.rs\n'
+            '    2    1  f4.rs\n'
+            '    1    1  f0.rs\n'
+            '    1    1  f3.rs\n'
+            '    1    1  f6.rs\n'), out)
 
     def test_the_report_of_a_language_without_comments_is_its_total_alone(self):
         self.choose()
@@ -924,11 +945,37 @@ class AcceptingRustEndToEndTest(SetupAndGate, unittest.TestCase):
         self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text())['main.rs'], 1)
 
+    def switch_rust_safety_on_after_a_first_setup(self):
+        (self.root / 'main.rs').write_text('fn main() {\n    // SAFETY: why.\n    unsafe {}\n    // stray\n}\n')
+        self.run_setup('--go')
+        choice = json.loads((self.root / 'quality-gates.json').read_text())
+        choice['settings']['no-comments']['conventions'] = ['rust-safety']
+        (self.root / 'quality-gates.json').write_text(json.dumps(choice))
+
+    def test_a_convention_added_by_hand_after_a_first_setup_is_kept_when_rust_is_chosen(self):
+        self.switch_rust_safety_on_after_a_first_setup()
+        self.run_setup('--go', '--choose', 'no-comments-rust')
+        choice = json.loads((self.root / 'quality-gates.json').read_text())
+        self.assertEqual(choice['settings']['no-comments']['conventions'], ['rust-safety'])
+        self.assertIn('no-comments-rust', choice['components']['chosen'])
+
+    def test_choosing_rust_after_adding_rust_safety_by_hand_leaves_the_safety_lines_unrecorded(self):
+        self.switch_rust_safety_on_after_a_first_setup()
+        self.run_setup('--go', '--choose', 'no-comments-rust')
+        self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1})
+        self.assertEqual(self.gate(), (0, 'comment debt: 1 lines in 1 files, none new\n'))
+
+    def test_both_reports_leave_out_safety_lines_once_rust_safety_is_added_by_hand(self):
+        self.switch_rust_safety_on_after_a_first_setup()
+        total = '# Rust comment debt: 1 lines in 1 files\n'
+        self.assertTrue(json.loads(self.run_setup('--json'))['debt_reports']['rust'].startswith(total))
+        self.assertTrue(self.gate('--report', 'rust')[1].startswith(total))
+
     def test_setup_shows_an_offered_languages_report_and_both_choices_before_asking(self):
         self.run_setup('--go', '--choose', 'no-comments')
         out = self.run_setup()
         report, offer, asking = (out.index('# Rust comment debt: 1 lines in 1 files\n'),
-                                 out.index(setup_choices.OFFER_CHOICES.format('no-comments-rust', 'rust')),
+                                 out.index(setup_choices.OFFER_CHOICES.format('no-comments-rust')),
                                  out.index('Not yet answered: no-comments-rust'))
         self.assertLess(report, offer)
         self.assertLess(offer, asking)
@@ -985,7 +1032,9 @@ class AcceptingRustEndToEndTest(SetupAndGate, unittest.TestCase):
         (self.root / 'vendor' / 'v.rs').write_text('// vendored\n')
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
-        self.assertEqual(self.gate('--report', 'rust')[1], json.loads(self.run_setup('--json'))['debt_reports']['rust'])
+        report, setups = self.gate('--report', 'rust')[1], json.loads(self.run_setup('--json'))['debt_reports']['rust']
+        self.assertTrue(report.startswith(setups), (report, setups))
+        self.assertNotIn('## Every file', setups)
 
     def test_a_malformed_baseline_stops_setup_choosing_rust_and_nothing_is_written(self):
         self.run_setup('--go', '--choose', 'no-comments')
@@ -1043,39 +1092,41 @@ class CleaningFirstEndToEndTest(SetupAndGate, unittest.TestCase):
         self.root = Path(self.tmp.name)
         subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
         self.file = self.root / 'comment-debt.json'
-        for folder, source in (('paid', 'fn a() {\n    // one\n}\n'), ('kept', 'fn b() {\n    // two\n    // three\n}\n')):
-            (self.root / folder).mkdir()
-            (self.root / folder / 'lib.rs').write_text(source)
+        self.kept = [f'kept/f{n}.rs' for n in range(cd.TOP_FILES + 1)]
+        (self.root / 'paid').mkdir()
+        (self.root / 'kept').mkdir()
+        (self.root / 'paid' / 'lib.rs').write_text('fn a() {\n    // one\n}\n')
+        for path in self.kept:
+            (self.root / path).write_text('fn b() {\n    // two\n    // three\n}\n')
 
     def tearDown(self):
         self.tmp.cleanup()
 
-    def test_paying_one_folder_down_first_leaves_a_report_of_the_other_and_choosing_records_only_that_folder(self):
+    def test_paying_one_folder_down_first_leaves_a_report_naming_every_file_left_and_choosing_records_only_those(self):
         before = self.gate('--report', 'rust')[1]
-        self.assertEqual(before.splitlines()[0], '# Rust comment debt: 3 lines in 2 files')
+        self.assertEqual(before.splitlines()[0], '# Rust comment debt: 13 lines in 7 files')
         self.assertIn('paid/lib.rs', before)
 
         (self.root / 'paid' / 'lib.rs').write_text('fn a() {}\n')
         code, remainder = self.gate('--report', 'rust')
         self.assertEqual(code, 0)
-        self.assertEqual(remainder.splitlines()[0], '# Rust comment debt: 2 lines in 1 files')
-        self.assertIn('kept/lib.rs', remainder)
+        self.assertEqual(remainder.splitlines()[0], '# Rust comment debt: 12 lines in 6 files')
+        self.assertTrue(remainder.endswith('\n## Every file\n' + ''.join(f'    2    0  {path}\n' for path in self.kept)),
+                        remainder)
         self.assertNotIn('paid', remainder)
 
         self.run_setup('--go', '--choose', 'no-comments-rust')
-        self.assertEqual(json.loads(self.file.read_text()), {'kept/lib.rs': 2})
+        self.assertEqual(json.loads(self.file.read_text()), {path: 2 for path in self.kept})
         self.assertIn('no-comments-rust', json.loads((self.root / 'quality-gates.json').read_text())['components']['chosen'])
-        self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 1 files, none new\n'))
+        self.assertEqual(self.gate(), (0, 'comment debt: 12 lines in 6 files, none new\n'))
 
-    def test_setups_clean_first_offer_scopes_the_paydown_reruns_the_report_until_it_shows_none_and_opens_an_issue_only_when_asked(self):
-        out = self.run_setup()
-        for step in ('the builder scopes what to pay down now, by area, file or kind',
-                     'without changing behaviour',
-                     'a `debt-payer` agent where the project has one',
-                     'rerun `comment-debt --report rust` until the scope shows none',
-                     'only if the builder asks, open an issue for the remainder whose body is that report',
-                     'then `qg setup --go --choose no-comments-rust` records the rest'):
-            self.assertIn(step, ' '.join(out.split()))
+    def test_setups_offer_names_both_choices_and_points_clean_first_to_the_no_comments_skill(self):
+        out = ' '.join(self.run_setup().split())
+        for part in ('record its comments as debt with `qg setup --go --choose no-comments-rust`',
+                     'or clean first: pay down a scope you pick',
+                     "(the no-comments skill's Clean first)",
+                     'then choose it to record the rest'):
+            self.assertIn(part, out)
 
 
 class AcceptingShellEndToEndTest(SetupAndGate, unittest.TestCase):

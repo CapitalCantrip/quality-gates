@@ -22,13 +22,9 @@ LOOSENING_ISSUE = "#115"
 BOTH_FLAGS = "--choose and --decline"
 UP_TO_DATE = f"{project_files.CHOICE_FILE} is up to date."
 RUN_GO = "Run `qg setup --go` to record these choices."
-OFFER_CHOICES = ("To accept {0}: record its comments as debt with `qg setup --go --choose {0}`, or clean first. "
-                 "Clean first: the builder scopes what to pay down now, by area, file or kind; "
-                 "the agent pays that scope down without changing behaviour, with the no-comments skill "
-                 "or, for a long run, a subagent per batch (a `debt-payer` agent where the project has one); "
-                 "rerun `comment-debt --report {1}` until the scope shows none; "
-                 "only if the builder asks, open an issue for the remainder whose body is that report; "
-                 "then `qg setup --go --choose {0}` records the rest and switches the language on.")
+OFFER_CHOICES = ("To accept {0}: record its comments as debt with `qg setup --go --choose {0}`, "
+                 "or clean first: pay down a scope you pick (the no-comments skill's Clean first), "
+                 "then choose it to record the rest.")
 ANSWER_OFFERS = "Not yet answered: {}. Answer each with `qg setup --go --choose <id>` or `--decline <id>`."
 
 
@@ -203,7 +199,7 @@ def closing_lines(proposal, written, planned):
 def offer_lines(proposal):
     lines = []
     for name, text in proposal.debt_reports:
-        lines += ["", *text.rstrip("\n").split("\n"), "", OFFER_CHOICES.format(comment_debt.LANGUAGES[name].component, name)]
+        lines += ["", *text.rstrip("\n").split("\n"), "", OFFER_CHOICES.format(comment_debt.LANGUAGES[name].component)]
     return lines
 
 
