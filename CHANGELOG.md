@@ -2,12 +2,17 @@
 
 ## Unreleased
 
-- **Clean first, until it is built, uses the report to rank and track
-  files.** The offer under each comment language now says: rank files and see
-  progress with `comment-debt --report <language>`, pay them down with the
-  `no-comments` skill, then choose. `--status` and `--update` see only chosen
-  languages, so they cannot track an offered one. Nothing to do beyond the pin
-  bump and `qg-skills`.
+- **Clean first is built (#189).** A comment language can now be accepted by
+  paying down a scope you pick before the rest is recorded as debt; the
+  `no-comments` skill's *Clean first* section has the steps, and an issue for
+  what is left opens only if you ask. `comment-debt --report <language>` ends
+  with every file that has comment lines, so that issue names them all.
+  `/setup-standards` asks whether to switch on `rust-safety` when Rust code
+  has `// SAFETY:` lines, and if you say yes it writes `quality-gates.json`,
+  adds the convention, then chooses Rust. `qg explain no-comments` explains
+  the gate. On bumping the pin, run `qg-skills`, then `/setup-standards` and
+  accept the comment languages you want. As the #185 entry says,
+  `comment-debt --exclude` is gone.
 - **`comment-debt --report` counts what `qg setup` counts.** It now leaves out
   what a hook or CI `--exclude` flag leaves out, as setup's report and
   choosing already did. Nothing to do on bumping the pin.

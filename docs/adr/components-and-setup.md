@@ -54,22 +54,26 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   builder picks, optionally opens an issue for the rest, and records what
   remains; the language is switched on only once its comments are recorded.
   The comment gate checks a language only when its component is chosen, and
-  with no choice file only Python. Built in part: `no-comments-rust`,
+  with no choice file only Python. Built: `no-comments-rust`,
   `no-comments-typescript`, `no-comments-swift` and `no-comments-shell` are
   offered; `comment-debt --report <language>` prints the full
-  report and names any file it could not read, as `--status` does; `qg setup`
-  prints it, then the two choices, for each offered comment language before
+  report, ending with every file that has comment lines, and names any file it
+  could not read, as `--status` does; `qg setup`
+  prints it without that last list, then the two choices, for each offered
+  comment language before
   asking; and `qg setup --go --choose no-comments-<language>` records as debt:
   in one step it records that language's comments, in place of its older
   entries, then records the choice, so no state has a language's entries
-  recorded while the language is off. Until clean first is built, setup's
-  offer says to rank files and see progress with
-  `comment-debt --report <language>`, pay them down with the `no-comments`
-  skill, then choose; `--status` and `--update` see only chosen languages.
+  recorded while the language is off. Clean first has no flag of its own:
+  `/setup-standards` hands it to the `no-comments` skill's *Clean first*
+  section, which pays down the scope the builder picks, opens a remainder
+  issue only when asked, then chooses the row. A recognised convention such
+  as `rust-safety` is set by hand in the choice file, so setup writes the file
+  with `qg setup --go` first, adds the convention, then chooses the row, and
+  those comments are not recorded.
   The report, from setup or from `--report`, counts the files that choosing
   would record, after the `--exclude` flags setup moves from the hook and CI
-  into the choice file. Clean first arrives with a later build of
-  quality-gates#3. Neither setup nor `qg status`
+  into the choice file. Neither setup nor `qg status`
   infers a new comment language's component as installed: the hook, CI step
   and baseline it shares with `no-comments` say nothing about which languages
   were switched on, so status shows one the choice file does not choose as

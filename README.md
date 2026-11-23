@@ -222,18 +222,27 @@ the shebang on line 1 and a bare `# shellcheck disable=` are exempt.
 `comment-debt --report <language>` prints a language's comment debt, chosen or
 not: the total, the count by kind (`line`, and `string` for a Python docstring
 or bare string) and by area, the files with the most comment lines and the most
-rationale lines, and the areas with the most rationale lines. It counts the
+rationale lines, the areas with the most rationale lines, and last every file
+with comment lines. It counts the
 files choosing would record, leaving out what a hook or CI `--exclude` flag
 leaves out. It and `--status` name any file they could not read, which the gate
 would fail. `qg setup` prints the report of each comment language it offers,
-with the two ways to accept it, before it asks: record as debt, or, until
-clean first is built, rank and track files with the report, pay them down with
-the `no-comments` skill, then choose. Choosing a comment
-language with `qg setup --go --choose <id>` records its comments as debt in the
-same step, in place of any older entries for that language, so the gate never
-checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run
-`/setup-standards`. ([#3](../../issues/3) adds clean first:
-[ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
+without the list of every file, with the two ways to accept it, before it
+asks. *Record as debt*: choosing the
+language with `qg setup --go --choose <id>` records its comments in the same
+step, in place of any older entries for that language. *Clean first*: the
+builder picks a scope to pay down now, and once it no longer shows in the
+report the same `--choose` records the rest; the `no-comments` skill's
+*Clean first* section has the steps. Either way the gate never
+checks a language whose comments are unrecorded. `rust-safety` is off until
+the project adds it to `settings.no-comments.conventions` in
+`quality-gates.json`; no flag sets it, so `/setup-standards` asks, writes the
+file with `qg setup --go`, adds the convention, then chooses Rust, and those
+`// SAFETY:` comments are not recorded. `qg explain no-comments` says all
+this in plain words.
+`--exclude` is removed: it exits non-zero and says to run
+`/setup-standards`.
+([ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
 
 ### `cc-check`: cyclomatic complexity
 
@@ -507,12 +516,13 @@ Three more commands support them:
 
 Each component ships an explainer: a short Markdown page, versioned with the
 release, in [src/quality_gates/explainers](src/quality_gates/explainers). It
-opens with the component's name and has four sections, in order: what it
-catches, why it matters to someone who cannot read the code, what it asks of
-the builder, and *Want to go deeper?*. That last one holds one to three
-outside links. Each link has a line on why it is worth reading and the date it
-was checked, and it is free to view and written by someone with real practice
-in the subject. The worked example is
+opens with the component's name, and an explainer several components share
+opens with the name of the component its file is named after. It has four
+sections, in order: what it catches, why it matters to someone who cannot read
+the code, what it asks of the builder, and *Want to go deeper?*. That last one
+holds one to three outside links. Each link has a line on why it is worth
+reading and the date it was checked, and it is free to view and written by
+someone with real practice in the subject. The worked example is
 [crap.md](src/quality_gates/explainers/crap.md).
 
 `qg explain <name>` prints a component's explainer from the installed package,

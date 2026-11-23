@@ -40,6 +40,7 @@ TOP_AREAS = 5
 FileDebt = collections.namedtuple("FileDebt", "path lines rationale")
 AreaDebt = collections.namedtuple("AreaDebt", "name lines rationale")
 RATIONALE_HEADING = "lines, of which rationale (workaround, deliberately, for now, TODO ...)"
+EVERY_FILE = f"Every file: {RATIONALE_HEADING}"
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
     re.IGNORECASE,
@@ -333,13 +334,18 @@ def most(counted, limit):
     return [f"{-negated:5}  {label}" for negated, label in ranked]
 
 
+def every_file_rows(files):
+    return [f"{f.lines:5} {f.rationale:4}  {f.path}" for f in sorted(files, key=lambda f: (-f.lines, f.path))]
+
+
 def report_sections(root, current):
     areas = group_by_area(root, current)
     files = [row for rows in areas.values() for row in rows]
     return (("By kind", kind_rows(current)), (f"By area: {RATIONALE_HEADING}", area_rows(areas)),
             ("Most comment lines", most(((f.path, f.lines) for f in files), TOP_FILES)),
             ("Most rationale lines", most(((f.path, f.rationale) for f in files), TOP_FILES)),
-            ("Areas with most rationale lines", most(((a.name, a.rationale) for a in area_totals(areas)), TOP_AREAS)))
+            ("Areas with most rationale lines", most(((a.name, a.rationale) for a in area_totals(areas)), TOP_AREAS)),
+            (EVERY_FILE, every_file_rows(files)))
 
 
 def report_files(root, name, choice):
@@ -347,19 +353,19 @@ def report_files(root, name, choice):
             for path, language in project_files.comment_gate_files_after_setup(root, choice, [name]).items()}
 
 
-def debt_report(root, name, files, out):
+def debt_report(root, name, files, out, left_out=()):
     measured = measure(root, files)
     current = with_debt(measured)
     out.write(total_line(f"{languages.LANGUAGES[name].label} comment debt", current))
     out.writelines(unread_lines(measured))
     for heading, rows in report_sections(root, current):
-        if rows:
+        if rows and heading not in left_out:
             out.write(f"\n## {heading}\n" + "".join(row + "\n" for row in rows))
 
 
 def debt_report_text(root, name, choice):
     out = io.StringIO()
-    debt_report(root, name, report_files(root, name, choice), out)
+    debt_report(root, name, report_files(root, name, choice), out, left_out=(EVERY_FILE,))
     return out.getvalue()
 
 

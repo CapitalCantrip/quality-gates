@@ -38,9 +38,11 @@ class ExplainerFormat(unittest.TestCase):
         crap = COMPONENTS.component("crap")
         self.assertIsNotNone(crap.explainer)
 
-    def test_an_explainer_opens_with_the_name_of_its_component(self):
+    def test_an_explainer_opens_with_the_name_of_the_component_its_file_is_named_after(self):
         for component, text in explainers():
-            self.assertEqual(text.splitlines()[0], f"# {component.name}", component.id)
+            owner = COMPONENTS.component(Path(component.explainer).stem)
+            self.assertIsNotNone(owner, component.id)
+            self.assertEqual(text.splitlines()[0], f"# {owner.name}", component.id)
 
     def test_an_explainer_has_its_four_sections_in_order(self):
         for component, text in explainers():
@@ -50,6 +52,12 @@ class ExplainerFormat(unittest.TestCase):
         for component, text in explainers():
             self.assertGreaterEqual(len(links(text)), 1, component.id)
             self.assertLessEqual(len(links(text)), 3, component.id)
+
+    def test_the_comment_gate_explainer_names_every_comment_language_the_conventions_the_report_and_both_choices(self):
+        text = " ".join(COMPONENTS.explainer_path(COMPONENTS.component("no-comments")).read_text(encoding="utf-8").split()).lower()
+        for phrase in ("python", "rust", "typescript", "swift", "shell", "recognised conventions", "rust-safety",
+                       "comment-debt --report", "record as debt", "clean first"):
+            self.assertIn(phrase, text)
 
     def test_every_link_says_why_it_is_worth_the_time_and_the_date_it_was_checked(self):
         for component, text in explainers():
