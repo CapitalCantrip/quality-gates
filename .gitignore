@@ -8,3 +8,5 @@ coverage.json
 HANDOFF*.md
 .DS_Store
 docs/ScratchPad*.md
+docs/research/
+docs/reviews/
