@@ -1,6 +1,15 @@
 # Changelog
 
-## Unreleased
+## 0.14.0 — 2026-11-24
+
+The comment gate reads Rust fully and now TypeScript, Swift and shell, and
+setup shows each language's debt before offering to record it or clean it
+first (#185 to #189, #210, #213 to #215). On bumping the pin, run
+`qg-skills`, then `/setup-standards`: it moves any `--exclude` patterns from
+the pre-commit hook into the choice file (`comment-debt` now refuses
+`--exclude`) and offers the comment languages your project uses. The gate
+now also checks untracked files, and one it cannot read fails as
+`UNMEASURED`. Commit the smaller baseline if `--update` drops zero entries.
 
 - **Clean first is built (#189).** A comment language can now be accepted by
   paying down a scope you pick before the rest is recorded as debt; the
