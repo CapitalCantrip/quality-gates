@@ -14,7 +14,6 @@ NOT_A_LINE_END = re.compile(r"[^\r\n]")
 BLANK = " "
 NOTHING = "(?!)"
 OPENER_GROUP = re.compile(r"\\g<(\d+)>")
-LOGICAL_LINE = re.compile(r"(?:\\[\s\S]|[^\n\\])*\n")
 
 
 @dataclass(frozen=True)
@@ -75,6 +74,7 @@ class Scanner:
     literals: tuple
     doc: re.Pattern
     rests: tuple
+    logical_line: re.Pattern
 
 
 @dataclass
@@ -119,7 +119,12 @@ def scanner_for(syntax):
     openers += bracket_opener(syntax.literals)
     literals = tuple(re.compile(literal.whole) for literal in syntax.literals)
     rests = tuple(map(rest_of, syntax.literals))
-    return Scanner(syntax, alternatives(openers), literals, alternatives(syntax.doc), rests)
+    return Scanner(syntax, alternatives(openers), literals, alternatives(syntax.doc), rests, logical_line(syntax.line))
+
+
+def logical_line(markers):
+    comment = "|".join(markers) or NOTHING
+    return re.compile(rf"(?:\\[\s\S]|(?!{comment})[^\n\\])*(?:(?:{comment})[^\n]*)?\n")
 
 
 def line_comment_end(source, start):
@@ -166,7 +171,7 @@ def body_pattern(template, opener):
 def body_start(source, opener, inside):
     if inside.bodies:
         return inside.bodies[-1].end + len(NEWLINE)
-    line = LOGICAL_LINE.match(source, opener.end())
+    line = inside.scanner.logical_line.match(source, opener.end())
     return line.end() if line else None
 
 

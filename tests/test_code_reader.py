@@ -140,6 +140,10 @@ class ReadingLiteralsWithABodyOnTheLinesBelow(unittest.TestCase):
         reading = code_reader.read("cat <<END \\\n  # why\n# body\nEND\n", BODIED)
         self.assertEqual([(c.text, c.start) for c in reading.comments], [("# why", 2)])
 
+    def test_a_line_comment_ends_the_opening_line_even_when_it_ends_in_a_backslash(self):
+        reading = code_reader.read("cat <<END # C:\\\n# body\nEND\n# after\n", BODIED)
+        self.assertEqual([(c.text, c.start) for c in reading.comments], [("# C:\\", 1), ("# after", 4)])
+
     def test_a_body_that_never_ends_leaves_its_opening_as_code(self):
         reading = code_reader.read("cat <<END\n# why\n", BODIED)
         self.assertEqual(reading.comments, (Comment("line", "# why", 2, 2),))

@@ -327,6 +327,9 @@ class ShellCountingTest(unittest.TestCase):
     def test_a_heredoc_body_starts_after_the_lines_its_opener_joins_with_a_backslash(self):
         self.assertEqual(shell_lines('cat <<EOF \\\n  | grep x # why\nbody\nEOF\n'), [2])
 
+    def test_a_backslash_that_ends_a_comment_on_a_heredoc_opener_joins_no_lines(self):
+        self.assertEqual(shell_lines('cat <<EOF # dir C:\\\n# body\nEOF\n# after\n'), [1, 4])
+
     def test_a_heredoc_in_a_file_with_crlf_line_ends_closes_at_its_delimiter(self):
         self.assertEqual(shell_lines('cat <<EOF\r\n# body\r\nEOF\r\n# counted\r\n'), [4])
 
