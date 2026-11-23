@@ -110,14 +110,13 @@ def shown_choice(component, used, made):
 
 
 def recorded_choice(root, choice, used, made, scope):
-    comment_gate_exclude = set(choice.comment_gate_exclude if choice else ()) | project_files.comment_gate_exclusions(root)
     return project_files.Choice(
         languages=used,
         chosen=tuple(sorted(name for name, kind in made.items() if kind == CHOSEN)),
         declined=tuple(sorted(name for name, kind in made.items() if kind == DECLINED)),
         exclude=scope.excluded,
         commit_time_limit_seconds=choice.commit_time_limit_seconds if choice else project_files.DEFAULT_COMMIT_TIME_LIMIT_SECONDS,
-        comment_gate_exclude=tuple(sorted(comment_gate_exclude)),
+        comment_gate_exclude=project_files.comment_gate_exclude_after_setup(root, choice),
         conventions=choice.conventions if choice else (),
     )
 

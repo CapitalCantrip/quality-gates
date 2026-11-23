@@ -16,7 +16,9 @@ or admit an outside tool or skill.
   contract with a format version; a shape change needs a new version and a
   CHANGELOG note. ([ADR-005 addendum 2026-10-25](archive/ADR-005-direction-idea-to-release.md#addendum-2026-10-25-the-component-manifest-and-qg-status))
 - **`qg status` is a report, not a gate:** read-only, offline, exit 0, except
-  exit 3 when the shipped manifest itself is broken.
+  exit 3 when the shipped manifest itself is broken. Its *Needs attention*
+  line treats `no-comments` as chosen when there is no choice file, since the
+  comment gate then checks Python.
   ([ADR-005 addenda](archive/ADR-005-direction-idea-to-release.md#addendum-2026-11-01-qg-status-when-the-shipped-manifest-is-broken))
 
 ## Choosing components

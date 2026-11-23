@@ -637,6 +637,8 @@ line, like any other tool error.
   the project does not use. *Needs attention* names only the parts that count,
   and shows for the core, a chosen component, or any component with some part
   installed; never for a declined or offered component with nothing installed.
+  With no choice file, `no-comments` counts as chosen, since the comment gate
+  then checks Python.
 
   ```text
   $ qg status

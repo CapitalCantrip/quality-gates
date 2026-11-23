@@ -294,6 +294,13 @@ class RepositoryTest(unittest.TestCase):
         listed = [line.split()[-1] for line in self.run_gate('--status')[1].splitlines() if line.endswith('.py')]
         self.assertEqual(listed, ['src/d.py', 'src/a.py', 'src/b.py', 'src/c.py'])
 
+    def test_status_lists_areas_with_equal_totals_by_name(self):
+        self.choose(chosen=('no-comments', 'no-comments-rust'))
+        self.keep_untracked('src/a.py', '# one\n')
+        self.keep_untracked('app/b.rs', '// one\n')
+        headings = [line for line in self.run_gate('--status')[1].splitlines() if line.startswith('## ')]
+        self.assertEqual(headings, ['## app — 1 lines', '## src — 1 lines'])
+
     def test_changing_how_many_files_the_report_lists_leaves_the_area_list_alone(self):
         self.choose()
         self.keep_untracked('one/a.rs', '// TODO\n')

@@ -376,6 +376,10 @@ class SurvivalTest(unittest.TestCase):
         ratchet.settle(lambda: found, self.file, updating=True)
         self.assertEqual((chosen, json.loads(self.file.read_text())), ({"dark.rs": 3}, {"dark.rs": 3}))
 
+    def test_a_zero_entry_outside_the_files_a_write_covers_is_dropped(self):
+        covers_python = lambda path: path.endswith(".py")
+        self.assertEqual(self.surviving({"lib.rs": 0, "a.py": 1}, [comment_finding("a.py", 1)], covers_python), {"a.py": 1})
+
     def test_update_decides_what_survives_through_the_one_function(self):
         self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
         with mock.patch.object(ratchet, "surviving", wraps=ratchet.surviving) as deciding:

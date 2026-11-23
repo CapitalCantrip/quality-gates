@@ -294,7 +294,7 @@ def status(root, out):
     out.write(total_line("Comment debt", current))
     out.writelines(unread_lines(measured))
     out.write(f"\nColumns: {RATIONALE_HEADING}\n")
-    for name in sorted(areas, key=lambda a: -sum(r.lines for r in areas[a])):
+    for name in sorted(areas, key=lambda a: (-sum(r.lines for r in areas[a]), a)):
         write_area(name, areas[name], out)
 
 

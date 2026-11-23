@@ -181,7 +181,7 @@ def surviving(stored: Optional[dict], result: Result, covers: Callable[[str], bo
         for verdict in result.having(Outcome.UNMEASURED)
         if verdict.allowed
     }
-    return dict(sorted({**held_back(stored, covers), **kept, **unmeasured}.items()))
+    return {key: number for key, number in sorted({**held_back(stored, covers), **kept, **unmeasured}.items()) if number}
 
 
 def lowered(result: Result, stored: Optional[dict] = None, covers: Callable[[str], bool] = covers_every_file) -> dict:

@@ -56,7 +56,9 @@ Prefer somewhere that fails when the knowledge stops being true.
 
 ## Paying down one file
 
-1. `comment-debt --status`, pick the top file.
+1. `comment-debt --status`, pick the top file. For a language not yet chosen
+   (clean first), use `comment-debt --report <language>` instead, here and in
+   step 4, and skip `--update`: choosing records what is left.
 2. Write tests for the edge cases the comments describe; they must pass first.
 3. Remove the comments; run the suite.
 4. `comment-debt --update`; commit the file, its tests and the baseline
