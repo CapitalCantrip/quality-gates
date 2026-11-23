@@ -293,7 +293,7 @@ def findings_on_choosing(root, names, choice):
 
 
 def written_in(root, names):
-    return lambda path: project_files.language_of_code_file(root, path) in names
+    return lambda path: project_files.language_among(root, path, names) is not None
 
 
 def with_debt(measured):

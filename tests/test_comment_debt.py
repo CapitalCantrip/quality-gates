@@ -741,6 +741,20 @@ class RepositoryTest(unittest.TestCase):
         self.assertEqual([finding.location.key for finding in found], ['a.ts'])
         self.assertNotIn('deploy', opened)
 
+    def test_the_baseline_cover_of_a_choice_without_shell_opens_no_suffix_less_file(self):
+        self.put('deploy', '#!/bin/sh\n# one\n')
+        opened, original = [], builtins.open
+
+        def recording_open(file, *args, **kwargs):
+            opened.append(Path(str(file)).name)
+            return original(file, *args, **kwargs)
+
+        with mock.patch('builtins.open', recording_open):
+            covered = cd.written_in(self.root, frozenset({'typescript', 'python'}))('deploy')
+        self.assertFalse(covered)
+        self.assertNotIn('deploy', opened)
+        self.assertTrue(cd.written_in(self.root, frozenset({'shell'}))('deploy'))
+
     def test_shell_is_not_checked_when_no_comments_shell_is_not_chosen(self):
         self.choose()
         self.put('run.sh', '# one\n')
