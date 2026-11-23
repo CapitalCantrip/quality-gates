@@ -211,7 +211,7 @@
     {
       "id": "no-comments",
       "name": "No code comments",
-      "description": "Stops comments from creeping into Python code, with a row of its own for each of Rust, TypeScript, Swift and shell: shows the comments already there, then records them as debt or clears a part you pick first, blocks new ones, and lets a comment form a language's community requires, such as Rust's SAFETY note, be switched on.",
+      "description": "Stops comments from creeping into Python code.",
       "core": false,
       "languages": [
         "python"
@@ -250,7 +250,7 @@
     {
       "id": "no-comments-rust",
       "name": "No code comments in Rust",
-      "description": "Stops comments from creeping into Rust code: shows the ones already there, records them as debt and blocks new ones.",
+      "description": "Stops comments from creeping into Rust code: blocks new ones, with old ones recorded as debt or cleared first.",
       "core": false,
       "languages": [
         "rust"
@@ -258,6 +258,7 @@
       "origin": {
         "type": "ours"
       },
+      "explainer": "explainers/no-comments.md",
       "parts": [
         {
           "kind": "command",
@@ -283,7 +284,7 @@
     {
       "id": "no-comments-typescript",
       "name": "No code comments in TypeScript",
-      "description": "Stops comments from creeping into TypeScript code: shows the ones already there, records them as debt and blocks new ones.",
+      "description": "Stops comments from creeping into TypeScript code: blocks new ones, with old ones recorded as debt or cleared first.",
       "core": false,
       "languages": [
         "typescript"
@@ -291,6 +292,7 @@
       "origin": {
         "type": "ours"
       },
+      "explainer": "explainers/no-comments.md",
       "parts": [
         {
           "kind": "command",
@@ -316,7 +318,7 @@
     {
       "id": "no-comments-swift",
       "name": "No code comments in Swift",
-      "description": "Stops comments from creeping into Swift code: shows the ones already there, records them as debt and blocks new ones.",
+      "description": "Stops comments from creeping into Swift code: blocks new ones, with old ones recorded as debt or cleared first.",
       "core": false,
       "languages": [
         "swift"
@@ -324,6 +326,7 @@
       "origin": {
         "type": "ours"
       },
+      "explainer": "explainers/no-comments.md",
       "parts": [
         {
           "kind": "command",
@@ -349,7 +352,7 @@
     {
       "id": "no-comments-shell",
       "name": "No code comments in Shell",
-      "description": "Stops comments from creeping into Shell code: shows the ones already there, records them as debt and blocks new ones.",
+      "description": "Stops comments from creeping into Shell code: blocks new ones, with old ones recorded as debt or cleared first.",
       "core": false,
       "languages": [
         "shell"
@@ -357,6 +360,7 @@
       "origin": {
         "type": "ours"
       },
+      "explainer": "explainers/no-comments.md",
       "parts": [
         {
           "kind": "command",

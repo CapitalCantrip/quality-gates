@@ -57,21 +57,20 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   with no choice file only Python. Built: `no-comments-rust`,
   `no-comments-typescript`, `no-comments-swift` and `no-comments-shell` are
   offered; `comment-debt --report <language>` prints the full
-  report and names any file it could not read, as `--status` does; `qg setup`
-  prints it, then the two choices, for each offered comment language before
+  report, ending with every file that has comment lines, and names any file it
+  could not read, as `--status` does; `qg setup`
+  prints it without that last list, then the two choices, for each offered
+  comment language before
   asking; and `qg setup --go --choose no-comments-<language>` records as debt:
   in one step it records that language's comments, in place of its older
   entries, then records the choice, so no state has a language's entries
-  recorded while the language is off. Clean first is driven by
-  `/setup-standards` and the `no-comments` skill, with no flag of its own:
-  the builder scopes the paydown from the report, by area, file or kind; the
-  agent pays it down without changing behaviour and reruns
-  `comment-debt --report <language>` until the scope shows none, since
-  `--status` and `--update` see only chosen languages; only if the builder
-  asks, it opens an issue for the remainder whose body is that report; then
-  `--choose` records the rest and switches the language on. Before choosing,
-  setup asks whether to switch on a recognised convention the code uses, such
-  as `rust-safety`, so those comments are not recorded.
+  recorded while the language is off. Clean first has no flag of its own:
+  `/setup-standards` hands it to the `no-comments` skill's *Clean first*
+  section, which pays down the scope the builder picks, opens a remainder
+  issue only when asked, then chooses the row. A recognised convention such
+  as `rust-safety` is set by hand in the choice file, so setup writes the file
+  with `qg setup --go` first, adds the convention, then chooses the row, and
+  those comments are not recorded.
   The report, from setup or from `--report`, counts the files that choosing
   would record, after the `--exclude` flags setup moves from the hook and CI
   into the choice file. Neither setup nor `qg status`

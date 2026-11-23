@@ -89,34 +89,18 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    debt report of each **offered** comment language row (`no-comments-rust`):
    the comments that language already has, by kind, by area and the worst
    files. Show it whole, with the two choices printed under it: record them as
-   debt, so only new comments fail, or clean first. When the language's code
-   uses a recognised convention, such as Rust's `// SAFETY:` lines above
-   `unsafe`, ask the builder whether to switch it on in
-   `settings.no-comments.conventions` of `quality-gates.json` before the row
-   is chosen, so those comments are not recorded as debt;
-   `qg explain no-comments` names the conventions. Then ask the builder to say "go" or name
-   changes, and end with one line: *Ask me about any row, or run
-   `qg explain <name>`.*
-
-   For each row the builder wants cleaned first, before it is chosen:
-
-   1. The builder scopes what to pay down now from the report, by area, file
-      or kind.
-   2. Pay that scope down without changing behaviour, with the `no-comments`
-      skill, or for a long run a subagent per batch (a `debt-payer` agent
-      where the project has one).
-   3. Rerun `comment-debt --report <language>` until the scope shows none;
-      `--status` and `--update` see only chosen languages.
-   4. Only if the builder asks, open an issue for the remainder whose body is
-      that report.
-   5. Choose the row in steps 4 and 5: `qg setup --go --choose <id>` records
-      the rest as debt and switches the language on.
-
-   Done when every offered comment row is answered: recorded as debt, cleaned
-   first and then chosen, or declined.
+   debt, so only new comments fail, or clean first, which pays down a scope
+   the builder picks before the rest is recorded (the `no-comments` skill,
+   *Clean first*). When the language's code uses a recognised convention
+   (`qg explain no-comments` names them), also ask whether to switch it on so
+   those comments are not recorded; recommend on when the code has
+   `// SAFETY:` lines above `unsafe` (`rust-safety`). Then ask the builder to
+   say "go" or name changes, and end with one line: *Ask me about any row, or
+   run `qg explain <name>`.*
 4. "Go" accepts every ticked row: add `--choose <id>` for each **offered** row
-   the builder did not turn down, except a comment row still being cleaned
-   first. Turn each change into a flag on `qg setup`:
+   the builder did not turn down, except a comment row the builder wants
+   cleaned first or whose convention the builder switches on; step 6 chooses
+   those. Turn each change into a flag on `qg setup`:
    `--add-language <name>` (a
    language may be added before it has code), `--remove-language <name>`,
    `--choose <id>`, `--decline <id>`. When it refuses (the core, a gate the
@@ -130,6 +114,15 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    as it was, less any entry of zero. Then remove the `--exclude` flags from
    the hook and CI, since `comment-debt` refuses them. Run `comment-debt`: it passes. Commit
    `quality-gates.json`, `comment-debt.json`, the hook and CI together.
+6. Take each comment row step 4 left out, now that `quality-gates.json`
+   exists. When the builder switched a convention on, add its name to
+   `settings.no-comments.conventions` in `quality-gates.json` (no flag sets
+   it), then rerun `comment-debt --report <language>` and show the builder
+   the smaller report. For a row to clean first, follow the `no-comments`
+   skill's *Clean first* section; it ends by choosing the row, running
+   `comment-debt` and committing. For a row to record as debt, run
+   `qg setup --go --choose <id>` and `comment-debt`, then commit
+   `quality-gates.json` and `comment-debt.json`.
 
 From here on, do only the blocks for the languages the file records, and only
 for chosen components.
@@ -156,8 +149,9 @@ for chosen components.
   project on `node --test` cannot yet (it writes lcov), so report CRAP as not
   done with that reason.
 
-Done when `quality-gates.json` records the builder's answer, every recorded
-language's chosen gates are configured, each CRAP gate step 2 or 3 says to
+Done when `quality-gates.json` records the builder's answer, every offered
+comment row is recorded as debt, cleaned first and then chosen, or declined,
+every recorded language's chosen gates are configured, each CRAP gate step 2 or 3 says to
 report as not done is reported not done with its reason, and `qg-skills` has
 run.
 

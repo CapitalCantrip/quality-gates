@@ -24,7 +24,7 @@ Existing comments are debt, held by a per-file baseline that only goes down.
 comment-debt            # exit 1 if any file is above or below its baseline
 comment-debt --status   # remaining debt by area, rationale-flagged files first
 comment-debt --update   # lower the baseline after paying debt; never raises
-comment-debt --report rust   # one language's comment lines, chosen or not
+comment-debt --report rust   # one language's comment lines and every file with them, chosen or not
 ```
 
 Option: `--baseline PATH` (default `comment-debt.json` at the repo root). It
@@ -32,7 +32,7 @@ checks the [comment gate's files](references/comment-gate-files.md), which start
 from the [files in scope](references/files-in-scope.md). Before a language is
 switched on, `/setup-standards` shows its report and offers two choices:
 record as debt, where `qg setup --go --choose <id>` records its existing
-comments, or clean first (below). `--update` never adds them.
+comments, or clean first (*Clean first*, below). `--update` never adds them.
 `--exclude` is refused: run `/setup-standards` to move the prefixes into the file.
 
 ## Set up in a repo
@@ -71,22 +71,27 @@ Prefer somewhere that fails when the knowledge stops being true.
 
 ## Clean first, before a language is chosen
 
-`--status` and `--update` do not see a language that is not chosen yet.
-`/setup-standards` offers clean first after the language's report:
+`/setup-standards` sends you here for a comment language the builder wants
+cleaned first, once `quality-gates.json` exists. `--status` and `--update` see
+only chosen languages, so `comment-debt --report <language>` takes their place
+throughout.
 
-1. The builder scopes what to pay down now from
-   `comment-debt --report <language>`, by area, file or kind.
-2. Pay each file in the scope down as above, without changing behaviour, with
-   the report in place of `--status` and `--update`; commit only the file and
-   its tests. For a long run, give each batch to a subagent (a `debt-payer`
-   agent where the project has one).
-3. Rerun `comment-debt --report <language>` until the scope shows none.
-4. Only if the builder asks, open an issue for the remainder whose body is
-   that report.
+1. Ask the builder what to pay down now: an area, a file or a kind from the
+   report. Recommend the area at the top of *Areas with most rationale lines*.
+2. Pay each file in the scope down as in *Paying down one file*, without
+   changing behaviour. For a long run, give each batch to a subagent (a
+   `debt-payer` agent where the project has one).
+3. Rerun `comment-debt --report <language>`. The scope is done when its area,
+   file or kind no longer shows in the report: *By area*, *Every file*,
+   *By kind*.
+4. Only if the builder asks, open an issue for the remainder. Its body is the
+   `--report` output, which names every file left.
 5. Run `qg setup --go --choose <id>`: it records the rest as debt and switches
-   the language on.
+   the language on. Run `comment-debt`: it passes. Commit `quality-gates.json`,
+   `comment-debt.json` and the cleaned files with their tests.
 
-Done when the report shows none in the scope and the language is chosen.
+Done when the scope no longer shows in the report, the language is chosen,
+`comment-debt` passes and the commit is made.
 
 ## Installing the commands
 

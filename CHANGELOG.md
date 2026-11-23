@@ -2,14 +2,16 @@
 
 ## Unreleased
 
-- **Every comment language can be accepted, and clean first is built
-  (#189).** On bumping the pin, run `/setup-standards`: it shows each comment
-  language's report and asks you to accept the languages you want, by
-  recording their comments as debt or by cleaning a scope you pick first, then
-  recording the rest. A Rust project with `// SAFETY:` comments switches
-  `rust-safety` on first. `comment-debt --exclude` is gone; the same run moves
-  the flags into `quality-gates.json`. `qg explain no-comments` now explains
-  the gate.
+- **Clean first is built (#189).** A comment language can now be accepted by
+  paying down a scope you pick before the rest is recorded as debt; the
+  `no-comments` skill's *Clean first* section has the steps, and an issue for
+  what is left opens only if you ask. `comment-debt --report <language>` ends
+  with every file that has comment lines, so that issue names them all.
+  `/setup-standards` asks whether to switch on `rust-safety` when Rust code
+  has `// SAFETY:` lines, and if you say yes it writes `quality-gates.json`,
+  adds the convention, then chooses Rust. `qg explain no-comments` explains
+  the gate. On bumping the pin, run `qg-skills`, then `/setup-standards` and
+  accept the comment languages you want. `comment-debt --exclude` is gone.
 - **`comment-debt --report` counts what `qg setup` counts.** It now leaves out
   what a hook or CI `--exclude` flag leaves out, as setup's report and
   choosing already did. Nothing to do on bumping the pin.

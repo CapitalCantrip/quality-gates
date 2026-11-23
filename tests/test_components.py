@@ -22,8 +22,7 @@ README = (ROOT / "README.md").read_text(encoding="utf-8")
 HOOK_SECTION = "\n## 4. Hooks\n"
 UPSTREAM_LABELS = {"mattpocock/skills": "Pocock"}
 SKILLS_PREFIX = "src/quality_gates/skills/"
-EXPLAINER_GAPS = frozenset({"core", "no-comments-rust", "no-comments-typescript", "no-comments-swift",
-                            "no-comments-shell", "complexity-python", "complexity-typescript",
+EXPLAINER_GAPS = frozenset({"core", "complexity-python", "complexity-typescript",
                             "complexity-swift", "complexity-rust", "design-helpers", "session-helpers"})
 
 

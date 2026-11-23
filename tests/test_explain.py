@@ -38,9 +38,10 @@ class ExplainerFormat(unittest.TestCase):
         crap = COMPONENTS.component("crap")
         self.assertIsNotNone(crap.explainer)
 
-    def test_an_explainer_opens_with_the_name_of_its_component(self):
+    def test_an_explainer_opens_with_the_name_of_the_component_its_file_is_named_after(self):
         for component, text in explainers():
-            self.assertEqual(text.splitlines()[0], f"# {component.name}", component.id)
+            owner = COMPONENTS.component(Path(component.explainer).stem)
+            self.assertEqual(text.splitlines()[0], f"# {owner.name}", component.id)
 
     def test_an_explainer_has_its_four_sections_in_order(self):
         for component, text in explainers():
