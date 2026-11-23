@@ -13,6 +13,7 @@
       "crap",
       "design-helpers",
       "no-comments",
+      "no-comments-shell",
       "session-helpers"
     ],
     "declined": []

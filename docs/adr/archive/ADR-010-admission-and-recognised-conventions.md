@@ -69,7 +69,7 @@ never reach a consumer.
 
 ### The comment gate in more languages
 
-Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)
+Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references)
 
 **Languages.** Rust, TypeScript (including `.tsx`, `.js`, `.jsx`, `.mjs` and
 `.cjs`), Swift and shell join Python. Shell becomes a language in the choice
@@ -101,6 +101,8 @@ one list. `--exclude` is removed; setup moves a project's existing flags into
 the choice file.
 
 ### Recognised conventions
+
+Amended by: [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references)
 
 A **recognised convention** is a comment form a language's own community
 requires, which a project may switch on in its choice file as an ordinary
@@ -234,3 +236,33 @@ Rejected:
   the paydown finished, which an agent routes around.
 - **Counting only tracked files.** A new file could carry comments until its
   first commit, unlike every other gate.
+
+## Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references
+
+Amends: [The comment gate in more languages](#the-comment-gate-in-more-languages), [Recognised conventions](#recognised-conventions)
+
+Settled in review of the Rust, TypeScript, Swift and shell readers (#186,
+#187, PR #219).
+
+**The `unsafe` block under a `// SAFETY:` run may sit anywhere on the next
+line,** as in `let ev = unsafe { event.as_ref() };`. Rust code takes the
+result of an `unsafe` block in an assignment as often as it opens one on a
+line of its own, and the reasoning belongs to that block either way.
+`unsafe impl` still starts its line. `docs/recognised-conventions.md` gives
+the form.
+
+**These comments are bare tool pragmas, and exempt:** Rust's
+`// @generated`; TypeScript's `eslint-disable`, `eslint-disable-line`,
+`eslint-disable-next-line` and `eslint-enable`, each with or without rule
+names, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore`; Swift's
+`swiftlint:disable` and `swiftlint:enable`, with or without `:next`, `:this`
+or `:previous` and rule names; shell's `# shellcheck disable=` with its
+codes. A tool reads each of them and none can move into a name or a test; an
+`enable` only closes what a `disable` opened. Any of them followed by prose
+counts.
+
+**`/// <reference … />` in TypeScript counts, as a doc comment.** An
+`import` or the `types` list in `tsconfig.json` does its job, so it is not
+a pragma a project has to keep; the report files it under kind `doc`
+because it describes the file to the compiler.
+

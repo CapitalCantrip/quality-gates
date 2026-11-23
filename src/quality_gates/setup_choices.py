@@ -237,7 +237,7 @@ def recording_changes(root, proposal):
     if not names:
         return []
     found = comment_debt.findings_on_choosing(root, names, proposal.choice)
-    scores = ratchet.recorded(found, project_files.comment_debt_baseline(root), comment_debt.written_in(names))
+    scores = ratchet.recorded(found, project_files.comment_debt_baseline(root), comment_debt.written_in(root, names))
     return [project_files.comment_debt_change(ratchet.baseline_text(scores))]
 
 

@@ -121,7 +121,7 @@ its MIT notice. ([ADR-002](archive/ADR-002-engineering-standards.md#writing-for-
 
 Source: [ADR-006](archive/ADR-006-gates-beyond-complexity.md) and
 [ADR-010](archive/ADR-010-admission-and-recognised-conventions.md). Only the
-comment gate in Python ships today.
+comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
 
 - **Planned, in this order:** the secret check, right after the runner and
   ahead of the "proven" checkpoint (the only gate that skips it, because a
@@ -139,6 +139,15 @@ comment gate in Python ships today.
   `unsafe` block, is a comment form a language's community requires; a project
   may switch it on in its choice file, and each one is argued in
   `docs/recognised-conventions.md`.
+  - **What counts, settled per language.** The `unsafe` block under a
+    `// SAFETY:` run may sit anywhere on the next line
+    (`let ev = unsafe { … };`), since Rust takes a block's result in an
+    assignment as often as it opens one alone. Bare tool pragmas are exempt
+    and include Rust's `// @generated`, `eslint-enable` and
+    `swiftlint:enable` beside the `disable` forms: a tool reads each one, and
+    prose after one counts. TypeScript's `/// <reference … />` counts, as a
+    doc comment, because an `import` or `tsconfig.json` does its job.
+    ([ADR-010 addendum 2026-11-23](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references))
   - **Each new language is its own component** (`no-comments-rust`,
     `no-comments-typescript`, `no-comments-swift`, `no-comments-shell`);
     `no-comments` stays Python's. A language is checked only when its

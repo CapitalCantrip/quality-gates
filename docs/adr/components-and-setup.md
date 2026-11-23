@@ -54,8 +54,9 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   builder picks, optionally opens an issue for the rest, and records what
   remains; the language is switched on only once its comments are recorded.
   The comment gate checks a language only when its component is chosen, and
-  with no choice file only Python. Built in part: `no-comments-rust` is offered
-  for Rust's `//` lines; `comment-debt --report <language>` prints the full
+  with no choice file only Python. Built in part: `no-comments-rust`,
+  `no-comments-typescript`, `no-comments-swift` and `no-comments-shell` are
+  offered; `comment-debt --report <language>` prints the full
   report and names any file it could not read, as `--status` does; `qg setup`
   prints it, then the two choices, for each offered comment language before
   asking; and `qg setup --go --choose no-comments-<language>` records as debt:
@@ -67,8 +68,8 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   skill, then choose; `--status` and `--update` see only chosen languages.
   The report, from setup or from `--report`, counts the files that choosing
   would record, after the `--exclude` flags setup moves from the hook and CI
-  into the choice file. Clean first and the
-  other languages arrive with the later builds of quality-gates#3. Neither setup nor `qg status`
+  into the choice file. Clean first arrives with a later build of
+  quality-gates#3. Neither setup nor `qg status`
   infers a new comment language's component as installed: the hook, CI step
   and baseline it shares with `no-comments` say nothing about which languages
   were switched on, so status shows one the choice file does not choose as

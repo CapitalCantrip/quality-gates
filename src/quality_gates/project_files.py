@@ -412,25 +412,27 @@ def comment_gate_skips(choice, scope):
     return scope.excluded if choice is None else scope.excluded + choice.comment_gate_exclude
 
 
-def comment_gate_files_under(root, choice, suffixes):
+def comment_gate_files_under(root, choice, names):
     scope = scope_of(root, choice.exclude if choice else None)
     skipped = comment_gate_skips(choice, scope)
-    return sorted(name for name in scope.listed if name.endswith(suffixes) and not excluded_by(name, skipped))
+    kept = (name for name in sorted(scope.listed) if not excluded_by(name, skipped))
+    return {name: language for name in kept for language in [language_among(root, name, names)] if language}
 
 
 def comment_gate_exclude_after_setup(root, choice):
     return tuple(sorted(set(choice.comment_gate_exclude if choice else ()) | comment_gate_exclusions(root)))
 
 
-def comment_gate_files_after_setup(root, suffixes):
-    choice = checked_choice(root)
+def comment_gate_files_after_setup(root, choice, names):
     moved = comment_gate_exclude_after_setup(root, choice)
-    return [name for name in comment_gate_files_under(root, choice, suffixes) if not excluded_by(name, moved)]
+    return {name: language for name, language in comment_gate_files_under(root, choice, names).items()
+            if not excluded_by(name, moved)}
 
 
-def comment_gate_files(root, component, suffixes):
-    choice = checked_choice(root)
-    return comment_gate_files_under(root, choice, suffixes) if is_chosen(choice, component) else []
+def language_among(root, name, names):
+    by_first_line = any(languages.LANGUAGES[language].interpreters for language in names)
+    found = language_of_code_file(root, name, by_first_line)
+    return found if found in names else None
 
 
 def first_line(path):
@@ -441,13 +443,17 @@ def first_line(path):
         return ""
 
 
-def language_of_listed(root, name):
-    path = PurePosixPath(name)
-    found = languages.language_of_file(name) or next(
-        (language for language in map(languages.language_of_folder, path.parent.parts) if language), None)
-    if found or path.suffix:
+def language_of_code_file(root, name, by_first_line=True):
+    found = languages.language_of_file(name)
+    if found or not by_first_line or PurePosixPath(name).suffix:
         return found
     return languages.language_of_first_line(first_line(Path(root) / name))
+
+
+def language_of_listed(root, name):
+    folder = next((language for language in map(languages.language_of_folder, PurePosixPath(name).parent.parts)
+                   if language), None)
+    return languages.language_of_file(name) or folder or language_of_code_file(root, name)
 
 
 def marker_files(root, scope):

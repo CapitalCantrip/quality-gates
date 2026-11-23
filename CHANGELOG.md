@@ -25,6 +25,46 @@
   "Needs attention".** With no choice file the comment gate checks Python, so
   a missing hook, CI step or baseline is a real gap. The exit code is
   unchanged. Nothing to do on bumping the pin.
+- **`comment-debt` reads TypeScript, Swift and shell (#187).** Three new
+  components, `no-comments-typescript`, `no-comments-swift` and
+  `no-comments-shell`, are offered by the next `/setup-standards` run to a
+  project with that language. Each is off until chosen; choosing it with
+  `qg setup --go --choose <id>` records that language's comments as debt, so
+  only new ones fail. A comment marker inside a string, template literal,
+  regex literal, interpolation or heredoc does not count; bare tool pragmas
+  (`eslint-disable`, `eslint-enable`, `@ts-expect-error`, `@ts-ignore`,
+  `prettier-ignore`, `swiftlint:disable`, `swiftlint:enable`,
+  `# shellcheck disable=`) and a shell shebang on line 1 are exempt, and
+  `/// <reference … />` counts as a doc comment. Shell covers `.sh`, `.bash`
+  and `.zsh` files and files with no suffix whose first line is a shell
+  shebang. Nothing to do on the bump unless you choose one; run
+  `comment-debt --report <language>` first to see what choosing it records.
+  A project that chooses one of them without `no-comments` reruns
+  `/setup-standards`, which adds `comment-debt` to the pre-commit hook and CI
+  when either lacks it.
+  A file whose whole name is a suffix, such as `scripts/.sh` or `pkg/.py`,
+  now counts as that language when `qg setup` and `qg status` find the
+  languages a project uses, and in the comment gate for every language, as
+  it already did there for Python.
+- **`comment-debt` reads Rust fully (#186).** With `no-comments-rust`
+  chosen, every Rust comment counts once per line: block comments and doc
+  comments (`///`, `//!`, `/** */`) as well as `//` lines. A `//` inside a
+  string, raw string or char literal no longer counts, and a bare
+  `// @generated` is exempt. `rust-safety` in
+  `settings.no-comments.conventions` now takes effect: `// SAFETY:` and the
+  `//` lines after it, directly above an `unsafe` block or `unsafe impl`, do
+  not count. A Rust project with `// SAFETY:` comments adds `rust-safety` to
+  the choice file before it chooses `no-comments-rust`, so those comments are
+  not recorded as debt.
+- **`comment-debt` reads its exclusions from the choice file (#185, #210).**
+  It now checks untracked files as well as tracked ones, reads
+  `settings.no-comments.exclude` from `quality-gates.json`, and refuses
+  `--exclude`. A project whose pre-commit hook passes `--exclude` must run
+  `/setup-standards` on the bump, which moves the patterns into the choice
+  file.
+- **An untracked file the comment gate cannot read fails as `UNMEASURED`
+  (#210).** Make the file readable, or list it in
+  `settings.no-comments.exclude`.
 - **`/implement-spec` re-checks its review fixes before it marks the PR
   ready.** A new step 8 runs `/code-review high` over only the fix commits,
   checking that every finding from both reviews is resolved and that the

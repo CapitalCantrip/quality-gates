@@ -172,7 +172,7 @@ them. Why each number is what it is: [ADR-001](docs/adr/archive/ADR-001-complexi
 
 | Gate | Language | Tool | Fails above | Warns above |
 |---|---|---|---|---|
-| No new comments | Python, Rust | `comment-debt` | the file's baseline | — |
+| No new comments | Python, Rust, TypeScript, JavaScript, Swift, shell | `comment-debt` | the file's baseline | — |
 | Cyclomatic complexity | Python | `cc-check` (radon) | 8 | — |
 | Cyclomatic complexity | TypeScript, JavaScript | `cc-check --lang typescript` (lizard) | 8 | — |
 | Cyclomatic complexity | Swift | SwiftLint, `ignores_case_statements: true` | 8 | 6 |
@@ -202,9 +202,23 @@ file. A file the gate cannot open, parse or decode as UTF-8 is `UNMEASURED`: the
 names it and fails, and `--update` keeps any entry it has. What happens to the
 baseline entries of a language left unchecked, or of a file that left the
 scope, is in [the comment gate's files](src/quality_gates/skills/no-comments/references/comment-gate-files.md). It checks Python only when `no-comments` is chosen there (with no choice
-file, as before), and Rust only when `no-comments-rust` is chosen (never with
-no choice file). In Rust it counts only `//` line comments for now, and a
-`//` inside a string counts as one too until [#186](../../issues/186) reads strings.
+file, as before), and Rust, TypeScript, Swift or shell only when its
+`no-comments-<language>` component is chosen (never with no choice file).
+Shell files are those with a `.sh`, `.bash` or `.zsh` suffix, and files with
+no suffix whose first line is a shell shebang. In every language each comment
+counts, doc comments included, once per line; a comment marker inside a string
+or other literal does not. In Rust that covers raw strings and char literals,
+and a bare `// @generated` is exempt; with `rust-safety` switched on, a
+`// SAFETY:` comment directly above `unsafe` does not count either
+([recognised conventions](docs/recognised-conventions.md)). In TypeScript and
+JavaScript, `//` inside a template literal (however deep its `${}` nests) or a
+regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
+`@ts-expect-error`, `@ts-ignore` and `prettier-ignore` are exempt, while
+`/// <reference … />` counts as a doc comment. In Swift
+`// MARK:` counts, `\( )` interpolation is read as code, and bare
+`swiftlint:disable`/`swiftlint:enable` are exempt. In shell a `#` counts only
+where it starts a word, so `$#`, `${#x}`, quotes and heredoc bodies do not;
+the shebang on line 1 and a bare `# shellcheck disable=` are exempt.
 `comment-debt --report <language>` prints a language's comment debt, chosen or
 not: the total, the count by kind (`line`, and `string` for a Python docstring
 or bare string) and by area, the files with the most comment lines and the most
@@ -218,8 +232,7 @@ the `no-comments` skill, then choose. Choosing a comment
 language with `qg setup --go --choose <id>` records its comments as debt in the
 same step, in place of any older entries for that language, so the gate never
 checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run
-`/setup-standards`. ([#3](../../issues/3) adds the rest of Rust, then
-TypeScript, Swift and shell, each its own component, and clean first:
+`/setup-standards`. ([#3](../../issues/3) adds clean first:
 [ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
 
 ### `cc-check`: cyclomatic complexity
@@ -571,7 +584,7 @@ line, like any other tool error.
   `exclude`, path prefixes the comment gate leaves out, and `conventions`, the
   ids of the [recognised conventions](docs/recognised-conventions.md) the
   project has switched on. Both default to empty. `comment-debt` reads
-  `exclude`, by whole path segments; it does not read `conventions` yet (#3).
+  `exclude`, by whole path segments, and `conventions`.
 
 ## Setup details
 

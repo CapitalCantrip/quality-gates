@@ -24,6 +24,8 @@ CI_WITHOUT_TEST_TARGET_PHRASES = (
     "A SwiftPM package with no test target gets no CRAP step",
     "report CRAP as **not done**, as step 3 says",
 )
+COMMENT_GATE_ON = "with any comment row chosen (`no-comments` for Python, or any `no-comments-<language>`)"
+COMMENT_GATE_ONCE = "`comment-debt` once"
 BASELINES_CAN_FINISH = "except a CRAP gate step 2 or 3 says to report as not done, which is reported not done with its reason"
 CLOSURE_RULE = (
     "a new or changed closure (including a trailing closure or a nested `func`) "
@@ -190,6 +192,17 @@ class SetupStandards(unittest.TestCase):
         self.assertIn(CI_WITH_TEST_TARGET, self.ci())
         for phrase in CI_WITHOUT_TEST_TARGET_PHRASES:
             self.assertIn(phrase, self.ci())
+
+    def hooks(self):
+        return section(self, SETUP_STANDARDS, "## 4. Hooks", "## 5. CI")
+
+    def test_the_hook_and_ci_run_the_comment_gate_once_for_any_chosen_comment_row(self):
+        for step in (self.hooks(), self.ci()):
+            with self.subTest(step=step[:20]):
+                self.assertIn(COMMENT_GATE_ON, step)
+                self.assertIn(COMMENT_GATE_ONCE, step)
+                self.assertNotIn("for Rust with `no-comments-rust` chosen", step)
+                self.assertNotIn("With `no-comments-rust` chosen and no Python test file", step)
 
     def test_the_baselines_step_can_finish_with_crap_reported_not_done(self):
         self.assertIn(BASELINES_CAN_FINISH, self.baselines())
