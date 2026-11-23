@@ -94,12 +94,12 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    *Clean first*). Recommend record as debt, because it is one step and only
    new comments fail. Recommend clean first instead when the builder wants
    an area clean before the gate goes on, for example a small area the report
-   shows with many rationale lines. When the language's code uses a recognised convention
-   (`qg explain no-comments` names them), also ask whether to switch it on so
-   those comments are not recorded; recommend on when the code has
-   `// SAFETY:` lines above `unsafe` (`rust-safety`). Then ask the builder to
-   say "go" or name changes, and end with one line: *Ask me about any row, or
-   run `qg explain <name>`.*
+   shows with many rationale lines. When the language's code uses a
+   recognised convention (`qg explain no-comments` names them), also ask
+   whether to switch it on so those comments are not recorded; recommend on
+   when the code has `// SAFETY:` lines above `unsafe` (`rust-safety`). Then
+   ask the builder to say "go" or name changes, and end with one line: *Ask
+   me about any row, or run `qg explain <name>`.*
 4. "Go" accepts every ticked row: add `--choose <id>` for each **offered** row
    the builder did not turn down, except a comment row the builder wants
    cleaned first or whose convention the builder switches on; step 6 chooses
@@ -124,8 +124,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    the smaller report. For a row to clean first, follow the `no-comments`
    skill's *Clean first* section: it commits each paid file or batch with its
    tests as it goes, then chooses the row, runs `comment-debt` and commits
-   `quality-gates.json` and `comment-debt.json`. For a row to record as debt, run
-   `qg setup --go --choose <id>` and `comment-debt`, then commit
+   `quality-gates.json` and `comment-debt.json`. For a row to record as debt,
+   run `qg setup --go --choose <id>` and `comment-debt`, then commit
    `quality-gates.json` and `comment-debt.json`.
 
 From here on, do only the blocks for the languages the file records, and only

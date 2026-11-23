@@ -83,8 +83,9 @@ throughout.
    *By area*, which has the most comment lines.
 2. Pay each file in the scope down as in steps 2 and 3 of *Paying down one
    file*, without changing behaviour. Commit each paid file, or each batch,
-   with only its tests as you go: the gate skips a language not yet chosen,
-   so these commits cannot fail. For a long run, give each batch to a
+   with only its tests as you go, saying where each piece of knowledge went.
+   The comment gate does not check this language yet, so comments still left
+   in it cannot block these commits. For a long run, give each batch to a
    subagent (a `debt-payer` agent where the project has one).
 3. Rerun `comment-debt --report <language>`. The scope is done when its area,
    file or kind no longer shows in the report: *By area*, *Every file*,
