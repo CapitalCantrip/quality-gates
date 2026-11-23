@@ -1,3 +1,4 @@
+import builtins
 import contextlib
 import io
 import json
@@ -6,6 +7,7 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 from quality_gates import comment_debt as cd
 from quality_gates import code_reader, ratchet, setup_choices
@@ -694,6 +696,21 @@ class RepositoryTest(unittest.TestCase):
         self.put('deploy', '#!/bin/sh\n# one\n')
         self.assertEqual(self.run_gate('--update')[0], 0)
         self.assertEqual(self.baseline(), {'deploy': 1})
+
+    def test_a_choice_without_shell_opens_no_suffix_less_file_to_learn_its_language(self):
+        self.choose(chosen=['no-comments-typescript'])
+        self.put('deploy', '#!/bin/sh\n# one\n')
+        self.put('a.ts', '// one\n')
+        opened, original = [], builtins.open
+
+        def recording_open(file, *args, **kwargs):
+            opened.append(Path(str(file)).name)
+            return original(file, *args, **kwargs)
+
+        with mock.patch('builtins.open', recording_open):
+            found = cd.findings(self.root)
+        self.assertEqual([finding.location.key for finding in found], ['a.ts'])
+        self.assertNotIn('deploy', opened)
 
     def test_shell_is_not_checked_when_no_comments_shell_is_not_chosen(self):
         self.choose()

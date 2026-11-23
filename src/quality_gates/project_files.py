@@ -416,7 +416,9 @@ def comment_gate_files_under(root, choice, names):
     scope = scope_of(root, choice.exclude if choice else None)
     skipped = comment_gate_skips(choice, scope)
     kept = (name for name in sorted(scope.listed) if not excluded_by(name, skipped))
-    return {name: language for name in kept for language in [language_of_code_file(root, name)] if language in names}
+    by_first_line = any(languages.LANGUAGES[name].interpreters for name in names)
+    return {name: language for name in kept for language in [language_of_code_file(root, name, by_first_line)]
+            if language in names}
 
 
 def first_line(path):
@@ -427,9 +429,9 @@ def first_line(path):
         return ""
 
 
-def language_of_code_file(root, name):
+def language_of_code_file(root, name, by_first_line=True):
     found = languages.language_of_file(name)
-    if found or PurePosixPath(name).suffix:
+    if found or not by_first_line or PurePosixPath(name).suffix:
         return found
     return languages.language_of_first_line(first_line(Path(root) / name))
 
