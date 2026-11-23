@@ -154,12 +154,12 @@ RUST = CommentSyntax(code_reader.Syntax(
 
 
 BEFORE_A_REGEX = r"[(,=:;!&|?{\[*%>^~]"
-SIGNS_BEFORE_A_REGEX = (r"(?<!\+)\+", r"(?<!-)-")
+OPERATORS_BEFORE_A_REGEX = (r"(?<!\+)\+", r"(?<!-)-", r"<\s", r"[\w$\]}]\sof")
 KEYWORDS_BEFORE_A_REGEX = ("return", "typeof", "instanceof", "in", "new", "void", "delete", "case", "yield",
                            "await", "else", "do")
-WHOLE_WORD = r"(?<![\w$.])"
+WHOLE_WORD = r"(?<![\w$.#])"
 REGEX_MAY_START = "(?:" + "|".join([r"\A", f"(?<={BEFORE_A_REGEX})"]
-                                   + [f"(?<={sign})" for sign in SIGNS_BEFORE_A_REGEX]
+                                   + [f"(?<={operator})" for operator in OPERATORS_BEFORE_A_REGEX]
                                    + [f"(?<={WHOLE_WORD}{word})" for word in KEYWORDS_BEFORE_A_REGEX]) + r")\s*"
 TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
 ESLINT_RULES = r"[@\w/-]+(?:\s*,\s*[@\w/-]+)*"
