@@ -14,6 +14,7 @@ TEMPLATED = Syntax(line=("//",), block=(("/*", "*/"),),
                    literals=(Literal("'", r"'[^'\n]*'"),
                              Literal("`", "`" + TEMPLATE_PIECE, Interpolation(("{", "}"), TEMPLATE_PIECE))))
 DOUBLE_PARENS = Syntax(line=("#",), literals=(Literal(r"\(\(", r"\(\(", balanced=Balanced(("(", ")"), "))")),))
+LED = Syntax(line=("//",), literals=(Literal("<", r"<[^>\n]*>", lead=r"\bwhen\s+"),))
 BODIED = Syntax(line=("#",), literals=(Literal("<<", r"<<(\w+)", body=r"(?:[^\n]*\n)*?\g<1>(?=\n|\Z)"),))
 
 
@@ -107,6 +108,18 @@ class ReadingInterpolatedLiterals(unittest.TestCase):
         reading = code_reader.read("x = `a ${ b\n// why\n", TEMPLATED)
         self.assertEqual(reading.comments, (Comment("line", "// why", 2, 2),))
         self.assertEqual(reading.blanked, "x =       b\n      \n")
+
+
+class ReadingLedLiterals(unittest.TestCase):
+
+    def test_a_literal_with_a_lead_opens_only_after_it_and_the_lead_stays_code(self):
+        reading = code_reader.read("when\n  <a // b> x // c\n", LED)
+        self.assertEqual([c.text for c in reading.comments], ["// c"])
+        self.assertEqual(reading.blanked, "when\n  " + " " * 8 + " x     \n")
+
+    def test_without_its_lead_the_opening_is_read_as_code(self):
+        reading = code_reader.read("x <a // b>\n", LED)
+        self.assertEqual([c.text for c in reading.comments], ["// b>"])
 
 
 class ReadingBalancedLiterals(unittest.TestCase):

@@ -154,13 +154,17 @@ RUST = CommentSyntax(code_reader.Syntax(
 
 
 BEFORE_A_REGEX = r"[(,=:;!&|?{\[*%>^~]"
-OPERATORS_BEFORE_A_REGEX = (r"(?<!\+)\+", r"(?<!-)-", r"<\s", r"[\w$\]}]\sof")
+OPERATORS_BEFORE_A_REGEX = (r"(?<!\+)\+", r"(?<!-)-", r"<\s")
 KEYWORDS_BEFORE_A_REGEX = ("return", "typeof", "instanceof", "in", "new", "void", "delete", "case", "yield",
                            "await", "else", "do")
 WHOLE_WORD = r"(?<![\w$.#])"
 REGEX_MAY_START = "(?:" + "|".join([r"\A", f"(?<={BEFORE_A_REGEX})"]
                                    + [f"(?<={operator})" for operator in OPERATORS_BEFORE_A_REGEX]
                                    + [f"(?<={WHOLE_WORD}{word})" for word in KEYWORDS_BEFORE_A_REGEX]) + r")\s*"
+FOR_OF_HEAD = (rf"{WHOLE_WORD}for\s*(?:await\s*)?\(\s*(?:(?:const|let|var)\s+)?"
+               r"(?:[\w$]+|\[[^\]/\n]*\]|\{[^}/\n]*\})\s+of")
+REGEX_OPENS = r"\s*/(?![/*])"
+REGEX_LITERAL = r"\s*/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n\[])+/[A-Za-z]*"
 TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
 ESLINT_RULES = r"[@\w/-]+(?:\s*,\s*[@\w/-]+)*"
 TYPESCRIPT_PRAGMA = rf"eslint-(?:disable(?:-next-line|-line)?|enable)(?:\s+{ESLINT_RULES})?|@ts-expect-error|@ts-ignore|prettier-ignore"
@@ -173,8 +177,8 @@ TYPESCRIPT = CommentSyntax(code_reader.Syntax(
         code_reader.Literal(r'"', r'"(?:\\[\s\S]|[^"\\\n])*"'),
         code_reader.Literal(r"'", r"'(?:\\[\s\S]|[^'\\\n])*'"),
         code_reader.Literal(r"`", r"`" + TEMPLATE_PIECE, code_reader.Interpolation(("{", "}"), TEMPLATE_PIECE)),
-        code_reader.Literal(REGEX_MAY_START + r"/(?![/*])",
-                            r"\s*/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n\[])+/[A-Za-z]*"),
+        code_reader.Literal(REGEX_MAY_START + REGEX_OPENS, REGEX_LITERAL),
+        code_reader.Literal(REGEX_OPENS, REGEX_LITERAL, lead=FOR_OF_HEAD),
     ),
 ), re.compile(rf"//\s*(?:{TYPESCRIPT_PRAGMA})\s*|/\*\s*(?:{TYPESCRIPT_PRAGMA})\s*\*/"), {})
 
