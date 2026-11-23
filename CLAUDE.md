@@ -16,7 +16,9 @@ only to learn why something was decided.
   and the README in the same PR. None of them may disagree with the ADR.
 - **What a consumer receives is released, at most once a day.** `README.md`
   § Releasing says what counts and lists the steps. The `CHANGELOG.md` entry
-  says what a consumer must do when they bump the pin. Consumers pin tags, so
+  says what a consumer must do when they bump the pin; a change under
+  `src/quality_gates/` that no consumer sees carries the `no-consumer-change`
+  label instead. Consumers pin tags, so
   an unreleased fix reaches nobody.
 - **The repo passes its own gates.** `comment-debt` on every commit (the
   pre-commit hook), `cc-check` at 8 and `crap` at 8 on code you change.

@@ -74,8 +74,10 @@
   ready.** A new step 8 runs `/code-review high` over only the fix commits,
   checking that every finding from both reviews is resolved and that the
   fixes brought in nothing new. It repeats until a re-check is clean; after
-  three that are not, it asks the builder and leaves the PR in draft. Nothing
-  to do beyond the pin bump and `qg-skills`.
+  three that are not, it asks the builder and leaves the PR in draft. When a
+  re-check finds a regression the fixes themselves brought in, it reverts
+  that fix round and files an issue for the finding instead of fixing
+  forward. Nothing to do beyond the pin bump and `qg-skills`.
 - **`qg setup` shows a comment language's debt before it asks (#188).**
   For each comment language it offers, setup prints that language's report:
   the total, the count by kind and by area, and the five files with the most
