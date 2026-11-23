@@ -362,6 +362,24 @@ class SurvivalTest(unittest.TestCase):
         found = [comment_finding("dark.rs", 0), comment_finding("dark.rs", None)]
         self.assertEqual(self.choosing({"z.py": 3}, found, lambda path: path.endswith(".rs")), {"z.py": 3})
 
+    def test_an_unmeasured_file_allowed_zero_gets_no_entry(self):
+        self.assertEqual(self.surviving({"dark.py": 0, "a.py": 1}, [comment_finding("a.py", 1), comment_finding("dark.py", None)]), {"a.py": 1})
+
+    def test_a_first_update_writes_no_zero_entry_for_a_file_counted_zero_and_unmeasured_at_once(self):
+        found = [comment_finding("dark.py", 0), comment_finding("dark.py", None), comment_finding("a.py", 2)]
+        ratchet.settle(lambda: found, self.file, updating=True)
+        self.assertEqual(json.loads(self.file.read_text()), {"a.py": 2})
+
+    def test_choosing_and_update_both_keep_the_stored_entry_of_a_file_counted_zero_and_unmeasured_at_once(self):
+        found = [comment_finding("dark.rs", 0), comment_finding("dark.rs", None)]
+        chosen = self.choosing({"dark.rs": 3}, found, lambda path: path.endswith(".rs"))
+        ratchet.settle(lambda: found, self.file, updating=True)
+        self.assertEqual((chosen, json.loads(self.file.read_text())), ({"dark.rs": 3}, {"dark.rs": 3}))
+
+    def test_a_zero_entry_outside_the_files_a_write_covers_is_dropped(self):
+        covers_python = lambda path: path.endswith(".py")
+        self.assertEqual(self.surviving({"lib.rs": 0, "a.py": 1}, [comment_finding("a.py", 1)], covers_python), {"a.py": 1})
+
     def test_update_decides_what_survives_through_the_one_function(self):
         self.file.write_text('{"a.py::f": 6, "b.py::f": 4}')
         with mock.patch.object(ratchet, "surviving", wraps=ratchet.surviving) as deciding:

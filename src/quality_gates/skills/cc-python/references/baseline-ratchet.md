@@ -10,13 +10,13 @@ enforce the limits in CI without first paying it all off.
 - **A missing baseline is an error, except with `--update`.** Treating it as
   empty would fail every adopting repo on its first run; treating it as
   permissive would let a mistyped path pass CI.
-- **An unmeasured function is never recorded, and keeps its entry.** `--update`
-  lowers and removes entries for measured functions, adds none for an unmeasured
-  one, and keeps an existing entry as it is while the function stays unmeasured.
-  It writes the file, then exits 1 and lists the unmeasured functions. A check
-  run reports a baselined function that is unmeasured as unmeasured, not as paid.
-  A worst-case score for a function with no figure would sit in the baseline as
-  accepted debt, and an entry dropped during a coverage outage could never be
-  added back.
+- **An unmeasured function is never recorded, and keeps a nonzero entry.**
+  `--update` lowers and removes entries for measured functions, adds none for an
+  unmeasured one, and keeps an existing nonzero entry as it is while the
+  function stays unmeasured. It writes the file, then exits 1 and lists the
+  unmeasured functions. A check run reports a baselined function that is
+  unmeasured as unmeasured, not as paid. A worst-case score for a function with
+  no figure would sit in the baseline as accepted debt, and an entry dropped
+  during a coverage outage could never be added back.
 - **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
   not a gate.

@@ -419,6 +419,16 @@ def comment_gate_files_under(root, choice, names):
     return {name: language for name in kept for language in [language_among(root, name, names)] if language}
 
 
+def comment_gate_exclude_after_setup(root, choice):
+    return tuple(sorted(set(choice.comment_gate_exclude if choice else ()) | comment_gate_exclusions(root)))
+
+
+def comment_gate_files_after_setup(root, choice, names):
+    moved = comment_gate_exclude_after_setup(root, choice)
+    return {name: language for name, language in comment_gate_files_under(root, choice, names).items()
+            if not excluded_by(name, moved)}
+
+
 def language_among(root, name, names):
     by_first_line = any(languages.LANGUAGES[language].interpreters for language in names)
     found = language_of_code_file(root, name, by_first_line)

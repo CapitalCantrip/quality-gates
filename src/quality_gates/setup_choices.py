@@ -23,7 +23,8 @@ BOTH_FLAGS = "--choose and --decline"
 UP_TO_DATE = f"{project_files.CHOICE_FILE} is up to date."
 RUN_GO = "Run `qg setup --go` to record these choices."
 OFFER_CHOICES = ("To accept {0}: record its comments as debt with `qg setup --go --choose {0}`, "
-                 "or clean first: pay comments down with the no-comments skill, then choose it to record the rest.")
+                 "or clean first: rank files and see progress with `comment-debt --report {1}`, "
+                 "pay them down with the no-comments skill, then choose it to record the rest.")
 ANSWER_OFFERS = "Not yet answered: {}. Answer each with `qg setup --go --choose <id>` or `--decline <id>`."
 
 
@@ -109,14 +110,13 @@ def shown_choice(component, used, made):
 
 
 def recorded_choice(root, choice, used, made, scope):
-    comment_gate_exclude = set(choice.comment_gate_exclude if choice else ()) | project_files.comment_gate_exclusions(root)
     return project_files.Choice(
         languages=used,
         chosen=tuple(sorted(name for name, kind in made.items() if kind == CHOSEN)),
         declined=tuple(sorted(name for name, kind in made.items() if kind == DECLINED)),
         exclude=scope.excluded,
         commit_time_limit_seconds=choice.commit_time_limit_seconds if choice else project_files.DEFAULT_COMMIT_TIME_LIMIT_SECONDS,
-        comment_gate_exclude=tuple(sorted(comment_gate_exclude)),
+        comment_gate_exclude=project_files.comment_gate_exclude_after_setup(root, choice),
         conventions=choice.conventions if choice else (),
     )
 
@@ -199,7 +199,7 @@ def closing_lines(proposal, written, planned):
 def offer_lines(proposal):
     lines = []
     for name, text in proposal.debt_reports:
-        lines += ["", *text.rstrip("\n").split("\n"), "", OFFER_CHOICES.format(comment_debt.LANGUAGES[name].component)]
+        lines += ["", *text.rstrip("\n").split("\n"), "", OFFER_CHOICES.format(comment_debt.LANGUAGES[name].component, name)]
     return lines
 
 

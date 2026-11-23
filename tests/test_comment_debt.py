@@ -578,6 +578,30 @@ class RepositoryTest(unittest.TestCase):
             '    1  src/ui\n'
         )))
 
+    def test_status_lists_an_areas_files_by_rationale_then_most_comment_lines_then_path(self):
+        self.choose()
+        self.keep_untracked('src/c.py', '# one\n')
+        self.keep_untracked('src/b.py', '# one\n')
+        self.keep_untracked('src/a.py', '# one\n# two\n# three\n')
+        self.keep_untracked('src/d.py', '# TODO\n')
+        listed = [line.split()[-1] for line in self.run_gate('--status')[1].splitlines() if line.endswith('.py')]
+        self.assertEqual(listed, ['src/d.py', 'src/a.py', 'src/b.py', 'src/c.py'])
+
+    def test_status_lists_areas_with_equal_totals_by_name(self):
+        self.choose(chosen=('no-comments', 'no-comments-rust'))
+        self.keep_untracked('src/a.py', '# one\n')
+        self.keep_untracked('app/b.rs', '// one\n')
+        headings = [line for line in self.run_gate('--status')[1].splitlines() if line.startswith('## ')]
+        self.assertEqual(headings, ['## app — 1 lines', '## src — 1 lines'])
+
+    def test_changing_how_many_files_the_report_lists_leaves_the_area_list_alone(self):
+        self.choose()
+        self.keep_untracked('one/a.rs', '// TODO\n')
+        self.keep_untracked('two/b.rs', '// TODO\n')
+        with mock.patch.object(cd, 'TOP_FILES', 1):
+            out = self.run_gate('--report', 'rust')[1]
+        self.assertTrue(out.endswith('\n## Areas with most rationale lines\n    1  one\n    1  two\n'), out)
+
     def test_a_form_feed_or_line_separator_does_not_move_a_rationale_onto_another_line(self):
         self.choose()
         self.keep_untracked('a.rs', '// plain\n\x0c\nlet s = "\u2028";\n// TODO\n')
@@ -901,7 +925,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.setup('--go', '--choose', 'no-comments')
         out = self.setup()
         report, offer, asking = (out.index('# Rust comment debt: 1 lines in 1 files\n'),
-                                 out.index(setup_choices.OFFER_CHOICES.format('no-comments-rust')),
+                                 out.index(setup_choices.OFFER_CHOICES.format('no-comments-rust', 'rust')),
                                  out.index('Not yet answered: no-comments-rust'))
         self.assertLess(report, offer)
         self.assertLess(offer, asking)
@@ -919,7 +943,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.assertNotIn('Rust comment debt', self.setup('--decline', 'no-comments-rust'))
         self.assertEqual(json.loads(self.setup('--json', '--decline', 'no-comments-rust'))['debt_reports'], {})
 
-    def test_choosing_rust_replaces_every_rust_entry_and_leaves_every_other_entry_as_it_was(self):
+    def test_choosing_rust_replaces_every_rust_entry_and_leaves_every_other_nonzero_entry_as_it_was(self):
         self.setup('--go', '--choose', 'no-comments')
         self.file.write_text('{\n  "old.py": 4,\n  "old.rs": 2,\n  "src/app.py": 1\n}\n')
         self.setup('--go', '--choose', 'no-comments-rust')
@@ -947,9 +971,18 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
         self.assertIn('# Rust comment debt: 1 lines in 1 files\n', self.setup())
+        self.assertEqual(self.gate('--report', 'rust')[1].splitlines()[0], '# Rust comment debt: 1 lines in 1 files')
         self.setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})
         self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 2 files, none new\n'))
+
+    def test_comment_debt_report_and_setups_report_agree_after_a_hook_exclusion(self):
+        self.setup('--go', '--choose', 'no-comments')
+        (self.root / 'vendor').mkdir()
+        (self.root / 'vendor' / 'v.rs').write_text('// vendored\n')
+        (self.root / '.githooks').mkdir()
+        (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
+        self.assertEqual(self.gate('--report', 'rust')[1], json.loads(self.setup('--json'))['debt_reports']['rust'])
 
     def test_a_malformed_baseline_stops_setup_choosing_rust_and_nothing_is_written(self):
         self.setup('--go', '--choose', 'no-comments')

@@ -181,8 +181,7 @@ def is_present(parts):
 
 
 def wants_attention(component, choice, parts):
-    chosen = choice is not None and choice.recorded(component.id) == project_files.CHOSEN
-    return component.core or chosen or is_present(parts)
+    return component.core or project_files.is_chosen(choice, component.id) or is_present(parts)
 
 
 def counted_parts(component, parts, choice):

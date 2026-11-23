@@ -16,7 +16,9 @@ or admit an outside tool or skill.
   contract with a format version; a shape change needs a new version and a
   CHANGELOG note. ([ADR-005 addendum 2026-10-25](archive/ADR-005-direction-idea-to-release.md#addendum-2026-10-25-the-component-manifest-and-qg-status))
 - **`qg status` is a report, not a gate:** read-only, offline, exit 0, except
-  exit 3 when the shipped manifest itself is broken.
+  exit 3 when the shipped manifest itself is broken. Its *Needs attention*
+  line treats `no-comments` as chosen when there is no choice file, since the
+  comment gate then checks Python.
   ([ADR-005 addenda](archive/ADR-005-direction-idea-to-release.md#addendum-2026-11-01-qg-status-when-the-shipped-manifest-is-broken))
 
 ## Choosing components
@@ -61,10 +63,13 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
   in one step it records that language's comments, in place of its older
   entries, then records the choice, so no state has a language's entries
   recorded while the language is off. Until clean first is built, setup's
-  offer says to pay comments down with the `no-comments` skill and then
-  choose. The report counts the files that choosing would record, after the
-  `--exclude` flags setup moves into the choice file. Clean first
-  arrives with a later build of quality-gates#3. Neither setup nor `qg status`
+  offer says to rank files and see progress with
+  `comment-debt --report <language>`, pay them down with the `no-comments`
+  skill, then choose; `--status` and `--update` see only chosen languages.
+  The report, from setup or from `--report`, counts the files that choosing
+  would record, after the `--exclude` flags setup moves from the hook and CI
+  into the choice file. Clean first arrives with a later build of
+  quality-gates#3. Neither setup nor `qg status`
   infers a new comment language's component as installed: the hook, CI step
   and baseline it shares with `no-comments` say nothing about which languages
   were switched on, so status shows one the choice file does not choose as

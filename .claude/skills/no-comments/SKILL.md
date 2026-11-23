@@ -62,6 +62,12 @@ Prefer somewhere that fails when the knowledge stops being true.
 4. `comment-debt --update`; commit the file, its tests and the baseline
    together, saying where each piece of knowledge went.
 
+For a language not yet chosen (clean first), `--status` and `--update` do not
+see it. Pick the file from `comment-debt --report <language>` in step 1, rerun
+the report in step 4 in place of `--update`, and commit only the file and its
+tests, saying where each piece of knowledge went: choosing the language
+records what is left.
+
 ## Installing the commands
 
 If `comment-debt` is missing, install with the install line in `/setup-standards`.

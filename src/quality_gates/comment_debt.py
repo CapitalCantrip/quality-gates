@@ -36,7 +36,9 @@ UNREAD_ADVICE = (
 UNREADABLE = (OSError, SyntaxError, ValueError, tokenize.TokenError)
 STRING = "string"
 TOP_FILES = 5
+TOP_AREAS = 5
 FileDebt = collections.namedtuple("FileDebt", "path lines rationale")
+AreaDebt = collections.namedtuple("AreaDebt", "name lines rationale")
 RATIONALE_HEADING = "lines, of which rationale (workaround, deliberately, for now, TODO ...)"
 RATIONALE = re.compile(
     r"workaround|hack|for now|todo|fixme|xxx|temporar|on purpose|deliberate|intentional",
@@ -318,37 +320,35 @@ def kind_rows(current):
 
 
 def area_totals(areas):
-    return [FileDebt(name, sum(r.lines for r in rows), sum(r.rationale for r in rows)) for name, rows in areas.items()]
-
-
-def lines_of(debt):
-    return debt.lines
-
-
-def rationale_of(debt):
-    return debt.rationale
+    return [AreaDebt(name, sum(r.lines for r in rows), sum(r.rationale for r in rows)) for name, rows in areas.items()]
 
 
 def area_rows(areas):
-    ranked = sorted(area_totals(areas), key=lambda t: (-t.lines, t.path))
-    return [f"{total.lines:5} {total.rationale:4}  {total.path}" for total in ranked]
+    ranked = sorted(area_totals(areas), key=lambda t: (-t.lines, t.name))
+    return [f"{total.lines:5} {total.rationale:4}  {total.name}" for total in ranked]
 
 
-def most(debts, count):
-    ranked = sorted((debt for debt in debts if count(debt)), key=lambda d: (-count(d), d.path))[:TOP_FILES]
-    return [f"{count(debt):5}  {debt.path}" for debt in ranked]
+def most(counted, limit):
+    ranked = sorted((-count, label) for label, count in counted if count)[:limit]
+    return [f"{-negated:5}  {label}" for negated, label in ranked]
 
 
 def report_sections(root, current):
     areas = group_by_area(root, current)
     files = [row for rows in areas.values() for row in rows]
     return (("By kind", kind_rows(current)), (f"By area: {RATIONALE_HEADING}", area_rows(areas)),
-            ("Most comment lines", most(files, lines_of)), ("Most rationale lines", most(files, rationale_of)),
-            ("Areas with most rationale lines", most(area_totals(areas), rationale_of)))
+            ("Most comment lines", most(((f.path, f.lines) for f in files), TOP_FILES)),
+            ("Most rationale lines", most(((f.path, f.rationale) for f in files), TOP_FILES)),
+            ("Areas with most rationale lines", most(((a.name, a.rationale) for a in area_totals(areas)), TOP_AREAS)))
 
 
-def debt_report(root, name, choice, out):
-    measured = measure(root, files_of(root, [name], choice))
+def report_files(root, name, choice):
+    return {path: checker_of(language, choice)
+            for path, language in project_files.comment_gate_files_after_setup(root, choice, [name]).items()}
+
+
+def debt_report(root, name, files, out):
+    measured = measure(root, files)
     current = with_debt(measured)
     out.write(total_line(f"{languages.LANGUAGES[name].label} comment debt", current))
     out.writelines(unread_lines(measured))
@@ -359,7 +359,7 @@ def debt_report(root, name, choice, out):
 
 def debt_report_text(root, name, choice):
     out = io.StringIO()
-    debt_report(root, name, choice, out)
+    debt_report(root, name, report_files(root, name, choice), out)
     return out.getvalue()
 
 
@@ -417,7 +417,7 @@ def group_by_area(root, current):
 
 
 def write_area(name, rows, out):
-    rows = sorted(rows, key=lambda r: (-r.rationale, r.lines))
+    rows = sorted(rows, key=lambda r: (-r.rationale, -r.lines, r.path))
     out.write(f"\n## {name} — {sum(r.lines for r in rows)} lines\n")
     for row in rows:
         out.write(f"{row.lines:5} {row.rationale:4}  {row.path}\n")
@@ -430,7 +430,7 @@ def status(root, out):
     out.write(total_line("Comment debt", current))
     out.writelines(unread_lines(measured))
     out.write(f"\nColumns: {RATIONALE_HEADING}\n")
-    for name in sorted(areas, key=lambda a: -sum(r.lines for r in areas[a])):
+    for name in sorted(areas, key=lambda a: (-sum(r.lines for r in areas[a]), a)):
         write_area(name, areas[name], out)
 
 
@@ -468,7 +468,7 @@ def shown_first(args, root, out):
     if args.status:
         status(root, out)
     if args.report:
-        debt_report(root, args.report, project_files.checked_choice(root), out)
+        debt_report(root, args.report, report_files(root, args.report, project_files.checked_choice(root)), out)
 
 
 def gate(argv, root, baseline=None, out=None):

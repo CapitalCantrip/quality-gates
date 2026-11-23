@@ -220,10 +220,15 @@ regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
 where it starts a word, so `$#`, `${#x}`, quotes and heredoc bodies do not;
 the shebang on line 1 and a bare `# shellcheck disable=` are exempt.
 `comment-debt --report <language>` prints a language's comment debt, chosen or
-not: the total, the count by kind and by area, and the files with the most
-comment lines and the most rationale lines. It and `--status` name any file they
-could not read, which the gate would fail. `qg setup` prints the report of each
-comment language it offers, with the two ways to accept it, before it asks. Choosing a comment
+not: the total, the count by kind (`line`, and `string` for a Python docstring
+or bare string) and by area, the files with the most comment lines and the most
+rationale lines, and the areas with the most rationale lines. It counts the
+files choosing would record, leaving out what a hook or CI `--exclude` flag
+leaves out. It and `--status` name any file they could not read, which the gate
+would fail. `qg setup` prints the report of each comment language it offers,
+with the two ways to accept it, before it asks: record as debt, or, until
+clean first is built, rank and track files with the report, pay them down with
+the `no-comments` skill, then choose. Choosing a comment
 language with `qg setup --go --choose <id>` records its comments as debt in the
 same step, in place of any older entries for that language, so the gate never
 checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run
@@ -645,6 +650,8 @@ line, like any other tool error.
   the project does not use. *Needs attention* names only the parts that count,
   and shows for the core, a chosen component, or any component with some part
   installed; never for a declined or offered component with nothing installed.
+  With no choice file, `no-comments` counts as chosen, since the comment gate
+  then checks Python.
 
   ```text
   $ qg status
@@ -673,7 +680,7 @@ line, like any other tool error.
   nothing until `--go`, and then only `quality-gates.json`, plus
   `comment-debt.json` when it switches a comment language on: that language's
   comments are recorded there as debt, replacing its older entries and leaving
-  the others as they were. Without a choice
+  the others as they were, less any entry of zero. Without a choice
   file it records what is installed as chosen, except a new comment language
   such as `no-comments-rust`: the hook, CI step and baseline it shares with
   `no-comments` never make it look installed, so it is switched on only by
