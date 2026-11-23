@@ -45,8 +45,8 @@ result with one outcome per location: passed, failed, behind the baseline,
 unmeasured or did not run. `ratchet.recorded` is the record step: given what
 a gate finds for one comment language and which baseline paths belong to it,
 it returns the baseline with that language's entries replaced by its counts
-now (no entry for a count of zero), and every entry outside that language as
-it was. A count of zero sets no allowance, so it does not displace the entry
+now (no entry for a count of zero), and every nonzero entry outside that
+language as it was. A count of zero sets no allowance, so it does not displace the entry
 of a file that is also unmeasured (`ratchet.owed_counts`). Setup puts the result among its planned
 changes when it switches a comment language on, so recording and choosing are
 one step, while `--update` still only lowers. Both write through one function,
@@ -55,7 +55,7 @@ still owed, an unmeasured file's entry, and every entry outside the files the
 write covers; it drops any entry of zero, so no write keeps one. A new rule about what a write keeps goes there and nowhere else.
 A gate may say which baseline
 paths it covers: entries outside them are not judged and `--update` writes
-them back as they were, which is how `comment-debt` keeps the entries of a
+them back as they were, less any entry of zero, which is how `comment-debt` keeps the entries of a
 language that is not chosen. A gate that could not run raises
 `errors.ToolError`, and so does `ratchet` for a missing, unreadable or
 malformed baseline; the one place that catches it is `ratchet.attempt`,

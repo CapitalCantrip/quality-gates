@@ -580,6 +580,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
         self.assertIn('# Rust comment debt: 1 lines in 1 files\n', self.setup())
+        self.assertEqual(self.gate('--report', 'rust')[1], json.loads(self.setup('--json'))['debt_reports']['rust'])
         self.assertEqual(self.gate('--report', 'rust')[1].splitlines()[0], '# Rust comment debt: 1 lines in 1 files')
         self.setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})

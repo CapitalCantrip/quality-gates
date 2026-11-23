@@ -667,7 +667,7 @@ line, like any other tool error.
   nothing until `--go`, and then only `quality-gates.json`, plus
   `comment-debt.json` when it switches a comment language on: that language's
   comments are recorded there as debt, replacing its older entries and leaving
-  the others as they were. Without a choice
+  the others as they were, less any entry of zero. Without a choice
   file it records what is installed as chosen, except a new comment language
   such as `no-comments-rust`: the hook, CI step and baseline it shares with
   `no-comments` never make it look installed, so it is switched on only by

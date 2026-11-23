@@ -13,10 +13,14 @@
   choosing already did. Nothing to do on bumping the pin.
 - **No write keeps a zero baseline entry.** The first `--update` with no
   baseline file no longer writes `0` for a file both counted zero and
-  unmeasured. Nothing to do on bumping the pin.
+  unmeasured, and the next `--update` or `qg setup --go --choose` removes any
+  stored entry of `0`, including one for a language not chosen. A zero entry
+  allowed nothing, so the gate's verdicts do not change; commit the smaller
+  baseline.
 - **`comment-debt --status` lists an area's files with the most comment lines
   first** among those with equal rationale lines, then by path, so "pick the
-  top file" picks the biggest. Nothing to do on bumping the pin.
+  top file" picks the biggest, and lists areas with equal totals by name.
+  Nothing to do on bumping the pin.
 - **`qg status` with no choice file lists `no-comments`' missing parts under
   "Needs attention".** With no choice file the comment gate checks Python, so
   a missing hook, CI step or baseline is a real gap. The exit code is
