@@ -9,12 +9,16 @@
   `qg setup --go --choose <id>` records that language's comments as debt, so
   only new ones fail. A comment marker inside a string, template literal,
   regex literal, interpolation or heredoc does not count; bare tool pragmas
-  (`eslint-disable`, `@ts-expect-error`, `@ts-ignore`, `prettier-ignore`,
-  `swiftlint:disable`, `# shellcheck disable=`) and a shell shebang on line 1
-  are exempt. Shell covers `.sh`, `.bash` and `.zsh` files and files with no
-  suffix whose first line is a shell shebang. Nothing to do on the bump
-  unless you choose one; run `comment-debt --report <language>` first to see
-  what choosing it records.
+  (`eslint-disable`, `eslint-enable`, `@ts-expect-error`, `@ts-ignore`,
+  `prettier-ignore`, `swiftlint:disable`, `swiftlint:enable`,
+  `# shellcheck disable=`) and a shell shebang on line 1 are exempt, and
+  `/// <reference … />` counts as a doc comment. Shell covers `.sh`, `.bash`
+  and `.zsh` files and files with no suffix whose first line is a shell
+  shebang. Nothing to do on the bump unless you choose one; run
+  `comment-debt --report <language>` first to see what choosing it records.
+  A project that chooses one of them without `no-comments` reruns
+  `/setup-standards`, which adds `comment-debt` to the pre-commit hook and CI
+  when either lacks it.
 - **`comment-debt` reads Rust fully (#186).** With `no-comments-rust`
   chosen, every Rust comment counts once per line: block comments and doc
   comments (`///`, `//!`, `/** */`) as well as `//` lines. A `//` inside a

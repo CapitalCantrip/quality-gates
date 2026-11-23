@@ -170,6 +170,11 @@ class TypeScriptCountingTest(unittest.TestCase):
         self.assertEqual(typescript_lines(source), [1, 2, 3])
         self.assertEqual([c.kind for c in code_reader.read(source, cd.TYPESCRIPT.syntax).comments], ['doc'])
 
+    def test_a_triple_slash_reference_directive_counts_as_a_doc_comment(self):
+        source = '/// <reference types="node" />\nconst a = 1\n'
+        self.assertEqual(typescript_lines(source), [1])
+        self.assertEqual([c.kind for c in code_reader.read(source, cd.TYPESCRIPT.syntax).comments], ['doc'])
+
     def test_slashes_in_a_regex_literal_are_not_a_comment(self):
         source = ('const a = /a\\/\\/b/\nconst b = [/https?:\\/\\//g, /[/]/]\nif (/x\\/\\//.test(s)) {}\n'
                   'return /\\/\\/ x/i\nconst c = x / 2 // half\n')

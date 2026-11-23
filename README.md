@@ -213,7 +213,8 @@ and a bare `// @generated` is exempt; with `rust-safety` switched on, a
 ([recognised conventions](docs/recognised-conventions.md)). In TypeScript and
 JavaScript, `//` inside a template literal (however deep its `${}` nests) or a
 regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
-`@ts-expect-error`, `@ts-ignore` and `prettier-ignore` are exempt. In Swift
+`@ts-expect-error`, `@ts-ignore` and `prettier-ignore` are exempt, while
+`/// <reference … />` counts as a doc comment. In Swift
 `// MARK:` counts, `\( )` interpolation is read as code, and bare
 `swiftlint:disable`/`swiftlint:enable` are exempt. In shell a `#` counts only
 where it starts a word, so `$#`, `${#x}`, quotes and heredoc bodies do not;

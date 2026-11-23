@@ -168,7 +168,7 @@ TYPESCRIPT_PRAGMA = rf"eslint-(?:disable(?:-next-line|-line)?|enable)(?:\s+{ESLI
 TYPESCRIPT = CommentSyntax(code_reader.Syntax(
     line=("//",),
     block=(("/*", "*/"),),
-    doc=(r"/\*\*(?![*/])",),
+    doc=(r"/\*\*(?![*/])", r"///\s*<reference\b"),
     literals=(
         code_reader.Literal(r'"', r'"(?:\\[\s\S]|[^"\\\n])*"'),
         code_reader.Literal(r"'", r"'(?:\\[\s\S]|[^'\\\n])*'"),
