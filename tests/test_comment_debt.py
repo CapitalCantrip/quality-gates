@@ -861,7 +861,21 @@ class RepositoryTest(unittest.TestCase):
         self.assertIn('## pkg — 1 lines', out)
 
 
-class AcceptingRustEndToEndTest(unittest.TestCase):
+class SetupAndGate:
+
+    def run_setup(self, *argv):
+        out, err = io.StringIO(), io.StringIO()
+        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
+            code = setup_choices.main(list(argv), root=self.root)
+        self.assertEqual(code, 0, err.getvalue())
+        return out.getvalue()
+
+    def gate(self, *argv):
+        out = io.StringIO()
+        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
+
+
+class AcceptingRustEndToEndTest(SetupAndGate, unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -875,23 +889,12 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def setup(self, *argv):
-        out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = setup_choices.main(list(argv), root=self.root)
-        self.assertEqual(code, 0, err.getvalue())
-        return out.getvalue()
-
-    def gate(self, *argv):
-        out = io.StringIO()
-        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
-
     def offered(self):
-        rows = json.loads(self.setup('--json'))['components']
+        rows = json.loads(self.run_setup('--json'))['components']
         return next(row['choice'] for row in rows if row['id'] == 'no-comments-rust')
 
     def test_setup_offers_rust_shows_its_total_and_choosing_it_adds_rust_entries_beside_pythons_unchanged(self):
-        self.setup('--go', '--choose', 'no-comments')
+        self.run_setup('--go', '--choose', 'no-comments')
         python_only = self.file.read_text()
 
         self.assertEqual(self.offered(), 'offered')
@@ -899,12 +902,12 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.assertEqual((code, out.splitlines()[0]), (0, '# Rust comment debt: 1 lines in 1 files'))
         self.assertEqual(self.file.read_text(), python_only)
 
-        self.setup('--go', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(self.file.read_text().replace('  "main.rs": 1,\n', ''), python_only)
 
     def test_the_example_counts_one_comment_line_and_a_new_comment_then_fails(self):
         (self.root / 'main.rs').write_text('fn main() {\n    // a comment\n    let s = "// not a comment";\n}\n')
-        self.setup('--go', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text())['main.rs'], 1)
         self.assertEqual(self.gate()[0], 0)
         (self.root / 'main.rs').write_text('fn main() {\n    // a comment\n    let s = "// not a comment"; // new\n}\n')
@@ -913,17 +916,17 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.assertIn('FAIL main.rs: 2 comment lines, baseline allows 1 — lines 2, 3', out)
 
     def test_choosing_rust_records_its_comments_with_the_conventions_the_choice_file_switches_on(self):
-        self.setup('--go', '--choose', 'no-comments')
+        self.run_setup('--go', '--choose', 'no-comments')
         choice = json.loads((self.root / 'quality-gates.json').read_text())
         choice['settings']['no-comments']['conventions'] = ['rust-safety']
         (self.root / 'quality-gates.json').write_text(json.dumps(choice))
         (self.root / 'main.rs').write_text('fn main() {\n    // SAFETY: why.\n    unsafe {}\n    // stray\n}\n')
-        self.setup('--go', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text())['main.rs'], 1)
 
     def test_setup_shows_an_offered_languages_report_and_both_choices_before_asking(self):
-        self.setup('--go', '--choose', 'no-comments')
-        out = self.setup()
+        self.run_setup('--go', '--choose', 'no-comments')
+        out = self.run_setup()
         report, offer, asking = (out.index('# Rust comment debt: 1 lines in 1 files\n'),
                                  out.index(setup_choices.OFFER_CHOICES.format('no-comments-rust', 'rust')),
                                  out.index('Not yet answered: no-comments-rust'))
@@ -932,60 +935,60 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.assertIn('\n## By kind\n    1  line\n', out)
 
     def test_setup_json_carries_each_offered_languages_report(self):
-        self.setup('--go', '--choose', 'no-comments')
-        reports = json.loads(self.setup('--json'))['debt_reports']
+        self.run_setup('--go', '--choose', 'no-comments')
+        reports = json.loads(self.run_setup('--json'))['debt_reports']
         self.assertEqual(list(reports), ['rust'])
         self.assertTrue(reports['rust'].startswith('# Rust comment debt: 1 lines in 1 files\n'))
 
     def test_setup_shows_no_report_for_a_language_chosen_or_declined(self):
-        self.setup('--go', '--choose', 'no-comments')
-        self.assertNotIn('Rust comment debt', self.setup('--choose', 'no-comments-rust'))
-        self.assertNotIn('Rust comment debt', self.setup('--decline', 'no-comments-rust'))
-        self.assertEqual(json.loads(self.setup('--json', '--decline', 'no-comments-rust'))['debt_reports'], {})
+        self.run_setup('--go', '--choose', 'no-comments')
+        self.assertNotIn('Rust comment debt', self.run_setup('--choose', 'no-comments-rust'))
+        self.assertNotIn('Rust comment debt', self.run_setup('--decline', 'no-comments-rust'))
+        self.assertEqual(json.loads(self.run_setup('--json', '--decline', 'no-comments-rust'))['debt_reports'], {})
 
     def test_choosing_rust_replaces_every_rust_entry_and_leaves_every_other_nonzero_entry_as_it_was(self):
-        self.setup('--go', '--choose', 'no-comments')
+        self.run_setup('--go', '--choose', 'no-comments')
         self.file.write_text('{\n  "old.py": 4,\n  "old.rs": 2,\n  "src/app.py": 1\n}\n')
-        self.setup('--go', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(self.file.read_text(), '{\n  "main.rs": 1,\n  "old.py": 4,\n  "src/app.py": 1\n}\n')
 
     def test_setup_without_go_lists_the_baseline_among_its_planned_changes_and_writes_nothing(self):
-        self.setup('--go', '--choose', 'no-comments')
+        self.run_setup('--go', '--choose', 'no-comments')
         before = self.file.read_text(), (self.root / 'quality-gates.json').read_text()
-        out = self.setup('--choose', 'no-comments-rust')
+        out = self.run_setup('--choose', 'no-comments-rust')
         self.assertIn('  comment-debt.json: will change\n', out)
         self.assertEqual((self.file.read_text(), (self.root / 'quality-gates.json').read_text()), before)
 
     def test_choosing_rust_again_once_it_is_chosen_never_raises_its_entries(self):
-        self.setup('--go', '--choose', 'no-comments', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments', '--choose', 'no-comments-rust')
         recorded = self.file.read_text()
         (self.root / 'main.rs').write_text('fn main() {\n    // a comment\n    // another\n}\n')
-        self.setup('--go', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(self.file.read_text(), recorded)
         self.assertEqual(self.gate()[0], 1)
 
     def test_choosing_rust_records_only_the_files_the_gate_checks_after_the_exclusions_setup_moves_in_the_same_run(self):
-        self.setup('--go', '--choose', 'no-comments')
+        self.run_setup('--go', '--choose', 'no-comments')
         (self.root / 'vendor').mkdir()
         (self.root / 'vendor' / 'v.rs').write_text('// vendored\n')
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
-        self.assertIn('# Rust comment debt: 1 lines in 1 files\n', self.setup())
+        self.assertIn('# Rust comment debt: 1 lines in 1 files\n', self.run_setup())
         self.assertEqual(self.gate('--report', 'rust')[1].splitlines()[0], '# Rust comment debt: 1 lines in 1 files')
-        self.setup('--go', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})
         self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 2 files, none new\n'))
 
     def test_comment_debt_report_and_setups_report_agree_after_a_hook_exclusion(self):
-        self.setup('--go', '--choose', 'no-comments')
+        self.run_setup('--go', '--choose', 'no-comments')
         (self.root / 'vendor').mkdir()
         (self.root / 'vendor' / 'v.rs').write_text('// vendored\n')
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
-        self.assertEqual(self.gate('--report', 'rust')[1], json.loads(self.setup('--json'))['debt_reports']['rust'])
+        self.assertEqual(self.gate('--report', 'rust')[1], json.loads(self.run_setup('--json'))['debt_reports']['rust'])
 
     def test_a_malformed_baseline_stops_setup_choosing_rust_and_nothing_is_written(self):
-        self.setup('--go', '--choose', 'no-comments')
+        self.run_setup('--go', '--choose', 'no-comments')
         choice = (self.root / 'quality-gates.json').read_text()
         self.file.write_text('[]')
         err = io.StringIO()
@@ -996,11 +999,11 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.assertEqual(((self.root / 'quality-gates.json').read_text(), self.file.read_text()), (choice, '[]'))
 
     def test_choosing_rust_in_setup_records_its_comments_so_the_gate_passes_and_a_new_rust_comment_fails(self):
-        self.setup('--go', '--choose', 'no-comments')
+        self.run_setup('--go', '--choose', 'no-comments')
         self.gate('--update')
         self.assertEqual(self.gate(), (0, 'comment debt: 1 lines in 1 files, none new\n'))
 
-        self.setup('--go', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})
         self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 2 files, none new\n'))
 
@@ -1019,7 +1022,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
 
     def test_without_a_choice_file_a_workflow_running_the_comment_gate_leaves_rust_offered_and_the_gate_passing(self):
         self.install_the_comment_gate_without_a_choice_file()
-        self.setup('--go')
+        self.run_setup('--go')
         self.assertEqual(self.offered(), 'offered')
         self.assertEqual(json.loads((self.root / 'quality-gates.json').read_text())['components']['chosen'],
                          ['no-comments'])
@@ -1028,12 +1031,12 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
 
     def test_without_a_choice_file_declining_rust_that_was_never_chosen_is_not_loosening(self):
         self.install_the_comment_gate_without_a_choice_file()
-        self.setup('--go', '--decline', 'no-comments-rust')
+        self.run_setup('--go', '--decline', 'no-comments-rust')
         self.assertEqual(json.loads((self.root / 'quality-gates.json').read_text())['components']['declined'],
                          ['no-comments-rust'])
 
 
-class CleaningFirstEndToEndTest(unittest.TestCase):
+class CleaningFirstEndToEndTest(SetupAndGate, unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -1047,17 +1050,6 @@ class CleaningFirstEndToEndTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def setup(self, *argv):
-        out, err = io.StringIO(), io.StringIO()
-        with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
-            code = setup_choices.main(list(argv), root=self.root)
-        self.assertEqual(code, 0, err.getvalue())
-        return out.getvalue()
-
-    def gate(self, *argv):
-        out = io.StringIO()
-        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
-
     def test_paying_one_folder_down_first_leaves_a_report_of_the_other_and_choosing_records_only_that_folder(self):
         before = self.gate('--report', 'rust')[1]
         self.assertEqual(before.splitlines()[0], '# Rust comment debt: 3 lines in 2 files')
@@ -1070,13 +1062,13 @@ class CleaningFirstEndToEndTest(unittest.TestCase):
         self.assertIn('kept/lib.rs', remainder)
         self.assertNotIn('paid', remainder)
 
-        self.setup('--go', '--choose', 'no-comments-rust')
+        self.run_setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'kept/lib.rs': 2})
         self.assertIn('no-comments-rust', json.loads((self.root / 'quality-gates.json').read_text())['components']['chosen'])
         self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 1 files, none new\n'))
 
     def test_setups_clean_first_offer_scopes_the_paydown_reruns_the_report_until_it_shows_none_and_opens_an_issue_only_when_asked(self):
-        out = self.setup()
+        out = self.run_setup()
         for step in ('the builder scopes what to pay down now, by area, file or kind',
                      'without changing behaviour',
                      'a `debt-payer` agent where the project has one',
@@ -1086,7 +1078,7 @@ class CleaningFirstEndToEndTest(unittest.TestCase):
             self.assertIn(step, ' '.join(out.split()))
 
 
-class AcceptingShellEndToEndTest(unittest.TestCase):
+class AcceptingShellEndToEndTest(SetupAndGate, unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -1101,19 +1093,9 @@ class AcceptingShellEndToEndTest(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def setup(self, *argv):
-        err = io.StringIO()
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(err):
-            code = setup_choices.main(list(argv), root=self.root)
-        self.assertEqual(code, 0, err.getvalue())
-
-    def gate(self, *argv):
-        out = io.StringIO()
-        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
-
     def test_choosing_shell_replaces_every_shell_files_entry_so_the_gate_passes_and_a_new_comment_fails(self):
         self.file.write_text('{\n  "bin/clean": 3,\n  "bin/deploy": 7\n}\n')
-        self.setup('--go', '--choose', 'no-comments-shell')
+        self.run_setup('--go', '--choose', 'no-comments-shell')
         self.assertEqual(json.loads(self.file.read_text()), {'bin/deploy': 1, 'setup.zsh': 2})
         self.assertEqual(self.gate(), (0, 'comment debt: 3 lines in 2 files, none new\n'))
         (self.root / 'bin' / 'deploy').write_text('#!/usr/bin/env bash\n# one\necho hi # new\n')
