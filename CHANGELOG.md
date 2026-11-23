@@ -13,7 +13,8 @@
   choosing already did. Nothing to do on bumping the pin.
 - **No write keeps a zero baseline entry.** The first `--update` with no
   baseline file no longer writes `0` for a file both counted zero and
-  unmeasured, and the next `--update` or `qg setup --go --choose` removes any
+  unmeasured, and the next `--update`, or `qg setup --go --choose` of a
+  comment language, removes any
   stored entry of `0`, including one for a language not chosen. A zero entry
   allowed nothing, so the gate's verdicts do not change; commit the smaller
   baseline.

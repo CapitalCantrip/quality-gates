@@ -552,7 +552,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.assertNotIn('Rust comment debt', self.setup('--decline', 'no-comments-rust'))
         self.assertEqual(json.loads(self.setup('--json', '--decline', 'no-comments-rust'))['debt_reports'], {})
 
-    def test_choosing_rust_replaces_every_rust_entry_and_leaves_every_other_entry_as_it_was(self):
+    def test_choosing_rust_replaces_every_rust_entry_and_leaves_every_other_nonzero_entry_as_it_was(self):
         self.setup('--go', '--choose', 'no-comments')
         self.file.write_text('{\n  "old.py": 4,\n  "old.rs": 2,\n  "src/app.py": 1\n}\n')
         self.setup('--go', '--choose', 'no-comments-rust')
@@ -580,11 +580,18 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
         self.assertIn('# Rust comment debt: 1 lines in 1 files\n', self.setup())
-        self.assertEqual(self.gate('--report', 'rust')[1], json.loads(self.setup('--json'))['debt_reports']['rust'])
         self.assertEqual(self.gate('--report', 'rust')[1].splitlines()[0], '# Rust comment debt: 1 lines in 1 files')
         self.setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})
         self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 2 files, none new\n'))
+
+    def test_comment_debt_report_and_setups_report_agree_after_a_hook_exclusion(self):
+        self.setup('--go', '--choose', 'no-comments')
+        (self.root / 'vendor').mkdir()
+        (self.root / 'vendor' / 'v.rs').write_text('// vendored\n')
+        (self.root / '.githooks').mkdir()
+        (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
+        self.assertEqual(self.gate('--report', 'rust')[1], json.loads(self.setup('--json'))['debt_reports']['rust'])
 
     def test_a_malformed_baseline_stops_setup_choosing_rust_and_nothing_is_written(self):
         self.setup('--go', '--choose', 'no-comments')

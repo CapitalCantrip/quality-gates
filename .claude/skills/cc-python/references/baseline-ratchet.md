@@ -12,7 +12,8 @@ enforce the limits in CI without first paying it all off.
   permissive would let a mistyped path pass CI.
 - **An unmeasured function is never recorded, and keeps its entry.** `--update`
   lowers and removes entries for measured functions, adds none for an unmeasured
-  one, and keeps an existing entry as it is while the function stays unmeasured.
+  one, and keeps an existing nonzero entry as it is while the function stays
+  unmeasured.
   It writes the file, then exits 1 and lists the unmeasured functions. A check
   run reports a baselined function that is unmeasured as unmeasured, not as paid.
   A worst-case score for a function with no figure would sit in the baseline as

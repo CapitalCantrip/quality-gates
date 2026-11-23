@@ -65,7 +65,8 @@ Prefer somewhere that fails when the knowledge stops being true.
 For a language not yet chosen (clean first), `--status` and `--update` do not
 see it. Pick the file from `comment-debt --report <language>` in step 1, rerun
 the report in step 4 in place of `--update`, and commit only the file and its
-tests: choosing the language records what is left.
+tests, saying where each piece of knowledge went: choosing the language
+records what is left.
 
 ## Installing the commands
 
