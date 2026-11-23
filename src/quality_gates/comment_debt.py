@@ -342,8 +342,7 @@ def report_sections(root, current):
             ("Areas with most rationale lines", most(((a.name, a.rationale) for a in area_totals(areas)), TOP_AREAS)))
 
 
-def report_files(root, name):
-    choice = project_files.checked_choice(root)
+def report_files(root, name, choice):
     return {path: checker_of(language, choice)
             for path, language in project_files.comment_gate_files_after_setup(root, choice, [name]).items()}
 
@@ -360,7 +359,7 @@ def debt_report(root, name, files, out):
 
 def debt_report_text(root, name, choice):
     out = io.StringIO()
-    debt_report(root, name, files_of(root, [name], choice), out)
+    debt_report(root, name, report_files(root, name, choice), out)
     return out.getvalue()
 
 
@@ -469,7 +468,7 @@ def shown_first(args, root, out):
     if args.status:
         status(root, out)
     if args.report:
-        debt_report(root, args.report, report_files(root, args.report), out)
+        debt_report(root, args.report, report_files(root, args.report, project_files.checked_choice(root)), out)
 
 
 def gate(argv, root, baseline=None, out=None):
