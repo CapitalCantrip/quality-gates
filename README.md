@@ -516,12 +516,13 @@ Three more commands support them:
 
 Each component ships an explainer: a short Markdown page, versioned with the
 release, in [src/quality_gates/explainers](src/quality_gates/explainers). It
-opens with the component's name and has four sections, in order: what it
-catches, why it matters to someone who cannot read the code, what it asks of
-the builder, and *Want to go deeper?*. That last one holds one to three
-outside links. Each link has a line on why it is worth reading and the date it
-was checked, and it is free to view and written by someone with real practice
-in the subject. The worked example is
+opens with the component's name, and an explainer several components share
+opens with the name of the component its file is named after. It has four
+sections, in order: what it catches, why it matters to someone who cannot read
+the code, what it asks of the builder, and *Want to go deeper?*. That last one
+holds one to three outside links. Each link has a line on why it is worth
+reading and the date it was checked, and it is free to view and written by
+someone with real practice in the subject. The worked example is
 [crap.md](src/quality_gates/explainers/crap.md).
 
 `qg explain <name>` prints a component's explainer from the installed package,

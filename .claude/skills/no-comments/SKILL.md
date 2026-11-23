@@ -77,21 +77,28 @@ only chosen languages, so `comment-debt --report <language>` takes their place
 throughout.
 
 1. Ask the builder what to pay down now: an area, a file or a kind from the
-   report. Recommend the area at the top of *Areas with most rationale lines*.
-2. Pay each file in the scope down as in *Paying down one file*, without
-   changing behaviour. For a long run, give each batch to a subagent (a
-   `debt-payer` agent where the project has one).
+   report. Recommend the area at the top of *Areas with most rationale lines*,
+   because those comments most often hide knowledge a test or ADR should
+   hold. When no file has rationale lines, recommend the area at the top of
+   *By area*, which has the most comment lines.
+2. Pay each file in the scope down as in steps 2 and 3 of *Paying down one
+   file*, without changing behaviour. Commit each paid file, or each batch,
+   with only its tests as you go: the gate skips a language not yet chosen,
+   so these commits cannot fail. For a long run, give each batch to a
+   subagent (a `debt-payer` agent where the project has one).
 3. Rerun `comment-debt --report <language>`. The scope is done when its area,
    file or kind no longer shows in the report: *By area*, *Every file*,
    *By kind*.
 4. Only if the builder asks, open an issue for the remainder. Its body is the
-   `--report` output, which names every file left.
+   `--report` output, which names every file left. If GitHub refuses the body
+   as too long (its limit is 65,536 characters), keep the report's sections
+   above *Every file* in the body and post *Every file* in comments, in parts.
 5. Run `qg setup --go --choose <id>`: it records the rest as debt and switches
-   the language on. Run `comment-debt`: it passes. Commit `quality-gates.json`,
-   `comment-debt.json` and the cleaned files with their tests.
+   the language on. Run `comment-debt`: it passes. Commit `quality-gates.json`
+   and `comment-debt.json`.
 
 Done when the scope no longer shows in the report, the language is chosen,
-`comment-debt` passes and the commit is made.
+`comment-debt` passes and the commits are made.
 
 ## Installing the commands
 

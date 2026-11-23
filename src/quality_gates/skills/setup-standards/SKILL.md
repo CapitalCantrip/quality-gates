@@ -91,7 +91,10 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    files. Show it whole, with the two choices printed under it: record them as
    debt, so only new comments fail, or clean first, which pays down a scope
    the builder picks before the rest is recorded (the `no-comments` skill,
-   *Clean first*). When the language's code uses a recognised convention
+   *Clean first*). Recommend record as debt, because it is one step and only
+   new comments fail. Recommend clean first instead when the builder wants
+   an area clean before the gate goes on, for example a small area the report
+   shows with many rationale lines. When the language's code uses a recognised convention
    (`qg explain no-comments` names them), also ask whether to switch it on so
    those comments are not recorded; recommend on when the code has
    `// SAFETY:` lines above `unsafe` (`rust-safety`). Then ask the builder to
@@ -119,8 +122,9 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    `settings.no-comments.conventions` in `quality-gates.json` (no flag sets
    it), then rerun `comment-debt --report <language>` and show the builder
    the smaller report. For a row to clean first, follow the `no-comments`
-   skill's *Clean first* section; it ends by choosing the row, running
-   `comment-debt` and committing. For a row to record as debt, run
+   skill's *Clean first* section: it commits each paid file or batch with its
+   tests as it goes, then chooses the row, runs `comment-debt` and commits
+   `quality-gates.json` and `comment-debt.json`. For a row to record as debt, run
    `qg setup --go --choose <id>` and `comment-debt`, then commit
    `quality-gates.json` and `comment-debt.json`.
 

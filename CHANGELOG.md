@@ -11,7 +11,8 @@
   has `// SAFETY:` lines, and if you say yes it writes `quality-gates.json`,
   adds the convention, then chooses Rust. `qg explain no-comments` explains
   the gate. On bumping the pin, run `qg-skills`, then `/setup-standards` and
-  accept the comment languages you want. `comment-debt --exclude` is gone.
+  accept the comment languages you want. As the #185 entry says,
+  `comment-debt --exclude` is gone.
 - **`comment-debt --report` counts what `qg setup` counts.** It now leaves out
   what a hook or CI `--exclude` flag leaves out, as setup's report and
   choosing already did. Nothing to do on bumping the pin.
