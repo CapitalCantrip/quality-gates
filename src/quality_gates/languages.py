@@ -37,8 +37,7 @@ def suffixes_of(names) -> tuple:
 
 
 def language_of_file(name: str) -> Optional[str]:
-    suffix = PurePath(name).suffix
-    return next((language.name for language in REGISTERED if suffix in language.suffixes), None)
+    return next((language.name for language in REGISTERED if name.endswith(language.suffixes)), None)
 
 
 def language_of_folder(name: str) -> Optional[str]:

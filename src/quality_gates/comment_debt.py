@@ -10,7 +10,7 @@ import tokenize
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable
+from typing import Optional
 
 from quality_gates import code_reader, languages, project_files, ratchet
 from quality_gates.errors import Untagged
@@ -85,34 +85,178 @@ def debt_kinds(source):
     return dict(sorted(kinds.items()))
 
 
-def read_debt_kinds(syntax, source):
-    comments = code_reader.read(source, syntax).comments
-    kinds = {line: comment.kind for comment in comments for line in range(comment.start, comment.end + 1)}
+SAFETY_START = "// SAFETY:"
+UNSAFE_BELOW = re.compile(r"\bunsafe\s*\{|^\s*unsafe\s+impl\b")
+
+
+def own_line_comments(reading, source):
+    lines = source.split(code_reader.NEWLINE)
+    return {
+        comment.start: comment for comment in reading.comments
+        if comment.kind == code_reader.LINE and lines[comment.start - 1].strip() == comment.text.strip()
+    }
+
+
+def run_from(own, number):
+    run = [number]
+    while run[-1] + 1 in own:
+        run.append(run[-1] + 1)
+    return run
+
+
+def unsafe_below(code, line):
+    return line < len(code) and bool(UNSAFE_BELOW.search(code[line]))
+
+
+def safety_comments(reading, source):
+    own, code = own_line_comments(reading, source), reading.blanked.split(code_reader.NEWLINE)
+    runs = [run_from(own, number) for number, comment in own.items() if comment.text.startswith(SAFETY_START)]
+    return {own[number] for run in runs if unsafe_below(code, run[-1]) for number in run}
+
+
+@dataclass(frozen=True)
+class CommentSyntax:
+    syntax: code_reader.Syntax
+    pragma: re.Pattern
+    conventions: dict
+    shebang: bool = False
+
+    def exempts(self, comment):
+        if self.shebang and comment.start == 1 and comment.text.startswith(languages.SHEBANG):
+            return True
+        return bool(self.pragma.fullmatch(comment.text))
+
+
+def allowed_by(language, conventions, reading, source):
+    return set().union(*(language.conventions[name](reading, source) for name in conventions
+                         if name in language.conventions))
+
+
+def read_debt_kinds(language, source, conventions):
+    reading = code_reader.read(source, language.syntax)
+    allowed = allowed_by(language, conventions, reading, source)
+    counted = [c for c in reading.comments if c not in allowed and not language.exempts(c)]
+    kinds = {line: comment.kind for comment in counted for line in range(comment.start, comment.end + 1)}
     return dict(sorted(kinds.items()))
+
+
+RUST = CommentSyntax(code_reader.Syntax(
+    line=("//",),
+    block=(("/*", "*/"),),
+    nested=True,
+    doc=(r"///(?!/)", r"//!", r"/\*\*(?![*/])", r"/\*!"),
+    literals=(
+        code_reader.Literal(r'r#*"', r'r(#*)"[\s\S]*?"\1'),
+        code_reader.Literal(r'"', r'"(?:\\[\s\S]|[^"\\])*"'),
+        code_reader.Literal(r"'", r"'(?:\\(?:u\{[0-9a-fA-F]+\}|x[0-9a-fA-F]{2}|[\s\S])|[^'\\\n])'"),
+    ),
+), re.compile(r"//\s*@generated\s*"), {"rust-safety": safety_comments})
+
+
+BEFORE_A_REGEX = r"[(,=:;!&|?{\[*%>^~]"
+OPERATORS_BEFORE_A_REGEX = (r"(?<!\+)\+", r"(?<!-)-", r"<\s", r"[\w$\]}]\sof")
+KEYWORDS_BEFORE_A_REGEX = ("return", "typeof", "instanceof", "in", "new", "void", "delete", "case", "yield",
+                           "await", "else", "do")
+WHOLE_WORD = r"(?<![\w$.#])"
+REGEX_MAY_START = "(?:" + "|".join([r"\A", f"(?<={BEFORE_A_REGEX})"]
+                                   + [f"(?<={operator})" for operator in OPERATORS_BEFORE_A_REGEX]
+                                   + [f"(?<={WHOLE_WORD}{word})" for word in KEYWORDS_BEFORE_A_REGEX]) + r")\s*"
+TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
+ESLINT_RULES = r"[@\w/-]+(?:\s*,\s*[@\w/-]+)*"
+TYPESCRIPT_PRAGMA = rf"eslint-(?:disable(?:-next-line|-line)?|enable)(?:\s+{ESLINT_RULES})?|@ts-expect-error|@ts-ignore|prettier-ignore"
+
+TYPESCRIPT = CommentSyntax(code_reader.Syntax(
+    line=("//",),
+    block=(("/*", "*/"),),
+    doc=(r"/\*\*(?![*/])", r"///\s*<reference\b"),
+    literals=(
+        code_reader.Literal(r'"', r'"(?:\\[\s\S]|[^"\\\n])*"'),
+        code_reader.Literal(r"'", r"'(?:\\[\s\S]|[^'\\\n])*'"),
+        code_reader.Literal(r"`", r"`" + TEMPLATE_PIECE, code_reader.Interpolation(("{", "}"), TEMPLATE_PIECE)),
+        code_reader.Literal(REGEX_MAY_START + r"/(?![/*])",
+                            r"\s*/(?:\\.|\[(?:\\.|[^\]\\\n])*\]|[^/\\\n\[])+/[A-Za-z]*"),
+    ),
+), re.compile(rf"//\s*(?:{TYPESCRIPT_PRAGMA})\s*|/\*\s*(?:{TYPESCRIPT_PRAGMA})\s*\*/"), {})
+
+
+SWIFT_PIECE = r'(?:\\(?!\()[\s\S]|[^"\\\n])*(?:"|\\\()'
+SWIFT_MULTILINE_PIECE = r'(?:\\(?!\()[\s\S]|(?!""")[^\\])*(?:"""|\\\()'
+SWIFT_INTERPOLATION = ("(", ")")
+
+SWIFT = CommentSyntax(code_reader.Syntax(
+    line=("//",),
+    block=(("/*", "*/"),),
+    nested=True,
+    doc=(r"///(?!/)", r"/\*\*(?![*/])"),
+    literals=(
+        code_reader.Literal(r'#+"""', r'(#+)"""[\s\S]*?"""\1'),
+        code_reader.Literal(r'#+"', r'(#+)"[^\n]*?"\1'),
+        code_reader.Literal(r'"""', r'"""' + SWIFT_MULTILINE_PIECE,
+                            code_reader.Interpolation(SWIFT_INTERPOLATION, SWIFT_MULTILINE_PIECE)),
+        code_reader.Literal(r'"', r'"' + SWIFT_PIECE, code_reader.Interpolation(SWIFT_INTERPOLATION, SWIFT_PIECE)),
+    ),
+), re.compile(r"//\s*swiftlint:(?:disable|enable)(?::(?:next|this|previous))?(?:\s+[\w-]+)*\s*"), {})
+
+
+SHELL_WORD_BREAK = r"\s;&|()<>"
+HEREDOC_OPENER = (r"<<{dash}[ \t]*(['\"])?\\?((?(1)[^'\"\n]+|[^" + SHELL_WORD_BREAK + r"'\"\\]+))(?(1)\1)")
+HEREDOC_BODY = r"(?:[^\n]*\n)*?{tabs}\g<2>\r?(?=\n|\Z)"
+DOUBLE_QUOTED_PIECE = r'(?:\\[\s\S]|\$(?!\()|[^"\\$])*(?:"|\$\()'
+ARITHMETIC_OPENER = r"\(\("
+
+SHELL = CommentSyntax(code_reader.Syntax(
+    line=(rf"(?<![^{SHELL_WORD_BREAK}])#",),
+    literals=(
+        code_reader.Literal(r"\\", r"\\[\s\S]"),
+        code_reader.Literal(r"\$'", r"\$'(?:\\[\s\S]|[^'\\])*'"),
+        code_reader.Literal(r"'", r"'[^']*'"),
+        code_reader.Literal(r'"', r'"' + DOUBLE_QUOTED_PIECE, code_reader.Interpolation(("(", ")"), DOUBLE_QUOTED_PIECE)),
+        code_reader.Literal(ARITHMETIC_OPENER, ARITHMETIC_OPENER, balanced=code_reader.Balanced(("(", ")"), "))")),
+        code_reader.Literal(r"(?<!<)<<-", HEREDOC_OPENER.format(dash="-"), body=HEREDOC_BODY.format(tabs=r"\t*")),
+        code_reader.Literal(r"(?<!<)<<(?![<-])", HEREDOC_OPENER.format(dash=""), body=HEREDOC_BODY.format(tabs="")),
+    ),
+), re.compile(r"#\s*shellcheck\s+disable=SC\d+(?:\s*,\s*SC\d+)*\s*"), {}, shebang=True)
 
 
 @dataclass(frozen=True)
 class CommentLanguage:
     component: str
-    checker: Callable
+    syntax: Optional[CommentSyntax] = None
+
+    def checker(self, source, conventions):
+        if self.syntax is None:
+            return debt_kinds(source)
+        return read_debt_kinds(self.syntax, source, conventions)
 
 
 LANGUAGES = {
-    "python": CommentLanguage("no-comments", debt_kinds),
-    "rust": CommentLanguage("no-comments-rust", functools.partial(read_debt_kinds, code_reader.Syntax(line=("//",)))),
+    "python": CommentLanguage("no-comments"),
+    "rust": CommentLanguage("no-comments-rust", RUST),
+    "typescript": CommentLanguage("no-comments-typescript", TYPESCRIPT),
+    "swift": CommentLanguage("no-comments-swift", SWIFT),
+    "shell": CommentLanguage("no-comments-shell", SHELL),
 }
+
+
 EXCLUDE_REFUSAL = (
     "comment-debt: --exclude is removed. Run /setup-standards: it moves the --exclude prefixes of your "
     "comment-debt commands into settings.no-comments.exclude in quality-gates.json, and the gate reads them there."
 )
 
 
+def checker_of(name, choice):
+    return functools.partial(LANGUAGES[name].checker, conventions=choice.conventions if choice else ())
+
+
+def files_of(root, names, choice):
+    return {path: checker_of(name, choice)
+            for path, name in project_files.comment_gate_files_under(root, choice, names).items()}
+
+
 def checked_files(root):
-    return {
-        path: row.checker
-        for name, row in LANGUAGES.items()
-        for path in project_files.comment_gate_files(root, row.component, languages.suffixes_of([name]))
-    }
+    choice = project_files.checked_choice(root)
+    return files_of(root, [name for name, row in LANGUAGES.items() if project_files.is_chosen(choice, row.component)],
+                    choice)
 
 
 def lines_in(file, checker):
@@ -136,14 +280,6 @@ def findings(root, listed=checked_files):
     return [to_finding(path, lines) for path, lines in sorted(measure(root, listed(root)).items())]
 
 
-def files_on_choosing(root, names, choice):
-    return {
-        path: LANGUAGES[name].checker
-        for name in names
-        for path in project_files.comment_gate_files_under(root, choice, languages.suffixes_of([name]))
-    }
-
-
 def chosen_only_on_asking():
     return frozenset(row.component for row in LANGUAGES.values()) - project_files.ON_WITHOUT_A_CHOICE_FILE
 
@@ -153,11 +289,11 @@ def languages_of(components):
 
 
 def findings_on_choosing(root, names, choice):
-    return findings(root, lambda _: files_on_choosing(root, names, choice))
+    return findings(root, lambda _: files_of(root, names, choice))
 
 
-def written_in(names):
-    return lambda path: languages.language_of_file(path) in names
+def written_in(root, names):
+    return lambda path: project_files.language_among(root, path, names) is not None
 
 
 def with_debt(measured):
@@ -212,7 +348,7 @@ def report_sections(root, current):
 
 
 def debt_report(root, name, choice, out):
-    measured = measure(root, files_on_choosing(root, [name], choice))
+    measured = measure(root, files_of(root, [name], choice))
     current = with_debt(measured)
     out.write(total_line(f"{languages.LANGUAGES[name].label} comment debt", current))
     out.writelines(unread_lines(measured))
@@ -325,7 +461,7 @@ def asked(args, root, baseline) -> ratchet.Asked:
     if args.status or args.report:
         return ratchet.Asked(judged=False)
     file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
-    return ratchet.Asked(file, args.update, covers=written_in(chosen_languages(root)))
+    return ratchet.Asked(file, args.update, covers=written_in(root, chosen_languages(root)))
 
 
 def shown_first(args, root, out):

@@ -164,12 +164,18 @@ class GateTables(unittest.TestCase):
                 self.assertEqual(languages.language_of_first_line(line), "shell")
         self.assertIsNone(languages.language_of_first_line("#!/usr/bin/env LC_ALL=C python3"))
 
+    def test_a_file_name_ending_in_a_suffix_names_that_language_even_with_nothing_before_the_suffix(self):
+        for name, language in (("pkg/.py", "python"), ("a/b.test.tsx", "typescript"), ("setup.zsh", "shell"),
+                               ("bin/deploy", None), ("notes.txt", None)):
+            with self.subTest(name):
+                self.assertEqual(languages.language_of_file(name), language)
+
     def test_a_first_line_that_is_not_a_shell_shebang_names_no_language(self):
         for line in ("", "#!/usr/bin/env python3", "#!", "# sh", "echo #!/bin/sh"):
             with self.subTest(line):
                 self.assertIsNone(languages.language_of_first_line(line))
 
-    def test_rust_and_shell_are_registered_though_no_gate_scores_them(self):
+    def test_the_registry_holds_python_swift_typescript_rust_and_shell_in_order(self):
         self.assertEqual(list(languages.LANGUAGES), ["python", "swift", "typescript", "rust", "shell"])
 
     def test_the_manifest_installs_each_gate_for_exactly_the_languages_its_table_scores(self):

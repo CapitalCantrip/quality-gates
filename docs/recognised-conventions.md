@@ -12,7 +12,8 @@ any form not listed is a loosening (ADR-009).
 
 **Allowed form.** A `//` line comment starting `// SAFETY:` on the line
 directly above an `unsafe` block or `unsafe impl`, and the `//` lines directly
-following it, up to that line. The same text anywhere else counts as an
+following it, up to that line. The block may sit anywhere on that line, as in
+`let ev = unsafe { event.as_ref() };`. The same text anywhere else counts as an
 ordinary comment.
 
 **What it is for.** It says why one `unsafe` block cannot break memory safety:

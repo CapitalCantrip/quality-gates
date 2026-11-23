@@ -196,8 +196,8 @@ release's CHANGELOG entry says under *When you bump the pin*.
 ## 4. Hooks
 
 1. `.githooks/pre-commit` runs every fast gate, stopping at the first failure:
-   `comment-debt` and `cc-check <source dirs> --baseline cc-baseline.json` for
-   Python; `comment-debt` for Rust with `no-comments-rust` chosen;
+   `comment-debt` once, with any comment row chosen (`no-comments` for Python, or any `no-comments-<language>`);
+   `cc-check <source dirs> --baseline cc-baseline.json` for Python;
    `cc-check --lang typescript <source dirs> --baseline cc-baseline.json`
    for TypeScript or JavaScript; `swiftlint` for Swift where installed. Keep any lines the project
    already had. Make it executable. If the project has a `.venv`, the hook's
@@ -221,13 +221,14 @@ Make CI enforce what the hooks enforce, plus the slow gates.
 - **Python:** add the test file in [ci-python.md](ci-python.md) to the test
   suite, and the CRAP step from the same file to the CI workflow after the
   tests.
-- **Rust:** a CI step running `cargo clippy --all-targets`. With
-  `no-comments-rust` chosen and no Python test file from
-  [ci-python.md](ci-python.md) already running the comment gate, also:
+- **Comment gate:** `comment-debt` once, with any comment row chosen (`no-comments` for Python, or any
+  `no-comments-<language>`). The Python test file from [ci-python.md](ci-python.md) already runs it;
+  without that file, add:
 
   ```yaml
       - run: comment-debt
   ```
+- **Rust:** a CI step running `cargo clippy --all-targets`.
 - **TypeScript / JavaScript:** the steps in [ci-typescript.md](ci-typescript.md).
 - **Swift:** a CI step running SwiftLint, on a macOS runner. If the project has
   no macOS CI job, report this as not done and say what it would cost. A
