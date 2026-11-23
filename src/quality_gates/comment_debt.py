@@ -228,9 +228,6 @@ class CommentLanguage:
             return debt_kinds(source)
         return read_debt_kinds(self.syntax, source, conventions)
 
-    def conventions(self):
-        return frozenset(self.syntax.conventions) if self.syntax else frozenset()
-
 
 LANGUAGES = {
     "python": CommentLanguage("no-comments"),
@@ -239,10 +236,6 @@ LANGUAGES = {
     "swift": CommentLanguage("no-comments-swift", SWIFT),
     "shell": CommentLanguage("no-comments-shell", SHELL),
 }
-
-
-def allowed_conventions():
-    return frozenset().union(*(row.conventions() for row in LANGUAGES.values()))
 
 
 EXCLUDE_REFUSAL = (

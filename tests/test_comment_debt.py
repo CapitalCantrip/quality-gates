@@ -128,7 +128,8 @@ class RustSafetyTest(unittest.TestCase):
                 self.assertEqual(rust_lines(f'{comment}\nunsafe {{}}\n', SAFETY), [1])
 
     def test_the_conventions_the_gate_allows_are_exactly_those_the_conventions_page_records(self):
-        self.assertEqual(sorted(cd.allowed_conventions()), sorted(recorded_convention_ids()))
+        allowed = {name for row in cd.LANGUAGES.values() if row.syntax for name in row.syntax.conventions}
+        self.assertEqual(sorted(allowed), sorted(recorded_convention_ids()))
 
     def test_a_doc_or_block_comment_ends_the_lines_that_follow_a_safety_comment(self):
         for follower in ('/// more', '/* more */'):
