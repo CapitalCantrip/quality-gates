@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **Clean first, until it is built, uses the report to rank and track
+  files.** The offer under each comment language now says: rank files and see
+  progress with `comment-debt --report <language>`, pay them down with the
+  `no-comments` skill, then choose. `--status` and `--update` see only chosen
+  languages, so they cannot track an offered one. Nothing to do beyond the pin
+  bump and `qg-skills`.
+- **`comment-debt --report` counts what `qg setup` counts.** It now leaves out
+  what a hook or CI `--exclude` flag leaves out, as setup's report and
+  choosing already did. Nothing to do on bumping the pin.
+- **No write keeps a zero baseline entry.** The first `--update` with no
+  baseline file no longer writes `0` for a file both counted zero and
+  unmeasured. Nothing to do on bumping the pin.
+- **`comment-debt --status` lists an area's files with the most comment lines
+  first** among those with equal rationale lines, then by path, so "pick the
+  top file" picks the biggest. Nothing to do on bumping the pin.
+- **`qg status` with no choice file lists `no-comments`' missing parts under
+  "Needs attention".** With no choice file the comment gate checks Python, so
+  a missing hook, CI step or baseline is a real gap. The exit code is
+  unchanged. Nothing to do on bumping the pin.
 - **`qg setup` shows a comment language's debt before it asks (#188).**
   For each comment language it offers, setup prints that language's report:
   the total, the count by kind and by area, and the five files with the most

@@ -418,6 +418,11 @@ def comment_gate_files_under(root, choice, suffixes):
     return sorted(name for name in scope.listed if name.endswith(suffixes) and not excluded_by(name, skipped))
 
 
+def comment_gate_files_after_setup(root, suffixes):
+    moved = tuple(comment_gate_exclusions(root))
+    return [name for name in comment_gate_files_under(root, checked_choice(root), suffixes) if not excluded_by(name, moved)]
+
+
 def comment_gate_files(root, component, suffixes):
     choice = checked_choice(root)
     return comment_gate_files_under(root, choice, suffixes) if is_chosen(choice, component) else []

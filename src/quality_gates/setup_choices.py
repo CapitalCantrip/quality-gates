@@ -23,7 +23,8 @@ BOTH_FLAGS = "--choose and --decline"
 UP_TO_DATE = f"{project_files.CHOICE_FILE} is up to date."
 RUN_GO = "Run `qg setup --go` to record these choices."
 OFFER_CHOICES = ("To accept {0}: record its comments as debt with `qg setup --go --choose {0}`, "
-                 "or clean first: pay comments down with the no-comments skill, then choose it to record the rest.")
+                 "or clean first: rank files and see progress with `comment-debt --report {1}`, "
+                 "pay them down with the no-comments skill, then choose it to record the rest.")
 ANSWER_OFFERS = "Not yet answered: {}. Answer each with `qg setup --go --choose <id>` or `--decline <id>`."
 
 
@@ -199,7 +200,7 @@ def closing_lines(proposal, written, planned):
 def offer_lines(proposal):
     lines = []
     for name, text in proposal.debt_reports:
-        lines += ["", *text.rstrip("\n").split("\n"), "", OFFER_CHOICES.format(comment_debt.LANGUAGES[name].component)]
+        lines += ["", *text.rstrip("\n").split("\n"), "", OFFER_CHOICES.format(comment_debt.LANGUAGES[name].component, name)]
     return lines
 
 

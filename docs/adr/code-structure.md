@@ -44,13 +44,15 @@ baseline is used, compares, writes the baseline on `--update` and returns a
 result with one outcome per location: passed, failed, behind the baseline,
 unmeasured or did not run. `ratchet.recorded` is the record step: given what
 a gate finds for one comment language and which baseline paths belong to it,
-it returns the baseline with that language's entries set to their counts now
-and every other entry as it was. Setup puts the result among its planned
+it returns the baseline with that language's entries, and any other file the
+scan finds, set to their counts now, and every entry the scan did not find as
+it was. A count of zero sets no allowance, so it does not displace an entry a
+file already has (`ratchet.owed_counts`). Setup puts the result among its planned
 changes when it switches a comment language on, so recording and choosing are
 one step, while `--update` still only lowers. Both write through one function,
 `ratchet.surviving`, which decides which stored entries survive: the counts
-still owed, an unmeasured file's entry, and every entry outside the files the
-write covers. A new rule about what a write keeps goes there and nowhere else.
+still owed, an unmeasured file's nonzero entry, and every entry outside the
+files the write covers. No write keeps a zero entry. A new rule about what a write keeps goes there and nowhere else.
 A gate may say which baseline
 paths it covers: entries outside them are not judged and `--update` writes
 them back as they were, which is how `comment-debt` keeps the entries of a

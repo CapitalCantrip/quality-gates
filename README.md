@@ -206,10 +206,15 @@ file, as before), and Rust only when `no-comments-rust` is chosen (never with
 no choice file). In Rust it counts only `//` line comments for now, and a
 `//` inside a string counts as one too until [#186](../../issues/186) reads strings.
 `comment-debt --report <language>` prints a language's comment debt, chosen or
-not: the total, the count by kind and by area, and the files with the most
-comment lines and the most rationale lines. It and `--status` name any file they
-could not read, which the gate would fail. `qg setup` prints the report of each
-comment language it offers, with the two ways to accept it, before it asks. Choosing a comment
+not: the total, the count by kind (`line`, and `string` for a Python docstring
+or bare string) and by area, the files with the most comment lines and the most
+rationale lines, and the areas with the most rationale lines. It counts the
+files choosing would record, leaving out what a hook or CI `--exclude` flag
+leaves out. It and `--status` name any file they could not read, which the gate
+would fail. `qg setup` prints the report of each comment language it offers,
+with the two ways to accept it, before it asks: record as debt, or, until
+clean first is built, rank and track files with the report, pay them down with
+the `no-comments` skill, then choose. Choosing a comment
 language with `qg setup --go --choose <id>` records its comments as debt in the
 same step, in place of any older entries for that language, so the gate never
 checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run

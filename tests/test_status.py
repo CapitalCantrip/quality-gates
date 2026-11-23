@@ -706,6 +706,17 @@ class CommentLanguagesTest(unittest.TestCase):
             status.main([], root=self.repo)
         return next(line for line in out.getvalue().splitlines() if line.strip().startswith("no-comments-rust"))
 
+    def test_without_a_choice_file_python_comments_are_checked_so_their_missing_parts_need_attention(self):
+        bare = Path(self.tmp.name) / "bare"
+        bare.mkdir()
+        git_init(bare)
+        (bare / "app.py").write_text("x = 1\n", encoding="utf-8")
+        subprocess.run(["git", "add", "app.py"], cwd=bare, check=True)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            self.assertEqual(status.main(["--json"], root=bare), 0)
+        self.assertIn("precommit_step comment-debt: missing", component(json.loads(out.getvalue()), "no-comments")["needs_attention"])
+
     def test_without_a_choice_file_the_parts_rust_shares_with_python_do_not_make_it_installed(self):
         self.assertEqual((self.rust()["status"], self.rust()["install_status"]), ("missing", "missing"))
         self.assertEqual(self.rust()["needs_attention"], [])

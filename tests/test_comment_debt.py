@@ -5,6 +5,7 @@ import os
 import subprocess
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from quality_gates import comment_debt as cd
@@ -284,6 +285,23 @@ class RepositoryTest(unittest.TestCase):
             '    1  src/ui\n'
         )))
 
+    def test_status_lists_an_areas_files_by_rationale_then_most_comment_lines_then_path(self):
+        self.choose()
+        self.keep_untracked('src/c.py', '# one\n')
+        self.keep_untracked('src/b.py', '# one\n')
+        self.keep_untracked('src/a.py', '# one\n# two\n# three\n')
+        self.keep_untracked('src/d.py', '# TODO\n')
+        listed = [line.split()[-1] for line in self.run_gate('--status')[1].splitlines() if line.endswith('.py')]
+        self.assertEqual(listed, ['src/d.py', 'src/a.py', 'src/b.py', 'src/c.py'])
+
+    def test_changing_how_many_files_the_report_lists_leaves_the_area_list_alone(self):
+        self.choose()
+        self.keep_untracked('one/a.rs', '// TODO\n')
+        self.keep_untracked('two/b.rs', '// TODO\n')
+        with mock.patch.object(cd, 'TOP_FILES', 1):
+            out = self.run_gate('--report', 'rust')[1]
+        self.assertTrue(out.endswith('\n## Areas with most rationale lines\n    1  one\n    1  two\n'), out)
+
     def test_a_form_feed_or_line_separator_does_not_move_a_rationale_onto_another_line(self):
         self.choose()
         self.keep_untracked('a.rs', '// plain\n\x0c\nlet s = "\u2028";\n// TODO\n')
@@ -509,7 +527,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         self.setup('--go', '--choose', 'no-comments')
         out = self.setup()
         report, offer, asking = (out.index('# Rust comment debt: 1 lines in 1 files\n'),
-                                 out.index(setup_choices.OFFER_CHOICES.format('no-comments-rust')),
+                                 out.index(setup_choices.OFFER_CHOICES.format('no-comments-rust', 'rust')),
                                  out.index('Not yet answered: no-comments-rust'))
         self.assertLess(report, offer)
         self.assertLess(offer, asking)
@@ -555,6 +573,7 @@ class AcceptingRustEndToEndTest(unittest.TestCase):
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt --exclude vendor/\n')
         self.assertIn('# Rust comment debt: 1 lines in 1 files\n', self.setup())
+        self.assertEqual(self.gate('--report', 'rust')[1].splitlines()[0], '# Rust comment debt: 1 lines in 1 files')
         self.setup('--go', '--choose', 'no-comments-rust')
         self.assertEqual(json.loads(self.file.read_text()), {'main.rs': 1, 'src/app.py': 1})
         self.assertEqual(self.gate(), (0, 'comment debt: 2 lines in 2 files, none new\n'))

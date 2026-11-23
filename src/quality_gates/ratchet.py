@@ -125,6 +125,10 @@ def strongest(findings) -> dict:
     return numbers
 
 
+def owed_counts(findings) -> dict:
+    return {key: number for key, number in strongest(findings).items() if number}
+
+
 def unmeasured_keys(findings) -> set:
     return {f.location.key for f in findings if f.number is None}
 
@@ -175,7 +179,7 @@ def surviving(stored: Optional[dict], result: Result, covers: Callable[[str], bo
     unmeasured = {
         verdict.location.key: verdict.allowed
         for verdict in result.having(Outcome.UNMEASURED)
-        if verdict.allowed is not None
+        if verdict.allowed
     }
     return dict(sorted({**held_back(stored, covers), **kept, **unmeasured}.items()))
 
@@ -281,8 +285,7 @@ def without(scores: dict, held: dict) -> dict:
 
 def recorded(findings: list, file: Path, replaces: Callable[[str], bool]) -> dict:
     stored = stored_baseline(file, True) or {}
-    counts = {key: number for key, number in strongest(findings).items() if number}
-    result = judge(findings, {**stored, **counts})
+    result = judge(findings, {**stored, **owed_counts(findings)})
     return surviving(stored, result, replaces)
 
 
