@@ -107,8 +107,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    hook and CI into the file. For each comment language it switches on, it
    first records that language's comments in `comment-debt.json` as debt,
    in place of any older entries for that language; every other entry stays
-   as it was, less any entry of zero. Then remove the `--exclude` flags from the hook and CI, since
-   `comment-debt` refuses them. Run `comment-debt`: it passes. Commit
+   as it was, less any entry of zero. Then remove the `--exclude` flags from
+   the hook and CI, since `comment-debt` refuses them. Run `comment-debt`: it passes. Commit
    `quality-gates.json`, `comment-debt.json`, the hook and CI together.
 
 From here on, do only the blocks for the languages the file records, and only
