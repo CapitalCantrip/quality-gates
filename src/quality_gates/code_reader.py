@@ -35,7 +35,6 @@ class Literal:
     interpolation: Optional[Interpolation] = None
     body: Optional[str] = None
     balanced: Optional[Balanced] = None
-    lead: str = ""
 
 
 @dataclass(frozen=True)
@@ -76,7 +75,6 @@ class Scanner:
     doc: re.Pattern
     rests: tuple
     logical_line: re.Pattern
-    leads: tuple
 
 
 @dataclass
@@ -117,13 +115,11 @@ def rest_of(literal):
 def scanner_for(syntax):
     openers = [group(f"{LINE}{n}", marker) for n, marker in enumerate(syntax.line)]
     openers += [group(f"{BLOCK}{n}", re.escape(pair[0])) for n, pair in enumerate(syntax.block)]
-    openers += [group(f"{STRING}{n}", literal.lead + literal.start) for n, literal in enumerate(syntax.literals)]
+    openers += [group(f"{STRING}{n}", literal.start) for n, literal in enumerate(syntax.literals)]
     openers += bracket_opener(syntax.literals)
     literals = tuple(re.compile(literal.whole) for literal in syntax.literals)
     rests = tuple(map(rest_of, syntax.literals))
-    leads = tuple(re.compile(literal.lead) for literal in syntax.literals)
-    return Scanner(syntax, alternatives(openers), literals, alternatives(syntax.doc), rests, logical_line(syntax.line),
-                   leads)
+    return Scanner(syntax, alternatives(openers), literals, alternatives(syntax.doc), rests, logical_line(syntax.line))
 
 
 def logical_line(markers):
@@ -201,7 +197,6 @@ def balanced_at(source, start, balanced):
 
 def literal_at(source, start, literal, inside):
     shape = inside.syntax.literals[literal]
-    start = inside.scanner.leads[literal].match(source, start).end()
     if shape.balanced:
         return balanced_at(source, start, shape.balanced)
     if shape.body:
