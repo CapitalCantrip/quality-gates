@@ -211,7 +211,7 @@
     {
       "id": "no-comments",
       "name": "No code comments",
-      "description": "Stops comments from creeping into Python code: counts them, blocks new ones and helps pay down the old ones.",
+      "description": "Stops comments from creeping into Python code, with a row of its own for each of Rust, TypeScript, Swift and shell: shows the comments already there, then records them as debt or clears a part you pick first, blocks new ones, and lets a comment form a language's community requires, such as Rust's SAFETY note, be switched on.",
       "core": false,
       "languages": [
         "python"
@@ -219,6 +219,7 @@
       "origin": {
         "type": "ours"
       },
+      "explainer": "explainers/no-comments.md",
       "parts": [
         {
           "kind": "skill",

@@ -226,14 +226,20 @@ rationale lines, and the areas with the most rationale lines. It counts the
 files choosing would record, leaving out what a hook or CI `--exclude` flag
 leaves out. It and `--status` name any file they could not read, which the gate
 would fail. `qg setup` prints the report of each comment language it offers,
-with the two ways to accept it, before it asks: record as debt, or, until
-clean first is built, rank and track files with the report, pay them down with
-the `no-comments` skill, then choose. Choosing a comment
-language with `qg setup --go --choose <id>` records its comments as debt in the
-same step, in place of any older entries for that language, so the gate never
-checks a language whose comments are unrecorded. `--exclude` is removed: it exits non-zero and says to run
-`/setup-standards`. ([#3](../../issues/3) adds clean first:
-[ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
+with the two ways to accept it, before it asks. *Record as debt*: choosing the
+language with `qg setup --go --choose <id>` records its comments in the same
+step, in place of any older entries for that language. *Clean first*: the
+builder scopes what to pay down now, by area, file or kind; the agent pays it
+down without changing behaviour, with the `no-comments` skill or a subagent
+per batch, and reruns the report until the scope shows none; only if the
+builder asks does it open an issue for the remainder, with that report as its
+body; then the same `--choose` records the rest. Either way the gate never
+checks a language whose comments are unrecorded. A Rust project with
+`// SAFETY:` comments switches `rust-safety` on before it chooses Rust, so they
+are not recorded. `qg explain no-comments` says all this in plain words.
+`--exclude` is removed: it exits non-zero and says to run
+`/setup-standards`.
+([ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt)).
 
 ### `cc-check`: cyclomatic complexity
 

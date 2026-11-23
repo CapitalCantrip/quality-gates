@@ -51,6 +51,12 @@ class ExplainerFormat(unittest.TestCase):
             self.assertGreaterEqual(len(links(text)), 1, component.id)
             self.assertLessEqual(len(links(text)), 3, component.id)
 
+    def test_the_comment_gate_explainer_names_every_comment_language_the_conventions_the_report_and_both_choices(self):
+        text = " ".join(COMPONENTS.explainer_path(COMPONENTS.component("no-comments")).read_text(encoding="utf-8").split()).lower()
+        for phrase in ("python", "rust", "typescript", "swift", "shell", "recognised conventions", "rust-safety",
+                       "comment-debt --report", "record as debt", "clean first"):
+            self.assertIn(phrase, text)
+
     def test_every_link_says_why_it_is_worth_the_time_and_the_date_it_was_checked(self):
         for component, text in explainers():
             for line in links(text):
