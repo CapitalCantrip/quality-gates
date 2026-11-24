@@ -97,6 +97,9 @@
         "pstack/skills/principle-minimize-reader-load/SKILL.md": "src/quality_gates/skills/standards/principles/minimise-reader-load.md",
         "pstack/skills/principle-attack-the-premise/SKILL.md": "src/quality_gates/skills/standards/principles/attack-the-premise.md",
         "pstack/skills/principle-encode-lessons-in-structure/SKILL.md": "src/quality_gates/skills/standards/principles/encode-lessons-in-structure.md",
+        "pstack/skills/principle-fix-root-causes/SKILL.md": "src/quality_gates/skills/standards/principles/fix-root-causes.md",
+        "pstack/skills/principle-guard-the-context-window/SKILL.md": "src/quality_gates/skills/standards/principles/guard-the-context-window.md",
+        "pstack/skills/principle-sequence-verifiable-units/SKILL.md": "src/quality_gates/skills/standards/principles/sequence-verifiable-units.md",
         "pstack/LICENSE": "src/quality_gates/skills/standards/LICENSE-pstack"
       }
     }

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.2 — 2026-11-26
+
+- **Three more principles in `standards` (ADR-002 addendum 2026-11-26):**
+  *fix root causes*, *guard the context window* and *sequence verifiable
+  units*, adapted from Lauren Tan's pstack. No score, threshold or scanned
+  file changes. On bumping the pin, run `qg-skills`.
+
 ## 0.14.1 — 2026-11-25
 
 Six more of Matt Pocock's skills ship. No score, threshold or scanned file
