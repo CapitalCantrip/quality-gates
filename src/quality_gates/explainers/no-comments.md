@@ -23,4 +23,4 @@ If the project's Rust code has `// SAFETY:` notes, setup asks whether to switch 
 
 ## Want to go deeper?
 
-- [Safety comments policy, Rust standard library developers guide](https://std-dev-guide.rust-lang.org/policy/safety-comments.html): why Rust asks for a `SAFETY:` note above `unsafe` code, the one convention the gate knows today. Checked 2026-11-24.
+- [Safety comments policy, Rust standard library developers guide](https://std-dev-guide.rust-lang.org/policy/safety-comments.html): why Rust asks for a `SAFETY:` note above `unsafe` code, the one convention the gate knows today. Checked 2026-11-25.

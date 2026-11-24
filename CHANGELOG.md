@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.0 — 2026-11-25
+
+- **`grilling`, `research` and `prototype` ship (ADR-003 addendum
+  2026-11-25).** `grill-with-docs`, `wayfinder`, `triage` and
+  `improve-codebase-architecture` call them by name; without the copies those
+  calls failed in cloud sessions and wherever Pocock's plugin was not
+  installed. On bumping the pin, run `qg-skills`. A project that kept his
+  plugin only for these three can turn it off.
+
 ## 0.14.0 — 2026-11-24
 
 The comment gate reads Rust fully and now TypeScript, Swift and shell, and

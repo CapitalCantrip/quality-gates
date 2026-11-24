@@ -172,6 +172,30 @@
         },
         {
           "kind": "skill",
+          "id": "grilling",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "research",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "skill",
+          "id": "prototype",
+          "origin": {
+            "type": "upstream",
+            "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "skill",
           "id": "pr",
           "origin": {
             "type": "upstream",

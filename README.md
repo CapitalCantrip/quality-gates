@@ -35,7 +35,7 @@ folder:
    gate commands and `coverage` on your computer:
 
    ```bash
-   uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.14.0"
+   uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.15.0"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -454,6 +454,9 @@ file-level record `qg-upstream` reads.
 |---|---|---|
 | `/wayfinder` | Pocock | Maps work too big for one session as decision tickets and settles them one at a time |
 | `/grill-with-docs` | Pocock | Questions you about a plan until it is sharp, writing ADRs and the glossary as it goes |
+| `grilling` | Pocock | The questioning loop `/grill-with-docs` and `/wayfinder` call: one round of questions at a time, each with a recommended answer |
+| `research` | Pocock | Answers a question from primary sources into a Markdown file; `/wayfinder` calls it |
+| `prototype` | Pocock | Builds a throwaway prototype to settle a design question; `/wayfinder` calls it |
 | `/to-spec` | Pocock | Turns the conversation into a spec on the issue tracker |
 | `/to-tickets` | Pocock | Breaks a spec into tickets, each saying what it waits on |
 

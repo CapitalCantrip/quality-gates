@@ -158,9 +158,9 @@ class SkillsSync(unittest.TestCase):
     def test_the_package_ships_every_skill_the_plugin_lists(self):
         names = skills_sync.skill_names(skills_sync.SHIPPED)
         self.assertEqual(names, ["cc-python", "cc-rust", "cc-swift", "cc-typescript", "codebase-design", "crap",
-                                 "diagnosing-bugs", "domain-modeling", "grill-with-docs", "handoff",
+                                 "diagnosing-bugs", "domain-modeling", "grill-with-docs", "grilling", "handoff",
                                  "implement", "implement-spec", "improve-codebase-architecture",
-                                 "no-comments", "pr", "retro", "review-against-spec",
+                                 "no-comments", "pr", "prototype", "research", "retro", "review-against-spec",
                                  "setup-matt-pocock-skills", "setup-standards", "standards", "tdd",
                                  "to-spec", "to-tickets", "triage", "wayfinder", "writing-for-agents"])
 
@@ -169,7 +169,7 @@ class SkillsSync(unittest.TestCase):
                   if source.repo == "mattpocock/skills"
                   for local in source.files.values() if "/skills/" in local}
         copied.discard("setup-standards")
-        self.assertEqual(len(copied), 17)
+        self.assertEqual(len(copied), 20)
         for name in copied:
             self.assertTrue((skills_sync.SHIPPED / name / "LICENSE-mattpocock").is_file(), name)
 

@@ -90,6 +90,7 @@ bumping their pin; their `qg-skills --check` test fails until they rerun
 ## Current rule, restated 2026-10-12: the vendored skills
 
 Amends: [Decision](#decision)
+Amended by: [Addendum 2026-11-25](#addendum-2026-11-25-the-skills-the-copied-ones-call)
 
 `qg-skills` ships 17 of Matt Pocock's skills beside the standards skills, copied
 from `mattpocock/skills` at one pinned commit:
@@ -123,3 +124,15 @@ upstream file changes. Adopting the change means replacing the word-for-word
 copies, redoing each listed change, moving the pinned commit, and releasing.
 Consumers get it by bumping their pin; their `qg-skills --check` test fails
 until they rerun `qg-skills`, so a stale copy cannot pass CI.
+
+## Addendum 2026-11-25: the skills the copied ones call
+
+Amends: [Current rule, restated 2026-10-12](#current-rule-restated-2026-10-12-the-vendored-skills)
+
+`grilling`, `research` and `prototype` now ship too, word for word, making 20.
+`grill-with-docs`, `wayfinder`, `triage` and `improve-codebase-architecture`
+call `grilling` by name, and `wayfinder` calls `research` and `prototype`. A
+cloud session ignores plugins, so without the copies those calls failed there,
+and locally they worked only where his plugin happened to be installed. The
+rule this adds: a copied skill that calls another of his skills by name ships
+that skill as well.
