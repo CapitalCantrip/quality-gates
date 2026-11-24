@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.14.1 — 2026-11-25
+
+Six more of Matt Pocock's skills ship. No score, threshold or scanned file
+changes. On bumping the pin, run `qg-skills`.
+
+- **`grilling`, `research` and `prototype` ship (ADR-003 addendum
+  2026-11-25).** `grill-with-docs`, `wayfinder`, `triage` and
+  `improve-codebase-architecture` call them by name; without the copies those
+  calls failed in cloud sessions and wherever Pocock's plugin was not
+  installed. On bumping the pin, run `qg-skills`. A project that kept his
+  plugin only for these three can turn it off.
+- **`grill-me`, `wait-what` and `wizard` ship.** The first two run only when
+  you type them, so they add nothing to a session's context. `wizard` writes a
+  script that walks you through steps only a person can do. With these, a
+  project that used his plugin for the skills quality-gates did not copy can
+  check whether it still needs it.
+
 ## 0.14.0 — 2026-11-24
 
 The comment gate reads Rust fully and now TypeScript, Swift and shell, and

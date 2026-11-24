@@ -35,7 +35,7 @@ folder:
    gate commands and `coverage` on your computer:
 
    ```bash
-   uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.14.0"
+   uv tool install --with-executables-from coverage "quality-gates[coverage] @ git+https://github.com/CapitalCantrip/quality-gates@v0.14.1"
    ```
 
 2. Run this command to copy the skills into the project:
@@ -454,6 +454,9 @@ file-level record `qg-upstream` reads.
 |---|---|---|
 | `/wayfinder` | Pocock | Maps work too big for one session as decision tickets and settles them one at a time |
 | `/grill-with-docs` | Pocock | Questions you about a plan until it is sharp, writing ADRs and the glossary as it goes |
+| `grilling` | Pocock | The questioning loop `/grill-with-docs` and `/wayfinder` call: one round of questions at a time, each with a recommended answer |
+| `research` | Pocock | Answers a question from primary sources into a Markdown file; `/wayfinder` calls it |
+| `prototype` | Pocock | Builds a throwaway prototype to settle a design question; `/wayfinder` calls it |
 | `/to-spec` | Pocock | Turns the conversation into a spec on the issue tracker |
 | `/to-tickets` | Pocock | Breaks a spec into tickets, each saying what it waits on |
 
@@ -489,6 +492,9 @@ file-level record `qg-upstream` reads.
 | `/triage` | Pocock | Sorts issues and labels them ready for an agent or a person |
 | `/retro` | Pocock | Looks back on a session for what to change next time |
 | `writing-for-agents` | Pocock | How to write skills, `CLAUDE.md` and other text an agent reads |
+| `/grill-me` | Pocock | Asks to be grilled on a plan; you type it, the agent never starts it |
+| `/wait-what` | Pocock | Asks the agent to re-tell its last message plainly, in the glossary's words; you type it |
+| `wizard` | Pocock | Writes a step-by-step script that walks you through what only you can do, such as dashboard settings or secrets |
 | `/handoff` | Pocock | Writes a summary so another session can pick up the work; it is saved in a temporary folder, which a cloud session loses when it ends |
 
 Three more commands support them:
