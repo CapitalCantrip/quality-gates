@@ -95,7 +95,7 @@ Built in 0.13.0 unless marked otherwise. Source: [ADR-007](archive/ADR-007-compo
 ## Shipped skills
 
 <!-- rule:vendored-skills -->
-`qg-skills` ships 20 of Matt Pocock's skills beside the standards skills, copied
+`qg-skills` ships 23 of Matt Pocock's skills beside the standards skills, copied
 from `mattpocock/skills` at one pinned commit:
 
 - every step the size rule names: `wayfinder`, `grill-with-docs`, `to-spec`,
@@ -104,7 +104,7 @@ from `mattpocock/skills` at one pinned commit:
   `review-against-spec`;
 - what those steps call or the builder uses beside them: `codebase-design`,
   `domain-modeling`, `grilling`, `research`, `prototype`, `pr`, `triage`,
-  `retro`, `writing-for-agents`, `handoff`.
+  `retro`, `writing-for-agents`, `handoff`, `grill-me`, `wait-what`, `wizard`.
 
 Each copied skill carries his MIT notice as `LICENSE-mattpocock`.
 

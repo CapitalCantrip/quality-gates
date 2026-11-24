@@ -674,7 +674,7 @@
     {
       "id": "session-helpers",
       "name": "Session helpers",
-      "description": "Sorting issues, handing a session over, looking back on one, and writing text an agent reads.",
+      "description": "Sorting issues, handing a session over, looking back on one, writing text an agent reads, asking to be grilled or re-told plainly, and walking a person through steps only they can do.",
       "core": false,
       "languages": [],
       "origin": {
@@ -697,6 +697,18 @@
         {
           "kind": "skill",
           "id": "writing-for-agents"
+        },
+        {
+          "kind": "skill",
+          "id": "grill-me"
+        },
+        {
+          "kind": "skill",
+          "id": "wait-what"
+        },
+        {
+          "kind": "skill",
+          "id": "wizard"
         }
       ]
     }

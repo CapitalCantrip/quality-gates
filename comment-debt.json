@@ -1,4 +1,6 @@
 {
   ".claude/skills/diagnosing-bugs/scripts/hitl-loop.template.sh": 17,
-  "src/quality_gates/skills/diagnosing-bugs/scripts/hitl-loop.template.sh": 17
+  ".claude/skills/wizard/template.sh": 40,
+  "src/quality_gates/skills/diagnosing-bugs/scripts/hitl-loop.template.sh": 17,
+  "src/quality_gates/skills/wizard/template.sh": 40
 }

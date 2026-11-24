@@ -136,3 +136,8 @@ cloud session ignores plugins, so without the copies those calls failed there,
 and locally they worked only where his plugin happened to be installed. The
 rule this adds: a copied skill that calls another of his skills by name ships
 that skill as well.
+
+Three more ship on their own merits, making 23: `grill-me` and `wait-what`,
+which the builder types and the agent cannot start, so they cost no context,
+and `wizard`, which writes a script that walks the builder through steps only
+a person can do.
