@@ -29,6 +29,8 @@ file when its trigger matches; read only the files that apply.
   [principles/explain-the-number.md](principles/explain-the-number.md)
 - **Build the lever** — when work is more than a couple of obvious edits.
   [principles/build-the-lever.md](principles/build-the-lever.md)
+- **Sequence verifiable units** — when work runs to several steps, edits or
+  commits. [principles/sequence-verifiable-units.md](principles/sequence-verifiable-units.md)
 - **Test behaviour, not implementation** — when writing, changing or keeping a
   test. [principles/test-behaviour-not-implementation.md](principles/test-behaviour-not-implementation.md)
 - **Subtract before you add** — when planning an addition, refactor or rewrite.
@@ -41,8 +43,13 @@ file when its trigger matches; read only the files that apply.
 - **Minimise reader load** — when code is hard to trace, or before adding a
   layer or a piece of state.
   [principles/minimise-reader-load.md](principles/minimise-reader-load.md)
+- **Fix root causes** — when debugging a failure, crash or wrong result.
+  [principles/fix-root-causes.md](principles/fix-root-causes.md)
 - **Attack the premise** — when a second fix resting on the same assumption has
   failed. [principles/attack-the-premise.md](principles/attack-the-premise.md)
+- **Guard the context window** — before a read or command that could return
+  a lot of text, or when the session is long.
+  [principles/guard-the-context-window.md](principles/guard-the-context-window.md)
 - **Encode lessons in structure** — when the same correction arrives a second
   time. [principles/encode-lessons-in-structure.md](principles/encode-lessons-in-structure.md)
 - **Date every "this can't be done"** — when recording or relying on a finding

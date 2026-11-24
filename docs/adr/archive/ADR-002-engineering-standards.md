@@ -90,7 +90,7 @@ and a rename would change nothing about how they work.
 
 ### Principles: a vocabulary with a promotion path
 
-Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Current rule, restated 2026-10-12: principles from use](#current-rule-restated-2026-10-12-principles-from-use), [Current rule, restated 2026-10-12: the promotion path](#current-rule-restated-2026-10-12-the-promotion-path)
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Current rule, restated 2026-10-12: principles from use](#current-rule-restated-2026-10-12-principles-from-use), [Current rule, restated 2026-10-12: the promotion path](#current-rule-restated-2026-10-12-the-promotion-path), [Addendum 2026-11-26: three more pstack principles](#addendum-2026-11-26-three-more-pstack-principles)
 
 The principles ship as one skill, `standards`, through `qg-skills` like the
 gates' skills. Its `SKILL.md` is an index of one line per principle, saying
@@ -401,3 +401,20 @@ This is a principle in the `standards` skill. Each consuming project's
 `CLAUDE.md` also carries a one-line pointer to it, because skills load only
 when invoked and this rule must apply to every turn. `qg-skills --check` fails
 when that line is missing.
+
+## Addendum 2026-11-26: three more pstack principles
+
+Amends: [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path)
+
+Three more pstack principles join the first set, adapted like the others:
+*fix root causes*, *guard the context window* and *sequence verifiable
+units*. They cover debugging, usage and step-by-step delivery, which the first
+set left to the workflow alone. They live in the one `standards` skill, so
+they add nothing to a session's skill list.
+
+*Guard the context window* drops pstack's advice to route bulk output to
+subagents by default: a subagent costs more usage than a narrow read, and some
+projects allow subagents only on request. The rest of pstack's principles and
+all its skills stay out. *Never block on the human* conflicts with asking the
+builder; the others repeat a principle or skill already shipped, are specific
+to one language, or are too general to change what an agent does.
