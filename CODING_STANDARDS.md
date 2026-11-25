@@ -40,6 +40,16 @@ file.
    published a private item.
    Source: AgenticOS coding standards, rule 3.
 
+9. **A command found in a consumer's file counts only as the command word of
+   a command segment, never as a substring, and code that places something
+   by such a find writes nothing unless exactly one place qualifies.** It
+   prints a note saying where to put it by hand. Each reader has a test for a
+   file name, an argument and a trailing comment that name the command.
+   Reason: both hard review findings on #234 came from deciding "this job
+   runs a gate" by a substring of the workflow text, the second in the fix
+   for the first.
+   Source: #234 retro (2026-11-26).
+
 ## Changing behaviour
 
 5. **When a change replaces a component, list what the old one did that people
