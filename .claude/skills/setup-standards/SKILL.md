@@ -56,9 +56,9 @@ explanation fresh.
 7. Read `CLAUDE.md` for lines that restate what `docs/agents/` now holds: a
    label list, issue tracker commands, where the glossary lives, a path to
    `issue-tracker.md`, `triage-labels.md` or `domain.md` under
-   `.claude/agents/`, or a mention of `CONTEXT.md`. A line naming a shipped
-   agent in `.claude/agents/` stays. Replace each with a
-   one-line context pointer to the file that holds it. A context pointer says
+   `.claude/agents/`, or a mention of `CONTEXT.md`. Replace each such line
+   with a one-line context pointer to the file that holds it, and leave a line
+   that names a shipped agent in `.claude/agents/` as it is. A context pointer says
    what is at the other end, so an agent knows when to open it: "GitHub Issues
    on this repo, through the `gh` CLI. See `docs/agents/issue-tracker.md`.",
    not "See `docs/agents/issue-tracker.md`." Check the pointers already in

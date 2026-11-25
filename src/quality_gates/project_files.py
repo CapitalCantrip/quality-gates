@@ -22,6 +22,8 @@ OWN_AGENT = "the project's own agent has a name quality-gates ships"
 NO_LONGER_SHIPPED = "not shipped"
 AGENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 FRONTMATTER_FENCE = "---"
+FRONTMATTER_NAME = re.compile(r"name:\s*(?P<value>.*?)\s*(?:\s#.*)?$")
+TEXT_WITH_BOM = "utf-8-sig"
 STAGE_GUARD = "stage_guard.py"
 STAGE_GUARD_COMMAND = 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/stage_guard.py"'
 INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md")
@@ -90,6 +92,10 @@ class SettingsError(Exception):
     pass
 
 
+class UnreadableAgentList(Exception):
+    pass
+
+
 def hook_names(source=HOOKS_SOURCE):
     return sorted(p.name for p in source.glob("*.py"))
 
@@ -134,64 +140,95 @@ def shipped_agents(dest):
     path = dest / SHIPPED_AGENTS_LIST
     if not path.is_file():
         return set()
-    return {name for name in path.read_text(encoding="utf-8").split() if AGENT_NAME.fullmatch(name)}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as error:
+        raise UnreadableAgentList(f"{path} cannot be read ({error}); delete it, then rerun qg-skills") from error
+    return {name for name in text.split() if AGENT_NAME.fullmatch(name)}
 
 
 def frontmatter_lines(path):
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        lines = path.read_text(encoding=TEXT_WITH_BOM).splitlines()
     except (OSError, UnicodeDecodeError):
         return []
     if not lines or lines[0].strip() != FRONTMATTER_FENCE:
         return []
-    return lines[1:lines.index(FRONTMATTER_FENCE, 1)] if FRONTMATTER_FENCE in lines[1:] else []
+    for end, line in enumerate(lines[1:], 1):
+        if line.strip() == FRONTMATTER_FENCE:
+            return lines[1:end]
+    return []
 
 
 def declared_agent_name(path):
     for line in frontmatter_lines(path):
-        key, colon, value = line.partition(":")
-        if colon and key.strip() == "name":
-            return value.strip().strip("\"'")
+        found = FRONTMATTER_NAME.match(line)
+        if found:
+            return found.group("value").strip("\"'").lower()
     return None
 
 
+def agent_files_in(dest):
+    if not dest.is_dir():
+        return []
+    return sorted(p for p in dest.iterdir() if p.suffix.lower() == AGENT_SUFFIX and p.is_file())
+
+
+def same_bytes(a, b):
+    try:
+        return filecmp.cmp(a, b, shallow=False)
+    except OSError:
+        return False
+
+
 def claims_shipped_name(path, name, source):
-    return path.stem != name or not filecmp.cmp(path, agent_file(source, name), shallow=False)
+    return path.name != agent_file(Path(), name).name or not same_bytes(path, agent_file(source, name))
 
 
-def own_agent_clashes(dest, source=AGENTS_SOURCE):
-    listed, names = shipped_agents(dest), set(agent_names(source))
+def clashes_in(dest, source, listed, names):
     found = []
-    for path in sorted(dest.glob(f"*{AGENT_SUFFIX}")):
-        if path.stem not in listed:
-            claimed = sorted({path.stem, declared_agent_name(path)} & names)
+    for path in agent_files_in(dest):
+        if path.name not in {agent_file(Path(), name).name for name in listed}:
+            claimed = sorted({path.stem.lower(), declared_agent_name(path)} & names)
             found += [(path, name) for name in claimed if claims_shipped_name(path, name, source)]
     return found
+
+
+@dataclass(frozen=True)
+class AgentSurvey:
+    states: dict
+    clashes: tuple
+    stale: tuple
+
+    @property
+    def clashing_files(self):
+        return sorted({path for path, _ in self.clashes})
+
+
+def survey_agents(dest, source=AGENTS_SOURCE):
+    listed, names = shipped_agents(dest), agent_names(source)
+    clashes = tuple(clashes_in(dest, source, listed, set(names)))
+    claimed = {name for _, name in clashes}
+    states = {name: OWN_AGENT if name in claimed else copied_agent(dest, name, source) for name in names}
+    stale = tuple(name for name in sorted(listed - set(names)) if agent_file(dest, name).is_file())
+    return AgentSurvey(states, clashes, stale)
 
 
 def copied_agent(dest, name, source=AGENTS_SOURCE):
     return copied_file(agent_file(source, name), agent_file(dest, name))
 
 
-def agent_states(dest, source=AGENTS_SOURCE):
-    claimed = {name for _, name in own_agent_clashes(dest, source)}
-    return {name: OWN_AGENT if name in claimed else copied_agent(dest, name, source) for name in agent_names(source)}
-
-
-def stale_agents(dest, source=AGENTS_SOURCE):
-    return [name for name in sorted(shipped_agents(dest) - set(agent_names(source))) if agent_file(dest, name).is_file()]
-
-
 def agent_differences(dest, source=AGENTS_SOURCE):
-    found = [(agent_file(Path(), name), state) for name, state in agent_states(dest, source).items()
+    survey = survey_agents(dest, source)
+    found = [(agent_file(Path(), name).name, state) for name, state in survey.states.items()
              if state not in (SAME, OWN_AGENT)]
-    found += [(Path(path.name), OWN_AGENT) for path, _ in own_agent_clashes(dest, source)]
-    found += [(agent_file(Path(), name), NO_LONGER_SHIPPED) for name in stale_agents(dest, source)]
-    return [f"{COPIED_AGENTS}/{path.as_posix()}: {state}" for path, state in found]
+    found += [(path.name, OWN_AGENT) for path in survey.clashing_files]
+    found += [(agent_file(Path(), name).name, NO_LONGER_SHIPPED) for name in survey.stale]
+    return [f"{COPIED_AGENTS}/{name}: {state}" for name, state in found]
 
 
 def refuse_agent_clashes(dest, source=AGENTS_SOURCE):
-    clashes = sorted({path for path, _ in own_agent_clashes(dest, source)})
+    clashes = survey_agents(dest, source).clashing_files
     if clashes:
         raise ToolError(f"{', '.join(str(path) for path in clashes)}: the project's own agent, not one quality-gates "
                         f"installed, has the name of an agent quality-gates ships. Nothing was changed. "
@@ -199,7 +236,7 @@ def refuse_agent_clashes(dest, source=AGENTS_SOURCE):
 
 
 def check_before_install(claude_folder, agents_source=AGENTS_SOURCE):
-    read_settings(settings_file(claude_folder))
+    stage_guard_registered(settings_file(claude_folder))
     refuse_agent_clashes(agents_dir(claude_folder), agents_source)
 
 
@@ -223,13 +260,34 @@ def read_settings(path):
         raise SettingsError(f"{path} is not valid JSON ({error}); fix it, then run qg-skills again")
     if not isinstance(settings, dict):
         raise SettingsError(f"{path} must hold a JSON object")
+    problem = hook_shape_problem(settings)
+    if problem:
+        raise SettingsError(f"{path}: {problem}; fix it, then run qg-skills again")
     return settings
+
+
+def objects_list(value):
+    return isinstance(value, list) and all(isinstance(item, dict) for item in value)
+
+
+def hook_shape_problem(settings):
+    hooks = settings.get("hooks", {})
+    if not isinstance(hooks, dict):
+        return "`hooks` must be a JSON object"
+    entries = hooks.get("PreToolUse", [])
+    if not objects_list(entries):
+        return "`hooks.PreToolUse` must be a list of objects"
+    if not all(objects_list(entry.get("hooks", [])) for entry in entries):
+        return "each `hooks.PreToolUse` entry's `hooks` must be a list of objects"
+    return None
 
 
 def registered_commands(settings):
     for entry in settings.get("hooks", {}).get("PreToolUse", []):
         for hook in entry.get("hooks", []):
-            yield hook.get("command", "")
+            command = hook.get("command", "")
+            if isinstance(command, str):
+                yield command
 
 
 def stage_guard_registered(path):

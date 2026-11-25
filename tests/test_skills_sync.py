@@ -233,6 +233,53 @@ class SkillsSync(unittest.TestCase):
         self.assertFalse(self.dest.exists())
         self.assertFalse(self.agents.exists())
 
+    def assert_sync_stops_on(self, filename, text):
+        self.write(self.agents / filename, text)
+        code, out = self.sync()
+        self.assertEqual(code, 2, out)
+        self.assertIn(filename, out)
+        self.assertEqual((self.agents / filename).read_text(), text)
+
+    def test_sync_stops_on_a_project_agent_whose_filename_differs_from_a_shipped_one_only_in_case(self):
+        self.assert_sync_stops_on("Reviewer.md", "the repo's own reviewer")
+
+    def test_sync_stops_on_a_project_agent_with_an_upper_case_suffix(self):
+        self.assert_sync_stops_on("reviewer.MD", "the repo's own reviewer")
+
+    def test_a_frontmatter_name_with_an_inline_comment_still_counts_as_that_name(self):
+        self.assert_sync_stops_on("code-reviewer.md", "---\nname: reviewer  # ours\n---\n")
+
+    def test_a_frontmatter_name_after_a_byte_order_mark_still_counts(self):
+        self.assert_sync_stops_on("code-reviewer.md", "\ufeff---\nname: reviewer\n---\n")
+
+    def test_a_closing_fence_with_trailing_spaces_still_ends_the_frontmatter(self):
+        self.assert_sync_stops_on("code-reviewer.md", "---\nname: reviewer\n---   \nbody\n")
+
+    def test_an_indented_name_key_inside_another_mapping_is_not_the_agents_name(self):
+        self.write(self.agents / "planner.md", "---\nowner:\n  name: reviewer\nname: planner\n---\n")
+        self.assertEqual(self.sync()[0], 0)
+
+    def test_check_names_a_clashing_file_once_even_when_it_claims_two_shipped_names(self):
+        self.write(self.agents / "reviewer.md", "---\nname: implementer\n---\nours")
+        code, out = self.check()
+        self.assertEqual(code, 1)
+        self.assertEqual(out.count("agents/reviewer.md: the project's own agent"), 1)
+
+    def test_an_unreadable_shipped_list_stops_qg_skills_with_exit_2_and_names_it(self):
+        self.sync()
+        (self.agents / ".shipped-by-quality-gates").write_bytes(b"\xff\xfe")
+        for result in (self.sync(), self.check()):
+            self.assertEqual(result[0], 2)
+            self.assertIn(".shipped-by-quality-gates", result[1])
+
+    def test_settings_json_of_the_wrong_shape_stops_qg_skills_before_it_copies_anything(self):
+        for text in ('{"hooks": []}', '{"hooks": {"PreToolUse": {}}}', '{"hooks": {"PreToolUse": [{"hooks": [1]}]}}'):
+            self.write(self.repo / ".claude" / "settings.json", text)
+            code, out = self.sync()
+            self.assertEqual(code, 2, text)
+            self.assertIn("settings.json", out)
+            self.assertFalse(self.dest.exists(), text)
+
     def test_the_package_ships_the_four_engineering_agents(self):
         self.assertEqual(project_files.agent_names(project_files.AGENTS_SOURCE),
                          ["debt-payer", "diagnoser", "implementer", "reviewer"])

@@ -188,6 +188,11 @@ class Status(unittest.TestCase):
         self.assertEqual(part(report, "core", "agent", "diagnoser")["status"], "different")
         self.assertIn("agent diagnoser: different", component(report, "core")["needs_attention"])
 
+    def test_an_unreadable_shipped_agent_list_makes_the_agents_unknown_without_a_crash(self):
+        self.set_up()
+        (self.repo / ".claude" / "agents" / ".shipped-by-quality-gates").write_bytes(b"\xff\xfe")
+        self.assertEqual(part(self.report(), "core", "agent", "reviewer")["status"], "unknown")
+
     def test_status_agrees_with_qg_skills_check_on_a_copied_file(self):
         self.set_up()
         self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "edited")

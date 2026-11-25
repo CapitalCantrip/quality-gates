@@ -16,8 +16,8 @@
 - **`/setup-standards` asks you** whether to rename or remove a project agent
   that has a shipped agent's name.
 - **`qg-skills` reads `.claude/settings.json` before copying anything.** A
-  broken one used to stop it after the skills were already overwritten; now
-  nothing changes until you fix it.
+  broken or wrongly shaped one used to stop it after the skills were already
+  overwritten; now nothing changes until you fix it.
 
 ## 0.14.2 — 2026-11-26
 

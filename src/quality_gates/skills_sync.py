@@ -106,6 +106,6 @@ def main(argv=None, source=SHIPPED, hooks=project_files.HOOKS_SOURCE, agents=pro
     except ToolError as error:
         print(f"qg-skills: {error}", file=sys.stderr)
         sys.exit(TOOL_ERROR_EXIT)
-    except project_files.SettingsError as error:
+    except (project_files.SettingsError, project_files.UnreadableAgentList) as error:
         print(error, file=sys.stderr)
         sys.exit(TOOL_ERROR_EXIT)

@@ -4,6 +4,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 from quality_gates import comment_debt, project_files, skills_sync
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
@@ -54,14 +55,22 @@ class Project:
     hooks: Path
     shipped_skills: frozenset
     agents: Path
+    agent_survey: Optional[project_files.AgentSurvey] = None
 
     @property
     def claude_dir(self):
         return project_files.claude_dir(self.root)
 
 
+def surveyed_agents(root, agents):
+    try:
+        return project_files.survey_agents(project_files.agents_dir(project_files.claude_dir(root)), agents)
+    except project_files.UnreadableAgentList:
+        return None
+
+
 def project_at(root, source, hooks, agents=project_files.AGENTS_SOURCE):
-    return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)), agents)
+    return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)), agents, surveyed_agents(root, agents))
 
 
 def skill_status(project, part):
@@ -77,15 +86,16 @@ AGENT_STATES = {**COPY_STATES, project_files.OWN_AGENT: DIFFERENT}
 
 
 def agent_status(project, part):
-    states = project_files.agent_states(project_files.agents_dir(project.claude_dir), project.agents)
-    return AGENT_STATES[states.get(part.id, project_files.UNSHIPPED)]
+    survey = project.agent_survey
+    if survey is None:
+        return UNKNOWN
+    return AGENT_STATES[survey.states.get(part.id, project_files.UNSHIPPED)]
 
 
 def stale_agent_parts(project, component):
-    if not component.core:
+    if not component.core or project.agent_survey is None:
         return []
-    stale = project_files.stale_agents(project_files.agents_dir(project.claude_dir), project.agents)
-    return [{"kind": AGENT_PART, "id": name, "status": DIFFERENT} for name in stale]
+    return [{"kind": AGENT_PART, "id": name, "status": DIFFERENT} for name in project.agent_survey.stale]
 
 
 def copied_hook_status(project, name):

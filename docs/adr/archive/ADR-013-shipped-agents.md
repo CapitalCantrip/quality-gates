@@ -71,8 +71,11 @@ project's `.claude/agents/`, beside the skills:
 - **The repo copy wins over a user-level agent of the same name,** so local
   and cloud sessions run the same rules.
 
-The rules that tie the agents to the module map (the implementer stops when
-the map lacks a module, and the reviewer's shape check) are a separate change
+One module-map rule ships here: the implementer stops and reports when a
+ticket needs a module that is not on the map, not a concept in the glossary
+and not a real adapter, which matches the stop rule this repo's `CLAUDE.md`
+already gives. The rest of the module-map wiring (the full map wording, the
+reviewer's shape check and the debt-payer rule) is a separate change
 (quality-gates#122).
 
 ## Consequences
