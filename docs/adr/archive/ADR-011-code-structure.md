@@ -34,6 +34,8 @@ five. Words like module, interface, seam, depth and adapter carry their
 
 ### 1. One project module
 
+Amended by: [Addendum 2026-11-25: main's copy of a file, and the tolerated module](#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module)
+
 One module owns three jobs: finding the root, deciding which files the gates
 look at, and reading and writing every file quality-gates keeps in a project.
 
@@ -82,6 +84,8 @@ Amended by: [Addendum 2026-11-01: the languages-by-gates generator has its own m
 - **The registry is Python code,** a frozen table, not a data file.
 
 ### 3. One gate interface and one ratchet
+
+Amended by: [Addendum 2026-11-25: main's copy of a file, and the tolerated module](#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module)
 
 - **Gates only find.** A gate takes the files in scope and returns findings.
   Each finding has a location (a file, plus a function or line where there is
@@ -222,3 +226,45 @@ A copy installed in a consumer project refuses to write and says why.
 `--check` reads the same page and exits 1 when the page differs from the
 tables. A refusal to write exits 2. A missing or malformed `components.json`
 exits 3 with one line on stderr naming the problem, in either mode.
+
+## Addendum 2026-11-25: main's copy of a file, and the tolerated module
+
+Amends: [1. One project module](#1-one-project-module) and [3. One gate interface and one ratchet](#3-one-gate-interface-and-one-ratchet)
+
+Sprint 3a (quality-gates#192, #193, #195) needs two things ADR-011 names no
+module for. Decided by the builder in the sprint 3a grilling (#232, comment of
+2026-11-25).
+
+**The project module reads main's copy of a file.** It resolves the repo's
+default branch and returns a file's bytes as committed there, or a plain
+"absent" when the branch or the file does not exist. Git stays in the project
+module, which already finds the root and lists the files git would commit. The
+ratchet asks it when `--update` finds no baseline file (#193), and the
+tolerated module asks it for the other side of its comparison (#192).
+
+**A new `tolerated` module adds up the tolerated list** (GLOSSARY): every
+baseline, the choice file's top-level `exclude` and
+`settings.no-comments.exclude`, the silencer baseline (#195), and recorded
+reasons when #115 lands them. It takes the tree and a git ref, reads
+baselines through the ratchet and the choice file and main's copy through the
+project module, and returns what grew as findings. It parses no git output and
+no JSON of its own. `qg tolerated --against <ref>` is its `qg` subcommand
+(§ 5); it exits 1 on growth unless the pull request carries the builder's
+`tolerated-growth` label or the `loosening` label (ADR-009 addendum
+2026-11-23), and always prints one line saying what grew. Setup installs it as
+a CI step between quality-gates' markers.
+
+**The silencer finding kind lives in the comment gate's table,** one pattern
+per language beside its comment syntax, not in the registry (§ 2). `comment-debt`
+returns silencers as a second kind of finding, and the ratchet holds them in
+their own baseline under a fixed name the project module knows.
+
+### Rejected
+
+- **Both jobs inside the ratchet.** The ratchet would run git and read the
+  choice file, which belong to the project module, and it would grow a job
+  that is not judging findings.
+- **A stand-alone `tolerated-check` command.** It is not a gate on code, and
+  every new command is a `qg` subcommand (§ 5).
+- **Silencer lists in the language registry.** The registry holds nothing
+  about gates (§ 2).
