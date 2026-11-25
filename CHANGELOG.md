@@ -46,10 +46,27 @@
   2026-11-26). Deleting a committed baseline and running `--update` used to
   record every new and worse function; now it exits 2 and says to restore the
   file with `git checkout <branch> -- <file>`, or to run `--rerecord`. A first
-  baseline, where the default branch has none, is recorded as before. On
+  baseline, where the default branch has none, is recorded as before.
+  `--rerecord` records measured entries afresh and keeps unmeasured ones; in
+  `comment-debt` it records the silencer baseline too. An unreadable baseline
+  stops it: delete the file first. On
   bumping the pin: wherever an earlier entry, or this release, says to delete
   a baseline and run `--update`, run the gate with `--rerecord` instead and
   ask the builder for the `tolerated-growth` label on that pull request.
+- **Python's `# pragma: no cover` and `# pragma: no branch` are silencers
+  (ADR-010 addendum 2026-11-26).** `comment-debt` now reports a marker that
+  switches off one of our own gates as its own finding, held in
+  `silencer-baseline.json` (a count per file that only shrinks) and no longer
+  counted as a comment line. A function over the limit could pass `crap` by
+  hiding its untested branches under the pragma; now each pragma fails the
+  gate unless it is recorded. The pragma counts wherever it sits on a line, a
+  string or docstring included, as coverage.py reads the line. `# noqa`, `# type: ignore` and `# fmt:` are
+  neither comment lines nor silencers. On bumping the pin, run
+  `comment-debt --update` once and commit `silencer-baseline.json`: until it
+  exists `comment-debt` exits 2, and it records the pragmas already there.
+  Your comment-debt count drops by any pragma that carried prose. `qg setup`
+  now records `silencer-baseline.json` beside `comment-debt.json` when it
+  switches a comment language on. TypeScript, Swift and Rust silencers follow.
 
 ## 0.14.2 — 2026-11-26
 

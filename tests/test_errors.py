@@ -40,6 +40,7 @@ class AsciiLocaleTest(unittest.TestCase):
 
     def test_comment_debt_prints_a_failing_file_under_an_ascii_locale(self):
         (self.module.parent / "comment-debt.json").write_text("{}\n", encoding="utf-8")
+        (self.module.parent / "silencer-baseline.json").write_text("{}\n", encoding="utf-8")
         self.module.write_text("x = 1  # hi\n", encoding="utf-8")
         subprocess.run(["git", "add", "mod.py"], cwd=self.module.parent, check=True)
         done = self.run_module("quality_gates.comment_debt")

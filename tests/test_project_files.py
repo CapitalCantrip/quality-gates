@@ -438,7 +438,7 @@ CATCH_EVERY_ERROR = {"Exception", "BaseException"}
 SUPPRESS = "suppress"
 GATE_MODULES = ("comment_debt", "quality_check", "crap")
 RATCHET_PATH = "quality_gates.ratchet"
-GATE_INTERFACE = {"Finding", "Location", "Asked", "Wording", "Result", "enforce", "run_gate", "add_rerecord"}
+GATE_INTERFACE = {"Finding", "Location", "Asked", "Wording", "Result", "enforce", "run_gate", "silencer_asked", "readable", "add_rerecord"}
 BASELINE_FORMAT = "json"
 
 
@@ -809,14 +809,14 @@ class MainsCopyOfAFile(unittest.TestCase):
     def test_master_is_the_default_branch_when_there_is_no_main(self):
         committed(self.root, "cc-baseline.json", b"{}\n", branch="master")
         self.assertEqual(pf.default_branch(self.root), "refs/heads/master")
-        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("master", b"{}\n"))
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("master", b"{}\n", "cc-baseline.json"))
 
     def test_the_remotes_default_branch_comes_before_a_local_main(self):
         committed(self.root, "cc-baseline.json", b"main\n")
         committed(self.root, "cc-baseline.json", b"trunk\n", branch="trunk")
         git(self.root, "update-ref", "refs/remotes/origin/trunk", "trunk")
         git(self.root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
-        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("origin/trunk", b"trunk\n"))
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("origin/trunk", b"trunk\n", "cc-baseline.json"))
 
     def test_a_local_main_is_named_main(self):
         committed(self.root, "cc-baseline.json", b"{}\n")
@@ -825,7 +825,7 @@ class MainsCopyOfAFile(unittest.TestCase):
     def test_where_git_ignores_case_a_file_main_holds_is_found_under_another_spelling(self):
         committed(self.root, "baselines/cc-baseline.json", b"{}\n")
         git(self.root, "config", "core.ignorecase", "true")
-        self.assertEqual(pf.main_copy(self.root, "Baselines/CC-Baseline.json"), pf.MainCopy("main", b"{}\n"))
+        self.assertEqual(pf.main_copy(self.root, "Baselines/CC-Baseline.json"), pf.MainCopy("main", b"{}\n", "baselines/cc-baseline.json"))
 
     def test_where_git_heeds_case_another_spelling_is_absent(self):
         committed(self.root, "cc-baseline.json", b"{}\n")
@@ -858,7 +858,7 @@ class MainsCopyOfAFile(unittest.TestCase):
         committed(self.root, "cc-baseline.json", b"base\n", branch="pr")
         git(self.root, "update-ref", "refs/remotes/origin/main", "pr")
         self.assertEqual(pf.default_branch(self.root), "refs/remotes/origin/main")
-        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("origin/main", b"base\n"))
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("origin/main", b"base\n", "cc-baseline.json"))
 
     def test_without_git_on_the_path_every_git_call_is_one_tool_error_naming_git(self):
         calls = (lambda: pf.git_root(self.root), lambda: pf.commit_of(self.root, "main"),
@@ -991,6 +991,11 @@ class ToleratedStepCheck(unittest.TestCase):
                      "      - run: QG_PR_LABELS=a,b qg tolerated --against x\n"):
             with self.subTest(step):
                 self.assertEqual(self.notes_for(job(step)), [])
+
+    def test_a_workflow_that_runs_the_step_wrongly_gets_its_note_even_when_another_runs_it_rightly(self):
+        self.workflow("good.yml", job(step_at("      ")))
+        self.workflow("ci.yml", job("      - run: qg tolerated --against origin/main\n"))
+        self.assertEqual(pf.tolerated_step_notes(self.root), [pf.PASS_THE_LABELS.format(".github/workflows/ci.yml")])
 
     def test_a_trigger_that_does_not_rerun_on_labels_gets_one_note_naming_the_types(self):
         for on in ("pull_request", "[push, pull_request]", "\n  pull_request:\n    types: [opened, labeled]",

@@ -83,6 +83,14 @@ often.
 - **No gate accepts an in-code marker** such as `gitleaks:allow` or
   `# pragma: no mutate` as its exception: markers are comments, and they cannot
   be reviewed in one place. ([ADR-006](archive/ADR-006-gates-beyond-complexity.md#two-kinds-of-exception-debt-and-recorded-reasons))
+- **Built: a marker that switches off one of our own gates is a silencer,**
+  recorded in `silencer-baseline.json`, a count per file that only shrinks, and
+  part of the tolerated list. `comment-debt` finds it and the ratchet judges it
+  (`PAID`, `new`, `worse`, unmeasured) like any baseline; `comment-debt
+  --update` records the silencers already there once and only lowers the file
+  after that. Python's are `# pragma: no cover` and `# pragma: no branch`;
+  TypeScript, Swift and Rust follow in quality-gates#236, #235 and #237.
+  ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding))
 
 ## Loosening
 

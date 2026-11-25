@@ -422,6 +422,10 @@ def agents_dir(claude_folder):
     return claude_folder / COPIED_AGENTS
 
 
+def silencer_baseline_change(text):
+    return PlannedChange(SILENCER_BASELINE, text)
+
+
 def settings_file(claude_folder):
     return claude_folder / SETTINGS
 

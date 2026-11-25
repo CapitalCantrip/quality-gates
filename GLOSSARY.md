@@ -207,6 +207,14 @@ baselines, the files a project excludes, in-code silencers, and recorded
 reasons, loosenings included. It may grow only with the builder's yes.
 _Avoid_: allowlist, ignore list, exceptions
 
+**Silencer**:
+An in-code marker that switches off one of quality-gates' own gates, such as
+Python's `# pragma: no cover`. `comment-debt` finds it at a file and line; it is
+held in `silencer-baseline.json`, a count per file that only shrinks, and is
+part of the tolerated list. A marker that silences no gate of ours, such as
+`# noqa`, is not one.
+_Avoid_: pragma, suppression
+
 **Recognised convention**:
 A comment form a language's own community requires, such as Rust's `SAFETY:`
 above an `unsafe` block, that a project may switch on as an ordinary choice.

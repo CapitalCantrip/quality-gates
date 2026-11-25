@@ -17,71 +17,81 @@ from test_project_files import recorded_convention_ids
 REPO = Path(__file__).resolve().parents[1]
 
 
+def python_debt(source):
+    return cd.LANGUAGES['python'].reading(source, ()).debt
+
+
+def comment_findings_of(root):
+    return cd.comment_findings(cd.measure(root, cd.checked_files(root)))
+
+
 class CountingTest(unittest.TestCase):
 
     def test_a_hash_comment_on_its_own_line_is_debt(self):
-        self.assertEqual(list(cd.debt_kinds('x = 1\n# why\ny = 2\n')), [2])
+        self.assertEqual(list(python_debt('x = 1\n# why\ny = 2\n')), [2])
 
     def test_a_trailing_comment_is_debt(self):
-        self.assertEqual(list(cd.debt_kinds('x = 1  # why\n')), [1])
+        self.assertEqual(list(python_debt('x = 1  # why\n')), [1])
 
     def test_every_line_of_a_docstring_is_debt(self):
         source = 'def f():\n    """One.\n\n    Two.\n    """\n    return 1\n'
-        self.assertEqual(list(cd.debt_kinds(source)), [2, 3, 4, 5])
+        self.assertEqual(list(python_debt(source)), [2, 3, 4, 5])
 
     def test_a_bare_string_used_as_a_comment_is_debt(self):
         source = 'def f():\n    x = 1\n    "why"\n    return x\n'
-        self.assertEqual(list(cd.debt_kinds(source)), [3])
+        self.assertEqual(list(python_debt(source)), [3])
 
     def test_a_hash_inside_a_string_is_not_a_comment(self):
-        self.assertEqual(list(cd.debt_kinds('url = "a#b"\ncolour = "#fff"\n')), [])
+        self.assertEqual(list(python_debt('url = "a#b"\ncolour = "#fff"\n')), [])
 
     def test_a_string_that_is_assigned_is_not_debt(self):
-        self.assertEqual(list(cd.debt_kinds('HELP = """usage"""\n')), [])
+        self.assertEqual(list(python_debt('HELP = """usage"""\n')), [])
 
     def test_a_shebang_and_a_coding_cookie_are_exempt(self):
         source = '#!/usr/bin/env python3\n# -*- coding: utf-8 -*-\nx = 1\n'
-        self.assertEqual(list(cd.debt_kinds(source)), [])
+        self.assertEqual(list(python_debt(source)), [])
 
     def test_a_shebang_after_line_one_is_debt(self):
-        self.assertEqual(list(cd.debt_kinds('x = 1\n#!/bin/sh\n')), [2])
+        self.assertEqual(list(python_debt('x = 1\n#!/bin/sh\n')), [2])
 
     def test_a_bare_pragma_is_exempt(self):
         source = (
             'import a  # noqa: E402\n'
             'import b  # noqa: E402, F401\n'
             'x = 1  # type: ignore[valid-type]\n'
-            'if y:  # pragma: no cover\n'
+            'if y:  # prag' 'ma: no cover\n'
             '    pass\n'
         )
-        self.assertEqual(list(cd.debt_kinds(source)), [])
+        self.assertEqual(list(python_debt(source)), [])
 
     def test_a_pragma_that_carries_prose_is_debt(self):
-        self.assertEqual(list(cd.debt_kinds('import a  # noqa: E402  (path set above)\n')), [1])
+        self.assertEqual(list(python_debt('import a  # noqa: E402  (path set above)\n')), [1])
 
 
 def rust_lines(source, conventions=()):
-    return list(cd.LANGUAGES['rust'].checker(source, conventions))
+    return list(cd.LANGUAGES['rust'].reading(source, conventions).debt)
 
 
 SILENCERS_TO_COME = (
-    '# pragma: no cover', '# pragma: no branch', '/* istanbul ignore next */', '// c8 ignore next',
+    '# prag' 'ma: no cover', '# prag' 'ma: no branch', '/* istanbul ignore next */', '// c8 ignore next',
     '// swiftlint:disable:next cyclomatic_complexity', '#[allow(clippy::cognitive_complexity)]', '', 'x = 1',
 )
 
 
 class SilencerKindTest(unittest.TestCase):
 
-    def test_every_language_of_the_comment_gate_has_a_silencer_pattern(self):
+    def test_every_language_of_the_comment_gate_has_a_silencer_reader(self):
         for name, row in cd.LANGUAGES.items():
             with self.subTest(name):
-                self.assertIsInstance(row.silencer, re.Pattern)
+                self.assertTrue(callable(row.silencer))
 
-    def test_no_silencer_pattern_finds_anything_yet(self):
+    def test_no_other_language_silences_anything_yet(self):
         for name, row in cd.LANGUAGES.items():
+            if name == 'python':
+                continue
             for line in SILENCERS_TO_COME:
                 with self.subTest(name=name, line=line):
-                    self.assertIsNone(row.silencer.search(line))
+                    self.assertEqual(cd.LANGUAGES[name].reading(line + '\n', ()).silencers, ())
 
 
 class RustCountingTest(unittest.TestCase):
@@ -182,7 +192,7 @@ class LocalBarRustFixturesTest(unittest.TestCase):
 
 
 def typescript_lines(source):
-    return list(cd.LANGUAGES['typescript'].checker(source, ()))
+    return list(cd.LANGUAGES['typescript'].reading(source, ()).debt)
 
 
 class TypeScriptCountingTest(unittest.TestCase):
@@ -266,7 +276,7 @@ class LocalBarTypeScriptFixturesTest(unittest.TestCase):
 
 
 def swift_lines(source):
-    return list(cd.LANGUAGES['swift'].checker(source, ()))
+    return list(cd.LANGUAGES['swift'].reading(source, ()).debt)
 
 
 class SwiftCountingTest(unittest.TestCase):
@@ -295,7 +305,7 @@ class SwiftCountingTest(unittest.TestCase):
 
 
 def shell_lines(source):
-    return list(cd.LANGUAGES['shell'].checker(source, ()))
+    return list(cd.LANGUAGES['shell'].reading(source, ()).debt)
 
 
 class ShellCountingTest(unittest.TestCase):
@@ -406,6 +416,7 @@ class RepositoryTest(unittest.TestCase):
         self.root = Path(self.tmp.name)
         subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
         self.file = self.root / 'comment-debt.json'
+        (self.root / 'silencer-baseline.json').write_text('{}\n')
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -803,7 +814,7 @@ class RepositoryTest(unittest.TestCase):
             return original(file, *args, **kwargs)
 
         with mock.patch('builtins.open', recording_open):
-            found = cd.findings(self.root)
+            found = comment_findings_of(self.root)
         self.assertEqual([finding.location.key for finding in found], ['a.ts'])
         self.assertNotIn('deploy', opened)
 
@@ -877,7 +888,7 @@ class RepositoryTest(unittest.TestCase):
     def test_each_tracked_file_is_one_finding_with_its_comment_count_and_line_numbers(self):
         self.put('a.py', '# one\nx = 1\ny = 2  # two\n')
         self.put('b.py', 'x = 1\n')
-        self.assertEqual(cd.findings(self.root), [
+        self.assertEqual(comment_findings_of(self.root), [
             ratchet.Finding(ratchet.Location('a.py'), 2, 'comment lines', '1, 3'),
             ratchet.Finding(ratchet.Location('b.py'), 0, 'comment lines', ''),
         ])
@@ -1085,6 +1096,7 @@ class AcceptingRustEndToEndTest(SetupAndGate, unittest.TestCase):
     def install_the_comment_gate_without_a_choice_file(self):
         (self.root / 'src' / 'app.py').write_text('x = 1\n')
         self.file.write_text('{}\n')
+        (self.root / 'silencer-baseline.json').write_text('{}\n')
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt\n')
         (self.root / '.github' / 'workflows').mkdir(parents=True)

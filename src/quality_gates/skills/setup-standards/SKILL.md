@@ -118,7 +118,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    in place of any older entries for that language; every other entry stays
    as it was, less any entry of zero. Then remove the `--exclude` flags from
    the hook and CI, since `comment-debt` refuses them. Run `comment-debt`: it passes. Commit
-   `quality-gates.json`, `comment-debt.json`, the hook and CI together.
+   `quality-gates.json`, `comment-debt.json`, `silencer-baseline.json`, the hook
+   and CI together.
 6. Take each comment row step 4 left out, now that `quality-gates.json`
    exists. When the builder switched a convention on, add its name to
    `settings.no-comments.conventions` in `quality-gates.json` (no flag sets

@@ -148,6 +148,14 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     prose after one counts. TypeScript's `/// <reference … />` counts, as a
     doc comment, because an `import` or `tsconfig.json` does its job.
     ([ADR-010 addendum 2026-11-23](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references))
+  - **A silencer is a second kind of finding.** A marker that switches off one
+    of our own gates, such as Python's `# pragma: no cover` and
+    `# pragma: no branch`, is reported by `comment-debt` at its file and line,
+    held in `silencer-baseline.json` as a count per file that only shrinks, and
+    not counted as a comment line. `# noqa`, `# type: ignore` and `# fmt:` stay
+    exempt: they silence no gate of ours. TypeScript, Swift and Rust follow in
+    their own tickets (quality-gates#236, #235, #237).
+    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding))
   - **Each new language is its own component** (`no-comments-rust`,
     `no-comments-typescript`, `no-comments-swift`, `no-comments-shell`);
     `no-comments` stays Python's. A language is checked only when its

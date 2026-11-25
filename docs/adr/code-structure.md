@@ -36,12 +36,15 @@ quality-gates#115 lands) for the tree and for a git ref, and returns what grew.
 It reads baselines through the ratchet (`stored_baseline`, `baseline_at`) and
 files through the project module, and parses nothing itself; each part of the
 list is one source in its `SOURCES`, so the reasons file is one more.
-`qg tolerated --against <ref>` runs it in CI. Silencer patterns are rows in
-`comment-debt`'s per-language table, not the registry; they match nothing
-until quality-gates#195, with the ratchet asking for `silencer-baseline.json`
-by the name the project module knows. The ratchet's `--update` asks the
-project module whether the default branch holds a missing baseline
-(quality-gates#193). ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+`qg tolerated --against <ref>` runs it in CI. Silencer readers are rows in
+`comment-debt`'s per-language table, not the registry, with the ratchet asking
+for `silencer-baseline.json` by the name the project module knows. The
+ratchet's `--update` asks the project module whether the default branch holds
+a missing baseline (quality-gates#193). Built (quality-gates#195): Python's
+row reads `# pragma: no cover` and `# pragma: no branch` off the physical
+source lines, and `comment-debt` judges the silencers against
+`silencer-baseline.json` beside the comment lines; the other rows match
+nothing until quality-gates#235, #236 and #237. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding))
 
 ## One language registry
 
