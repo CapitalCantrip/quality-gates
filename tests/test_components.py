@@ -94,6 +94,11 @@ class ComponentManifest(unittest.TestCase):
     def test_every_skill_a_component_names_ships(self):
         self.assertEqual(sorted(part.id for _, part in parts("skill")), shipped_skills())
 
+    def test_the_core_lists_every_shipped_agent_and_no_other_component_lists_one(self):
+        listed = sorted((component.id, part.id) for component, part in parts("agent"))
+        shipped = sorted(path.stem for path in (PACKAGE / "agents").glob("*.md"))
+        self.assertEqual(listed, [("core", name) for name in shipped])
+
     def test_every_hook_a_component_names_ships(self):
         for _, part in parts("hook"):
             self.assertTrue((PACKAGE / "hooks" / part.id).is_file(), part.id)

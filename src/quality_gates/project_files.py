@@ -15,6 +15,11 @@ from quality_gates.errors import ToolError
 from quality_gates.manifest import BrokenFileError, fail_unless, known, known_languages, read_json, require, unique
 
 HOOKS_SOURCE = Path(__file__).parent / "hooks"
+AGENTS_SOURCE = Path(__file__).parent / "agents"
+AGENT_SUFFIX = ".md"
+SHIPPED_AGENTS_LIST = ".shipped-by-quality-gates"
+OWN_AGENT = "the project's own agent has a name quality-gates ships"
+NO_LONGER_SHIPPED = "not shipped"
 STAGE_GUARD = "stage_guard.py"
 STAGE_GUARD_COMMAND = 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/stage_guard.py"'
 INSTRUCTION_FILES = ("CLAUDE.md", "AGENTS.md")
@@ -43,6 +48,7 @@ WORKFLOWS = Path(".github") / "workflows"
 CLAUDE_DIR = ".claude"
 SKILLS_DEST = Path(CLAUDE_DIR) / "skills"
 COPIED_HOOKS = "hooks"
+COPIED_AGENTS = "agents"
 SETTINGS = "settings.json"
 PRE_COMMIT_HOOK = ".githooks/pre-commit"
 PIN_FILE = "pyproject.toml"
@@ -108,6 +114,61 @@ def sync_hooks(dest, source=HOOKS_SOURCE):
     for name in hook_names(source):
         shutil.copyfile(source / name, dest / name)
         (dest / name).chmod(0o755)
+
+
+def agent_names(source=AGENTS_SOURCE):
+    return sorted(p.stem for p in source.glob(f"*{AGENT_SUFFIX}") if p.is_file())
+
+
+def agent_file(folder, name):
+    return folder / f"{name}{AGENT_SUFFIX}"
+
+
+def shipped_agents(dest):
+    path = dest / SHIPPED_AGENTS_LIST
+    if not path.is_file():
+        return set()
+    return set(path.read_text(encoding="utf-8").split())
+
+
+def copied_agent(dest, name, source=AGENTS_SOURCE):
+    if not agent_file(source, name).is_file():
+        return UNSHIPPED
+    if not agent_file(dest, name).is_file():
+        return MISSING
+    return SAME if filecmp.cmp(agent_file(source, name), agent_file(dest, name), shallow=False) else DIFFERS
+
+
+def agent_state(dest, name, listed, source=AGENTS_SOURCE):
+    state = copied_agent(dest, name, source)
+    return OWN_AGENT if state == DIFFERS and name not in listed else state
+
+
+def agent_differences(dest, source=AGENTS_SOURCE):
+    listed, names = shipped_agents(dest), agent_names(source)
+    found = [(name, agent_state(dest, name, listed, source)) for name in names]
+    found += [(name, NO_LONGER_SHIPPED) for name in sorted(listed - set(names)) if agent_file(dest, name).is_file()]
+    return [f"{COPIED_AGENTS}/{name}{AGENT_SUFFIX}: {state}" for name, state in found if state != SAME]
+
+
+def refuse_agent_clashes(dest, source=AGENTS_SOURCE):
+    listed = shipped_agents(dest)
+    clashes = [agent_file(dest, name) for name in agent_names(source) if agent_state(dest, name, listed, source) == OWN_AGENT]
+    if clashes:
+        raise ToolError(f"{', '.join(str(path) for path in clashes)}: the project's own agent, not one quality-gates "
+                        f"installed, has the name of an agent quality-gates ships. Nothing was changed. "
+                        f"Rename or remove it, then rerun qg-skills.")
+
+
+def sync_agents(dest, source=AGENTS_SOURCE):
+    names = agent_names(source)
+    for name in sorted(shipped_agents(dest) - set(names)):
+        agent_file(dest, name).unlink(missing_ok=True)
+    dest.mkdir(parents=True, exist_ok=True)
+    for name in names:
+        shutil.copyfile(agent_file(source, name), agent_file(dest, name))
+    (dest / SHIPPED_AGENTS_LIST).write_text("".join(f"{name}\n" for name in names), encoding="utf-8")
+    return names
 
 
 def read_settings(path):
@@ -184,6 +245,10 @@ def skills_dir(root):
 
 def hooks_dir(claude_folder):
     return claude_folder / COPIED_HOOKS
+
+
+def agents_dir(claude_folder):
+    return claude_folder / COPIED_AGENTS
 
 
 def settings_file(claude_folder):

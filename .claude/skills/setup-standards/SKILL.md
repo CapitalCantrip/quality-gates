@@ -131,9 +131,12 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 From here on, do only the blocks for the languages the file records, and only
 for chosen components.
 
-- **All projects:** run `qg-skills`: it copies the skills and the
+- **All projects:** run `qg-skills`: it copies the skills, the agents and the
   stage guard into `.claude/`, registers the guard in `.claude/settings.json`,
-  and adds the asking-rule line to `CLAUDE.md`.
+  and adds the asking-rule line to `CLAUDE.md`. When it stops on a project
+  agent that has a shipped agent's name, ask the builder: rename the project's
+  agent and keep both, or delete it and take the shipped one. Recommend
+  renaming when the project's agent holds rules the shipped one lacks.
 - **Python:** `comment-debt`, `cc-check`, `crap`. The `/no-comments` skill
   describes the comment gate.
 - **Swift:** the complexity gate is SwiftLint's `cyclomatic_complexity` block,

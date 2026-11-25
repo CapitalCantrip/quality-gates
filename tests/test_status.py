@@ -39,6 +39,7 @@ MANIFEST = {
             "parts": [
                 {"kind": "skill", "id": "tdd"},
                 {"kind": "hook", "id": "stage_guard.py"},
+                {"kind": "agent", "id": "reviewer", "origin": {"type": "ours"}},
                 {"kind": "claude_md_line", "id": "asking-rule"},
                 {"kind": "command", "id": "qg-skills"},
             ],
@@ -94,6 +95,8 @@ class Status(unittest.TestCase):
             self.write(self.source / name / "SKILL.md", f"{name} v1")
         self.hooks = self.tmp / "shipped-hooks"
         self.write(self.hooks / "stage_guard.py", "guard")
+        self.agents = self.tmp / "shipped-agents"
+        self.write(self.agents / "reviewer.md", "reviewer v1")
         self.repo = self.tmp / "repo"
         git_init(self.repo)
         self.write(self.repo / "CLAUDE.md", "# Repo\n")
@@ -106,14 +109,14 @@ class Status(unittest.TestCase):
     def set_up(self):
         out = io.StringIO()
         with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
-            skills_sync.main(["--dest", str(self.repo / ".claude" / "skills")], self.source, self.hooks)
+            skills_sync.main(["--dest", str(self.repo / ".claude" / "skills")], self.source, self.hooks, self.agents)
         self.write(self.repo / "crap-baseline.json", "{}")
         self.write(self.repo / ".github" / "workflows" / "tests.yml", "steps:\n  - run: crap --lang python src\n")
 
     def run_status(self, *flags, manifest=MANIFEST):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            code = status.main([*flags], root=self.repo, source=self.source, hooks=self.hooks,
+            code = status.main([*flags], root=self.repo, source=self.source, hooks=self.hooks, agents=self.agents,
                                manifest=manifests.components_from(admitted(manifest)))
         return code, out.getvalue()
 
@@ -155,12 +158,30 @@ class Status(unittest.TestCase):
         self.assertEqual(part(report, "core", "skill", "tdd")["status"], "different")
         self.assertEqual(component(report, "core")["status"], "different")
 
+    def test_an_agent_the_project_lacks_is_missing(self):
+        self.set_up()
+        (self.repo / ".claude" / "agents" / "reviewer.md").unlink()
+        report = self.report()
+        self.assertEqual(part(report, "core", "agent", "reviewer")["status"], "missing")
+        self.assertEqual(component(report, "core")["status"], "partly installed")
+
+    def test_a_hand_edited_agent_copy_is_different(self):
+        self.set_up()
+        self.write(self.repo / ".claude" / "agents" / "reviewer.md", "edited")
+        self.assertEqual(part(self.report(), "core", "agent", "reviewer")["status"], "different")
+
+    def test_an_agent_the_release_does_not_ship_is_unknown(self):
+        self.set_up()
+        (self.agents / "reviewer.md").unlink()
+        self.assertEqual(part(self.report(), "core", "agent", "reviewer")["status"], "unknown")
+
     def test_status_agrees_with_qg_skills_check_on_a_copied_file(self):
         self.set_up()
         self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "edited")
         out = io.StringIO()
         with contextlib.redirect_stdout(out), self.assertRaises(SystemExit) as stop:
-            skills_sync.main(["--dest", str(self.repo / ".claude" / "skills"), "--check"], self.source, self.hooks)
+            skills_sync.main(["--dest", str(self.repo / ".claude" / "skills"), "--check"], self.source, self.hooks,
+                             self.agents)
         self.assertEqual(stop.exception.code, 1)
         self.assertIn("tdd/SKILL.md: differs", out.getvalue())
         self.assertEqual(part(self.report(), "core", "skill", "tdd")["status"], "different")
@@ -548,7 +569,7 @@ class Status(unittest.TestCase):
         self.write(self.repo / "pyproject.toml", (
             '[project.optional-dependencies]\ndev = ["quality-gates @ git+https://github.com/CapitalCantrip/quality-gates@v0.11.1"]\n'))
         self.write(self.repo / ".github" / "workflows" / "ci.yml", "steps: []\n")
-        project = status.Project(self.repo, self.source, self.hooks, frozenset())
+        project = status.Project(self.repo, self.source, self.hooks, frozenset(), self.agents)
         read = Path.read_text
         with mock.patch.object(Path, "read_text", autospec=True, side_effect=read) as reads:
             self.assertEqual(status.read_pin(project), "v0.11.1")

@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased
+
+- **Four agents ship (ADR-013):** `implementer`, `reviewer`, `debt-payer` and
+  `diagnoser`. `qg-skills` copies them into `.claude/agents/` and
+  `qg-skills --check` fails on a stale copy. On bumping the pin, rerun
+  `qg-skills` and commit `.claude/agents/`. If the project already has its own
+  agent with one of those names, `qg-skills` stops, changes nothing and names
+  the file: rename or remove it, then rerun. An orchestration prompt that
+  names the `builder` agent now names `implementer`. No score, threshold or
+  scanned file changes.
+
 ## 0.14.2 — 2026-11-26
 
 - **Three more principles in `standards` (ADR-002 addendum 2026-11-26):**

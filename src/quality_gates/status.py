@@ -52,14 +52,15 @@ class Project:
     source: Path
     hooks: Path
     shipped_skills: frozenset
+    agents: Path
 
     @property
     def claude_dir(self):
         return project_files.claude_dir(self.root)
 
 
-def project_at(root, source, hooks):
-    return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)))
+def project_at(root, source, hooks, agents=skills_sync.SHIPPED_AGENTS):
+    return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)), agents)
 
 
 def skill_status(project, part):
@@ -69,6 +70,10 @@ def skill_status(project, part):
     if not skills_sync.files_under(dest / part.id):
         return MISSING
     return DIFFERENT if skills_sync.skill_differences(part.id, project.source, dest) else INSTALLED
+
+
+def agent_status(project, part):
+    return HOOK_STATES[project_files.copied_agent(project_files.agents_dir(project.claude_dir), part.id, project.agents)]
 
 
 def copied_hook_status(project, name):
@@ -115,6 +120,7 @@ def precommit_step_status(project, part):
 
 PART_STATUS = {
     "skill": skill_status,
+    "agent": agent_status,
     "hook": hook_status,
     "claude_md_line": claude_md_line_status,
     "baseline": file_status,
@@ -339,7 +345,7 @@ def build_parser():
 
 
 def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None,
-         components_path=COMPONENTS_PATH):
+         components_path=COMPONENTS_PATH, agents=skills_sync.SHIPPED_AGENTS):
     args = build_parser().parse_args(argv)
     try:
         manifest = manifest or load_components(components_path)
@@ -356,7 +362,7 @@ def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.H
     except BrokenFileError as error:
         print(f"qg status: {error}", file=sys.stderr)
         return BROKEN_EXIT
-    project = project_at(root, source, hooks)
+    project = project_at(root, source, hooks, agents)
     report = build_report(project, manifest, choice)
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0
