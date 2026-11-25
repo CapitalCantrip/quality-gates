@@ -18,6 +18,15 @@
 - **`qg-skills` reads `.claude/settings.json` before copying anything.** A
   broken or wrongly shaped one used to stop it after the skills were already
   overwritten; now nothing changes until you fix it.
+- **A `qg tolerated` CI step** (ADR-011 addenda 2026-11-25 and 2026-11-26).
+  The step runs under `shell: bash`, fetches the pull request's base and runs
+  `qg tolerated --against origin/<base>`; for now it always prints *the
+  tolerated list did not grow*. On bumping the pin, paste the step from the
+  `setup-standards` skill's `ci-tolerated.md` at the end of the steps of the
+  job that runs the gates, in a workflow that runs on pull requests, and
+  commit it. `qg setup` never edits a workflow: when no such workflow runs
+  `qg tolerated`, it prints the step to paste, and `qg setup --json` lists it
+  under `notes`. No score, threshold or scanned file changes.
 
 ## 0.14.2 — 2026-11-26
 

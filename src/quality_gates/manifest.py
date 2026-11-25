@@ -135,6 +135,13 @@ def read_json(path):
         raise BrokenFileError(f"{path}: not valid JSON: {error}") from error
 
 
+def json_from(data, where):
+    try:
+        return json.loads(data.decode("utf-8"))
+    except (ValueError, RecursionError) as error:
+        raise BrokenFileError(f"{where}: not valid JSON: {error}") from error
+
+
 def fail_unless(holds, message):
     if not holds:
         raise BrokenFileError(message)

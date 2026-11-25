@@ -51,6 +51,31 @@ def manifest_of(*components):
 
 
 MANIFEST = manifest_of(CORE, RISK, HELPERS, RUST)
+WORKFLOW = """name: tests
+on: [pull_request, push]
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -e .
+      - run: comment-debt
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo lint
+"""
+TOLERATED_STEP = """      - name: qg tolerated
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
+          qg tolerated --against "origin/${BASE}"
+"""
+WORKFLOW_WITH_STEP = WORKFLOW.replace("      - run: comment-debt\n", "      - run: comment-debt\n" + TOLERATED_STEP)
 
 
 def git_init(folder):
@@ -386,6 +411,29 @@ class Setup(unittest.TestCase):
         self.run_setup("--go")
         self.write(self.repo / "bin" / "run", "#!/bin/sh\n")
         self.assertEqual(self.proposal()["languages"], ["python", "shell"])
+
+    def test_setup_run_twice_writes_no_workflow_file(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW)
+        self.run_setup("--go")
+        _, out, _ = self.run_setup("--go")
+        self.assertEqual((self.repo / ".github" / "workflows" / "tests.yml").read_text(), WORKFLOW)
+        self.assertEqual(sorted(path.name for path in (self.repo / ".github" / "workflows").iterdir()), ["tests.yml"])
+        self.assertNotIn(".github/workflows/tests.yml", out)
+
+    def test_setup_prints_the_tolerated_step_to_paste_once_when_no_workflow_runs_it(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW)
+        _, out, _ = self.run_setup()
+        self.assertEqual(out.count(TOLERATED_STEP), 1)
+        self.assertIn("paste it at the end of the steps of the job that runs the gates", out)
+        notes = json.loads(self.run_setup("--json")[1])["notes"]
+        self.assertEqual(len(notes), 1)
+        self.assertIn("\n\n" + notes[0] + "\n\n", out)
+
+    def test_setup_prints_nothing_about_the_tolerated_step_when_a_pull_request_workflow_runs_it(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW_WITH_STEP)
+        _, out, _ = self.run_setup()
+        self.assertNotIn("qg tolerated", out)
+        self.assertEqual(json.loads(self.run_setup("--json")[1])["notes"], [])
 
     def test_setup_moves_the_comment_gate_exclusions_from_the_hook_into_the_file_and_again_changes_nothing(self):
         self.write(self.repo / ".githooks" / "pre-commit",

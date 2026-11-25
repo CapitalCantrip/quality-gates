@@ -18,11 +18,15 @@ files itself. It also owns reading and writing every
 file quality-gates keeps in a project: the choice file, baselines, the hook,
 CI, the instruction file, `docs/agents/*` and the PR template. Every write goes
 through one planned-changes step that setup shows before the builder's "go".
-Decided, not built yet: code edits the hook and CI only between quality-gates'
-markers.
-Decided, not built yet (quality-gates#192, #193): it reads main's copy of a
-file, the bytes committed on the default branch or a plain "absent"; nothing
-else runs git. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+Setup never edits a CI workflow (quality-gates#234): it checks that a workflow
+running on pull requests runs `qg tolerated` in a step, and prints the step to
+paste when none does. Decided, not built yet: code edits the hook only between
+quality-gates' markers.
+Built (quality-gates#234): it reads main's copy of a file, the bytes
+committed on the default branch or a plain "absent", a file's bytes at any
+ref that names a commit, and the choice file at a ref; no gate or `qg`
+command runs git outside the project module. The default branch is the
+remote's `HEAD`, then `main`, `master`, `origin/main` and `origin/master`. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [addendum 2026-11-26](archive/ADR-011-code-structure.md#addendum-2026-11-26-setup-never-edits-a-ci-workflow))
 
 ## The tolerated module
 
@@ -32,7 +36,11 @@ reasons once quality-gates#115 lands) for the tree and for a git ref, and
 returns what grew. It reads baselines through the ratchet and files through the
 project module, and parses nothing itself. `qg tolerated --against <ref>` runs
 it in CI. Silencer patterns are rows in `comment-debt`'s per-language table, not
-the registry. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+the registry. Built so far (quality-gates#234): the module and
+`qg tolerated`, which find no growth yet; `ratchet.baseline_from`, which reads
+a baseline from bytes; and a silencer pattern on each row of the table, which
+matches nothing until quality-gates#195, with the ratchet asking for
+`silencer-baseline.json` by the name the project module knows. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
 
 ## One language registry
 

@@ -3,6 +3,7 @@ import contextlib
 import io
 import json
 import os
+import re
 import subprocess
 import tempfile
 import unittest
@@ -61,6 +62,26 @@ class CountingTest(unittest.TestCase):
 
 def rust_lines(source, conventions=()):
     return list(cd.LANGUAGES['rust'].checker(source, conventions))
+
+
+SILENCERS_TO_COME = (
+    '# pragma: no cover', '# pragma: no branch', '/* istanbul ignore next */', '// c8 ignore next',
+    '// swiftlint:disable:next cyclomatic_complexity', '#[allow(clippy::cognitive_complexity)]', '', 'x = 1',
+)
+
+
+class SilencerKindTest(unittest.TestCase):
+
+    def test_every_language_of_the_comment_gate_has_a_silencer_pattern(self):
+        for name, row in cd.LANGUAGES.items():
+            with self.subTest(name):
+                self.assertIsInstance(row.silencer, re.Pattern)
+
+    def test_no_silencer_pattern_finds_anything_yet(self):
+        for name, row in cd.LANGUAGES.items():
+            for line in SILENCERS_TO_COME:
+                with self.subTest(name=name, line=line):
+                    self.assertIsNone(row.silencer.search(line))
 
 
 class RustCountingTest(unittest.TestCase):

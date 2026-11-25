@@ -8,11 +8,13 @@ import stat
 import subprocess
 import sys
 from dataclasses import dataclass, replace
+from itertools import dropwhile
 from pathlib import Path, PurePosixPath
 
 from quality_gates import languages
 from quality_gates.errors import ToolError
-from quality_gates.manifest import BrokenFileError, fail_unless, known, known_languages, read_json, require, unique
+from quality_gates.manifest import (BrokenFileError, fail_unless, json_from, known, known_languages, read_json, require,
+                                   unique)
 
 HOOKS_SOURCE = Path(__file__).parent / "hooks"
 AGENTS_SOURCE = Path(__file__).parent / "agents"
@@ -36,6 +38,19 @@ ASKING_LINE = (
 )
 GIT_ROOT = ("git", "rev-parse", "--show-toplevel")
 FILES_GIT_WOULD_COMMIT = ("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+COMMIT_OF = ("git", "rev-parse", "--verify", "--quiet")
+OPTION_START = "-"
+NEWER_CHOICE = "{}: format_version {!r} is newer than this quality-gates reads: bump the pin"
+UNREADABLE_VERSION = "{}: cannot read format_version {!r}: it must be a whole number from 1 to {}"
+NO_GIT = "git is not on the PATH: install git, or add it to the PATH, and run again"
+NOT_A_COMMIT = "{} names no commit in this repository: fetch it first, for example `git fetch origin main`"
+OUTSIDE_THE_REPO = "{} is outside the repository at {}: name a file inside it"
+AS_A_COMMIT = "^{commit}"
+BLOB_AT = ("git", "cat-file", "blob")
+DEFAULT_BRANCHES = (
+    "refs/remotes/origin/HEAD", "refs/heads/main", "refs/heads/master", "refs/remotes/origin/main",
+    "refs/remotes/origin/master",
+)
 NOT_A_GIT_REPO = (
     "not inside a git repository: quality-gates looks at the files git would commit, so run it inside the "
     "project's repository, or run `git init` there first"
@@ -63,6 +78,10 @@ TRIAGE_LABELS_DOC = AGENT_DOCS / "triage-labels.md"
 DOMAIN_DOC = AGENT_DOCS / "domain.md"
 PR_TEMPLATE = Path(".github") / "pull_request_template.md"
 COMMENT_DEBT_BASELINE = "comment-debt.json"
+CC_BASELINE = "cc-baseline.json"
+CRAP_BASELINE = "crap-baseline.json"
+SILENCER_BASELINE = "silencer-baseline.json"
+BASELINES = (CC_BASELINE, CRAP_BASELINE, COMMENT_DEBT_BASELINE, SILENCER_BASELINE)
 CHOICE_FILE = "quality-gates.json"
 CHOICE_FORMAT_VERSION = 1
 CHOICE_REQUIRED = ("format_version", "languages", "exclude", "components", "commit_time_limit_seconds", "settings")
@@ -72,6 +91,8 @@ COMMENT_GATE_REQUIRED = ("exclude", "conventions")
 ON_WITHOUT_A_CHOICE_FILE = frozenset({COMMENT_GATE})
 RECOGNISED_CONVENTIONS = frozenset({"rust-safety"})
 DEFAULT_COMMIT_TIME_LIMIT_SECONDS = 2
+CHOICE_DEFAULTS = {"languages": [], "exclude": [], "components": {"chosen": [], "declined": []},
+                   "commit_time_limit_seconds": DEFAULT_COMMIT_TIME_LIMIT_SECONDS, "settings": {}}
 KEPT_BY_QUALITY_GATES = (".claude/skills/", ".claude/hooks/", PRE_COMMIT_HOOK)
 FIXTURE_FOLDERS = ("fixtures", "fixture", "__fixtures__", "testdata")
 FIRST_LINE_BYTES = 256
@@ -83,6 +104,32 @@ FILES_SHOWN = 3
 COMMENT_GATE_COMMAND = "comment-debt"
 EXCLUDE_FLAG = "--exclude"
 COMMAND_SEPARATORS = frozenset({"&&", "||", "|", ";"})
+TOP_KEY = re.compile(r"""(["']?)([\w-]+)\1[ \t]*:(.*)""")
+STEPS_KEY = re.compile(r"[ \t]+steps[ \t]*:[ \t]*(?:#.*)?")
+RUN_KEY = re.compile(r"run[ \t]*:(.*)", re.DOTALL)
+NAME_AT_START = re.compile(r"""(?:-[ \t]+)?(["']?)([\w-]+)\1""")
+FLOW_WORD = re.compile(r"[\w-]+")
+TRAILING_COMMENT = re.compile(r"(?:^|\s)#")
+TRIGGERS_KEY, JOBS_KEY, PULL_REQUEST = "on", "jobs", "pull_request"
+COMMENT_START, ITEM_START = "#", "- "
+ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
+FLOW_OPEN, FLOW_CLOSE = ("[", "{"), ("]", "}")
+NOT_PLAIN = ("|", ">", '"', "'")
+TOLERATED_COMMAND = ("qg", "tolerated")
+STEP_INDENT = "      "
+PASTE_THE_STEP = ("No workflow that runs on pull requests runs `qg tolerated` yet; paste it at the end of the steps "
+                  "of the job that runs the gates, indented like the other steps of that job:")
+TOLERATED_STEP = (
+    "- name: qg tolerated",
+    "  if: github.event_name == 'pull_request'",
+    "  shell: bash",
+    "  env:",
+    "    BASE: ${{ github.base_ref }}",
+    "  run: |",
+    '    git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"',
+    '    qg tolerated --against "origin/${BASE}"',
+)
+CRLF, LF = "\r\n", "\n"
 CONTINUATION = "\\"
 UNSHIPPED, MISSING, DIFFERS, SAME = "unshipped", "missing", "differs", "same"
 READABLE, UNREADABLE = "readable", "unreadable"
@@ -360,6 +407,14 @@ def comment_debt_baseline(root):
     return root / COMMENT_DEBT_BASELINE
 
 
+def silencer_baseline(root):
+    return root / SILENCER_BASELINE
+
+
+def baseline_files(root):
+    return [root / name for name in BASELINES]
+
+
 def template_base(name):
     return TEMPLATE_BASES / name.name
 
@@ -437,11 +492,86 @@ def sync(claude_dir, root, source=HOOKS_SOURCE):
     add_asking_line(root)
 
 
+def run_git(command, cwd, text=False):
+    try:
+        return subprocess.run(list(command), cwd=cwd, capture_output=True, text=text)
+    except FileNotFoundError:
+        raise ToolError(NO_GIT) from None
+
+
 def git_root(start=None):
-    found = subprocess.run(list(GIT_ROOT), cwd=start, capture_output=True, text=True)
+    found = run_git(GIT_ROOT, start, text=True)
     if found.returncode != 0 or not found.stdout.strip():
         raise ToolError(NOT_A_GIT_REPO)
     return Path(found.stdout.strip())
+
+
+def commit_of(root, ref):
+    if ref.startswith(OPTION_START):
+        return None
+    found = run_git([*COMMIT_OF, ref + AS_A_COMMIT], root, text=True)
+    return found.stdout.strip() if found.returncode == 0 and found.stdout.strip() else None
+
+
+def default_branch(root):
+    return next((ref for ref in DEFAULT_BRANCHES if commit_of(root, ref) is not None), None)
+
+
+def copy_at(root, ref, name):
+    commit = commit_of(root, ref)
+    if commit is None:
+        return None
+    found = run_git([*BLOB_AT, f"{commit}:{path_in_repo(root, name)}"], root)
+    return found.stdout if found.returncode == 0 else None
+
+
+def steps_out(relative):
+    return relative.split(os.sep)[0] == os.pardir
+
+
+def path_in_repo(root, name):
+    full = os.path.normpath(os.path.join(root, name))
+    relative = os.path.relpath(full, os.path.normpath(root))
+    if steps_out(relative):
+        relative = os.path.relpath(os.path.realpath(full), os.path.realpath(root))
+    if steps_out(relative):
+        raise ToolError(OUTSIDE_THE_REPO.format(name, root))
+    return Path(relative).as_posix()
+
+
+def checked_commit(root, ref):
+    commit = commit_of(root, ref)
+    if commit is None:
+        raise ToolError(NOT_A_COMMIT.format(ref))
+    return commit
+
+
+def choice_at(root, ref):
+    checked_commit(root, ref)
+    data = copy_at(root, ref, CHOICE_FILE)
+    where = f"{ref}:{CHOICE_FILE}"
+    try:
+        return None if data is None else any_format_choice(json_from(data, where), where)
+    except BrokenFileError as error:
+        raise ToolError(str(error)) from None
+
+
+def checked_version(version, where):
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ToolError(UNREADABLE_VERSION.format(where, version, CHOICE_FORMAT_VERSION))
+    if version > CHOICE_FORMAT_VERSION:
+        raise ToolError(NEWER_CHOICE.format(where, version))
+
+
+def any_format_choice(data, where):
+    require(data, (), where)
+    checked_version(data.get("format_version", CHOICE_FORMAT_VERSION), where)
+    return choice_from({**CHOICE_DEFAULTS, **data, "format_version": CHOICE_FORMAT_VERSION}, where)
+
+
+def main_copy(root, name):
+    branch = default_branch(root)
+    return None if branch is None else copy_at(root, branch, name)
 
 
 def root_of_skills_folder(dest):
@@ -539,7 +669,7 @@ def parent_folders(names):
 
 
 def committable_files(root):
-    listing = subprocess.run(list(FILES_GIT_WOULD_COMMIT), cwd=root, capture_output=True)
+    listing = run_git(FILES_GIT_WOULD_COMMIT, root)
     if listing.returncode != 0:
         raise ToolError(NOT_A_GIT_REPO)
     return frozenset(name for name in os.fsdecode(listing.stdout).split("\0") if name)
@@ -769,6 +899,157 @@ def exclude_flags(words):
             yield words[at + 1]
         elif word.startswith(EXCLUDE_FLAG + "="):
             yield word[len(EXCLUDE_FLAG) + 1:]
+
+
+def indent_of(line):
+    return line[:len(line) - len(line.lstrip(" \t"))]
+
+
+def is_content(line):
+    text = line.strip()
+    return bool(text) and not text.startswith(COMMENT_START)
+
+
+def is_top_level(line):
+    return is_content(line) and not line[0].isspace()
+
+
+def ends_block(line):
+    return is_top_level(line) and not line.startswith(ITEM_START)
+
+
+def top_block(lines, key):
+    for at, line in enumerate(lines):
+        found = TOP_KEY.fullmatch(line.rstrip(CRLF)) if is_top_level(line) else None
+        if found and found.group(2) == key:
+            end = next((after for after in range(at + 1, len(lines)) if ends_block(lines[after])), len(lines))
+            return found.group(3), at + 1, end
+    return None
+
+
+def without_comment(text):
+    return TRAILING_COMMENT.split(text, 1)[0].strip()
+
+
+def child_names(lines):
+    children = [line for line in lines if is_content(line)]
+    depth = min((len(indent_of(line)) for line in children), default=0)
+    named = (NAME_AT_START.match(line.strip()) for line in children if len(indent_of(line)) == depth)
+    return {found.group(2) for found in named if found}
+
+
+def outer_flow_text(text):
+    depth, kept = 0, []
+    for char in text:
+        depth += (char in FLOW_OPEN) - (char in FLOW_CLOSE)
+        kept.append(char if depth == 1 and char not in FLOW_OPEN else " ")
+    return "".join(kept)
+
+
+def flow_words(text):
+    return set(FLOW_WORD.findall(outer_flow_text(text) if text.startswith(FLOW_OPEN) else text))
+
+
+def triggers(lines):
+    found = top_block(lines, TRIGGERS_KEY)
+    if found is None:
+        return set()
+    inline, start, end = found
+    if not without_comment(inline):
+        return child_names(lines[start:end])
+    return flow_words(" ".join(without_comment(line) for line in [inline, *lines[start:end]]))
+
+
+def runs_on_pull_requests(lines):
+    return PULL_REQUEST in triggers(lines)
+
+
+def is_item(line, indent):
+    return len(indent_of(line)) == len(indent) and line.lstrip().startswith(ITEM_START)
+
+
+def in_steps(line, indent):
+    if not is_content(line):
+        return True
+    return len(indent_of(line)) > len(indent) or is_item(line, indent)
+
+
+@dataclass(frozen=True)
+class StepsList:
+    indent: str
+    items: tuple
+    end: int
+
+    def item_lines(self, lines):
+        return [lines[start:stop] for start, stop in zip(self.items, self.items[1:] + (self.end,))]
+
+
+def first_item(lines, at, end):
+    first = next((after for after in range(at + 1, end) if is_content(lines[after])), None)
+    if first is None or not lines[first].lstrip().startswith(ITEM_START):
+        return None
+    return first if len(indent_of(lines[first])) >= len(indent_of(lines[at])) else None
+
+
+def steps_list(lines, at, end):
+    first = first_item(lines, at, end)
+    if first is None:
+        return None
+    indent, stop = indent_of(lines[first]), first
+    while stop < end and in_steps(lines[stop], indent):
+        stop += 1
+    return StepsList(indent, tuple(row for row in range(first, stop) if is_item(lines[row], indent)), stop)
+
+
+def steps_lists(lines):
+    found = top_block(lines, JOBS_KEY)
+    if found is None:
+        return []
+    _, start, end = found
+    keys = (at for at in range(start, end) if STEPS_KEY.fullmatch(lines[at].rstrip(CRLF)))
+    return [listed for listed in (steps_list(lines, at, end) for at in keys) if listed is not None]
+
+
+def continuation(lines, column):
+    for line in lines:
+        if is_content(line) and len(indent_of(line)) <= column:
+            return
+        yield line
+
+
+def run_text(item):
+    column = len(item[0]) - len(item[0].lstrip()[len(ITEM_START.rstrip()):].lstrip())
+    for at, line in enumerate(item):
+        found = RUN_KEY.match(line[column:]) if at == 0 or len(indent_of(line)) == column else None
+        if found:
+            return plain_value(found.group(1)) + "".join(continuation(item[at + 1:], column))
+    return ""
+
+
+def plain_value(value):
+    return value if value.strip().startswith(NOT_PLAIN) else without_comment(value) + LF
+
+
+def command_of(segment):
+    words = list(dropwhile(ASSIGNMENT.match, segment))
+    return (PurePosixPath(words[0]).name, *words[1:len(TOLERATED_COMMAND)]) if words else ()
+
+
+def runs_qg_tolerated(text):
+    return any(command_of(segment) == TOLERATED_COMMAND
+               for line in logical_lines(text) for segment in command_segments(words_of(line)))
+
+
+def runs_tolerated_on_pull_requests(text):
+    lines = text.splitlines(keepends=True)
+    return runs_on_pull_requests(lines) and any(runs_qg_tolerated(run_text(item))
+                                                for listed in steps_lists(lines) for item in listed.item_lines(lines))
+
+
+def tolerated_step_notes(root):
+    if any(text is not None and runs_tolerated_on_pull_requests(text) for text in each_text(workflow_files(root))):
+        return []
+    return ["\n".join([PASTE_THE_STEP, *(STEP_INDENT + line for line in TOLERATED_STEP)])]
 
 
 def comment_gate_exclusions(root):
