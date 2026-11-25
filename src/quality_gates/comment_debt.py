@@ -10,7 +10,7 @@ import tokenize
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from quality_gates import code_reader, languages, project_files, ratchet
 from quality_gates.errors import Untagged
@@ -20,18 +20,27 @@ PRAGMA = re.compile(
     r"#\s*(?:"
     r"noqa(?::\s*[A-Z0-9]+(?:\s*,\s*[A-Z0-9]+)*)?"
     r"|type:\s*ignore(?:\[[\w\s,-]+\])?"
-    r"|pragma:\s*no\s+(?:cover|branch)"
     r"|fmt:\s*(?:on|off|skip)"
     r")\s*$"
 )
+PYTHON_SILENCER = re.compile(r"#\s*(?:pragma|PRAGMA)[:\s]?\s*(?:no|NO)\s*(?:cover|COVER|branch|BRANCH)")
 CODING = re.compile(r"^#.*coding[:=]")
 FINDING_KIND = "comment lines"
+SILENCER_KIND = "silencer"
 TAG = "comment-debt: "
 UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
-UNREAD = "could not be opened, does not parse or is not UTF-8, so its comments were not counted"
+UNREAD_CAUSE = "could not be opened, does not parse or is not UTF-8"
+UNREAD = f"{UNREAD_CAUSE}, so its comments were not counted"
 UNREAD_ADVICE = (
     "Unmeasured files fail the gate. Finish or fix them, or leave them out with settings.no-comments.exclude; "
     "the baseline keeps any entry they already have and records none for them."
+)
+UNREAD_SILENCERS = f"{UNREAD_CAUSE}, so its silencers were not counted"
+UNREAD_SILENCERS_ADVICE = "The silencer baseline keeps any entry an unmeasured file already has."
+SILENCER_REFUSAL = "--update only lowers the silencer baseline. It will not record a new silencer.\n"
+SILENCER_ADVICE = (
+    "\nA silencer switches off one of the quality gates for the code it marks, so a new one is not allowed. "
+    "Remove the marker and test the code it hides.\n"
 )
 UNREADABLE = (OSError, SyntaxError, ValueError, tokenize.TokenError)
 STRING = "string"
@@ -83,9 +92,27 @@ def string_lines(source):
     return lines
 
 
-def debt_kinds(source):
+@dataclass(frozen=True)
+class FileReading:
+    debt: dict
+    silencers: tuple
+
+
+def python_kinds(source):
     kinds = {**{line: code_reader.LINE for line in comment_lines(source)}, **{line: STRING for line in string_lines(source)}}
     return dict(sorted(kinds.items()))
+
+
+def python_silencers(reading, source):
+    return tuple(number for number, line in enumerate(source.split(code_reader.NEWLINE), 1) if PYTHON_SILENCER.search(line))
+
+
+def silences_nothing(reading, source):
+    return ()
+
+
+def in_comments(pattern):
+    return lambda reading, source: tuple(sorted({c.start for c in reading.comments if pattern.search(c.text)}))
 
 
 SAFETY_START = "// SAFETY:"
@@ -135,12 +162,12 @@ def allowed_by(language, conventions, reading, source):
                          if name in language.conventions))
 
 
-def read_debt_kinds(language, source, conventions):
+def read_comments(language, source, conventions):
     reading = code_reader.read(source, language.syntax)
     allowed = allowed_by(language, conventions, reading, source)
     counted = [c for c in reading.comments if c not in allowed and not language.exempts(c)]
     kinds = {line: comment.kind for comment in counted for line in range(comment.start, comment.end + 1)}
-    return dict(sorted(kinds.items()))
+    return reading, dict(sorted(kinds.items()))
 
 
 RUST = CommentSyntax(code_reader.Syntax(
@@ -221,27 +248,27 @@ SHELL = CommentSyntax(code_reader.Syntax(
 ), re.compile(r"#\s*shellcheck\s+disable=SC\d+(?:\s*,\s*SC\d+)*\s*"), {}, shebang=True)
 
 
-SILENCES_NOTHING = re.compile(r"(?!)")
-
-
 @dataclass(frozen=True)
 class CommentLanguage:
     component: str
-    silencer: re.Pattern
+    silencer: Callable
     syntax: Optional[CommentSyntax] = None
 
-    def checker(self, source, conventions):
+    def reading(self, source, conventions):
         if self.syntax is None:
-            return debt_kinds(source)
-        return read_debt_kinds(self.syntax, source, conventions)
+            code, debt = None, python_kinds(source)
+        else:
+            code, debt = read_comments(self.syntax, source, conventions)
+        silenced = self.silencer(code, source)
+        return FileReading({line: kind for line, kind in debt.items() if line not in silenced}, silenced)
 
 
 LANGUAGES = {
-    "python": CommentLanguage("no-comments", SILENCES_NOTHING),
-    "rust": CommentLanguage("no-comments-rust", SILENCES_NOTHING, RUST),
-    "typescript": CommentLanguage("no-comments-typescript", SILENCES_NOTHING, TYPESCRIPT),
-    "swift": CommentLanguage("no-comments-swift", SILENCES_NOTHING, SWIFT),
-    "shell": CommentLanguage("no-comments-shell", SILENCES_NOTHING, SHELL),
+    "python": CommentLanguage("no-comments", python_silencers),
+    "rust": CommentLanguage("no-comments-rust", silences_nothing, RUST),
+    "typescript": CommentLanguage("no-comments-typescript", silences_nothing, TYPESCRIPT),
+    "swift": CommentLanguage("no-comments-swift", silences_nothing, SWIFT),
+    "shell": CommentLanguage("no-comments-shell", silences_nothing, SHELL),
 }
 
 
@@ -251,12 +278,12 @@ EXCLUDE_REFUSAL = (
 )
 
 
-def checker_of(name, choice):
-    return functools.partial(LANGUAGES[name].checker, conventions=choice.conventions if choice else ())
+def reader_of(name, choice):
+    return functools.partial(LANGUAGES[name].reading, conventions=choice.conventions if choice else ())
 
 
 def files_of(root, names, choice):
-    return {path: checker_of(name, choice)
+    return {path: reader_of(name, choice)
             for path, name in project_files.comment_gate_files_under(root, choice, names).items()}
 
 
@@ -266,15 +293,23 @@ def checked_files(root):
                     choice)
 
 
-def lines_in(file, checker):
+def reading_of(file, reader):
     try:
-        return checker(file.read_text(encoding="utf-8"))
+        return reader(file.read_text(encoding="utf-8"))
     except UNREADABLE:
         return None
 
 
 def measure(root, listed):
-    return {path: lines_in(root / path, checker) for path, checker in listed.items() if (root / path).exists()}
+    return {path: reading_of(root / path, reader) for path, reader in listed.items() if (root / path).exists()}
+
+
+def debts(measured):
+    return {path: None if reading is None else reading.debt for path, reading in measured.items()}
+
+
+def silencers_in(measured):
+    return {path: None if reading is None else reading.silencers for path, reading in measured.items()}
 
 
 def to_finding(path, lines):
@@ -283,8 +318,18 @@ def to_finding(path, lines):
     return ratchet.Finding(ratchet.Location(path), len(lines), FINDING_KIND, ", ".join(str(n) for n in lines))
 
 
-def findings(root, listed=checked_files):
-    return [to_finding(path, lines) for path, lines in sorted(measure(root, listed(root)).items())]
+def silencer_finding(path, lines):
+    if lines is None:
+        return ratchet.Finding(ratchet.Location(path), None, SILENCER_KIND, UNREAD_SILENCERS)
+    return ratchet.Finding(ratchet.Location(path), len(lines), SILENCER_KIND, ", ".join(str(n) for n in lines))
+
+
+def comment_findings(measured):
+    return [to_finding(path, lines) for path, lines in sorted(debts(measured).items())]
+
+
+def silencer_findings(measured):
+    return [silencer_finding(path, lines) for path, lines in sorted(silencers_in(measured).items())]
 
 
 def chosen_only_on_asking():
@@ -295,8 +340,8 @@ def languages_of(components):
     return frozenset(name for name, row in LANGUAGES.items() if row.component in components)
 
 
-def findings_on_choosing(root, names, choice):
-    return findings(root, lambda _: files_of(root, names, choice))
+def measured_on_choosing(root, names, choice):
+    return measure(root, files_of(root, names, choice))
 
 
 def written_in(root, names):
@@ -353,15 +398,24 @@ def report_sections(root, current):
 
 
 def report_files(root, name, choice):
-    return {path: checker_of(language, choice)
+    return {path: reader_of(language, choice)
             for path, language in project_files.comment_gate_files_after_setup(root, choice, [name]).items()}
+
+
+def silencer_total_line(measured):
+    held = {path: lines for path, lines in silencers_in(measured).items() if lines}
+    if not held:
+        return []
+    return [f"# Silencers: {sum(len(lines) for lines in held.values())} in {len(held)} files\n"]
 
 
 def debt_report(root, name, files, out, left_out=()):
     measured = measure(root, files)
-    current = with_debt(measured)
+    debt = debts(measured)
+    current = with_debt(debt)
     out.write(total_line(f"{languages.LANGUAGES[name].label} comment debt", current))
-    out.writelines(unread_lines(measured))
+    out.writelines(unread_lines(debt))
+    out.writelines(silencer_total_line(measured))
     for heading, rows in report_sections(root, current):
         if rows and heading not in left_out:
             out.write(f"\n## {heading}\n" + "".join(row + "\n" for row in rows))
@@ -383,10 +437,10 @@ def describe_failed(settled, out):
     )
 
 
-def describe_behind(behind, file, out):
+def describe_behind(behind, file, out, noun="lines"):
     for verdict in behind:
         if verdict.now is not None:
-            out.write(f"PAID {verdict.location.key}: {verdict.now} lines, baseline still says {verdict.allowed}\n")
+            out.write(f"PAID {verdict.location.key}: {verdict.now} {noun}, baseline still says {verdict.allowed}\n")
     for verdict in behind:
         if verdict.now is None:
             out.write(f"GONE {verdict.location.key}: in the baseline but no longer in scope\n")
@@ -405,8 +459,33 @@ def describe_recorded(counts, out):
     out.write(f"baseline: {sum(counts.values())} lines in {len(counts)} files\n")
 
 
+def describe_silencers_failed(settled, out):
+    for verdict in settled.failed:
+        allowed = verdict.allowed or 0
+        out.write(f"FAIL {verdict.location.key}: {verdict.now} silencers, baseline allows {allowed} — lines {settled.shown(verdict)}\n")
+    out.write(SILENCER_ADVICE)
+
+
+def describe_silencers_behind(behind, file, out):
+    describe_behind(behind, file, out, noun="silencers")
+
+
+def describe_silencers_passed(result, out):
+    allowed = [verdict.allowed for verdict in result.verdicts if verdict.allowed is not None]
+    if allowed:
+        out.write(f"silencers: {sum(allowed)} in {len(allowed)} files, none new\n")
+
+
+def describe_silencers_recorded(counts, out):
+    if counts:
+        out.write(f"silencer baseline: {sum(counts.values())} in {len(counts)} files\n")
+
+
 WORDING = ratchet.Wording(describe_failed, describe_behind, describe_passed, describe_recorded, UPDATE_REFUSAL,
                           UNREAD, UNREAD_ADVICE)
+SILENCER_WORDING = ratchet.Wording(describe_silencers_failed, describe_silencers_behind, describe_silencers_passed,
+                                   describe_silencers_recorded, SILENCER_REFUSAL, UNREAD_SILENCERS,
+                                   UNREAD_SILENCERS_ADVICE)
 
 
 def area(path):
@@ -435,10 +514,12 @@ def write_area(name, rows, out):
 
 def status(root, out):
     measured = measure(root, checked_files(root))
-    current = with_debt(measured)
+    debt = debts(measured)
+    current = with_debt(debt)
     areas = group_by_area(root, current)
     out.write(total_line("Comment debt", current))
-    out.writelines(unread_lines(measured))
+    out.writelines(unread_lines(debt))
+    out.writelines(silencer_total_line(measured))
     out.write(f"\nColumns: {RATIONALE_HEADING}\n")
     for name in sorted(areas, key=lambda a: (-sum(r.lines for r in areas[a]), a)):
         write_area(name, areas[name], out)
@@ -462,9 +543,12 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def chosen_languages(root):
-    choice = project_files.checked_choice(root)
+def chosen_in(choice):
     return frozenset(name for name, row in LANGUAGES.items() if project_files.is_chosen(choice, row.component))
+
+
+def chosen_languages(root):
+    return chosen_in(project_files.checked_choice(root))
 
 
 def asked(args, root, baseline) -> ratchet.Asked:
@@ -472,6 +556,21 @@ def asked(args, root, baseline) -> ratchet.Asked:
         return ratchet.Asked(judged=False)
     file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
     return ratchet.Asked(file, args.update, covers=written_in(root, chosen_languages(root)))
+
+
+def silencers_asked(args, root):
+    if args.status or args.report:
+        return ratchet.Asked(judged=False)
+    return ratchet.silencer_asked(root, args.update, covers=written_in(root, chosen_languages(root)))
+
+
+def enforced(args, root, baseline, out):
+    measured = functools.lru_cache(maxsize=None)(lambda: measure(root, checked_files(root)))
+    comments_wanted = ratchet.readable(asked(args, root, baseline), out)
+    silencers_wanted = ratchet.readable(silencers_asked(args, root), out)
+    comments = ratchet.enforce(lambda: comment_findings(measured()), comments_wanted, out, WORDING)
+    silencers = ratchet.enforce(lambda: silencer_findings(measured()), silencers_wanted, out, SILENCER_WORDING)
+    return ratchet.Result(comments.verdicts + silencers.verdicts)
 
 
 def shown_first(args, root, out):
@@ -490,7 +589,7 @@ def gate(argv, root, baseline=None, out=None):
         raise Untagged("--baseline was given an empty path")
     root = root or project_files.git_root()
     shown_first(args, root, out)
-    return ratchet.enforce(functools.partial(findings, root), asked(args, root, baseline), out, WORDING)
+    return enforced(args, root, baseline, out)
 
 
 def main(argv=None, root=None, baseline=None, out=None):

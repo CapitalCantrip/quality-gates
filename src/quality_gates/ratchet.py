@@ -255,8 +255,14 @@ def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
     return baseline_from(data, file, out)
 
 
-def silencer_asked(root, updating: bool = False) -> Asked:
-    return Asked(project_files.silencer_baseline(root), updating)
+def silencer_asked(root, updating: bool = False, covers: Callable[[str], bool] = covers_every_file) -> Asked:
+    return Asked(project_files.silencer_baseline(root), updating, covers=covers)
+
+
+def readable(asked: Asked, out=None) -> Asked:
+    if asked.judged and asked.baseline is not None:
+        stored_baseline(asked.baseline, asked.updating, out)
+    return asked
 
 
 def told_on(error: ToolError, err):
