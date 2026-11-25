@@ -24,3 +24,9 @@ When a rule from the parent issue or ADR holds only in part until a later
 build, the Done-when names the exception and the issue that owns it ("gates
 read no flags, except `--format` until #138"), and so does the compendium
 page that states the rule.
+
+A brief that changes how several languages are read is cut into one ticket
+and one PR per language, after the skeleton ticket that adds the shared
+part. A fix to one language's patterns then reverts without taking the
+others with it (PR #219 carried four languages, so reverting its round 3
+took out every language's fixes).
