@@ -243,6 +243,12 @@ def silencer_asked(root, updating: bool = False, covers: Callable[[str], bool] =
     return Asked(project_files.silencer_baseline(root), updating, covers=covers)
 
 
+def readable(asked: Asked, out=None) -> Asked:
+    if asked.judged and asked.baseline is not None:
+        stored_baseline(asked.baseline, asked.updating, out)
+    return asked
+
+
 def told_on(error: ToolError, err):
     return getattr(error, "stream", None) or err or sys.stderr
 

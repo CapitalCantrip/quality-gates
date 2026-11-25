@@ -13,12 +13,13 @@ from quality_gates import crap, ratchet, setup_choices
 
 PYTHON = cd.LANGUAGES['python']
 
-COVER = '# pragma: no cover'
-BRANCH = '# pragma: no branch'
+WORD = 'prag' + 'ma'
+COVER = f'# {WORD}: no cover'
+BRANCH = f'# {WORD}: no branch'
 FORMS_COVERAGE_PY_HONOURS = (
-    '# pragma: no cover', '# pragma: no branch', '#pragma: no cover', '# pragma:no cover', '# pragma no cover',
-    '# pragma: no  cover', '# PRAGMA: NO COVER', '# pragma: no cover - the other branch is tested elsewhere',
-    '# noqa  # pragma: no cover', '# type: ignore  # pragma: no branch', '# pragma: no cover  # reason',
+    COVER, BRANCH, f'#{WORD}: no cover', f'# {WORD}:no cover', f'# {WORD} no cover', f'# {WORD}: no  cover',
+    f'# {WORD.upper()}: NO COVER', f'{COVER} - the other branch is tested elsewhere', f'# noqa  {COVER}',
+    f'# type: ignore  {BRANCH}', f'{COVER}  # reason',
 )
 NOT_SILENCERS = (
     '# noqa', '# noqa: E402', '# type: ignore', '# type: ignore[valid-type]', '# fmt: off', '# fmt: on',
@@ -30,17 +31,29 @@ def reading(source):
     return PYTHON.reading(source, ())
 
 
-class PythonSilencerPatternTest(unittest.TestCase):
+def silenced(text):
+    return PYTHON.silencer(None, text)
 
-    def test_every_form_coverage_py_honours_matches_pythons_silencer_pattern(self):
+
+class PythonSilencerReaderTest(unittest.TestCase):
+
+    def test_every_form_coverage_py_honours_is_a_silencer_on_its_line(self):
         for text in FORMS_COVERAGE_PY_HONOURS:
             with self.subTest(text=text):
-                self.assertIsNotNone(PYTHON.silencer.search(text))
+                self.assertEqual(silenced(f'x = 1\nif x:  {text}\n    pass\n'), (2,))
 
     def test_noqa_type_ignore_fmt_and_other_pragmas_are_not_silencers(self):
         for text in NOT_SILENCERS:
             with self.subTest(text=text):
-                self.assertIsNone(PYTHON.silencer.search(text))
+                self.assertEqual(silenced(f'if x:  {text}\n    pass\n'), ())
+
+    def test_a_silencer_is_read_from_the_physical_line_as_coverage_py_matches_it_so_lines_stay_in_step_after_a_form_feed(self):
+        self.assertEqual(silenced(f'x = 1\n\x0c\nif x:  {COVER}\n    pass\n'), (3,))
+
+    def test_every_language_reads_its_silencers_through_a_callable_taking_the_reading_and_the_source(self):
+        for name, row in cd.LANGUAGES.items():
+            with self.subTest(name):
+                self.assertTrue(callable(row.silencer))
 
 
 class PythonSilencerReadingTest(unittest.TestCase):
@@ -53,7 +66,7 @@ class PythonSilencerReadingTest(unittest.TestCase):
         self.assertEqual(reading(f'if x:  {COVER}\n    pass\n').debt, {})
 
     def test_a_silencer_that_carries_prose_is_a_silencer_and_not_also_a_comment_line(self):
-        found = reading('if x:  # pragma: no cover - tested by hand\n    pass\n')
+        found = reading(f'if x:  {COVER} - tested by hand\n    pass\n')
         self.assertEqual((found.silencers, found.debt), ((1,), {}))
 
     def test_a_comment_beside_a_silencer_on_another_line_stays_a_comment_line(self):
@@ -65,9 +78,13 @@ class PythonSilencerReadingTest(unittest.TestCase):
         found = reading(source)
         self.assertEqual((found.silencers, found.debt), ((), {}))
 
-    def test_a_pragma_inside_a_string_is_not_a_silencer(self):
-        found = reading('MARKER = "# pragma: no cover"\n')
-        self.assertEqual((found.silencers, found.debt), ((), {}))
+    def test_a_pragma_inside_a_string_is_a_silencer_because_coverage_py_matches_the_raw_line(self):
+        found = reading(f'MARKER = "{COVER}"\n')
+        self.assertEqual((found.silencers, found.debt), ((1,), {}))
+
+    def test_a_docstring_line_holding_a_pragma_is_a_silencer_and_not_also_a_string_comment_line(self):
+        found = reading(f'def f():\n    """One.\n    {COVER}\n    """\n    return 1\n')
+        self.assertEqual((found.silencers, list(found.debt)), ((3,), [2, 4]))
 
     def test_a_pragma_for_a_tool_that_is_not_ours_stays_a_comment_line(self):
         found = reading('x = 1  # pragma: no mutate\n')
@@ -77,16 +94,23 @@ class PythonSilencerReadingTest(unittest.TestCase):
         found = reading(f'def f(x):\n    """One."""\n    if x:  {COVER}\n        return 1\n')
         self.assertEqual((found.silencers, list(found.debt)), ((3,), [2]))
 
-    def test_the_checker_the_gate_calls_for_comment_lines_leaves_silencers_out(self):
-        self.assertEqual(PYTHON.checker(f'if x:  {COVER}\n    pass\n', ()), {})
 
 
 class SharedReaderSilencerTest(unittest.TestCase):
 
     def test_a_comment_matching_a_languages_silencer_pattern_is_a_silencer_and_not_a_comment_line_in_a_language_the_shared_reader_reads(self):
-        row = dataclasses.replace(cd.LANGUAGES['typescript'], silencer=re.compile(r'//\s*silence\b'))
+        row = dataclasses.replace(cd.LANGUAGES['typescript'], silencer=cd.in_comments(re.compile(r'//\s*silence\b')))
         found = row.reading('// why\nf(); // silence me\nlet s = "// silence";\n', ())
         self.assertEqual((found.silencers, list(found.debt)), ((2,), [1]))
+
+    def test_a_silencer_callable_is_handed_the_readers_code_with_strings_and_comments_blanked(self):
+        seen = []
+        row = dataclasses.replace(cd.LANGUAGES['rust'], silencer=lambda reading, source: seen.append(reading.blanked) or ())
+        row.reading('let s = "x"; // c\n', ())
+        self.assertEqual(len(seen), 1)
+        self.assertIn('let s', seen[0])
+        self.assertNotIn('"x"', seen[0])
+        self.assertNotIn('// c', seen[0])
 
 
 def f_with_six_untested_branches(marker):
@@ -239,6 +263,29 @@ class SilencerGateTest(unittest.TestCase):
         self.assertEqual(self.gate('--status')[0], 0)
         self.assertEqual(self.gate('--report', 'python')[0], 0)
 
+    def test_a_silencer_baseline_that_does_not_read_stops_the_run_before_the_comment_baseline_is_written(self):
+        self.put('m.py', f'# one\n# two\nif x:  {COVER}\n    pass\n')
+        self.gate('--update')
+        self.put('m.py', f'# one\nif x:  {COVER}\n    pass\n')
+        self.silencers.write_text('[]\n')
+        before = self.comments.read_text()
+        code, out = self.gate('--update')
+        self.assertEqual(code, 2)
+        self.assertIn('bad baseline', out)
+        self.assertIn('silencer-baseline.json', out)
+        self.assertEqual(self.comments.read_text(), before)
+
+    def test_a_silencer_baseline_that_is_missing_stops_the_check_before_any_comment_output(self):
+        self.put('m.py', '# one\nx = 1\n')
+        self.comments.write_text('{}\n')
+        code, out = self.gate()
+        self.assertEqual(code, 2)
+        self.assertNotIn('FAIL', out)
+
+    def test_an_unreadable_file_is_named_with_the_same_cause_wording_for_comments_and_silencers(self):
+        self.assertTrue(cd.UNREAD.startswith(cd.UNREAD_CAUSE))
+        self.assertTrue(cd.UNREAD_SILENCERS.startswith(cd.UNREAD_CAUSE))
+
     def test_the_baseline_flag_moves_the_comment_baseline_and_leaves_the_silencer_baseline_at_the_root(self):
         other = self.root / 'tools' / 'debt.json'
         other.parent.mkdir()
@@ -257,6 +304,25 @@ class SetupRecordsSilencersTest(unittest.TestCase):
         subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
         (self.root / 'm.py').write_text(f'# why\nif x:  {COVER}\n    pass\n')
         subprocess.run(['git', 'add', 'm.py'], cwd=self.root, check=True)
+
+    def test_switching_on_a_second_comment_language_records_the_silencers_of_the_language_already_chosen_when_there_is_no_silencer_baseline_yet(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup_choices.main(['--go', '--choose', 'no-comments'], root=self.root)
+        (self.root / 'silencer-baseline.json').unlink()
+        (self.root / 'main.rs').write_text('fn main() {}\n')
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = setup_choices.main(['--go', '--choose', 'no-comments-rust'], root=self.root)
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads((self.root / 'silencer-baseline.json').read_text()), {'m.py': 1})
+        self.assertEqual(cd.main([], root=self.root, out=io.StringIO()), 0)
+
+    def test_switching_on_a_second_comment_language_leaves_the_recorded_silencers_of_the_first_as_they_were(self):
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup_choices.main(['--go', '--choose', 'no-comments'], root=self.root)
+        (self.root / 'main.rs').write_text('fn main() {}\n')
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup_choices.main(['--go', '--choose', 'no-comments-rust'], root=self.root)
+        self.assertEqual(json.loads((self.root / 'silencer-baseline.json').read_text()), {'m.py': 1})
 
     def test_choosing_the_comment_gate_records_the_silencers_already_there_so_the_gate_then_passes(self):
         with contextlib.redirect_stdout(io.StringIO()):

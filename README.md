@@ -721,9 +721,10 @@ line, like any other tool error.
   on the recommended set, and lists the files it would change. It writes
   nothing until `--go`, and then only `quality-gates.json`, plus
   `comment-debt.json` and `silencer-baseline.json` when it switches a comment
-  language on: that language's comments and silencers are recorded there as
-  debt, replacing its older entries and leaving the others as they were, less
-  any entry of zero. It never edits a CI
+  language on: that language's comments are recorded in the first as debt,
+  replacing its older entries and leaving the others as they were, less any
+  entry of zero, and its silencers go into the second the same way (when that
+  file does not exist yet, the silencers of every chosen comment language). It never edits a CI
   workflow: when no workflow that runs on pull requests runs `qg tolerated`
   in a step, it prints the step to paste at the end of the steps of the job
   that runs the gates, and `--json` lists it under `notes`. Without a choice

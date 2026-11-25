@@ -438,7 +438,7 @@ CATCH_EVERY_ERROR = {"Exception", "BaseException"}
 SUPPRESS = "suppress"
 GATE_MODULES = ("comment_debt", "quality_check", "crap")
 RATCHET_PATH = "quality_gates.ratchet"
-GATE_INTERFACE = {"Finding", "Location", "Asked", "Wording", "Result", "enforce", "run_gate", "silencer_asked"}
+GATE_INTERFACE = {"Finding", "Location", "Asked", "Wording", "Result", "enforce", "run_gate", "silencer_asked", "readable"}
 BASELINE_FORMAT = "json"
 
 

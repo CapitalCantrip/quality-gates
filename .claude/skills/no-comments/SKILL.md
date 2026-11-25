@@ -15,7 +15,8 @@ docstrings and strings used as comments too. Bare tool pragmas
 (`# noqa: E402`, `eslint-disable`, `swiftlint:disable`) are exempt. Python's
 `# pragma: no cover` and `# pragma: no branch` are not: they are silencers (they
 switch off the coverage half of `crap`), reported as their own finding, held in
-`silencer-baseline.json` and not counted as comment lines. A
+`silencer-baseline.json` and not counted as comment lines. They count wherever
+they sit on a line, a string included, as coverage.py reads the line. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.

@@ -277,18 +277,23 @@ comment gate exempted the pragma as a bare tool pragma.
 
 **A silencer is an in-code marker that switches off one of quality-gates' own
 gates.** `comment-debt` finds it at a file and line, as a finding of kind
-`silencer` beside the comment lines. Silencers are not comment debt: a comment
-that is a silencer is not also counted as a comment line, whatever prose
+`silencer` beside the comment lines. Silencers are not comment debt: a line
+that holds a silencer is not also counted as a comment line, whatever prose
 follows it. A tool still reads it, so prose does not take it out of the kind.
 
-**The patterns live in the comment gate's per-language table,** one per
+**The readers live in the comment gate's per-language table,** one per
 language beside its comment syntax, and not in the language registry
-(ADR-011 § 2). Python's are `# pragma: no cover` and `# pragma: no branch`,
-read as coverage.py reads them: the word `pragma` after the `#`, with or
-without the colon and spaces, in either case, then `no` and `cover` or
-`branch`, with anything after. A pragma inside a string is not a comment and
-is not found. `# noqa`, `# type: ignore` and `# fmt: on|off|skip` stay bare
-pragmas and exempt: they switch off no gate of ours. Another tool's pragma,
+(ADR-011 § 2). A reader is a function given the language's reading and the
+source, and returns the lines that hold a silencer, so a language can look
+at its comments or, as Rust's will, at the code with strings and comments
+blanked out. Python's reads the physical source lines, as coverage.py matches
+them: `# pragma: no cover` and `# pragma: no branch` are silencers wherever
+they sit on a line, a string or a docstring included, since coverage.py
+excludes that line all the same. The match is the word `pragma` after a `#`,
+with or without the colon and spaces, in either case, then `no` and `cover`
+or `branch`, with anything after. `# noqa`, `# type: ignore` and
+`# fmt: on|off|skip` stay bare pragmas and exempt: they switch off no gate of
+ours. Another tool's pragma,
 such as `# pragma: no mutate`, is an ordinary comment line. The gate reads no
 coverage configuration, so a project's own `exclude_lines` patterns are not
 silencers.
@@ -300,9 +305,13 @@ count is `PAID` until `--update`, and a file that cannot be read is unmeasured
 and keeps its entry. `--update` records every silencer when the file does not
 exist yet, and only lowers it after that. A missing silencer baseline stops
 the check with exit 2, as a missing `comment-debt.json` does. `--baseline`
-moves the comment baseline only. `qg setup` records both baselines when it
-switches a comment language on. The silencer baseline is part of the tolerated
-list (GLOSSARY); the `tolerated` module counts its growth (ADR-011 addendum
+moves the comment baseline only. The check reads the silencer baseline before
+it judges or writes the comment baseline, so a broken one stops the run with
+exit 2 and nothing written. `qg setup` records both baselines when it switches
+a comment language on; when `silencer-baseline.json` does not exist yet it
+records the silencers of every chosen comment language, not only the new
+one, so `comment-debt` passes straight after. The silencer baseline is part of the tolerated
+list (GLOSSARY); #192's `tolerated` module counts its growth (ADR-011 addendum
 2026-11-25).
 
 **Other languages follow in their own tickets:** TypeScript's `istanbul ignore`,
@@ -316,6 +325,9 @@ Until each lands, its row matches nothing.
 - **Keeping the pragma exempt but recording it in `comment-debt.json`.** Debt
   and silencers answer different questions: debt is paid by deleting a
   comment, a silencer by testing the code it hides.
+- **Finding silencers only in the comment list.** coverage.py matches the raw
+  line, so a pragma in a string or a docstring hides code from `crap` just as
+  a comment does.
 - **Counting only a bare `# pragma: no cover`.** coverage.py honours the
   pragma with prose after it, so a counted-only-when-bare rule lets a reason
   hide the silencer.

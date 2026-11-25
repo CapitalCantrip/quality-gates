@@ -508,7 +508,7 @@ class CommentDebtFindsTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "add", "a.py", "pkg/b.py"], check=True)
 
     def located(self):
-        return [f.location for f in cd.findings(self.root)]
+        return [f.location for f in cd.comment_findings(cd.measure(self.root, cd.checked_files(self.root)))]
 
     def test_the_same_code_gives_the_same_locations_on_two_runs(self):
         first = self.located()
@@ -585,6 +585,7 @@ class EveryRunGoesToTheRatchetTest(unittest.TestCase):
                 self.assertIs(self.handed(crap.gate, ["--lang", "python", str(self.module), *extra]), HANDED)
 
     def test_comment_debt_hands_every_run_to_the_ratchet_once_for_comments_and_once_for_silencers(self):
+        (self.root / "silencer-baseline.json").write_text("{}\n")
         for extra in ([], ["--status"], ["--update"]):
             with self.subTest(extra=extra):
                 result = self.handed(cd.gate, extra, baseline=self.file, out=io.StringIO())

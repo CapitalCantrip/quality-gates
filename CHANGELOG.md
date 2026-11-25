@@ -33,7 +33,8 @@
   `silencer-baseline.json` (a count per file that only shrinks) and no longer
   counted as a comment line. A function over the limit could pass `crap` by
   hiding its untested branches under the pragma; now each pragma fails the
-  gate unless it is recorded. `# noqa`, `# type: ignore` and `# fmt:` are
+  gate unless it is recorded. The pragma counts wherever it sits on a line, a
+  string or docstring included, as coverage.py reads the line. `# noqa`, `# type: ignore` and `# fmt:` are
   neither comment lines nor silencers. On bumping the pin, run
   `comment-debt --update` once and commit `silencer-baseline.json`: until it
   exists `comment-debt` exits 2, and it records the pragmas already there.

@@ -10,7 +10,7 @@ import tokenize
 import warnings
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from quality_gates import code_reader, languages, project_files, ratchet
 from quality_gates.errors import Untagged
@@ -29,12 +29,13 @@ FINDING_KIND = "comment lines"
 SILENCER_KIND = "silencer"
 TAG = "comment-debt: "
 UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
-UNREAD = "could not be opened, does not parse or is not UTF-8, so its comments were not counted"
+UNREAD_CAUSE = "could not be opened, does not parse or is not UTF-8"
+UNREAD = f"{UNREAD_CAUSE}, so its comments were not counted"
 UNREAD_ADVICE = (
     "Unmeasured files fail the gate. Finish or fix them, or leave them out with settings.no-comments.exclude; "
     "the baseline keeps any entry they already have and records none for them."
 )
-UNREAD_SILENCERS = "could not be read, so its silencers were not counted"
+UNREAD_SILENCERS = f"{UNREAD_CAUSE}, so its silencers were not counted"
 UNREAD_SILENCERS_ADVICE = "The silencer baseline keeps any entry an unmeasured file already has."
 SILENCER_REFUSAL = "--update only lowers the silencer baseline. It will not record a new silencer.\n"
 SILENCER_ADVICE = (
@@ -63,17 +64,13 @@ def exempt(text, line):
     return bool(PRAGMA.match(text))
 
 
-def python_comments(source):
-    tokens = tokenize.generate_tokens(io.StringIO(source).readline)
-    return [(tok.start[0], tok.string) for tok in tokens if tok.type == tokenize.COMMENT]
-
-
-def comment_lines(comments, silencer):
-    return {line for line, text in comments if not silencer.search(text) and not exempt(text, line)}
-
-
-def silencer_lines(comments, silencer):
-    return tuple(line for line, text in comments if silencer.search(text))
+def comment_lines(source):
+    readline = io.StringIO(source).readline
+    return {
+        tok.start[0]
+        for tok in tokenize.generate_tokens(readline)
+        if tok.type == tokenize.COMMENT and not exempt(tok.string, tok.start[0])
+    }
 
 
 def is_bare_string(node):
@@ -101,15 +98,21 @@ class FileReading:
     silencers: tuple
 
 
-def python_reading(source, silencer):
-    comments = python_comments(source)
-    kinds = {**{line: code_reader.LINE for line in comment_lines(comments, silencer)},
-             **{line: STRING for line in string_lines(source)}}
-    return FileReading(dict(sorted(kinds.items())), silencer_lines(comments, silencer))
+def python_kinds(source):
+    kinds = {**{line: code_reader.LINE for line in comment_lines(source)}, **{line: STRING for line in string_lines(source)}}
+    return dict(sorted(kinds.items()))
 
 
-def debt_kinds(source):
-    return python_reading(source, PYTHON_SILENCER).debt
+def python_silencers(reading, source):
+    return tuple(number for number, line in enumerate(source.split(code_reader.NEWLINE), 1) if PYTHON_SILENCER.search(line))
+
+
+def silences_nothing(reading, source):
+    return ()
+
+
+def in_comments(pattern):
+    return lambda reading, source: tuple(sorted({c.start for c in reading.comments if pattern.search(c.text)}))
 
 
 SAFETY_START = "// SAFETY:"
@@ -159,17 +162,12 @@ def allowed_by(language, conventions, reading, source):
                          if name in language.conventions))
 
 
-def counted_comments(language, reading, source, conventions, silent):
-    allowed = allowed_by(language, conventions, reading, source) | set(silent)
-    return [c for c in reading.comments if c not in allowed and not language.exempts(c)]
-
-
-def read_comments(language, silencer, source, conventions):
+def read_comments(language, source, conventions):
     reading = code_reader.read(source, language.syntax)
-    silent = [comment for comment in reading.comments if silencer.search(comment.text)]
-    counted = counted_comments(language, reading, source, conventions, silent)
+    allowed = allowed_by(language, conventions, reading, source)
+    counted = [c for c in reading.comments if c not in allowed and not language.exempts(c)]
     kinds = {line: comment.kind for comment in counted for line in range(comment.start, comment.end + 1)}
-    return FileReading(dict(sorted(kinds.items())), tuple(comment.start for comment in silent))
+    return reading, dict(sorted(kinds.items()))
 
 
 RUST = CommentSyntax(code_reader.Syntax(
@@ -250,30 +248,27 @@ SHELL = CommentSyntax(code_reader.Syntax(
 ), re.compile(r"#\s*shellcheck\s+disable=SC\d+(?:\s*,\s*SC\d+)*\s*"), {}, shebang=True)
 
 
-SILENCES_NOTHING = re.compile(r"(?!)")
-
-
 @dataclass(frozen=True)
 class CommentLanguage:
     component: str
-    silencer: re.Pattern
+    silencer: Callable
     syntax: Optional[CommentSyntax] = None
 
     def reading(self, source, conventions):
         if self.syntax is None:
-            return python_reading(source, self.silencer)
-        return read_comments(self.syntax, self.silencer, source, conventions)
-
-    def checker(self, source, conventions):
-        return self.reading(source, conventions).debt
+            code, debt = None, python_kinds(source)
+        else:
+            code, debt = read_comments(self.syntax, source, conventions)
+        silenced = self.silencer(code, source)
+        return FileReading({line: kind for line, kind in debt.items() if line not in silenced}, silenced)
 
 
 LANGUAGES = {
-    "python": CommentLanguage("no-comments", PYTHON_SILENCER),
-    "rust": CommentLanguage("no-comments-rust", SILENCES_NOTHING, RUST),
-    "typescript": CommentLanguage("no-comments-typescript", SILENCES_NOTHING, TYPESCRIPT),
-    "swift": CommentLanguage("no-comments-swift", SILENCES_NOTHING, SWIFT),
-    "shell": CommentLanguage("no-comments-shell", SILENCES_NOTHING, SHELL),
+    "python": CommentLanguage("no-comments", python_silencers),
+    "rust": CommentLanguage("no-comments-rust", silences_nothing, RUST),
+    "typescript": CommentLanguage("no-comments-typescript", silences_nothing, TYPESCRIPT),
+    "swift": CommentLanguage("no-comments-swift", silences_nothing, SWIFT),
+    "shell": CommentLanguage("no-comments-shell", silences_nothing, SHELL),
 }
 
 
@@ -335,10 +330,6 @@ def comment_findings(measured):
 
 def silencer_findings(measured):
     return [silencer_finding(path, lines) for path, lines in sorted(silencers_in(measured).items())]
-
-
-def findings(root, listed=checked_files):
-    return comment_findings(measure(root, listed(root)))
 
 
 def chosen_only_on_asking():
@@ -552,9 +543,12 @@ def parse_args(argv):
     return parser.parse_args(argv)
 
 
-def chosen_languages(root):
-    choice = project_files.checked_choice(root)
+def chosen_in(choice):
     return frozenset(name for name, row in LANGUAGES.items() if project_files.is_chosen(choice, row.component))
+
+
+def chosen_languages(root):
+    return chosen_in(project_files.checked_choice(root))
 
 
 def asked(args, root, baseline) -> ratchet.Asked:
@@ -572,9 +566,10 @@ def silencers_asked(args, root):
 
 def enforced(args, root, baseline, out):
     measured = functools.lru_cache(maxsize=None)(lambda: measure(root, checked_files(root)))
-    comments = ratchet.enforce(lambda: comment_findings(measured()), asked(args, root, baseline), out, WORDING)
-    silencers = ratchet.enforce(lambda: silencer_findings(measured()), silencers_asked(args, root), out,
-                                SILENCER_WORDING)
+    comments_wanted = ratchet.readable(asked(args, root, baseline), out)
+    silencers_wanted = ratchet.readable(silencers_asked(args, root), out)
+    comments = ratchet.enforce(lambda: comment_findings(measured()), comments_wanted, out, WORDING)
+    silencers = ratchet.enforce(lambda: silencer_findings(measured()), silencers_wanted, out, SILENCER_WORDING)
     return ratchet.Result(comments.verdicts + silencers.verdicts)
 
 
