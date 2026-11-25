@@ -12,7 +12,8 @@ from pathlib import Path, PurePosixPath
 
 from quality_gates import languages
 from quality_gates.errors import ToolError
-from quality_gates.manifest import BrokenFileError, fail_unless, known, known_languages, read_json, require, unique
+from quality_gates.manifest import (BrokenFileError, fail_unless, json_from, known, known_languages, read_json, require,
+                                   unique)
 
 HOOKS_SOURCE = Path(__file__).parent / "hooks"
 AGENTS_SOURCE = Path(__file__).parent / "agents"
@@ -36,7 +37,9 @@ ASKING_LINE = (
 )
 GIT_ROOT = ("git", "rev-parse", "--show-toplevel")
 FILES_GIT_WOULD_COMMIT = ("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
-COMMIT_OF = ("git", "rev-parse", "--verify", "--quiet", "--end-of-options")
+COMMIT_OF = ("git", "rev-parse", "--verify", "--quiet")
+OPTION_START = "-"
+OUTSIDE_THE_REPO = "{} is outside the repository at {}: name a file inside it"
 AS_A_COMMIT = "^{commit}"
 BLOB_AT = ("git", "cat-file", "blob")
 DEFAULT_BRANCHES = (
@@ -95,13 +98,22 @@ COMMENT_GATE_COMMAND = "comment-debt"
 EXCLUDE_FLAG = "--exclude"
 COMMAND_SEPARATORS = frozenset({"&&", "||", "|", ";"})
 GATE_COMMANDS = (COMMENT_GATE_COMMAND, "cc-check", "crap")
-ON_PULL_REQUESTS = re.compile(r"(?<![\w-])pull_request(?![\w-])")
-STEP_START = re.compile(r"([ \t]*)- ")
+TOP_KEY = re.compile(r"""(["']?)([\w-]+)\1[ \t]*:(.*)""")
+STEPS_KEY = re.compile(r"[ \t]+steps[ \t]*:[ \t]*(?:#.*)?")
+RUN_KEY = re.compile(r"run[ \t]*:(.*)", re.DOTALL)
+NAME_AT_START = re.compile(r"""(?:-[ \t]+)?(["']?)([\w-]+)\1""")
+FLOW_WORD = re.compile(r"[\w-]+")
+TRAILING_COMMENT = re.compile(r"(?:^|\s)#")
+TRIGGERS_KEY, JOBS_KEY, PULL_REQUEST = "on", "jobs", "pull_request"
+COMMENT_START, ITEM_START = "#", "- "
+MARKED_OFF = ("{} holds the qg tolerated step but does not run on pull requests, so the step never runs: "
+              "add pull_request to its `on:`, or remove the lines between quality-gates' markers")
 CI_BEGIN = "# quality-gates: begin"
 CI_END = "# quality-gates: end"
 TOLERATED_STEP = (
     "- name: qg tolerated",
     "  if: github.event_name == 'pull_request'",
+    "  shell: bash",
     "  env:",
     "    BASE: ${{ github.base_ref }}",
     "  run: |",
@@ -480,6 +492,8 @@ def git_root(start=None):
 
 
 def commit_of(root, ref):
+    if ref.startswith(OPTION_START):
+        return None
     found = subprocess.run([*COMMIT_OF, ref + AS_A_COMMIT], cwd=root, capture_output=True, text=True)
     return found.stdout.strip() if found.returncode == 0 and found.stdout.strip() else None
 
@@ -492,8 +506,28 @@ def copy_at(root, ref, name):
     commit = commit_of(root, ref)
     if commit is None:
         return None
-    found = subprocess.run([*BLOB_AT, f"{commit}:{Path(name).as_posix()}"], cwd=root, capture_output=True)
+    found = subprocess.run([*BLOB_AT, f"{commit}:{path_in_repo(root, name)}"], cwd=root, capture_output=True)
     return found.stdout if found.returncode == 0 else None
+
+
+def steps_out(relative):
+    return relative.split(os.sep)[0] == os.pardir
+
+
+def path_in_repo(root, name):
+    full = os.path.normpath(os.path.join(root, name))
+    relative = os.path.relpath(full, os.path.normpath(root))
+    if steps_out(relative):
+        relative = os.path.relpath(os.path.realpath(full), os.path.realpath(root))
+    if steps_out(relative):
+        raise ToolError(OUTSIDE_THE_REPO.format(name, root))
+    return Path(relative).as_posix()
+
+
+def choice_at(root, ref):
+    data = copy_at(root, ref, CHOICE_FILE)
+    where = f"{ref}:{CHOICE_FILE}"
+    return None if data is None else choice_from(json_from(data, where), where)
 
 
 def main_copy(root, name):
@@ -853,39 +887,119 @@ def marked_span(lines, where):
     return begins[0], ends[0] + 1
 
 
-def runs_a_gate(line):
-    return any(runs_command(line, command) for command in GATE_COMMANDS)
+def is_content(line):
+    text = line.strip()
+    return bool(text) and not text.startswith(COMMENT_START)
 
 
-def step_indent(lines, at):
-    limit = len(indent_of(lines[at]))
-    for line in reversed(lines[:at + 1]):
-        found = STEP_START.match(line)
-        if found and len(found.group(1)) <= limit:
-            return found.group(1)
-    return None
+def is_top_level(line):
+    return is_content(line) and not line[0].isspace()
 
 
-def gate_step(lines):
+def top_block(lines, key):
     for at, line in enumerate(lines):
-        indent = step_indent(lines, at) if runs_a_gate(line) else None
-        if indent is not None:
-            return at, indent
+        found = TOP_KEY.fullmatch(line.rstrip(CRLF)) if is_top_level(line) else None
+        if found and found.group(2) == key:
+            end = next((after for after in range(at + 1, len(lines)) if is_top_level(lines[after])), len(lines))
+            return found.group(3), at + 1, end
     return None
+
+
+def without_comment(text):
+    return TRAILING_COMMENT.split(text, 1)[0].strip()
+
+
+def child_names(lines):
+    children = [line for line in lines if is_content(line)]
+    depth = min((len(indent_of(line)) for line in children), default=0)
+    named = (NAME_AT_START.match(line.strip()) for line in children if len(indent_of(line)) == depth)
+    return {found.group(2) for found in named if found}
+
+
+def triggers(lines):
+    found = top_block(lines, TRIGGERS_KEY)
+    if found is None:
+        return set()
+    inline, start, end = found
+    inline = without_comment(inline)
+    return set(FLOW_WORD.findall(inline)) if inline else child_names(lines[start:end])
+
+
+def runs_on_pull_requests(lines):
+    return PULL_REQUEST in triggers(lines)
+
+
+def is_item(line, indent):
+    return len(indent_of(line)) == len(indent) and line.lstrip().startswith(ITEM_START)
 
 
 def in_steps(line, indent):
-    here = len(indent_of(line))
-    return not line.strip() or here > len(indent) or (here == len(indent) and line.lstrip().startswith("- "))
+    if not is_content(line):
+        return True
+    return len(indent_of(line)) > len(indent) or is_item(line, indent)
 
 
-def steps_end(lines, at, indent):
-    end = at + 1
-    while end < len(lines) and in_steps(lines[end], indent):
-        end += 1
-    while end > at + 1 and not lines[end - 1].strip():
-        end -= 1
-    return end
+@dataclass(frozen=True)
+class StepsList:
+    indent: str
+    items: tuple
+    end: int
+
+    def item_lines(self, lines):
+        return [lines[start:stop] for start, stop in zip(self.items, self.items[1:] + (self.end,))]
+
+
+def first_item(lines, at, end):
+    first = next((after for after in range(at + 1, end) if is_content(lines[after])), None)
+    if first is None or not lines[first].lstrip().startswith(ITEM_START):
+        return None
+    return first if len(indent_of(lines[first])) >= len(indent_of(lines[at])) else None
+
+
+def steps_list(lines, at, end):
+    first = first_item(lines, at, end)
+    if first is None:
+        return None
+    indent, stop = indent_of(lines[first]), first
+    while stop < end and in_steps(lines[stop], indent):
+        stop += 1
+    while not is_content(lines[stop - 1]):
+        stop -= 1
+    return StepsList(indent, tuple(row for row in range(first, stop) if is_item(lines[row], indent)), stop)
+
+
+def steps_lists(lines):
+    found = top_block(lines, JOBS_KEY)
+    if found is None:
+        return []
+    _, start, end = found
+    keys = (at for at in range(start, end) if STEPS_KEY.fullmatch(lines[at].rstrip(CRLF)))
+    return [listed for listed in (steps_list(lines, at, end) for at in keys) if listed is not None]
+
+
+def continuation(lines, column):
+    for line in lines:
+        if is_content(line) and len(indent_of(line)) <= column:
+            return
+        yield line
+
+
+def run_text(item):
+    column = len(item[0]) - len(item[0].lstrip()[len(ITEM_START.rstrip()):].lstrip())
+    for at, line in enumerate(item):
+        found = RUN_KEY.match(line[column:]) if at == 0 or len(indent_of(line)) == column else None
+        if found:
+            return found.group(1) + "".join(continuation(item[at + 1:], column))
+    return ""
+
+
+def runs_a_gate(text):
+    return any(runs_command(text, command) for command in GATE_COMMANDS)
+
+
+def gate_steps(lines):
+    return next((listed for listed in steps_lists(lines)
+                 if any(runs_a_gate(run_text(item)) for item in listed.item_lines(lines))), None)
 
 
 def ended(lines, newline):
@@ -893,18 +1007,16 @@ def ended(lines, newline):
 
 
 def with_step_added(lines, newline):
-    found = gate_step(lines)
+    found = gate_steps(lines)
     if found is None:
         return None
-    at, indent = found
-    end = steps_end(lines, at, indent)
-    return "".join(ended(lines[:end], newline) + marked_step(indent, newline) + lines[end:])
+    return "".join(ended(lines[:found.end], newline) + marked_step(found.indent, newline) + lines[found.end:])
 
 
 def with_tolerated_step(text, where):
-    if not ON_PULL_REQUESTS.search(text):
-        return None
     lines = text.splitlines(keepends=True)
+    if not runs_on_pull_requests(lines):
+        return None
     newline = line_ending(lines)
     span = marked_span(lines, where)
     if span is None:
@@ -913,16 +1025,27 @@ def with_tolerated_step(text, where):
     return "".join(lines[:begin] + marked_step(indent_of(lines[begin]), newline) + lines[end:])
 
 
-def tolerated_step_changes(root):
+def workflow_texts(root):
     files = workflow_files(root)
-    found = sorted(((path, text) for path, text in zip(files, each_text(files)) if text is not None),
-                   key=lambda pair: CI_BEGIN not in pair[1])
-    for path, text in found:
-        name = path.relative_to(root).as_posix()
-        changed = with_tolerated_step(text, name)
-        if changed is not None:
-            return [PlannedChange(name, changed)]
-    return []
+    return [(path.relative_to(root).as_posix(), text) for path, text in zip(files, each_text(files)) if text is not None]
+
+
+def holds_markers(text):
+    return any(line.strip() in (CI_BEGIN, CI_END) for line in text.splitlines())
+
+
+def marked_plan(name, text):
+    changed = with_tolerated_step(text, name)
+    return ([PlannedChange(name, changed)], []) if changed is not None else ([], [MARKED_OFF.format(name)])
+
+
+def tolerated_step_plan(root):
+    texts = workflow_texts(root)
+    marked = [(name, text) for name, text in texts if holds_markers(text)]
+    if marked:
+        return marked_plan(*marked[0])
+    changed = ((name, with_tolerated_step(text, name)) for name, text in texts)
+    return next(([PlannedChange(name, text)] for name, text in changed if text is not None), []), []
 
 
 def comment_gate_exclusions(root):

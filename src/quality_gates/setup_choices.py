@@ -243,11 +243,14 @@ def recording_changes(root, proposal):
 
 def run(args, project, manifest):
     proposal = propose(project, manifest, args)
-    changes = (recording_changes(project.root, proposal) + [project_files.choice_change(proposal.choice)]
-               + project_files.tolerated_step_changes(project.root))
+    ci_changes, notes = project_files.tolerated_step_plan(project.root)
+    changes = recording_changes(project.root, proposal) + [project_files.choice_change(proposal.choice)] + ci_changes
     planned = [(change, project_files.planned_state(project.root, change)) for change in changes]
     written = project_files.apply_planned(project.root, changes) if args.go else []
-    print(json.dumps(report_of(proposal, planned), indent=2) if args.json else render(proposal, planned, written))
+    if args.json:
+        print(json.dumps({**report_of(proposal, planned), "notes": notes}, indent=2))
+    else:
+        print("\n".join([render(proposal, planned, written), *notes]))
     return 0
 
 

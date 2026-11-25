@@ -69,6 +69,7 @@ jobs:
 TOLERATED_STEP = """      # quality-gates: begin
       - name: qg tolerated
         if: github.event_name == 'pull_request'
+        shell: bash
         env:
           BASE: ${{ github.base_ref }}
         run: |
@@ -424,6 +425,15 @@ class Setup(unittest.TestCase):
         _, out, _ = self.run_setup()
         self.assertIn("  .github/workflows/tests.yml: will change\n", out)
         self.assertEqual((self.repo / ".github" / "workflows" / "tests.yml").read_text(), WORKFLOW)
+
+    def test_setup_names_a_workflow_holding_the_step_that_no_longer_runs_on_pull_requests(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml",
+                   WORKFLOW_WITH_STEP.replace("on: [pull_request, push]", "on: push"))
+        before = tree(self.repo)
+        _, out, _ = self.run_setup()
+        self.assertIn(".github/workflows/tests.yml holds the qg tolerated step but does not run on pull requests", out)
+        self.assertEqual(json.loads(self.run_setup("--json")[1])["notes"], [out.splitlines()[-1]])
+        self.assertEqual(tree(self.repo), before)
 
     def test_setup_stops_with_exit_2_on_a_workflow_whose_markers_are_broken(self):
         self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW + "      # quality-gates: begin\n")

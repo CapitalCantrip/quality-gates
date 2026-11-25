@@ -722,7 +722,9 @@ line, like any other tool error.
   `qg tolerated` step to the first workflow that runs a gate on pull requests,
   between `# quality-gates: begin` and `# quality-gates: end`, after the
   steps of that gate's job; on later runs it rewrites only the lines between
-  the markers. Broken markers stop it with exit 2 and nothing written. Without a choice
+  the markers, in whichever workflow holds them. When that workflow no longer
+  runs on pull requests it says so and adds no second step. Broken markers
+  stop it with exit 2 and nothing written. Without a choice
   file it records what is installed as chosen, except a new comment language
   such as `no-comments-rust`: the hook, CI step and baseline it shares with
   `no-comments` never make it look installed, so it is switched on only by

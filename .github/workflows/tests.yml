@@ -24,6 +24,7 @@ jobs:
       # quality-gates: begin
       - name: qg tolerated
         if: github.event_name == 'pull_request'
+        shell: bash
         env:
           BASE: ${{ github.base_ref }}
         run: |
