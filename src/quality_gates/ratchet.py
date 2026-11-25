@@ -7,6 +7,7 @@ from functools import cached_property
 from pathlib import Path
 from typing import Callable, Optional, Union
 
+from quality_gates import project_files
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError, Untagged, shown, write_utf8
 from quality_gates.real_path import real_path
 
@@ -217,19 +218,29 @@ def absent(file: Path, updating: bool, out=None) -> None:
         raise BaselineError(MISSING_BASELINE.format(file), out)
 
 
+def baseline_from(data: bytes, where, out=None) -> dict:
+    try:
+        baseline = json.loads(data.decode("utf-8"))
+    except (ValueError, RecursionError) as error:
+        raise BaselineError(BAD_BASELINE.format(where, error), out) from None
+    wrong = wrong_with(baseline)
+    if wrong is not None:
+        raise BaselineError(BAD_BASELINE.format(where, wrong), out)
+    return baseline
+
+
 def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
     try:
         if not file.exists():
             return absent(file, updating, out)
-        baseline = json.loads(file.read_text(encoding="utf-8"))
+        data = file.read_bytes()
     except OSError as error:
         raise BaselineError(str(error), out) from None
-    except (ValueError, RecursionError) as error:
-        raise BaselineError(BAD_BASELINE.format(file, error), out) from None
-    wrong = wrong_with(baseline)
-    if wrong is not None:
-        raise BaselineError(BAD_BASELINE.format(file, wrong), out)
-    return baseline
+    return baseline_from(data, file, out)
+
+
+def silencer_asked(root, updating: bool = False) -> Asked:
+    return Asked(project_files.silencer_baseline(root), updating)
 
 
 def told_on(error: ToolError, err):

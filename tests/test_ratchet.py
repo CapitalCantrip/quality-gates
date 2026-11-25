@@ -251,6 +251,28 @@ class SettleTest(unittest.TestCase):
         self.assertEqual(ratchet.exit_code(result), 1)
 
 
+class BaselineFromBytesTest(unittest.TestCase):
+
+    def test_a_baseline_is_read_from_bytes_as_the_file_would_be(self):
+        self.assertEqual(ratchet.baseline_from(b'{"a.py::f": 11}\n', "main:cc-baseline.json"), {"a.py::f": 11})
+
+    def test_bytes_that_are_not_a_baseline_raise_the_bad_baseline_error_naming_where_they_came_from(self):
+        for data, why in ((b"{", "Expecting"), (b"\xff", "codec"), (b"[]", "must be an object"),
+                          (b'{"a": "x"}', "must be a number")):
+            with self.subTest(data), self.assertRaises(ratchet.BaselineError) as raised:
+                ratchet.baseline_from(data, "main:cc-baseline.json")
+            self.assertTrue(str(raised.exception).startswith("bad baseline main:cc-baseline.json: "))
+            self.assertIn(why, str(raised.exception))
+
+
+class SilencerBaselineTest(unittest.TestCase):
+
+    def test_the_ratchet_asks_for_the_silencer_baseline_by_the_name_the_project_module_knows(self):
+        root = Path(tempfile.mkdtemp())
+        self.assertEqual(ratchet.silencer_asked(root), ratchet.Asked(root / "silencer-baseline.json"))
+        self.assertEqual(ratchet.silencer_asked(root, updating=True).updating, True)
+
+
 class RecordingTest(unittest.TestCase):
 
     def setUp(self):
