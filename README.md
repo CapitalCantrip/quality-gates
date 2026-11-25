@@ -190,7 +190,11 @@ Which gates score each language, and which components install for it:
 ### `comment-debt`: no new comments
 
 Code carries no comments, docstrings or strings used as comments; bare pragmas
-such as `# noqa` are exempt. Comments drift from the code and agents copy them as
+such as `# noqa` are exempt. A marker that switches off one of our own gates,
+Python's `# pragma: no cover` and `# pragma: no branch`, is a *silencer*: it is
+not counted as a comment line, and the gate holds it in `silencer-baseline.json`
+as a count per file that only shrinks (`comment-debt --update` records the ones
+already there once). Comments drift from the code and agents copy them as
 permission. Put the knowledge where it shows when it stops being true: a test,
 a named constant, an ADR or an issue. Existing comments are debt, held in
 `comment-debt.json` as a line count per file. The gate fails if a file gains a
@@ -716,9 +720,10 @@ line, like any other tool error.
   its description, its cost (commit delay, CI time, outside tools) and a tick
   on the recommended set, and lists the files it would change. It writes
   nothing until `--go`, and then only `quality-gates.json`, plus
-  `comment-debt.json` when it switches a comment language on: that language's
-  comments are recorded there as debt, replacing its older entries and leaving
-  the others as they were, less any entry of zero. It never edits a CI
+  `comment-debt.json` and `silencer-baseline.json` when it switches a comment
+  language on: that language's comments and silencers are recorded there as
+  debt, replacing its older entries and leaving the others as they were, less
+  any entry of zero. It never edits a CI
   workflow: when no workflow that runs on pull requests runs `qg tolerated`
   in a step, it prints the step to paste at the end of the steps of the job
   that runs the gates, and `--json` lists it under `notes`. Without a choice

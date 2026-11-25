@@ -12,7 +12,10 @@ Code carries no comments in any language the choice file switches on: Python
 (`no-comments`), Rust, TypeScript, Swift and shell (`no-comments-<language>`).
 Every comment counts once per line, doc comments included, and in Python
 docstrings and strings used as comments too. Bare tool pragmas
-(`# noqa: E402`, `eslint-disable`, `swiftlint:disable`) are exempt. A
+(`# noqa: E402`, `eslint-disable`, `swiftlint:disable`) are exempt. Python's
+`# pragma: no cover` and `# pragma: no branch` are not: they are silencers (they
+switch off the coverage half of `crap`), reported as their own finding, held in
+`silencer-baseline.json` and not counted as comment lines. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.
@@ -27,7 +30,8 @@ comment-debt --update   # lower the baseline after paying debt; never raises
 comment-debt --report rust   # one language's comment lines and every file with them, chosen or not
 ```
 
-Option: `--baseline PATH` (default `comment-debt.json` at the repo root). It
+Option: `--baseline PATH` (default `comment-debt.json` at the repo root; the
+silencer baseline stays at `silencer-baseline.json` in the repo root). It
 checks the [comment gate's files](references/comment-gate-files.md), which start
 from the [files in scope](references/files-in-scope.md). Before a language is
 switched on, `/setup-standards` shows its report and offers two choices:
@@ -39,7 +43,11 @@ comments, or clean first (*Clean first*, below). `--update` never adds them.
 
 1. Install the package (see below) and add it to the project's dev
    dependencies, pinned to a tag.
-2. `comment-debt --update` writes the first baseline. A new repo gets `{}`.
+2. `comment-debt --update` writes the first baselines, `comment-debt.json` and
+   `silencer-baseline.json`. A new repo gets `{}` in each. On a repo that
+   already has `comment-debt.json`, run it once after bumping the pin: it
+   records the silencers already there, and the check fails with exit 2 until
+   `silencer-baseline.json` exists.
 3. Add `.githooks/pre-commit` containing `exec comment-debt` and run
    `git config core.hooksPath .githooks`. For cloud sessions, add a
    `SessionStart` hook to `.claude/settings.json` that runs that git config.

@@ -241,9 +241,12 @@ def recording_changes(root, proposal):
     names = comment_debt.languages_of(proposal.switched_on)
     if not names:
         return []
-    found = comment_debt.findings_on_choosing(root, names, proposal.choice)
-    scores = ratchet.recorded(found, project_files.comment_debt_baseline(root), comment_debt.written_in(root, names))
-    return [project_files.comment_debt_change(ratchet.baseline_text(scores))]
+    measured = comment_debt.measured_on_choosing(root, names, proposal.choice)
+    covered = comment_debt.written_in(root, names)
+    comments = ratchet.recorded(comment_debt.comment_findings(measured), project_files.comment_debt_baseline(root), covered)
+    silencers = ratchet.recorded(comment_debt.silencer_findings(measured), project_files.silencer_baseline(root), covered)
+    return [project_files.comment_debt_change(ratchet.baseline_text(comments)),
+            project_files.silencer_baseline_change(ratchet.baseline_text(silencers))]
 
 
 def run(args, project, manifest):

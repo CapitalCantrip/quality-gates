@@ -27,6 +27,19 @@
   commit it. `qg setup` never edits a workflow: when no such workflow runs
   `qg tolerated`, it prints the step to paste, and `qg setup --json` lists it
   under `notes`. No score, threshold or scanned file changes.
+- **Python's `# pragma: no cover` and `# pragma: no branch` are silencers
+  (ADR-010 addendum 2026-11-26).** `comment-debt` now reports a marker that
+  switches off one of our own gates as its own finding, held in
+  `silencer-baseline.json` (a count per file that only shrinks) and no longer
+  counted as a comment line. A function over the limit could pass `crap` by
+  hiding its untested branches under the pragma; now each pragma fails the
+  gate unless it is recorded. `# noqa`, `# type: ignore` and `# fmt:` are
+  neither comment lines nor silencers. On bumping the pin, run
+  `comment-debt --update` once and commit `silencer-baseline.json`: until it
+  exists `comment-debt` exits 2, and it records the pragmas already there.
+  Your comment-debt count drops by any pragma that carried prose. `qg setup`
+  now records `silencer-baseline.json` beside `comment-debt.json` when it
+  switches a comment language on. TypeScript, Swift and Rust silencers follow.
 
 ## 0.14.2 — 2026-11-26
 

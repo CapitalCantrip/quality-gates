@@ -69,7 +69,7 @@ never reach a consumer.
 
 ### The comment gate in more languages
 
-Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references)
+Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding)
 
 **Languages.** Rust, TypeScript (including `.tsx`, `.js`, `.jsx`, `.mjs` and
 `.cjs`), Swift and shell join Python. Shell becomes a language in the choice
@@ -266,3 +266,56 @@ counts.
 a pragma a project has to keep; the report files it under kind `doc`
 because it describes the file to the compiler.
 
+## Addendum 2026-11-26: silencers, a second kind of finding
+
+Amends: [The comment gate in more languages](#the-comment-gate-in-more-languages)
+
+Settled at the 3a ticket cut (#195, plan #232) after the review of 2026-11-25
+showed a function at CC 8 with six untested branches under `# pragma: no cover`
+passing `crap`: the pragma took those lines out of the coverage report and the
+comment gate exempted the pragma as a bare tool pragma.
+
+**A silencer is an in-code marker that switches off one of quality-gates' own
+gates.** `comment-debt` finds it at a file and line, as a finding of kind
+`silencer` beside the comment lines. Silencers are not comment debt: a comment
+that is a silencer is not also counted as a comment line, whatever prose
+follows it. A tool still reads it, so prose does not take it out of the kind.
+
+**The patterns live in the comment gate's per-language table,** one per
+language beside its comment syntax, and not in the language registry
+(ADR-011 § 2). Python's are `# pragma: no cover` and `# pragma: no branch`,
+read as coverage.py reads them: the word `pragma` after the `#`, with or
+without the colon and spaces, in either case, then `no` and `cover` or
+`branch`, with anything after. A pragma inside a string is not a comment and
+is not found. `# noqa`, `# type: ignore` and `# fmt: on|off|skip` stay bare
+pragmas and exempt: they switch off no gate of ours. Another tool's pragma,
+such as `# pragma: no mutate`, is an ordinary comment line. The gate reads no
+coverage configuration, so a project's own `exclude_lines` patterns are not
+silencers.
+
+**Silencers have their own baseline,** `silencer-baseline.json` at the repo
+root under that fixed name, a count per file that only shrinks. It goes
+through the same ratchet as every baseline: `new` and `worse` fail, a lower
+count is `PAID` until `--update`, and a file that cannot be read is unmeasured
+and keeps its entry. `--update` records every silencer when the file does not
+exist yet, and only lowers it after that. A missing silencer baseline stops
+the check with exit 2, as a missing `comment-debt.json` does. `--baseline`
+moves the comment baseline only. `qg setup` records both baselines when it
+switches a comment language on. The silencer baseline is part of the tolerated
+list (GLOSSARY); the `tolerated` module counts its growth (ADR-011 addendum
+2026-11-25).
+
+**Other languages follow in their own tickets:** TypeScript's `istanbul ignore`,
+`c8 ignore` and `v8 ignore` (#236), Swift's `swiftlint:disable` in every form
+(#235) and Rust's `#[allow(clippy::cognitive_complexity)]` and
+`#[allow(clippy::too_many_lines)]`, which are code and not comments (#237).
+Until each lands, its row matches nothing.
+
+### Rejected
+
+- **Keeping the pragma exempt but recording it in `comment-debt.json`.** Debt
+  and silencers answer different questions: debt is paid by deleting a
+  comment, a silencer by testing the code it hides.
+- **Counting only a bare `# pragma: no cover`.** coverage.py honours the
+  pragma with prose after it, so a counted-only-when-bare rule lets a reason
+  hide the silencer.

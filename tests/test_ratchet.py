@@ -584,10 +584,11 @@ class EveryRunGoesToTheRatchetTest(unittest.TestCase):
             with self.subTest(extra=extra):
                 self.assertIs(self.handed(crap.gate, ["--lang", "python", str(self.module), *extra]), HANDED)
 
-    def test_comment_debt_hands_every_run_to_the_ratchet(self):
+    def test_comment_debt_hands_every_run_to_the_ratchet_once_for_comments_and_once_for_silencers(self):
         for extra in ([], ["--status"], ["--update"]):
             with self.subTest(extra=extra):
-                self.assertIs(self.handed(cd.gate, extra, baseline=self.file, out=io.StringIO()), HANDED)
+                result = self.handed(cd.gate, extra, baseline=self.file, out=io.StringIO())
+                self.assertEqual(result.verdicts, HANDED.verdicts * 2)
 
     def test_a_plain_cc_check_run_does_not_key_locations_for_a_baseline(self):
         with mock.patch.object(ratchet, "location", side_effect=ToolError("cannot resolve")) as keyed:

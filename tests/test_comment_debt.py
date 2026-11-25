@@ -77,8 +77,10 @@ class SilencerKindTest(unittest.TestCase):
             with self.subTest(name):
                 self.assertIsInstance(row.silencer, re.Pattern)
 
-    def test_no_silencer_pattern_finds_anything_yet(self):
+    def test_no_other_language_silences_anything_yet(self):
         for name, row in cd.LANGUAGES.items():
+            if name == 'python':
+                continue
             for line in SILENCERS_TO_COME:
                 with self.subTest(name=name, line=line):
                     self.assertIsNone(row.silencer.search(line))
@@ -406,6 +408,7 @@ class RepositoryTest(unittest.TestCase):
         self.root = Path(self.tmp.name)
         subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
         self.file = self.root / 'comment-debt.json'
+        (self.root / 'silencer-baseline.json').write_text('{}\n')
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -1085,6 +1088,7 @@ class AcceptingRustEndToEndTest(SetupAndGate, unittest.TestCase):
     def install_the_comment_gate_without_a_choice_file(self):
         (self.root / 'src' / 'app.py').write_text('x = 1\n')
         self.file.write_text('{}\n')
+        (self.root / 'silencer-baseline.json').write_text('{}\n')
         (self.root / '.githooks').mkdir()
         (self.root / '.githooks' / 'pre-commit').write_text('#!/bin/sh\ncomment-debt\n')
         (self.root / '.github' / 'workflows').mkdir(parents=True)
