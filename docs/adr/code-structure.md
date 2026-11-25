@@ -19,9 +19,10 @@ file quality-gates keeps in a project: the choice file, baselines, the hook,
 CI, the instruction file, `docs/agents/*` and the PR template. Every write goes
 through one planned-changes step that setup shows before the builder's "go".
 Built for CI (quality-gates#234): setup adds the `qg tolerated` step between
-quality-gates' markers in the workflow that runs a gate on pull requests, and
-edits only the lines between them. Decided, not built yet: the same for the
-hook.
+quality-gates' markers in the one job that runs a gate on pull requests,
+writes nothing and prints a note when no job or more than one qualifies, and
+edits only the lines between the markers. Decided, not built yet: the same for
+the hook.
 Built (quality-gates#234): it reads main's copy of a file, the bytes
 committed on the default branch or a plain "absent", a file's bytes at any
 ref that names a commit, and the choice file at a ref; no gate or `qg`

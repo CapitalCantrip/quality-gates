@@ -282,8 +282,10 @@ Make CI enforce what the hooks enforce, plus the slow gates.
 - **The tolerated list:** run `qg setup --go` again once CI runs a gate on pull
   requests. It adds the `qg tolerated` step between quality-gates' markers in
   that workflow and keeps every other line. Leave the lines between the
-  markers to `qg setup`. When it says the workflow holding the step no longer
-  runs on pull requests, add `pull_request` to that workflow's `on:`.
+  markers to `qg setup`. When it prints a note instead, do what the note
+  says: put the two marker lines at the end of the steps of the job that
+  should run the step, or add `pull_request` to the marked workflow's `on:`,
+  then run it again.
 
 A project with no tests gets no CRAP step: report CRAP as **not done**, as
 step 3 says.

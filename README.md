@@ -719,12 +719,14 @@ line, like any other tool error.
   `comment-debt.json` when it switches a comment language on: that language's
   comments are recorded there as debt, replacing its older entries and leaving
   the others as they were, less any entry of zero. It also adds the
-  `qg tolerated` step to the first workflow that runs a gate on pull requests,
-  between `# quality-gates: begin` and `# quality-gates: end`, after the
-  steps of that gate's job; on later runs it rewrites only the lines between
-  the markers, in whichever workflow holds them. When that workflow no longer
-  runs on pull requests it says so and adds no second step. Broken markers
-  stop it with exit 2 and nothing written. Without a choice
+  `qg tolerated` step between `# quality-gates: begin` and
+  `# quality-gates: end`, after the steps of the one job whose steps run
+  `comment-debt`, `cc-check` or `crap` as a command on pull requests; on
+  later runs it rewrites only the lines between the markers, in whichever
+  workflow holds them. When no job or more than one qualifies, when two
+  workflows hold markers, or when the workflow holding them no longer runs
+  on pull requests, it writes no step and prints a note saying what to do.
+  Broken markers stop it with exit 2 and nothing written. Without a choice
   file it records what is installed as chosen, except a new comment language
   such as `no-comments-rust`: the hook, CI step and baseline it shares with
   `no-comments` never make it look installed, so it is switched on only by

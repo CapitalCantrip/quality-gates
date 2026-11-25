@@ -19,12 +19,19 @@
   broken or wrongly shaped one used to stop it after the skills were already
   overwritten; now nothing changes until you fix it.
 - **`qg setup --go` adds a `qg tolerated` step to CI** (ADR-011 addendum
-  2026-11-25), in the first workflow that runs a gate on pull requests,
-  between `# quality-gates: begin` and `# quality-gates: end`. The step
-  fetches the pull request's base and runs
+  2026-11-25), at the end of the steps of the one job that runs
+  `comment-debt`, `cc-check` or `crap` on pull requests, between
+  `# quality-gates: begin` and `# quality-gates: end`. The step runs under
+  `shell: bash`, fetches the pull request's base and runs
   `qg tolerated --against origin/<base>`; for now it always prints *the
   tolerated list did not grow*. On bumping the pin, run `qg setup --go` and
   commit the workflow. No score, threshold or scanned file changes.
+  When no job or more than one job runs a gate on pull requests, setup
+  writes no step and prints a note: put the two marker lines at the end of
+  the steps of the job that should run it and run `qg setup --go` again;
+  when the workflow holding the markers no longer runs on pull requests it
+  says so: add `pull_request` to its `on:`, or remove the markers and the
+  lines between them; `qg setup --json` lists these under `notes`.
 
 ## 0.14.2 — 2026-11-26
 
