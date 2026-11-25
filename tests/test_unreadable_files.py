@@ -72,6 +72,17 @@ class EveryGateOnFilesItCannotReadTest(unittest.TestCase):
         self.assertNotIn("Clean. Exit 0.", done.stdout)
         self.assertIn("Unmeasured:         3", done.stdout)
 
+    def test_cc_check_json_without_a_baseline_names_each_unreadable_file_on_stderr_and_still_exits_0(self):
+        done = run_gate(self.root, [*GATES["cc-check"][:-1], "--format", "json", "."])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual([row["file"] for row in json.loads(done.stdout)], ["good.py"])
+        for name in UNREADABLE_BY_SCAN:
+            self.assertIn(f"UNMEASURED {name}: {complexity_scan.UNREAD}\n", done.stderr)
+
+    def test_cc_check_does_not_say_all_functions_are_below_threshold_when_a_file_is_unmeasured(self):
+        done = run_gate(self.root, GATES["cc-check"])
+        self.assertNotIn("All functions at or below threshold", done.stdout)
+
     def test_crap_names_each_python_file_it_cannot_read_as_unmeasured_and_fails(self):
         done = run_gate(self.root, GATES["crap"])
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)

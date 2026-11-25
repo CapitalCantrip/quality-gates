@@ -64,9 +64,10 @@ def display_path(file):
     return path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path.name
 
 
-def print_flagged(flagged):
+def print_flagged(flagged, unread):
     if not flagged:
-        print("  All functions at or below threshold. ✓")
+        if not unread:
+            print("  All functions at or below threshold. ✓")
         return
     print(f"FLAGGED — {len(flagged)} function(s) above threshold:\n")
     for finding in sorted(flagged, key=lambda f: -f.number):
@@ -81,7 +82,7 @@ def verdict_line(flagged, unread):
 
 def print_text(flagged, found, threshold):
     print(f"\n=== Cyclomatic Complexity Report (threshold: CC > {threshold}) ===\n")
-    print_flagged(flagged)
+    print_flagged(flagged, found.unread)
     print("\nSUMMARY:")
     print(f"  Files analysed:     {len(found.files)}")
     print(f"  Functions checked:  {len(found.functions)}")

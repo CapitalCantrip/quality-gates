@@ -23,6 +23,11 @@ UNMEASURED_ADVICE = (
     "the baseline keeps any entry they already have and records none for them."
 )
 
+UNREAD_ADVICE = (
+    "Unmeasured files fail the gate. Fix them or take them out of the scan; "
+    "the baseline keeps any entry their functions already have and records none for them."
+)
+
 Number = Union[int, float]
 
 
@@ -363,6 +368,11 @@ def describe_unread(findings, out):
             out.write(f"UNMEASURED {finding.location.key}: {finding.reason}\n")
 
 
+def advice_for(unmeasured, settled: Settled, wording: Wording) -> list:
+    unread = [verdict.location.key in settled.reasons for verdict in unmeasured]
+    return ([wording.unmeasured_advice] if not all(unread) else []) + ([UNREAD_ADVICE] if any(unread) else [])
+
+
 def describe_unmeasured(settled: Settled, out, wording: Wording):
     unmeasured = unmeasured_in(settled)
     if not unmeasured:
@@ -370,7 +380,8 @@ def describe_unmeasured(settled: Settled, out, wording: Wording):
     for verdict in unmeasured:
         key = verdict.location.key
         out.write(f"UNMEASURED {key}: {settled.reasons.get(key, wording.unmeasured)}\n")
-    out.write(f"\n{wording.unmeasured_advice}\n")
+    for advice in advice_for(unmeasured, settled, wording):
+        out.write(f"\n{advice}\n")
 
 
 def describe_check(settled: Settled, file, out, wording: Wording):
@@ -403,6 +414,7 @@ def describe(settled: Settled, file: Path, updating: bool, out, wording: Wording
 
 def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNCTION_WORDING, root=None) -> Result:
     if not asked.judged:
+        describe_unread(find(), out)
         return NOT_JUDGED
     if asked.baseline is None:
         found = find()
