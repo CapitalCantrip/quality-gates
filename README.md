@@ -706,11 +706,11 @@ line, like any other tool error.
       Flags Swift functions that are too tangled to follow, ...
   ```
 
-- `qg tolerated --against <ref>` compares the
+- `qg tolerated --against <ref>` checks that `<ref>` names a commit and
+  prints *the tolerated list did not grow*, exit 0. Comparing the
   [tolerated list](GLOSSARY.md) in the working tree with the list at `<ref>`
-  and prints one line. It does not count growth yet (quality-gates#192), so
-  it prints *the tolerated list did not grow* and exits 0. A ref that names no
-  commit, or a folder outside a git repo, exits 2 with one line on stderr.
+  is quality-gates#192. A ref that names no commit, a folder outside a git
+  repo, or no git on the PATH exits 2 with one line on stderr.
 
 - `qg setup` proposes the project's languages and one row per component, with
   its description, its cost (commit delay, CI time, outside tools) and a tick
