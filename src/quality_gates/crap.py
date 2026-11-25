@@ -267,7 +267,12 @@ def _print_unmeasured(results: list) -> None:
         print(f"  {len(_unmeasured(results))} unmeasured in {len(files)} file(s): {', '.join(files)}")
 
 
-def print_summary(results: list, warn_threshold: float, fail_threshold: float) -> None:
+def _print_unread(unread: list) -> None:
+    if unread:
+        print(f"  {len(unread)} file(s) could not be read: {', '.join(unread)}")
+
+
+def print_summary(results: list, warn_threshold: float, fail_threshold: float, unread: list = ()) -> None:
     measured = _measured(results)
     n_fail = sum(1 for r in measured if r.grade == "FAIL")
     n_warn = sum(1 for r in measured if r.grade == "WARN")
@@ -275,6 +280,7 @@ def print_summary(results: list, warn_threshold: float, fail_threshold: float) -
     print()
     print(f"  {len(results)} function(s) · {n_ok} ok · {n_warn} warn · {n_fail} fail")
     _print_unmeasured(results)
+    _print_unread(unread)
     if measured:
         avg_crap = sum(r.crap for r in measured) / len(measured)
         print(f"  Max CRAP: {max(r.crap for r in measured):.1f}  ·  Mean CRAP: {avg_crap:.1f}")
@@ -391,10 +397,10 @@ def _maybe_check_staleness(args, report: Optional[CoverageReport], sources: list
         _check_staleness(report.path, sources, args.strict_freshness)
 
 
-def _check_results_empty(results: list, args, skipped: list) -> None:
-    if results:
+def _check_results_empty(results: list, args, found: complexity_scan.Scan) -> None:
+    if results or found.unread:
         return
-    complexity_scan.print_skipped(skipped, sys.stderr)
+    complexity_scan.print_skipped(found.skipped, sys.stderr)
     message = (
         f"no functions analysed in: {', '.join(args.paths)}\n"
         "  Check that the paths contain source files for the chosen --lang.\n"
@@ -416,26 +422,26 @@ def _fn_to_dict(r: FunctionResult, cov_source: str) -> dict:
     }
 
 
-def _print_json(results: list, args, n_fail: int, skipped: list, cov_source: str) -> None:
+def _print_json(results: list, args, n_fail: int, found: complexity_scan.Scan, cov_source: str) -> None:
     payload = {
         "threshold":       args.threshold,
         "warn":            args.warn,
         "pass":            n_fail == 0,
         "coverage_source": cov_source,
         "functions":       [_fn_to_dict(r, cov_source) for r in results],
-        "unmeasured":      unmeasured_files(results),
-        "skipped":         skipped,
+        "unmeasured":      sorted({*unmeasured_files(results), *found.unread}),
+        "skipped":         found.skipped,
     }
     print(json_report.dumped(payload))
 
 
-def _emit_output(results: list, args, n_fail: int, skipped: list, cov_source: str) -> None:
+def _emit_output(results: list, args, n_fail: int, found: complexity_scan.Scan, cov_source: str) -> None:
     if args.json_output:
-        _print_json(results, args, n_fail, skipped, cov_source)
+        _print_json(results, args, n_fail, found, cov_source)
         return
     print_table(results, no_color=args.no_color, top=args.top)
-    print_summary(results, warn_threshold=args.warn, fail_threshold=args.threshold)
-    complexity_scan.print_skipped(skipped, sys.stdout)
+    print_summary(results, warn_threshold=args.warn, fail_threshold=args.threshold, unread=found.unread)
+    complexity_scan.print_skipped(found.skipped, sys.stdout)
 
 
 def _check_baseline_args(args, report: Optional[CoverageReport]) -> None:
@@ -453,13 +459,13 @@ def _shown(r: FunctionResult) -> str:
     return f"{r.grade}  CRAP={_fmt_crap(r.crap).strip()}  {r.file}:{r.line}  {r.name}"
 
 
-def findings(results: list) -> list:
+def findings(results: list, unread: list = ()) -> list:
     found = []
     for r in results:
         if r.grade == "FAIL" or r.grade == UNMEASURED:
             number = None if r.crap is None else round(r.crap, 2)
             found.append(ratchet.Finding(ratchet.Location(r.file, r.name), number, FINDING_KIND, _shown(r)))
-    return found
+    return found + [complexity_scan.unread_finding(file, FINDING_KIND) for file in unread]
 
 
 def _asked(args) -> ratchet.Asked:
@@ -478,10 +484,10 @@ def gate(argv, root) -> ratchet.Result:
     _maybe_check_staleness(args, report, sources.files)
     found = complexity_scan.count_functions(sources, args.lang)
     results = score(found.functions, coverage_of, Limits(args.min_cc, args.warn, args.threshold))
-    _check_results_empty(results, args, found.skipped)
+    _check_results_empty(results, args, found)
     _check_report_matched(report, results)
-    failing = findings(results)
-    _emit_output(results, args, len(failing), found.skipped, _coverage_source(report))
+    failing = findings(results, found.unread)
+    _emit_output(results, args, len(failing), found, _coverage_source(report))
     out = sys.stderr if args.json_output else sys.stdout
     return ratchet.enforce(lambda: failing, _asked(args), out, root=lambda: project_files.root_for(args.paths, root))
 

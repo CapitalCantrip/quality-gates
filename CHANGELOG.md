@@ -2,6 +2,13 @@
 
 ## Unreleased
 
+- **A file the complexity gates cannot read now fails as unmeasured (#212).**
+  `cc-check` and `crap` used to pass a Python file that did not parse or was
+  not UTF-8 as clean; each now names it as `UNMEASURED` in the ratchet's
+  wording and exits 1, with no traceback, and `crap --json` lists it under
+  `"unmeasured"`. A baselined function in such a file keeps its entry. On
+  bumping the pin, fix or exclude a file that now fails as `UNMEASURED`.
+  lizard still scores malformed TypeScript and Swift leniently.
 - **Four agents ship (ADR-013):** `implementer`, `reviewer`, `debt-payer` and
   `diagnoser`. `qg-skills` copies them into `.claude/agents/` and
   `qg-skills --check` fails on a stale copy. On bumping the pin, rerun

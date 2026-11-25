@@ -30,5 +30,7 @@ enforce the limits in CI without first paying it all off.
   unmeasured as unmeasured, not as paid. A worst-case score for a function with
   no figure would sit in the baseline as accepted debt, and an entry dropped
   during a coverage outage could never be added back.
+  A file the gate could not read is unmeasured as a whole, and keeps the entries
+  of all its functions the same way.
 - **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
   not a gate.

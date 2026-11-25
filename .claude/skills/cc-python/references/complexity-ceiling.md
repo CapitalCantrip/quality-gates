@@ -46,4 +46,12 @@ under `"unmeasured"`. When a report was given, at least one function was scored
 and none got a figure, `crap` also prints a line to stderr saying the report may
 have been made elsewhere or hold no figures for the scanned files.
 
+**A file the complexity gates cannot read is unmeasured too,** as for
+`comment-debt`. `cc-check` and `crap` name a Python file that could not be
+opened, does not parse or is not UTF-8 as `UNMEASURED` and fail (exit 1), with
+no traceback. With a baseline they keep any entry its functions have and record
+none for it. `crap --json` lists it under `"unmeasured"`. lizard scores
+malformed TypeScript or Swift leniently and does not skip it; that stays as it
+is.
+
 **A project may tighten these limits, never loosen them.**
