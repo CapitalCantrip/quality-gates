@@ -6,8 +6,9 @@ import subprocess
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
-from quality_gates import qg, tolerated
+from quality_gates import project_files, qg, tolerated
 
 ROOT = Path(__file__).resolve().parent.parent
 MODULE_SOURCE = ROOT / "src" / "quality_gates" / "tolerated.py"
@@ -48,8 +49,12 @@ class QgTolerated(unittest.TestCase):
     def test_a_ref_that_names_no_commit_did_not_run_and_exits_2_naming_the_ref(self):
         code, out, err = run(["tolerated", "--against", "origin/main"])
         self.assertEqual((code, out), (2, ""))
-        self.assertIn("origin/main", err)
-        self.assertNotIn("Traceback", err)
+        self.assertEqual(err, f"qg tolerated: {project_files.NOT_A_COMMIT.format('origin/main')}\n")
+
+    def test_without_git_on_the_path_it_did_not_run_and_exits_2_with_one_line(self):
+        with mock.patch.dict(os.environ, {"PATH": str(self.root / "no-bin")}):
+            code, out, err = run(["tolerated", "--against", "main"])
+        self.assertEqual((code, out, err), (2, "", f"qg tolerated: {project_files.NO_GIT}\n"))
 
     def test_the_ref_is_required(self):
         code, _, err = run(["tolerated"])

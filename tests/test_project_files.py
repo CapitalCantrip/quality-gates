@@ -846,6 +846,15 @@ class MainsCopyOfAFile(unittest.TestCase):
         self.assertEqual(pf.default_branch(self.root), "refs/remotes/origin/main")
         self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), b"base\n")
 
+    def test_without_git_on_the_path_every_git_call_is_one_tool_error_naming_git(self):
+        calls = (lambda: pf.git_root(self.root), lambda: pf.commit_of(self.root, "main"),
+                 lambda: pf.copy_at(self.root, "main", "a.py"), lambda: pf.committable_files(self.root))
+        for at, call in enumerate(calls):
+            with self.subTest(at), mock.patch.dict(os.environ, {"PATH": str(self.root / "no-bin")}):
+                with self.assertRaises(ToolError) as raised:
+                    call()
+                self.assertEqual(str(raised.exception), pf.NO_GIT)
+
     def test_a_ref_that_starts_with_a_dash_is_refused_before_git_sees_it(self):
         with mock.patch.object(pf.subprocess, "run") as run:
             self.assertIsNone(pf.commit_of(self.root, "--output=x"))
@@ -904,6 +913,7 @@ class ToleratedStepCheck(unittest.TestCase):
                 notes = pf.tolerated_step_notes(self.root)
                 self.assertEqual(len(notes), 1)
                 self.assertIn("paste it at the end of the steps of the job that runs the gates", notes[0])
+                self.assertIn("indented like the other steps of that job", notes[0])
                 self.assertTrue(notes[0].endswith(step_at("      ").rstrip("\n")))
 
     def test_a_workflow_that_only_mentions_qg_tolerated_does_not_count(self):
@@ -917,7 +927,9 @@ class ToleratedStepCheck(unittest.TestCase):
     def test_qg_tolerated_run_by_path_after_an_assignment_or_after_another_command_counts(self):
         for run in (".venv/bin/qg tolerated --against origin/main", "BASE=main qg tolerated --against origin/main",
                     "git fetch origin main && qg tolerated --against origin/main",
-                    "|\n          git fetch origin main\n          qg tolerated --against origin/main  # check"):
+                    "|\n          git fetch origin main\n          qg tolerated --against origin/main  # check",
+                    '"qg tolerated --against x"', "'qg tolerated --against x'  # quoted",
+                    '"BASE=main qg tolerated --against \\"origin/main\\""'):
             with self.subTest(run):
                 self.assertTrue(self.has_step(run))
 
@@ -943,6 +955,7 @@ class ToleratedStepCheck(unittest.TestCase):
     def test_the_skill_shows_the_same_step_setup_prints(self):
         skill = (Path(pf.__file__).parent / "skills" / "setup-standards" / "ci-tolerated.md").read_text("utf-8")
         self.assertIn(step_at("      "), skill)
+        self.assertIn("indented like the other steps of that job", " ".join(skill.split()))
 
 
 class ChoiceFileAtARef(unittest.TestCase):
@@ -963,27 +976,42 @@ class ChoiceFileAtARef(unittest.TestCase):
         committed(self.root, "a.py", b"x = 1\n")
         with self.assertRaises(ToolError) as raised:
             pf.choice_at(self.root, "origin/nowhere")
-        self.assertIn("origin/nowhere", str(raised.exception))
+        self.assertEqual(str(raised.exception), pf.NOT_A_COMMIT.format("origin/nowhere"))
 
-    def test_a_choice_file_of_a_newer_format_at_a_ref_is_refused_naming_its_version(self):
-        for version in (2, "2", None):
+    def test_one_check_names_a_ref_that_names_no_commit_and_passes_one_that_does(self):
+        committed(self.root, "a.py", b"x = 1\n")
+        self.assertEqual(pf.checked_commit(self.root, "main"), pf.commit_of(self.root, "main"))
+        with self.assertRaises(ToolError) as raised:
+            pf.checked_commit(self.root, "origin/nowhere")
+        self.assertEqual(str(raised.exception), pf.NOT_A_COMMIT.format("origin/nowhere"))
+
+    def refusal(self, version):
+        committed(self.root, pf.CHOICE_FILE, json.dumps({"format_version": version, "languages": []}).encode())
+        with self.assertRaises(ToolError) as raised:
+            pf.choice_at(self.root, "main")
+        self.assertIn("main:quality-gates.json", str(raised.exception))
+        return str(raised.exception)
+
+    def test_a_choice_file_of_a_newer_format_at_a_ref_is_refused_as_newer_naming_its_version(self):
+        self.assertIn("format_version 2 is newer", self.refusal(2))
+
+    def test_a_format_version_that_is_not_a_positive_whole_number_cannot_be_read(self):
+        for version in ("2", None, True, 1.5, 0, -1):
             with self.subTest(version):
-                committed(self.root, pf.CHOICE_FILE, json.dumps({"format_version": version, "languages": []}).encode())
-                with self.assertRaises(ToolError) as raised:
-                    pf.choice_at(self.root, "main")
-                self.assertIn(repr(version), str(raised.exception))
-                self.assertIn("main:quality-gates.json", str(raised.exception))
+                message = self.refusal(version)
+                self.assertIn(f"cannot read format_version {version!r}", message)
+                self.assertNotIn("newer", message)
 
-    def test_a_choice_file_of_an_older_format_at_a_ref_is_read_for_what_it_holds(self):
-        old = {"format_version": 0, "languages": ["python"], "exclude": ["vendor/"]}
+    def test_a_choice_file_of_an_older_shape_at_a_ref_is_read_for_what_it_holds(self):
+        old = {"format_version": 1, "languages": ["python"], "exclude": ["vendor/"]}
         committed(self.root, pf.CHOICE_FILE, json.dumps(old).encode())
         self.assertEqual(pf.choice_at(self.root, "main"), pf.Choice(languages=("python",), exclude=("vendor/",)))
 
-    def test_a_malformed_choice_file_at_a_ref_is_a_broken_file_naming_the_ref(self):
-        for data in (b"{", b"\xff", b"[]"):
+    def test_a_malformed_choice_file_at_a_ref_is_a_tool_error_naming_the_ref(self):
+        for data in (b"{", b"\xff", b"[]", b'{"languages": "python"}', b'{"languages": ["cobol"]}'):
             with self.subTest(data):
                 committed(self.root, pf.CHOICE_FILE, data)
-                with self.assertRaises(BrokenFileError) as raised:
+                with self.assertRaises(ToolError) as raised:
                     pf.choice_at(self.root, "main")
                 self.assertIn("main:quality-gates.json", str(raised.exception))
 

@@ -2,7 +2,8 @@
 
 `qg tolerated` says whether the tolerated list grew against the pull
 request's base. Paste this at the end of the steps of the job that runs the
-gates, in a workflow that runs on pull requests:
+gates, in a workflow that runs on pull requests, indented like the other steps
+of that job:
 
 ```yaml
       - name: qg tolerated

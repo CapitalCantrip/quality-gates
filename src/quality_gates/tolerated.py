@@ -6,17 +6,10 @@ from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
 
 SUMMARY = "say whether the tolerated list grew against a git ref"
 DID_NOT_GROW = "the tolerated list did not grow"
-NOT_A_COMMIT = "{} names no commit in this repository: fetch it first, for example `git fetch origin main`"
-
-
-def checked_ref(root, ref):
-    if project_files.commit_of(root, ref) is None:
-        raise ToolError(NOT_A_COMMIT.format(ref))
-    return ref
 
 
 def growth(root, ref):
-    checked_ref(root, ref)
+    project_files.checked_commit(root, ref)
     return ()
 
 

@@ -41,7 +41,9 @@ FILES_GIT_WOULD_COMMIT = ("git", "ls-files", "-z", "--cached", "--others", "--ex
 COMMIT_OF = ("git", "rev-parse", "--verify", "--quiet")
 OPTION_START = "-"
 NEWER_CHOICE = "{}: format_version {!r} is newer than this quality-gates reads: bump the pin"
-NO_COMMIT_AT = "{} names no commit in this repository: fetch it, or name a branch, tag or commit that exists"
+UNREADABLE_VERSION = "{}: cannot read format_version {!r}: it must be a whole number from 1 to {}"
+NO_GIT = "git is not on the PATH: install git, or add it to the PATH, and run again"
+NOT_A_COMMIT = "{} names no commit in this repository: fetch it first, for example `git fetch origin main`"
 OUTSIDE_THE_REPO = "{} is outside the repository at {}: name a file inside it"
 AS_A_COMMIT = "^{commit}"
 BLOB_AT = ("git", "cat-file", "blob")
@@ -112,11 +114,12 @@ TRIGGERS_KEY, JOBS_KEY, PULL_REQUEST = "on", "jobs", "pull_request"
 COMMENT_START, ITEM_START = "#", "- "
 ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 FLOW_OPEN, FLOW_CLOSE = ("[", "{"), ("]", "}")
-NOT_PLAIN = ("|", ">", '"', "'")
+BLOCK_SCALAR = ("|", ">")
+QUOTED_SCALAR = re.compile(r"""\s*(["'])(.*)\1\s*(?:#.*)?\s*""", re.DOTALL)
 TOLERATED_COMMAND = ("qg", "tolerated")
 STEP_INDENT = "      "
 PASTE_THE_STEP = ("No workflow that runs on pull requests runs `qg tolerated` yet; paste it at the end of the steps "
-                  "of the job that runs the gates:")
+                  "of the job that runs the gates, indented like the other steps of that job:")
 TOLERATED_STEP = (
     "- name: qg tolerated",
     "  if: github.event_name == 'pull_request'",
@@ -490,8 +493,15 @@ def sync(claude_dir, root, source=HOOKS_SOURCE):
     add_asking_line(root)
 
 
+def run_git(command, cwd, text=False):
+    try:
+        return subprocess.run(list(command), cwd=cwd, capture_output=True, text=text)
+    except FileNotFoundError:
+        raise ToolError(NO_GIT) from None
+
+
 def git_root(start=None):
-    found = subprocess.run(list(GIT_ROOT), cwd=start, capture_output=True, text=True)
+    found = run_git(GIT_ROOT, start, text=True)
     if found.returncode != 0 or not found.stdout.strip():
         raise ToolError(NOT_A_GIT_REPO)
     return Path(found.stdout.strip())
@@ -500,7 +510,7 @@ def git_root(start=None):
 def commit_of(root, ref):
     if ref.startswith(OPTION_START):
         return None
-    found = subprocess.run([*COMMIT_OF, ref + AS_A_COMMIT], cwd=root, capture_output=True, text=True)
+    found = run_git([*COMMIT_OF, ref + AS_A_COMMIT], root, text=True)
     return found.stdout.strip() if found.returncode == 0 and found.stdout.strip() else None
 
 
@@ -512,7 +522,7 @@ def copy_at(root, ref, name):
     commit = commit_of(root, ref)
     if commit is None:
         return None
-    found = subprocess.run([*BLOB_AT, f"{commit}:{path_in_repo(root, name)}"], cwd=root, capture_output=True)
+    found = run_git([*BLOB_AT, f"{commit}:{path_in_repo(root, name)}"], root)
     return found.stdout if found.returncode == 0 else None
 
 
@@ -530,19 +540,33 @@ def path_in_repo(root, name):
     return Path(relative).as_posix()
 
 
+def checked_commit(root, ref):
+    commit = commit_of(root, ref)
+    if commit is None:
+        raise ToolError(NOT_A_COMMIT.format(ref))
+    return commit
+
+
 def choice_at(root, ref):
-    if commit_of(root, ref) is None:
-        raise ToolError(NO_COMMIT_AT.format(ref))
+    checked_commit(root, ref)
     data = copy_at(root, ref, CHOICE_FILE)
     where = f"{ref}:{CHOICE_FILE}"
-    return None if data is None else any_format_choice(json_from(data, where), where)
+    try:
+        return None if data is None else any_format_choice(json_from(data, where), where)
+    except BrokenFileError as error:
+        raise ToolError(str(error)) from None
+
+
+def checked_version(version, where):
+    if isinstance(version, bool) or not isinstance(version, int) or version < 1:
+        raise ToolError(UNREADABLE_VERSION.format(where, version, CHOICE_FORMAT_VERSION))
+    if version > CHOICE_FORMAT_VERSION:
+        raise ToolError(NEWER_CHOICE.format(where, version))
 
 
 def any_format_choice(data, where):
     require(data, (), where)
-    version = data.get("format_version", CHOICE_FORMAT_VERSION)
-    if isinstance(version, bool) or not isinstance(version, int) or version > CHOICE_FORMAT_VERSION:
-        raise ToolError(NEWER_CHOICE.format(where, version))
+    checked_version(data.get("format_version", CHOICE_FORMAT_VERSION), where)
     return choice_from({**CHOICE_DEFAULTS, **data, "format_version": CHOICE_FORMAT_VERSION}, where)
 
 
@@ -646,7 +670,7 @@ def parent_folders(names):
 
 
 def committable_files(root):
-    listing = subprocess.run(list(FILES_GIT_WOULD_COMMIT), cwd=root, capture_output=True)
+    listing = run_git(FILES_GIT_WOULD_COMMIT, root)
     if listing.returncode != 0:
         raise ToolError(NOT_A_GIT_REPO)
     return frozenset(name for name in os.fsdecode(listing.stdout).split("\0") if name)
@@ -1004,7 +1028,11 @@ def run_text(item):
 
 
 def plain_value(value):
-    return value if value.strip().startswith(NOT_PLAIN) else without_comment(value) + LF
+    quoted = QUOTED_SCALAR.fullmatch(value)
+    if quoted:
+        return quoted.group(2) + LF
+    return value if value.strip().startswith(BLOCK_SCALAR) else without_comment(value) + LF
+
 
 
 def command_of(segment):
