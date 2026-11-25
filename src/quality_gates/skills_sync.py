@@ -60,8 +60,13 @@ def sync(dest, source=SHIPPED):
     return names
 
 
-def check(dest, source=SHIPPED, hooks=project_files.HOOKS_SOURCE):
-    found = differences(dest, source) + project_files.differences(dest.parent, project_files.root_of_skills_folder(dest), hooks)
+def agents_dest(dest):
+    return project_files.agents_dir(dest.parent)
+
+
+def check(dest, source=SHIPPED, hooks=project_files.HOOKS_SOURCE, agents=project_files.AGENTS_SOURCE):
+    found = differences(dest, source) + project_files.agent_differences(agents_dest(dest), agents)
+    found += project_files.differences(dest.parent, project_files.root_of_skills_folder(dest), hooks)
     for line in found:
         print(line)
     if found:
@@ -74,30 +79,33 @@ def check(dest, source=SHIPPED, hooks=project_files.HOOKS_SOURCE):
 def build_parser():
     parser = argparse.ArgumentParser(
         prog="qg-skills",
-        description="Copy the quality-gates skills and stage guard into a repo, register the guard, and add the asking-rule line to CLAUDE.md, so local and cloud sessions both get them.",
+        description="Copy the quality-gates skills, agents and stage guard into a repo, register the guard, and add the asking-rule line to CLAUDE.md, so local and cloud sessions both get them.",
     )
     parser.add_argument("--dest", type=Path, help="default: .claude/skills at the top of the git repository")
     parser.add_argument("--check", action="store_true", help="exit 1 if the copies differ from this version's")
     return parser
 
 
-def install(dest, source, hooks):
+def install(dest, source, hooks, agents):
+    project_files.check_before_install(dest.parent, agents)
     names = sync(dest, source)
+    agent_files = project_files.sync_agents(agents_dest(dest), agents)
     project_files.sync(dest.parent, project_files.root_of_skills_folder(dest), hooks)
     print(f"Copied {', '.join(names)} from quality-gates {installed_version()} to {dest}")
+    print(f"Copied the agents {', '.join(agent_files)} to {agents_dest(dest)}")
     print(f"Installed the stage guard in {dest.parent} and the asking-rule line in "
           f"{project_files.instruction_file(project_files.root_of_skills_folder(dest)).name}")
     return 0
 
 
-def main(argv=None, source=SHIPPED, hooks=project_files.HOOKS_SOURCE):
+def main(argv=None, source=SHIPPED, hooks=project_files.HOOKS_SOURCE, agents=project_files.AGENTS_SOURCE):
     args = build_parser().parse_args(argv)
     try:
         dest = args.dest or Path(os.path.relpath(project_files.git_root() / project_files.SKILLS_DEST))
-        sys.exit(check(dest, source, hooks) if args.check else install(dest, source, hooks))
+        sys.exit(check(dest, source, hooks, agents) if args.check else install(dest, source, hooks, agents))
     except ToolError as error:
         print(f"qg-skills: {error}", file=sys.stderr)
         sys.exit(TOOL_ERROR_EXIT)
-    except project_files.SettingsError as error:
+    except (project_files.SettingsError, project_files.UnreadableAgentList) as error:
         print(error, file=sys.stderr)
         sys.exit(TOOL_ERROR_EXIT)

@@ -13,7 +13,7 @@ UPSTREAM_PATH = PACKAGE / "upstream.json"
 
 ORIGIN_FIELDS = ("type", "name", "version", "changed", "adapts")
 ORIGIN_TYPES = frozenset({"ours", "upstream", "dependency"})
-PART_KINDS = frozenset({"skill", "hook", "baseline", "config", "ci_step", "precommit_step", "claude_md_line",
+PART_KINDS = frozenset({"skill", "agent", "hook", "baseline", "config", "ci_step", "precommit_step", "claude_md_line",
                         "command", "dependency"})
 MANIFEST_REQUIRED = ("format_version", "admissions", "components")
 COMPONENT_REQUIRED = ("id", "name", "description", "core", "languages", "origin", "parts")

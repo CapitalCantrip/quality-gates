@@ -54,9 +54,11 @@ explanation fresh.
    project is, taken from its README.
 6. If `docs/adr/` does not exist, create it with an empty `.gitkeep`.
 7. Read `CLAUDE.md` for lines that restate what `docs/agents/` now holds: a
-   label list, issue tracker commands, where the glossary lives, a path into
-   `.claude/agents/` or a mention of `CONTEXT.md`. Replace each with a
-   one-line context pointer to the file that holds it. A context pointer says
+   label list, issue tracker commands, where the glossary lives, a path to
+   `issue-tracker.md`, `triage-labels.md` or `domain.md` under
+   `.claude/agents/`, or a mention of `CONTEXT.md`. Replace each such line
+   with a one-line context pointer to the file that holds it, and leave a line
+   that names a shipped agent in `.claude/agents/` as it is. A context pointer says
    what is at the other end, so an agent knows when to open it: "GitHub Issues
    on this repo, through the `gh` CLI. See `docs/agents/issue-tracker.md`.",
    not "See `docs/agents/issue-tracker.md`." Check the pointers already in
@@ -131,9 +133,13 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 From here on, do only the blocks for the languages the file records, and only
 for chosen components.
 
-- **All projects:** run `qg-skills`: it copies the skills and the
+- **All projects:** run `qg-skills`: it copies the skills, the agents and the
   stage guard into `.claude/`, registers the guard in `.claude/settings.json`,
-  and adds the asking-rule line to `CLAUDE.md`.
+  and adds the asking-rule line to `CLAUDE.md`. When it stops on a project
+  agent that has a shipped agent's name (as its filename or its frontmatter
+  `name:`), ask the builder: rename the project's
+  agent and keep both, or delete it and take the shipped one. Recommend
+  renaming when the project's agent holds rules the shipped one lacks.
 - **Python:** `comment-debt`, `cc-check`, `crap`. The `/no-comments` skill
   describes the comment gate.
 - **Swift:** the complexity gate is SwiftLint's `cyclomatic_complexity` block,

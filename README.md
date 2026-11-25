@@ -386,6 +386,21 @@ column, **ours** was written here, **Pocock** is a word-for-word copy of Matt
 Pocock's skill, and **Pocock, changed** is his skill with the changes listed,
 with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 
+### Agents
+
+`qg-skills` also copies four agent definitions into `.claude/agents/`, so an
+orchestrating session spawns them by name in local and cloud sessions alike
+([ADR-013](docs/adr/archive/ADR-013-shipped-agents.md), which also says which
+model each runs on). They are part of the core.
+
+- `implementer`: builds one ticket test-first on the branch it is given and
+  commits without pushing.
+- `reviewer`: reviews a branch against its spec and the repo's standards,
+  read-only, with real-run evidence.
+- `debt-payer`: pays down one batch of comment, complexity or coverage debt
+  without changing behaviour.
+- `diagnoser`: finds a bug's root cause with evidence, without fixing it.
+
 ### The component manifest
 
 [components.json](src/quality_gates/components.json) ships in the package and
@@ -425,7 +440,7 @@ file-level record `qg-upstream` reads.
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.
 - `parts`: each has a `kind` and an `id`, unique for its kind within the
-  component. The kinds are `skill`, `hook`, `command`, `baseline`, `config`,
+  component. The kinds are `skill`, `agent`, `hook`, `command`, `baseline`, `config`,
   `ci_step`, `precommit_step`, `claude_md_line` and `dependency`. A `config` is
   a settings file the gate reads, such as `.swiftlint.yml`, and is present or
   absent like a baseline. A `precommit_step` must have `marker`, the command
@@ -729,9 +744,14 @@ line, like any other tool error.
 - `qg-skills` copies from the installed package, not from GitHub, so the
   version you installed decides which skills a project gets. It writes
   `.claude/skills/` at the top of the git repo, or in the folder `--dest`
-  names, plus the stage guard and the asking-rule line in `CLAUDE.md`.
+  names, plus the agents in `.claude/agents/`, the stage guard and the
+  asking-rule line in `CLAUDE.md`.
   Outside a git repo and without `--dest`, it stops with exit 2 and says so. It touches only the skills it ships; the project's own
-  skills are left alone. `qg-skills --check` exits 1 if any copy differs from
+  skills are left alone. It records the agents it copied in
+  `.claude/agents/.shipped-by-quality-gates` and overwrites or removes only
+  those; a project agent with a shipped agent's name, as its filename or its
+  frontmatter `name:`, stops it with exit 2
+  before anything changes. `qg-skills --check` exits 1 if any copy differs from
   the installed version, and `/setup-standards` adds a test that runs it, so CI
   catches a stale copy.
 - The stage guard is a hook in `.claude/hooks/`, registered in
@@ -853,6 +873,7 @@ addendum there, and the same pull request updates the compendium page
 | [ADR-010](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md) | Admitting outside sources, and the comment gate's new languages |
 | [ADR-011](docs/adr/archive/ADR-011-code-structure.md) | The code's structure |
 | [ADR-012](docs/adr/archive/ADR-012-decisions-compendium.md) | A thematic compendium over an archive of decisions |
+| [ADR-013](docs/adr/archive/ADR-013-shipped-agents.md) | Shipping agent definitions through `qg-skills` |
 
 ## Licence
 

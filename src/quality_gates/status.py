@@ -4,6 +4,7 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Optional
 
 from quality_gates import comment_debt, project_files, skills_sync
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
@@ -26,12 +27,13 @@ PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
 COPIED_TO_EVERY_PROJECT = "skill"
+AGENT_PART = "agent"
 PIN_VERDICTS = {
     True: "matches",
     False: "differs from the installed version",
     None: "could not tell whether it matches",
 }
-HOOK_STATES = {
+COPY_STATES = {
     project_files.UNSHIPPED: UNKNOWN,
     project_files.MISSING: MISSING,
     project_files.DIFFERS: DIFFERENT,
@@ -52,14 +54,23 @@ class Project:
     source: Path
     hooks: Path
     shipped_skills: frozenset
+    agents: Path
+    agent_survey: Optional[project_files.AgentSurvey] = None
 
     @property
     def claude_dir(self):
         return project_files.claude_dir(self.root)
 
 
-def project_at(root, source, hooks):
-    return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)))
+def surveyed_agents(root, agents):
+    try:
+        return project_files.survey_agents(project_files.agents_dir(project_files.claude_dir(root)), agents)
+    except project_files.UnreadableAgentList:
+        return None
+
+
+def project_at(root, source, hooks, agents=project_files.AGENTS_SOURCE):
+    return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)), agents, surveyed_agents(root, agents))
 
 
 def skill_status(project, part):
@@ -71,8 +82,24 @@ def skill_status(project, part):
     return DIFFERENT if skills_sync.skill_differences(part.id, project.source, dest) else INSTALLED
 
 
+AGENT_STATES = {**COPY_STATES, project_files.OWN_AGENT: DIFFERENT}
+
+
+def agent_status(project, part):
+    survey = project.agent_survey
+    if survey is None:
+        return UNKNOWN
+    return AGENT_STATES[survey.states.get(part.id, project_files.UNSHIPPED)]
+
+
+def stale_agent_parts(project, component):
+    if not component.core or project.agent_survey is None:
+        return []
+    return [{"kind": AGENT_PART, "id": name, "status": DIFFERENT} for name in project.agent_survey.stale]
+
+
 def copied_hook_status(project, name):
-    return HOOK_STATES[project_files.copied_hook(project_files.hooks_dir(project.claude_dir), name, project.hooks)]
+    return COPY_STATES[project_files.copied_hook(project_files.hooks_dir(project.claude_dir), name, project.hooks)]
 
 
 def hook_status(project, part):
@@ -115,6 +142,7 @@ def precommit_step_status(project, part):
 
 PART_STATUS = {
     "skill": skill_status,
+    AGENT_PART: agent_status,
     "hook": hook_status,
     "claude_md_line": claude_md_line_status,
     "baseline": file_status,
@@ -204,7 +232,7 @@ def installed_state(component, parts, used):
 
 def component_report(project, component, used, choice=None):
     wanted = list(component.languages)
-    parts = [part_report(project, p, used) for p in component.parts]
+    parts = [part_report(project, p, used) for p in component.parts] + stale_agent_parts(project, component)
     counted = counted_parts(component, parts, choice)
     rolled = installed_state(component, counted, used)
     return {
@@ -339,7 +367,7 @@ def build_parser():
 
 
 def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None,
-         components_path=COMPONENTS_PATH):
+         components_path=COMPONENTS_PATH, agents=project_files.AGENTS_SOURCE):
     args = build_parser().parse_args(argv)
     try:
         manifest = manifest or load_components(components_path)
@@ -356,7 +384,7 @@ def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.H
     except BrokenFileError as error:
         print(f"qg status: {error}", file=sys.stderr)
         return BROKEN_EXIT
-    project = project_at(root, source, hooks)
+    project = project_at(root, source, hooks, agents)
     report = build_report(project, manifest, choice)
     print(json.dumps(report, indent=2) if args.json else render_table(report))
     return 0

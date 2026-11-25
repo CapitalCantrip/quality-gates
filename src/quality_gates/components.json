@@ -59,7 +59,7 @@
     {
       "id": "core",
       "name": "Core workflow and principles",
-      "description": "The workflow from idea to merged change, the principles, the asking rule and the guard against staging everything; every project has it.",
+      "description": "The workflow from idea to merged change, the principles, the engineering agents, the asking rule and the guard against staging everything; every project has it.",
       "core": true,
       "languages": [],
       "origin": {
@@ -200,6 +200,34 @@
           "origin": {
             "type": "upstream",
             "name": "mattpocock/skills"
+          }
+        },
+        {
+          "kind": "agent",
+          "id": "implementer",
+          "origin": {
+            "type": "ours"
+          }
+        },
+        {
+          "kind": "agent",
+          "id": "reviewer",
+          "origin": {
+            "type": "ours"
+          }
+        },
+        {
+          "kind": "agent",
+          "id": "debt-payer",
+          "origin": {
+            "type": "ours"
+          }
+        },
+        {
+          "kind": "agent",
+          "id": "diagnoser",
+          "origin": {
+            "type": "ours"
           }
         },
         {

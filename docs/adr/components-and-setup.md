@@ -1,7 +1,7 @@
 # Components and setup
 
 Read this when you add, change or ship a component, touch `qg setup`,
-`qg status`, `qg explain`, `/setup-standards`, the choice file, `qg-skills`,
+`qg status`, `qg explain`, `/setup-standards`, the choice file, `qg-skills`, the shipped agents,
 or admit an outside tool or skill.
 
 ## Core and components
@@ -137,6 +137,30 @@ until they rerun `qg-skills`, so a stale copy cannot pass CI.
   again, is the upgrade after a pin bump: it changes nothing already correct
   and ends with a report accounting for every step.
   ([ADR-002](archive/ADR-002-engineering-standards.md#setting-up-a-project-one-command))
+
+## Shipped agents
+
+Source: [ADR-013](archive/ADR-013-shipped-agents.md#decision).
+
+- **Four agents ship, and `qg-skills` copies them** into `.claude/agents/`:
+  `implementer`, `reviewer`, `debt-payer` and `diagnoser`. They belong to the
+  core component, so a consumer cannot switch them off. `skill-vetter` stays
+  in the builder's user-level folder.
+- **One implementer, model passed per spawn.** It runs on Sonnet 5.5 at high
+  effort; the orchestrator passes Opus 5.5 at medium effort for a skeleton
+  ticket and for a ticket that changes an interface or the wiring. The
+  reviewer runs on Opus 5.5 at high effort.
+- **The copier touches only what it shipped,** listed in
+  `.claude/agents/.shipped-by-quality-gates`. It overwrites and removes only
+  agents on that list and never touches another file there. A project's own
+  agent with a shipped name, as its filename or its frontmatter `name:`, stops
+  `qg-skills` with exit 2 before anything
+  changes, and `/setup-standards` puts the choice to the builder.
+- **`qg-skills --check` fails** on a shipped agent that is missing or differs,
+  on one the release no longer ships, and on a project agent with a shipped
+  name.
+- **Agents name skills as quality-gates ships them** and follow ADR-002's
+  *Writing for agents*.
 
 ## Admitting outside sources
 
