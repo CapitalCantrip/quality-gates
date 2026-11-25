@@ -203,7 +203,11 @@ def offer_lines(proposal):
     return lines
 
 
-def render(proposal, planned, written):
+def note_lines(notes):
+    return [line for note in notes for line in ("", note)]
+
+
+def render(proposal, planned, written, notes):
     lines = ["Languages: " + (", ".join(proposal.languages) or "none"), "", "Components"]
     lines += [line for row in proposal.components for line in row_lines(row)]
     lines += ["", "Excluded from detection and the gates: " + (", ".join(proposal.choice.exclude) or "nothing")]
@@ -211,6 +215,7 @@ def render(proposal, planned, written):
     lines += your_components(proposal)
     lines += offer_lines(proposal)
     lines += ["", "Planned changes"] + [f"  {change.name}: {state}" for change, state in planned]
+    lines += note_lines(notes)
     lines += [""] + closing_lines(proposal, written, planned)
     return "\n".join(lines)
 
@@ -243,14 +248,14 @@ def recording_changes(root, proposal):
 
 def run(args, project, manifest):
     proposal = propose(project, manifest, args)
-    ci_changes, notes = project_files.tolerated_step_plan(project.root)
-    changes = recording_changes(project.root, proposal) + [project_files.choice_change(proposal.choice)] + ci_changes
+    notes = project_files.tolerated_step_notes(project.root)
+    changes = recording_changes(project.root, proposal) + [project_files.choice_change(proposal.choice)]
     planned = [(change, project_files.planned_state(project.root, change)) for change in changes]
     written = project_files.apply_planned(project.root, changes) if args.go else []
     if args.json:
         print(json.dumps({**report_of(proposal, planned), "notes": notes}, indent=2))
     else:
-        print("\n".join([render(proposal, planned, written), *notes]))
+        print(render(proposal, planned, written, notes))
     return 0
 
 

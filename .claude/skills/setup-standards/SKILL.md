@@ -279,20 +279,17 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   and pushes to the default branch. A SwiftPM package with no test target has
   no tests to run (`swift test` exits 1 there), so the Swift part of its
   workflow runs SwiftLint only.
-- **The tolerated list:** run `qg setup --go` again once CI runs a gate on pull
-  requests. It adds the `qg tolerated` step between quality-gates' markers in
-  that workflow and keeps every other line. Leave the lines between the
-  markers to `qg setup`. When it prints a note instead, do what the note
-  says: put the two marker lines at the end of the steps of the job that
-  should run the step, or add `pull_request` to the marked workflow's `on:`,
-  then run it again.
+- **The tolerated list:** paste the step in
+  [ci-tolerated.md](ci-tolerated.md) at the end of the steps of the job that
+  runs the gates, in a workflow that runs on pull requests. `qg setup` never
+  edits a workflow; it prints the same step when none runs it.
 
 A project with no tests gets no CRAP step: report CRAP as **not done**, as
 step 3 says.
 
 Done when the test suite, where the project has one, passes locally with the
-new tests, every gate the hooks run also runs in CI, and `qg setup` lists the
-workflow that runs them on pull requests as *unchanged*.
+new tests, every gate the hooks run also runs in CI, and `qg setup` prints no
+`qg tolerated` step to paste.
 
 ## 6. The asking rule
 

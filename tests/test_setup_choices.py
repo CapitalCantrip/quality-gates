@@ -66,8 +66,7 @@ jobs:
     steps:
       - run: echo lint
 """
-TOLERATED_STEP = """      # quality-gates: begin
-      - name: qg tolerated
+TOLERATED_STEP = """      - name: qg tolerated
         if: github.event_name == 'pull_request'
         shell: bash
         env:
@@ -75,7 +74,6 @@ TOLERATED_STEP = """      # quality-gates: begin
         run: |
           git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
           qg tolerated --against "origin/${BASE}"
-      # quality-gates: end
 """
 WORKFLOW_WITH_STEP = WORKFLOW.replace("      - run: comment-debt\n", "      - run: comment-debt\n" + TOLERATED_STEP)
 
@@ -414,33 +412,28 @@ class Setup(unittest.TestCase):
         self.write(self.repo / "bin" / "run", "#!/bin/sh\n")
         self.assertEqual(self.proposal()["languages"], ["python", "shell"])
 
-    def test_setup_run_twice_in_a_consumer_adds_the_tolerated_step_to_ci_once(self):
+    def test_setup_run_twice_writes_no_workflow_file(self):
         self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW)
         self.run_setup("--go")
-        self.run_setup("--go")
-        self.assertEqual((self.repo / ".github" / "workflows" / "tests.yml").read_text(), WORKFLOW_WITH_STEP)
-
-    def test_setup_without_go_lists_the_workflow_among_its_planned_changes_and_writes_nothing(self):
-        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW)
-        _, out, _ = self.run_setup()
-        self.assertIn("  .github/workflows/tests.yml: will change\n", out)
+        _, out, _ = self.run_setup("--go")
         self.assertEqual((self.repo / ".github" / "workflows" / "tests.yml").read_text(), WORKFLOW)
+        self.assertEqual(sorted(path.name for path in (self.repo / ".github" / "workflows").iterdir()), ["tests.yml"])
+        self.assertNotIn(".github/workflows/tests.yml", out)
 
-    def test_setup_names_a_workflow_holding_the_step_that_no_longer_runs_on_pull_requests(self):
-        self.write(self.repo / ".github" / "workflows" / "tests.yml",
-                   WORKFLOW_WITH_STEP.replace("on: [pull_request, push]", "on: push"))
-        before = tree(self.repo)
+    def test_setup_prints_the_tolerated_step_to_paste_once_when_no_workflow_runs_it(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW)
         _, out, _ = self.run_setup()
-        self.assertIn(".github/workflows/tests.yml holds the qg tolerated step but does not run on pull requests", out)
-        self.assertEqual(json.loads(self.run_setup("--json")[1])["notes"], [out.splitlines()[-1]])
-        self.assertEqual(tree(self.repo), before)
+        self.assertEqual(out.count(TOLERATED_STEP), 1)
+        self.assertIn("paste it at the end of the steps of the job that runs the gates", out)
+        notes = json.loads(self.run_setup("--json")[1])["notes"]
+        self.assertEqual(len(notes), 1)
+        self.assertIn("\n\n" + notes[0] + "\n\n", out)
 
-    def test_setup_stops_with_exit_2_on_a_workflow_whose_markers_are_broken(self):
-        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW + "      # quality-gates: begin\n")
-        code, _, err = self.run_setup("--go")
-        self.assertEqual(code, 2)
-        self.assertIn(".github/workflows/tests.yml", err)
-        self.assertFalse((self.repo / "quality-gates.json").exists())
+    def test_setup_prints_nothing_about_the_tolerated_step_when_a_pull_request_workflow_runs_it(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW_WITH_STEP)
+        _, out, _ = self.run_setup()
+        self.assertNotIn("qg tolerated", out)
+        self.assertEqual(json.loads(self.run_setup("--json")[1])["notes"], [])
 
     def test_setup_moves_the_comment_gate_exclusions_from_the_hook_into_the_file_and_again_changes_nothing(self):
         self.write(self.repo / ".githooks" / "pre-commit",

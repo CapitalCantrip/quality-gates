@@ -21,7 +21,6 @@ jobs:
       - run: comment-debt
       - run: coverage json
       - run: crap --lang python src --coverage-json coverage.json --baseline crap-baseline.json
-      # quality-gates: begin
       - name: qg tolerated
         if: github.event_name == 'pull_request'
         shell: bash
@@ -30,4 +29,3 @@ jobs:
         run: |
           git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
           qg tolerated --against "origin/${BASE}"
-      # quality-gates: end

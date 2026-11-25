@@ -40,6 +40,7 @@ GIT_ROOT = ("git", "rev-parse", "--show-toplevel")
 FILES_GIT_WOULD_COMMIT = ("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
 COMMIT_OF = ("git", "rev-parse", "--verify", "--quiet")
 OPTION_START = "-"
+NEWER_CHOICE = "{}: format_version {!r} is newer than this quality-gates reads: bump the pin"
 NO_COMMIT_AT = "{} names no commit in this repository: fetch it, or name a branch, tag or commit that exists"
 OUTSIDE_THE_REPO = "{} is outside the repository at {}: name a file inside it"
 AS_A_COMMIT = "^{commit}"
@@ -101,7 +102,6 @@ FILES_SHOWN = 3
 COMMENT_GATE_COMMAND = "comment-debt"
 EXCLUDE_FLAG = "--exclude"
 COMMAND_SEPARATORS = frozenset({"&&", "||", "|", ";"})
-GATE_COMMANDS = (COMMENT_GATE_COMMAND, "cc-check", "crap")
 TOP_KEY = re.compile(r"""(["']?)([\w-]+)\1[ \t]*:(.*)""")
 STEPS_KEY = re.compile(r"[ \t]+steps[ \t]*:[ \t]*(?:#.*)?")
 RUN_KEY = re.compile(r"run[ \t]*:(.*)", re.DOTALL)
@@ -110,19 +110,13 @@ FLOW_WORD = re.compile(r"[\w-]+")
 TRAILING_COMMENT = re.compile(r"(?:^|\s)#")
 TRIGGERS_KEY, JOBS_KEY, PULL_REQUEST = "on", "jobs", "pull_request"
 COMMENT_START, ITEM_START = "#", "- "
-MARKED_OFF = ("{} holds the qg tolerated step but does not run on pull requests, so the step never runs: "
-              "add pull_request to its `on:`, or remove quality-gates' markers and the lines between them")
-WHERE_TO_ADD = (", so the qg tolerated step was not added: put a `# quality-gates: begin` line and a "
-                "`# quality-gates: end` line at the end of the steps of the job that should run it, then run "
-                "`qg setup --go` again")
-NO_GATE_JOB = "no job runs comment-debt, cc-check or crap on pull requests" + WHERE_TO_ADD
-MANY_GATE_JOBS = "more than one job runs a gate on pull requests ({})" + WHERE_TO_ADD
-MANY_MARKED = "{} all hold quality-gates' markers, so none was changed: keep them in one workflow and run `qg setup --go` again"
 ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 FLOW_OPEN, FLOW_CLOSE = ("[", "{"), ("]", "}")
 NOT_PLAIN = ("|", ">", '"', "'")
-CI_BEGIN = "# quality-gates: begin"
-CI_END = "# quality-gates: end"
+TOLERATED_COMMAND = ("qg", "tolerated")
+STEP_INDENT = "      "
+PASTE_THE_STEP = ("No workflow that runs on pull requests runs `qg tolerated` yet; paste it at the end of the steps "
+                  "of the job that runs the gates:")
 TOLERATED_STEP = (
     "- name: qg tolerated",
     "  if: github.event_name == 'pull_request'",
@@ -133,7 +127,6 @@ TOLERATED_STEP = (
     '    git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"',
     '    qg tolerated --against "origin/${BASE}"',
 )
-BROKEN_MARKERS = f"{{}}: quality-gates' markers are broken: keep one `{CI_BEGIN}` line and, below it, one `{CI_END}` line"
 CRLF, LF = "\r\n", "\n"
 CONTINUATION = "\\"
 UNSHIPPED, MISSING, DIFFERS, SAME = "unshipped", "missing", "differs", "same"
@@ -547,6 +540,9 @@ def choice_at(root, ref):
 
 def any_format_choice(data, where):
     require(data, (), where)
+    version = data.get("format_version", CHOICE_FORMAT_VERSION)
+    if isinstance(version, bool) or not isinstance(version, int) or version > CHOICE_FORMAT_VERSION:
+        raise ToolError(NEWER_CHOICE.format(where, version))
     return choice_from({**CHOICE_DEFAULTS, **data, "format_version": CHOICE_FORMAT_VERSION}, where)
 
 
@@ -886,27 +882,6 @@ def indent_of(line):
     return line[:len(line) - len(line.lstrip(" \t"))]
 
 
-def line_ending(lines):
-    return CRLF if lines and lines[0].endswith(CRLF) else LF
-
-
-def marked_step(indent, newline):
-    return [indent + line + newline for line in (CI_BEGIN, *TOLERATED_STEP, CI_END)]
-
-
-def marker_lines(lines, marker):
-    return [at for at, line in enumerate(lines) if line.strip() == marker]
-
-
-def marked_span(lines, where):
-    begins, ends = marker_lines(lines, CI_BEGIN), marker_lines(lines, CI_END)
-    if not begins and not ends:
-        return None
-    if len(begins) != 1 or len(ends) != 1 or ends[0] < begins[0]:
-        raise ToolError(BROKEN_MARKERS.format(where))
-    return begins[0], ends[0] + 1
-
-
 def is_content(line):
     text = line.strip()
     return bool(text) and not text.startswith(COMMENT_START)
@@ -1000,8 +975,6 @@ def steps_list(lines, at, end):
     indent, stop = indent_of(lines[first]), first
     while stop < end and in_steps(lines[stop], indent):
         stop += 1
-    while not is_content(lines[stop - 1]):
-        stop -= 1
     return StepsList(indent, tuple(row for row in range(first, stop) if is_item(lines[row], indent)), stop)
 
 
@@ -1034,81 +1007,26 @@ def plain_value(value):
     return value if value.strip().startswith(NOT_PLAIN) else without_comment(value) + LF
 
 
-def command_word(segment):
+def command_of(segment):
     words = list(dropwhile(ASSIGNMENT.match, segment))
-    return PurePosixPath(words[0]).name if words else None
+    return (PurePosixPath(words[0]).name, *words[1:len(TOLERATED_COMMAND)]) if words else ()
 
 
-def runs_a_gate(text):
-    return any(command_word(segment) in GATE_COMMANDS
+def runs_qg_tolerated(text):
+    return any(command_of(segment) == TOLERATED_COMMAND
                for line in logical_lines(text) for segment in command_segments(words_of(line)))
 
 
-def gate_steps(lines):
-    return [listed for listed in steps_lists(lines)
-            if any(runs_a_gate(run_text(item)) for item in listed.item_lines(lines))]
-
-
-def gate_jobs(text):
+def runs_tolerated_on_pull_requests(text):
     lines = text.splitlines(keepends=True)
-    return gate_steps(lines) if runs_on_pull_requests(lines) else []
+    return runs_on_pull_requests(lines) and any(runs_qg_tolerated(run_text(item))
+                                                for listed in steps_lists(lines) for item in listed.item_lines(lines))
 
 
-def ended(lines, newline):
-    return lines[:-1] + [lines[-1] if lines[-1].endswith(LF) else lines[-1] + newline]
-
-
-def with_step_added(lines, newline):
-    found = gate_steps(lines)
-    if len(found) != 1:
-        return None
-    found = found[0]
-    return "".join(ended(lines[:found.end], newline) + marked_step(found.indent, newline) + lines[found.end:])
-
-
-def with_tolerated_step(text, where):
-    lines = text.splitlines(keepends=True)
-    if not runs_on_pull_requests(lines):
-        return None
-    newline = line_ending(lines)
-    span = marked_span(lines, where)
-    if span is None:
-        return with_step_added(lines, newline)
-    begin, end = span
-    return "".join(lines[:begin] + marked_step(indent_of(lines[begin]), newline) + lines[end:])
-
-
-def workflow_texts(root):
-    files = workflow_files(root)
-    return [(path.relative_to(root).as_posix(), text) for path, text in zip(files, each_text(files)) if text is not None]
-
-
-def holds_markers(text):
-    return any(line.strip() in (CI_BEGIN, CI_END) for line in text.splitlines())
-
-
-def marked_plan(marked):
-    if len(marked) > 1:
-        return [], [MANY_MARKED.format(", ".join(name for name, _ in marked))]
-    name, text = marked[0]
-    changed = with_tolerated_step(text, name)
-    return ([PlannedChange(name, changed)], []) if changed is not None else ([], [MARKED_OFF.format(name)])
-
-
-def unmarked_plan(texts):
-    jobs = [(name, text) for name, text in texts for _ in gate_jobs(text)]
-    if len(jobs) == 1:
-        name, text = jobs[0]
-        return [PlannedChange(name, with_tolerated_step(text, name))], []
-    if jobs:
-        return [], [MANY_GATE_JOBS.format(", ".join(dict.fromkeys(name for name, _ in jobs)))]
-    return [], [NO_GATE_JOB] if texts else []
-
-
-def tolerated_step_plan(root):
-    texts = workflow_texts(root)
-    marked = [(name, text) for name, text in texts if holds_markers(text)]
-    return marked_plan(marked) if marked else unmarked_plan(texts)
+def tolerated_step_notes(root):
+    if any(text is not None and runs_tolerated_on_pull_requests(text) for text in each_text(workflow_files(root))):
+        return []
+    return ["\n".join([PASTE_THE_STEP, *(STEP_INDENT + line for line in TOLERATED_STEP)])]
 
 
 def comment_gate_exclusions(root):
