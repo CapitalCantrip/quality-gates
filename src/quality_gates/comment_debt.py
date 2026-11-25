@@ -221,9 +221,13 @@ SHELL = CommentSyntax(code_reader.Syntax(
 ), re.compile(r"#\s*shellcheck\s+disable=SC\d+(?:\s*,\s*SC\d+)*\s*"), {}, shebang=True)
 
 
+SILENCES_NOTHING = re.compile(r"(?!)")
+
+
 @dataclass(frozen=True)
 class CommentLanguage:
     component: str
+    silencer: re.Pattern
     syntax: Optional[CommentSyntax] = None
 
     def checker(self, source, conventions):
@@ -233,11 +237,11 @@ class CommentLanguage:
 
 
 LANGUAGES = {
-    "python": CommentLanguage("no-comments"),
-    "rust": CommentLanguage("no-comments-rust", RUST),
-    "typescript": CommentLanguage("no-comments-typescript", TYPESCRIPT),
-    "swift": CommentLanguage("no-comments-swift", SWIFT),
-    "shell": CommentLanguage("no-comments-shell", SHELL),
+    "python": CommentLanguage("no-comments", SILENCES_NOTHING),
+    "rust": CommentLanguage("no-comments-rust", SILENCES_NOTHING, RUST),
+    "typescript": CommentLanguage("no-comments-typescript", SILENCES_NOTHING, TYPESCRIPT),
+    "swift": CommentLanguage("no-comments-swift", SILENCES_NOTHING, SWIFT),
+    "shell": CommentLanguage("no-comments-shell", SILENCES_NOTHING, SHELL),
 }
 
 

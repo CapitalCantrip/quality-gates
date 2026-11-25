@@ -36,6 +36,13 @@ ASKING_LINE = (
 )
 GIT_ROOT = ("git", "rev-parse", "--show-toplevel")
 FILES_GIT_WOULD_COMMIT = ("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
+COMMIT_OF = ("git", "rev-parse", "--verify", "--quiet", "--end-of-options")
+AS_A_COMMIT = "^{commit}"
+BLOB_AT = ("git", "cat-file", "blob")
+DEFAULT_BRANCHES = (
+    "refs/remotes/origin/HEAD", "refs/heads/main", "refs/heads/master", "refs/remotes/origin/main",
+    "refs/remotes/origin/master",
+)
 NOT_A_GIT_REPO = (
     "not inside a git repository: quality-gates looks at the files git would commit, so run it inside the "
     "project's repository, or run `git init` there first"
@@ -63,6 +70,10 @@ TRIAGE_LABELS_DOC = AGENT_DOCS / "triage-labels.md"
 DOMAIN_DOC = AGENT_DOCS / "domain.md"
 PR_TEMPLATE = Path(".github") / "pull_request_template.md"
 COMMENT_DEBT_BASELINE = "comment-debt.json"
+CC_BASELINE = "cc-baseline.json"
+CRAP_BASELINE = "crap-baseline.json"
+SILENCER_BASELINE = "silencer-baseline.json"
+BASELINES = (CC_BASELINE, CRAP_BASELINE, COMMENT_DEBT_BASELINE, SILENCER_BASELINE)
 CHOICE_FILE = "quality-gates.json"
 CHOICE_FORMAT_VERSION = 1
 CHOICE_REQUIRED = ("format_version", "languages", "exclude", "components", "commit_time_limit_seconds", "settings")
@@ -83,6 +94,22 @@ FILES_SHOWN = 3
 COMMENT_GATE_COMMAND = "comment-debt"
 EXCLUDE_FLAG = "--exclude"
 COMMAND_SEPARATORS = frozenset({"&&", "||", "|", ";"})
+GATE_COMMANDS = (COMMENT_GATE_COMMAND, "cc-check", "crap")
+ON_PULL_REQUESTS = re.compile(r"(?<![\w-])pull_request(?![\w-])")
+STEP_START = re.compile(r"([ \t]*)- ")
+CI_BEGIN = "# quality-gates: begin"
+CI_END = "# quality-gates: end"
+TOLERATED_STEP = (
+    "- name: qg tolerated",
+    "  if: github.event_name == 'pull_request'",
+    "  env:",
+    "    BASE: ${{ github.base_ref }}",
+    "  run: |",
+    '    git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"',
+    '    qg tolerated --against "origin/${BASE}"',
+)
+BROKEN_MARKERS = f"{{}}: quality-gates' markers are broken: keep one `{CI_BEGIN}` line and, below it, one `{CI_END}` line"
+CRLF, LF = "\r\n", "\n"
 CONTINUATION = "\\"
 UNSHIPPED, MISSING, DIFFERS, SAME = "unshipped", "missing", "differs", "same"
 READABLE, UNREADABLE = "readable", "unreadable"
@@ -360,6 +387,14 @@ def comment_debt_baseline(root):
     return root / COMMENT_DEBT_BASELINE
 
 
+def silencer_baseline(root):
+    return root / SILENCER_BASELINE
+
+
+def baseline_files(root):
+    return [root / name for name in BASELINES]
+
+
 def template_base(name):
     return TEMPLATE_BASES / name.name
 
@@ -442,6 +477,28 @@ def git_root(start=None):
     if found.returncode != 0 or not found.stdout.strip():
         raise ToolError(NOT_A_GIT_REPO)
     return Path(found.stdout.strip())
+
+
+def commit_of(root, ref):
+    found = subprocess.run([*COMMIT_OF, ref + AS_A_COMMIT], cwd=root, capture_output=True, text=True)
+    return found.stdout.strip() if found.returncode == 0 and found.stdout.strip() else None
+
+
+def default_branch(root):
+    return next((ref for ref in DEFAULT_BRANCHES if commit_of(root, ref) is not None), None)
+
+
+def copy_at(root, ref, name):
+    commit = commit_of(root, ref)
+    if commit is None:
+        return None
+    found = subprocess.run([*BLOB_AT, f"{commit}:{Path(name).as_posix()}"], cwd=root, capture_output=True)
+    return found.stdout if found.returncode == 0 else None
+
+
+def main_copy(root, name):
+    branch = default_branch(root)
+    return None if branch is None else copy_at(root, branch, name)
 
 
 def root_of_skills_folder(dest):
@@ -769,6 +826,103 @@ def exclude_flags(words):
             yield words[at + 1]
         elif word.startswith(EXCLUDE_FLAG + "="):
             yield word[len(EXCLUDE_FLAG) + 1:]
+
+
+def indent_of(line):
+    return line[:len(line) - len(line.lstrip(" \t"))]
+
+
+def line_ending(lines):
+    return CRLF if lines and lines[0].endswith(CRLF) else LF
+
+
+def marked_step(indent, newline):
+    return [indent + line + newline for line in (CI_BEGIN, *TOLERATED_STEP, CI_END)]
+
+
+def marker_lines(lines, marker):
+    return [at for at, line in enumerate(lines) if line.strip() == marker]
+
+
+def marked_span(lines, where):
+    begins, ends = marker_lines(lines, CI_BEGIN), marker_lines(lines, CI_END)
+    if not begins and not ends:
+        return None
+    if len(begins) != 1 or len(ends) != 1 or ends[0] < begins[0]:
+        raise ToolError(BROKEN_MARKERS.format(where))
+    return begins[0], ends[0] + 1
+
+
+def runs_a_gate(line):
+    return any(runs_command(line, command) for command in GATE_COMMANDS)
+
+
+def step_indent(lines, at):
+    limit = len(indent_of(lines[at]))
+    for line in reversed(lines[:at + 1]):
+        found = STEP_START.match(line)
+        if found and len(found.group(1)) <= limit:
+            return found.group(1)
+    return None
+
+
+def gate_step(lines):
+    for at, line in enumerate(lines):
+        indent = step_indent(lines, at) if runs_a_gate(line) else None
+        if indent is not None:
+            return at, indent
+    return None
+
+
+def in_steps(line, indent):
+    here = len(indent_of(line))
+    return not line.strip() or here > len(indent) or (here == len(indent) and line.lstrip().startswith("- "))
+
+
+def steps_end(lines, at, indent):
+    end = at + 1
+    while end < len(lines) and in_steps(lines[end], indent):
+        end += 1
+    while end > at + 1 and not lines[end - 1].strip():
+        end -= 1
+    return end
+
+
+def ended(lines, newline):
+    return lines[:-1] + [lines[-1] if lines[-1].endswith(LF) else lines[-1] + newline]
+
+
+def with_step_added(lines, newline):
+    found = gate_step(lines)
+    if found is None:
+        return None
+    at, indent = found
+    end = steps_end(lines, at, indent)
+    return "".join(ended(lines[:end], newline) + marked_step(indent, newline) + lines[end:])
+
+
+def with_tolerated_step(text, where):
+    if not ON_PULL_REQUESTS.search(text):
+        return None
+    lines = text.splitlines(keepends=True)
+    newline = line_ending(lines)
+    span = marked_span(lines, where)
+    if span is None:
+        return with_step_added(lines, newline)
+    begin, end = span
+    return "".join(lines[:begin] + marked_step(indent_of(lines[begin]), newline) + lines[end:])
+
+
+def tolerated_step_changes(root):
+    files = workflow_files(root)
+    found = sorted(((path, text) for path, text in zip(files, each_text(files)) if text is not None),
+                   key=lambda pair: CI_BEGIN not in pair[1])
+    for path, text in found:
+        name = path.relative_to(root).as_posix()
+        changed = with_tolerated_step(text, name)
+        if changed is not None:
+            return [PlannedChange(name, changed)]
+    return []
 
 
 def comment_gate_exclusions(root):

@@ -51,6 +51,32 @@ def manifest_of(*components):
 
 
 MANIFEST = manifest_of(CORE, RISK, HELPERS, RUST)
+WORKFLOW = """name: tests
+on: [pull_request, push]
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: pip install -e .
+      - run: comment-debt
+
+  lint:
+    runs-on: ubuntu-24.04
+    steps:
+      - run: echo lint
+"""
+TOLERATED_STEP = """      # quality-gates: begin
+      - name: qg tolerated
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.base_ref }}
+        run: |
+          git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
+          qg tolerated --against "origin/${BASE}"
+      # quality-gates: end
+"""
+WORKFLOW_WITH_STEP = WORKFLOW.replace("      - run: comment-debt\n", "      - run: comment-debt\n" + TOLERATED_STEP)
 
 
 def git_init(folder):
@@ -386,6 +412,25 @@ class Setup(unittest.TestCase):
         self.run_setup("--go")
         self.write(self.repo / "bin" / "run", "#!/bin/sh\n")
         self.assertEqual(self.proposal()["languages"], ["python", "shell"])
+
+    def test_setup_run_twice_in_a_consumer_adds_the_tolerated_step_to_ci_once(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW)
+        self.run_setup("--go")
+        self.run_setup("--go")
+        self.assertEqual((self.repo / ".github" / "workflows" / "tests.yml").read_text(), WORKFLOW_WITH_STEP)
+
+    def test_setup_without_go_lists_the_workflow_among_its_planned_changes_and_writes_nothing(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW)
+        _, out, _ = self.run_setup()
+        self.assertIn("  .github/workflows/tests.yml: will change\n", out)
+        self.assertEqual((self.repo / ".github" / "workflows" / "tests.yml").read_text(), WORKFLOW)
+
+    def test_setup_stops_with_exit_2_on_a_workflow_whose_markers_are_broken(self):
+        self.write(self.repo / ".github" / "workflows" / "tests.yml", WORKFLOW + "      # quality-gates: begin\n")
+        code, _, err = self.run_setup("--go")
+        self.assertEqual(code, 2)
+        self.assertIn(".github/workflows/tests.yml", err)
+        self.assertFalse((self.repo / "quality-gates.json").exists())
 
     def test_setup_moves_the_comment_gate_exclusions_from_the_hook_into_the_file_and_again_changes_nothing(self):
         self.write(self.repo / ".githooks" / "pre-commit",

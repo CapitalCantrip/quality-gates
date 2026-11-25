@@ -20,19 +20,22 @@ CI, the instruction file, `docs/agents/*` and the PR template. Every write goes
 through one planned-changes step that setup shows before the builder's "go".
 Decided, not built yet: code edits the hook and CI only between quality-gates'
 markers.
-Decided, not built yet (quality-gates#192, #193): it reads main's copy of a
-file, the bytes committed on the default branch or a plain "absent"; nothing
-else runs git. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+Built (quality-gates#234): it reads main's copy of a file, the bytes
+committed on the default branch or a plain "absent", and a file's bytes at any
+ref that names a commit; nothing else runs git. The default branch is the
+remote's `HEAD`, then `main`, `master`, `origin/main` and `origin/master`.
+Setup adds the `qg tolerated` CI step between quality-gates' markers. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
 
 ## The tolerated module
 
-Decided, not built yet (quality-gates#192): `tolerated` adds up the tolerated
+The module and `qg tolerated` exist and find no growth yet; counting it is
+quality-gates#192. `tolerated` adds up the tolerated
 list (every baseline, both exclude lists, the silencer baseline, and recorded
 reasons once quality-gates#115 lands) for the tree and for a git ref, and
 returns what grew. It reads baselines through the ratchet and files through the
 project module, and parses nothing itself. `qg tolerated --against <ref>` runs
 it in CI. Silencer patterns are rows in `comment-debt`'s per-language table, not
-the registry. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+the registry; each row has one, and none matches anything until quality-gates#195. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
 
 ## One language registry
 

@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from quality_gates import agent_docs, languages, setup_choices, skills_sync, status
+from quality_gates import agent_docs, languages, setup_choices, skills_sync, status, tolerated
 from quality_gates import project_files as pf
 from quality_gates.errors import ToolError
 from quality_gates.manifest import BrokenFileError
@@ -294,7 +294,7 @@ class ProjectModuleOwnsTheRootAndTheWalks(unittest.TestCase):
 KEPT_NAMES = {
     "CLAUDE.md", "AGENTS.md", "agents", "pull_request_template.md", ".github", "workflows",
     ".githooks", "pre-commit", ".claude", "settings.json", "comment-debt.json",
-    "quality-gates.json",
+    "quality-gates.json", "cc-baseline.json", "crap-baseline.json", "silencer-baseline.json",
 }
 
 
@@ -333,10 +333,20 @@ class ProjectModuleOwnsTheKeptFiles(unittest.TestCase):
             'claude_dir / "settings.json"',
             'Path(".claude") / "skills"',
             'root / "comment-debt.json"',
+            '"silencer-baseline.json"',
         ]
         for source in sources:
             with self.subTest(source):
                 self.assertTrue(any(names_kept_file(node) for node in ast.walk(ast.parse(source))))
+
+    def test_the_silencer_baseline_has_its_fixed_name_at_the_root(self):
+        root = Path(tempfile.mkdtemp())
+        self.assertEqual(pf.silencer_baseline(root), root / "silencer-baseline.json")
+
+    def test_the_project_module_names_every_baseline_the_tolerated_list_adds_up(self):
+        root = Path(tempfile.mkdtemp())
+        names = ["cc-baseline.json", "crap-baseline.json", "comment-debt.json", "silencer-baseline.json"]
+        self.assertEqual(pf.baseline_files(root), [root / name for name in names])
 
     def test_the_check_ignores_prose_that_mentions_a_kept_file(self):
         prose = '"Add the asking-rule line to CLAUDE.md. See `docs/agents/domain.md`."'
@@ -422,6 +432,7 @@ CATCHES_ALLOWED = {
     "skills_sync.main": "a non-gate command that reports its own setup errors",
     "agent_docs.main": "a non-gate command that reports its own setup errors",
     "status.main": "qg status reports, it does not gate",
+    "tolerated.main": "qg tolerated checks the tolerated list, not code, and reports its own errors",
 }
 CATCH_EVERY_ERROR = {"Exception", "BaseException"}
 SUPPRESS = "suppress"
@@ -750,6 +761,166 @@ class PlannedChanges(unittest.TestCase):
         self.assertEqual((self.root / "kept.txt").stat().st_mtime_ns, before)
 
 
+def git(root, *args):
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root, check=True,
+                   capture_output=True)
+
+
+def committed(root, name, data, branch="main"):
+    git(root, "checkout", "-q", "-B", branch)
+    (root / name).parent.mkdir(parents=True, exist_ok=True)
+    (root / name).write_bytes(data)
+    git(root, "add", "--", name)
+    git(root, "commit", "-q", "-m", "add")
+
+
+class MainsCopyOfAFile(unittest.TestCase):
+    def setUp(self):
+        self.root = git_repo(tempfile.mkdtemp())
+
+    def test_a_file_committed_on_main_is_read_as_the_bytes_main_holds_even_after_the_tree_changes(self):
+        committed(self.root, "cc-baseline.json", b'{"a.py::old": 11}\n\xff')
+        (self.root / "cc-baseline.json").unlink()
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), b'{"a.py::old": 11}\n\xff')
+
+    def test_a_file_in_a_folder_on_main_is_read_by_its_path_from_the_root(self):
+        committed(self.root, "baselines/cc.json", b"{}\n")
+        self.assertEqual(pf.main_copy(self.root, Path("baselines") / "cc.json"), b"{}\n")
+
+    def test_a_file_main_does_not_hold_is_absent(self):
+        committed(self.root, "a.py", b"x = 1\n")
+        (self.root / "cc-baseline.json").write_text("{}\n")
+        self.assertIsNone(pf.main_copy(self.root, "cc-baseline.json"))
+
+    def test_a_folder_on_main_is_absent_as_a_file(self):
+        committed(self.root, "baselines/cc.json", b"{}\n")
+        self.assertIsNone(pf.main_copy(self.root, "baselines"))
+
+    def test_a_repo_with_no_default_branch_has_every_file_absent(self):
+        committed(self.root, "cc-baseline.json", b"{}\n", branch="trunk")
+        self.assertIsNone(pf.default_branch(self.root))
+        self.assertIsNone(pf.main_copy(self.root, "cc-baseline.json"))
+
+    def test_a_repo_with_no_commits_has_every_file_absent(self):
+        (self.root / "cc-baseline.json").write_text("{}\n")
+        self.assertIsNone(pf.default_branch(self.root))
+        self.assertIsNone(pf.main_copy(self.root, "cc-baseline.json"))
+
+    def test_master_is_the_default_branch_when_there_is_no_main(self):
+        committed(self.root, "cc-baseline.json", b"{}\n", branch="master")
+        self.assertEqual(pf.default_branch(self.root), "refs/heads/master")
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), b"{}\n")
+
+    def test_the_remotes_default_branch_comes_before_a_local_main(self):
+        committed(self.root, "cc-baseline.json", b"main\n")
+        committed(self.root, "cc-baseline.json", b"trunk\n", branch="trunk")
+        git(self.root, "update-ref", "refs/remotes/origin/trunk", "trunk")
+        git(self.root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), b"trunk\n")
+
+    def test_a_file_is_read_at_any_ref_that_names_a_commit(self):
+        committed(self.root, "cc-baseline.json", b"main\n")
+        git(self.root, "update-ref", "refs/remotes/origin/main", "main")
+        committed(self.root, "cc-baseline.json", b"later\n")
+        self.assertEqual(pf.copy_at(self.root, "origin/main", "cc-baseline.json"), b"main\n")
+
+    def test_a_ref_that_names_no_commit_has_every_file_absent(self):
+        committed(self.root, "cc-baseline.json", b"{}\n")
+        git(self.root, "branch", "None")
+        for ref in ("origin/main", "--help", "main:cc-baseline.json", ""):
+            with self.subTest(ref):
+                self.assertIsNone(pf.commit_of(self.root, ref))
+                self.assertIsNone(pf.copy_at(self.root, ref, "cc-baseline.json"))
+
+
+STEP_LINES = (
+    "# quality-gates: begin",
+    "- name: qg tolerated",
+    "  if: github.event_name == 'pull_request'",
+    "  env:",
+    "    BASE: ${{ github.base_ref }}",
+    "  run: |",
+    '    git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"',
+    '    qg tolerated --against "origin/${BASE}"',
+    "# quality-gates: end",
+)
+
+
+def step_at(indent, newline="\n"):
+    return "".join(indent + line + newline for line in STEP_LINES)
+
+
+class ToleratedStepInCi(unittest.TestCase):
+    def setUp(self):
+        self.root = git_repo(tempfile.mkdtemp())
+
+    def workflow(self, name, text):
+        pf.write_kept(self.root, f".github/workflows/{name}", text)
+
+    def test_the_step_goes_after_the_whole_gate_step_when_its_run_block_spans_lines(self):
+        text = ("on: pull_request\njobs:\n  t:\n    steps:\n    - run: |\n        pip install .\n"
+                "        crap --lang python src\n\n    - run: echo after\n")
+        self.assertEqual(pf.with_tolerated_step(text, "ci.yml"),
+                         text.replace("    - run: echo after\n", "    - run: echo after\n" + step_at("    ")))
+
+    def test_a_step_between_the_markers_is_replaced_and_every_other_line_is_kept(self):
+        text = ("on: pull_request\nsteps:\n  - run: cc-check src\n  # quality-gates: begin\n  - run: qg old\n"
+                "  # quality-gates: end\n  - run: echo kept\n")
+        self.assertEqual(pf.with_tolerated_step(text, "ci.yml"),
+                         "on: pull_request\nsteps:\n  - run: cc-check src\n" + step_at("  ") + "  - run: echo kept\n")
+
+    def test_a_workflow_with_the_step_in_place_is_unchanged(self):
+        text = "on: pull_request\nsteps:\n  - run: comment-debt\n" + step_at("  ")
+        self.assertEqual(pf.with_tolerated_step(text, "ci.yml"), text)
+
+    def test_a_workflow_that_does_not_run_on_pull_requests_gets_no_step(self):
+        for trigger in ("on: push", "on: pull_request_target"):
+            with self.subTest(trigger):
+                self.assertIsNone(pf.with_tolerated_step(f"{trigger}\nsteps:\n  - run: comment-debt\n", "ci.yml"))
+
+    def test_a_workflow_that_runs_no_gate_gets_no_step(self):
+        text = "on: pull_request\nsteps:\n  - run: pytest --crap-free\n  - run: echo comment-debt-free\n"
+        self.assertIsNone(pf.with_tolerated_step(text, "ci.yml"))
+
+    def test_a_gate_named_outside_any_step_gets_no_step(self):
+        self.assertIsNone(pf.with_tolerated_step("on: pull_request\nname: comment-debt\n", "ci.yml"))
+
+    def test_a_last_line_without_a_newline_is_ended_before_the_step(self):
+        text = "on: pull_request\nsteps:\n  - run: comment-debt"
+        self.assertEqual(pf.with_tolerated_step(text, "ci.yml"), text + "\n" + step_at("  "))
+
+    def test_a_workflow_with_windows_line_endings_keeps_them(self):
+        text = "on: pull_request\r\nsteps:\r\n  - run: comment-debt\r\n"
+        self.assertEqual(pf.with_tolerated_step(text, "ci.yml"), text + step_at("  ", "\r\n"))
+
+    def test_broken_markers_stop_with_an_error_naming_the_file(self):
+        begin, end = "  # quality-gates: begin\n", "  # quality-gates: end\n"
+        for markers in (begin, end, end + begin, begin + end + begin + end):
+            with self.subTest(markers):
+                text = "on: pull_request\nsteps:\n  - run: comment-debt\n" + markers
+                with self.assertRaises(ToolError) as raised:
+                    pf.with_tolerated_step(text, ".github/workflows/ci.yml")
+                self.assertIn(".github/workflows/ci.yml", str(raised.exception))
+
+    def test_the_step_goes_into_the_first_workflow_that_runs_a_gate_on_pull_requests(self):
+        self.workflow("a.yml", "on: push\nsteps:\n  - run: comment-debt\n")
+        self.workflow("b.yml", "on: pull_request\nsteps:\n  - run: crap --lang python src\n")
+        self.workflow("c.yml", "on: pull_request\nsteps:\n  - run: cc-check src\n")
+        self.assertEqual([change.name for change in pf.tolerated_step_changes(self.root)], [".github/workflows/b.yml"])
+
+    def test_a_workflow_that_already_holds_the_markers_is_the_one_kept_up_to_date(self):
+        self.workflow("a.yml", "on: pull_request\nsteps:\n  - run: comment-debt\n")
+        self.workflow("b.yml", "on: pull_request\nsteps:\n  - run: cc-check src\n  # quality-gates: begin\n"
+                               "  # quality-gates: end\n")
+        self.assertEqual([change.name for change in pf.tolerated_step_changes(self.root)], [".github/workflows/b.yml"])
+
+    def test_a_project_without_a_workflow_that_runs_a_gate_has_no_ci_change(self):
+        self.assertEqual(pf.tolerated_step_changes(self.root), [])
+        self.workflow("a.yml", "on: pull_request\nsteps:\n  - run: pytest\n")
+        (self.root / ".github" / "workflows" / "b.yml").write_bytes(b"\xff\xfe")
+        self.assertEqual(pf.tolerated_step_changes(self.root), [])
+
+
 class OneRootFinder(unittest.TestCase):
     def test_inside_a_git_repo_the_root_is_the_top_of_the_repo_wherever_the_command_runs(self):
         repo = git_repo(tempfile.mkdtemp())
@@ -768,6 +939,7 @@ class OneRootFinder(unittest.TestCase):
         commands = {
             "qg status": lambda: status.main([]),
             "qg setup": lambda: setup_choices.main([]),
+            "qg tolerated": lambda: tolerated.main(["--against", "main"]),
             "comment-debt": lambda: comment_debt.main([], out=sys.stderr),
             "cc-check": lambda: quality_check.main(["."]),
             "crap": lambda: crap.main(["--lang", "python", "."]),

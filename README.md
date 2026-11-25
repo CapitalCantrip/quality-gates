@@ -642,6 +642,7 @@ line, like any other tool error.
   | `qg status` | [src/quality_gates/status.py](src/quality_gates/status.py) |
   | `qg setup` | [src/quality_gates/setup_choices.py](src/quality_gates/setup_choices.py) |
   | `qg explain` | [src/quality_gates/explain.py](src/quality_gates/explain.py) |
+  | `qg tolerated` | [src/quality_gates/tolerated.py](src/quality_gates/tolerated.py) |
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
   | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |
@@ -705,13 +706,23 @@ line, like any other tool error.
       Flags Swift functions that are too tangled to follow, ...
   ```
 
+- `qg tolerated --against <ref>` compares the
+  [tolerated list](GLOSSARY.md) in the working tree with the list at `<ref>`
+  and prints one line. It does not count growth yet (quality-gates#192), so
+  it prints *the tolerated list did not grow* and exits 0. A ref that names no
+  commit, or a folder outside a git repo, exits 2 with one line on stderr.
+
 - `qg setup` proposes the project's languages and one row per component, with
   its description, its cost (commit delay, CI time, outside tools) and a tick
   on the recommended set, and lists the files it would change. It writes
   nothing until `--go`, and then only `quality-gates.json`, plus
   `comment-debt.json` when it switches a comment language on: that language's
   comments are recorded there as debt, replacing its older entries and leaving
-  the others as they were, less any entry of zero. Without a choice
+  the others as they were, less any entry of zero. It also adds the
+  `qg tolerated` step to the first workflow that runs a gate on pull requests,
+  between `# quality-gates: begin` and `# quality-gates: end`, after the
+  steps of that gate's job; on later runs it rewrites only the lines between
+  the markers. Broken markers stop it with exit 2 and nothing written. Without a choice
   file it records what is installed as chosen, except a new comment language
   such as `no-comments-rust`: the hook, CI step and baseline it shares with
   `no-comments` never make it look installed, so it is switched on only by
