@@ -39,6 +39,7 @@ class EveryGateOnFilesItCannotReadTest(unittest.TestCase):
         (self.root / "good.py").write_text("def ok():\n    return 1\n")
         git(self.root, "add", "good.py")
         (self.root / "comment-debt.json").write_text("{}\n")
+        (self.root / "silencer-baseline.json").write_text("{}\n")
         (self.root / "broken.py").write_text("def f(:\n")
         (self.root / "latin.py").write_bytes(b'x = "\xff"\n')
         (self.root / "folder").mkdir()

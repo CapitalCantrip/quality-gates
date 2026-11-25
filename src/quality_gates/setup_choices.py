@@ -237,13 +237,25 @@ def failed(error, code):
     return code
 
 
+def silencer_names(root, proposal, names):
+    if project_files.silencer_baseline(root).exists():
+        return names
+    return names | comment_debt.chosen_in(proposal.choice)
+
+
 def recording_changes(root, proposal):
     names = comment_debt.languages_of(proposal.switched_on)
     if not names:
         return []
-    found = comment_debt.findings_on_choosing(root, names, proposal.choice)
-    scores = ratchet.recorded(found, project_files.comment_debt_baseline(root), comment_debt.written_in(root, names))
-    return [project_files.comment_debt_change(ratchet.baseline_text(scores))]
+    comments = ratchet.recorded(
+        comment_debt.comment_findings(comment_debt.measured_on_choosing(root, names, proposal.choice)),
+        project_files.comment_debt_baseline(root), comment_debt.written_in(root, names))
+    covered = silencer_names(root, proposal, names)
+    silencers = ratchet.recorded(
+        comment_debt.silencer_findings(comment_debt.measured_on_choosing(root, covered, proposal.choice)),
+        project_files.silencer_baseline(root), comment_debt.written_in(root, covered))
+    return [project_files.comment_debt_change(ratchet.baseline_text(comments)),
+            project_files.silencer_baseline_change(ratchet.baseline_text(silencers))]
 
 
 def run(args, project, manifest):
