@@ -30,17 +30,18 @@ remote's `HEAD`, then `main`, `master`, `origin/main` and `origin/master`. ([ADR
 
 ## The tolerated module
 
-Decided, not built yet (quality-gates#192): `tolerated` adds up the tolerated
-list (every baseline, both exclude lists, the silencer baseline, and recorded
-reasons once quality-gates#115 lands) for the tree and for a git ref, and
-returns what grew. It reads baselines through the ratchet and files through the
-project module, and parses nothing itself. `qg tolerated --against <ref>` runs
-it in CI. Silencer patterns are rows in `comment-debt`'s per-language table, not
-the registry. Built so far (quality-gates#234): the module and
-`qg tolerated`, which find no growth yet; `ratchet.baseline_from`, which reads
-a baseline from bytes; and a silencer pattern on each row of the table, which
-matches nothing until quality-gates#195, with the ratchet asking for
-`silencer-baseline.json` by the name the project module knows. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+Built (quality-gates#192): `tolerated` adds up the tolerated list (every
+baseline, both exclude lists, the silencer baseline, and recorded reasons once
+quality-gates#115 lands) for the tree and for a git ref, and returns what grew.
+It reads baselines through the ratchet (`stored_baseline`, `baseline_at`) and
+files through the project module, and parses nothing itself; each part of the
+list is one source in its `SOURCES`, so the reasons file is one more.
+`qg tolerated --against <ref>` runs it in CI. Silencer patterns are rows in
+`comment-debt`'s per-language table, not the registry; they match nothing
+until quality-gates#195, with the ratchet asking for `silencer-baseline.json`
+by the name the project module knows. The ratchet's `--update` asks the
+project module whether the default branch holds a missing baseline
+(quality-gates#193). ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
 
 ## One language registry
 
