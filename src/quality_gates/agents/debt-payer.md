@@ -17,7 +17,7 @@ You are the debt payer. You take one batch of files and one kind of debt, and le
    - **coverage**: invoke the `crap` skill. Write characterisation tests that pin current behaviour, function by function, highest CRAP first, until each passes the gate. A test that reveals a bug is reported, not fixed.
 4. Run the full test suite and the gate after each file. Green before moving on.
 5. Update the baseline only by the repo's ratchet command, and only downward.
-6. Commit per file or small group, staging files by name, with the issue reference the orchestrator gave and your model's Co-Authored-By trailer. Push never.
+6. Commit per file or small group, staging files by name, with the issue reference the orchestrator gave and your model's Co-Authored-By trailer. Stop at the commit; the orchestrator pushes.
 
 Done when every file in the batch passes the gate or is listed with a reason, the suite is green, and the baseline moved only down.
 

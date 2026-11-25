@@ -390,14 +390,13 @@ with reasons, in [docs/upstream-adaptations.md](docs/upstream-adaptations.md).
 
 `qg-skills` also copies four agent definitions into `.claude/agents/`, so an
 orchestrating session spawns them by name in local and cloud sessions alike
-([ADR-013](docs/adr/archive/ADR-013-shipped-agents.md)). They are part of the core.
+([ADR-013](docs/adr/archive/ADR-013-shipped-agents.md), which also says which
+model each runs on). They are part of the core.
 
 - `implementer`: builds one ticket test-first on the branch it is given and
-  commits without pushing. Sonnet 5.5 at high effort; the orchestrator passes
-  Opus 5.5 at medium effort for a skeleton ticket or one that changes an
-  interface or the wiring.
+  commits without pushing.
 - `reviewer`: reviews a branch against its spec and the repo's standards,
-  read-only, with real-run evidence. Opus 5.5 at high effort.
+  read-only, with real-run evidence.
 - `debt-payer`: pays down one batch of comment, complexity or coverage debt
   without changing behaviour.
 - `diagnoser`: finds a bug's root cause with evidence, without fixing it.

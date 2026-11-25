@@ -22,14 +22,14 @@ Done when every acceptance criterion has a passing test and evidence, the suite 
 
 ## Rules
 
-- Write no code comments of any kind; follow the repo's own comment policy exactly.
+- Follow the repo's own comment policy exactly; where it has none, write no code comments.
 - Put new code in the module the Module map names. Create a new module only for a concept in GLOSSARY.md or on the map, or for a real adapter (something tests swap for a scripted stand-in). Never one module per ticket. If the ticket seems to need a module the map lacks, build it and list it under design choices in your report.
 - Match the surrounding hand-formatted style; leave formatters (cargo fmt, prettier, black) unrun.
 - Keep history intact: back up a file with `cp f f.bak` and delete the copy afterwards, in place of `git checkout --`, `git restore`, `git stash` or `git reset`.
 - Change a threshold, counting tool, gate scope or standard only when the brief asks; when a change seems unavoidable, stop and say so. A change to a standard gets an ADR or a dated addendum.
 - Leave version numbers, CHANGELOG, install lines and tags to the orchestrator; put suggested CHANGELOG text in your report.
 - Refer to yourself as "the implementer" in anything you write; write no personal names.
-- Push, open PRs and close issues never.
+- Stop at the commit: the orchestrator pushes, opens the PR and closes issues.
 
 ## Report (under 350 words)
 
