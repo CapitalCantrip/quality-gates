@@ -58,7 +58,8 @@ SYMBOLIC_REF = ("git", "symbolic-ref", "--quiet")
 IGNORES_CASE = ("git", "config", "--bool", "core.ignorecase")
 GIT_TRUE = "true"
 LIST_TREE = ("git", "ls-tree", "-r", "-z", "--name-only")
-MainCopy = namedtuple("MainCopy", "branch data")
+MainCopy = namedtuple("MainCopy", "branch data path")
+Holder = namedtuple("Holder", "branch restore")
 NOT_A_GIT_REPO = (
     "not inside a git repository: quality-gates looks at the files git would commit, so run it inside the "
     "project's repository, or run `git init` there first"
@@ -618,25 +619,27 @@ def spelled_at(root, ref, relative):
     return next((name for name in names if name.casefold() == relative.casefold()), None)
 
 
-def copy_in_any_case(root, ref, name):
-    data = copy_at(root, ref, name)
-    if data is not None or not ignores_case(root):
-        return data
-    spelled = spelled_at(root, ref, path_in_repo(root, name))
-    return None if spelled is None else copy_at(root, ref, spelled)
+def spelling_at(root, ref, name):
+    relative = path_in_repo(root, name)
+    if copy_at(root, ref, relative) is not None or not ignores_case(root):
+        return relative
+    return spelled_at(root, ref, relative)
 
 
 def main_copy(root, name):
     branch = default_branch(root)
-    data = None if branch is None else copy_in_any_case(root, branch, name)
-    return None if data is None else MainCopy(branch_name(root, branch), data)
+    path = None if branch is None else spelling_at(root, branch, name)
+    data = None if path is None else copy_at(root, branch, path)
+    return None if data is None else MainCopy(branch_name(root, branch), data, path)
 
 
-def branch_holding(path):
+def main_holding(path):
     file = Path(path).absolute()
     repo = top_of(file.parent) if file.parent.is_dir() else None
     found = None if repo is None else main_copy(repo, file)
-    return None if found is None else found.branch
+    if found is None:
+        return None
+    return Holder(found.branch, path if found.path == path_in_repo(repo, file) else repo / found.path)
 
 
 def root_of_skills_folder(dest):
@@ -1187,8 +1190,7 @@ def tolerated_step_notes(root):
     running = workflows_running_tolerated(root)
     if not running:
         return ["\n".join([PASTE_THE_STEP, *(STEP_INDENT + line for line in TOLERATED_STEP)])]
-    found = [step_notes(name, lines) for name, lines in running]
-    return [] if [] in found else [note for notes in found for note in notes]
+    return [note for name, lines in running for note in step_notes(name, lines)]
 
 
 def comment_gate_exclusions(root):

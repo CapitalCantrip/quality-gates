@@ -563,7 +563,8 @@ def asked(args, root, baseline) -> ratchet.Asked:
 def silencers_asked(args, root):
     if args.status or args.report:
         return ratchet.Asked(judged=False)
-    return ratchet.silencer_asked(root, args.update, covers=written_in(root, chosen_languages(root)))
+    return ratchet.silencer_asked(root, args.update or args.rerecord, covers=written_in(root, chosen_languages(root)),
+                                  rerecording=args.rerecord)
 
 
 def enforced(args, root, baseline, out):

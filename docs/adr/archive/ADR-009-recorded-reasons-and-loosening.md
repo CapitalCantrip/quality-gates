@@ -219,17 +219,25 @@ file is missing and the default branch of the repository holding it has the
 file committed, `--update` writes nothing, exits 2 and says in one line to
 restore it with `git checkout <branch> -- <file>` and update from there, or to
 record it afresh with `--rerecord`, after which the pull request needs the
-builder's label. Where git ignores case, a copy under another spelling counts.
+builder's label. Where git ignores case, a copy under another spelling counts,
+and the restore command names the spelling the branch holds.
 The branch is named as the remote's `HEAD` points, such as `origin/main`. With
 no such copy, no default branch, or a baseline outside any repository, it
 records a new one as before. This holds for `cc-check`, `crap` and
 `comment-debt` through the one ratchet. It protects only the default branch's
 copy on the machine that runs it; CI's check compares against the pull
-request's real base.
+request's real base. `comment-debt` checks both its baselines before writing
+either, so a deleted silencer baseline stops it before the comment baseline
+changes.
 
-**`--rerecord` records a baseline afresh.** It replaces the file with every
-finding over the threshold, whatever the file or main holds, for the
-re-record steps releases ask for (re-keying after a counting change).
+**`--rerecord` records a baseline afresh.** It replaces each measured entry
+with what the gate finds now, adds every new finding over the threshold and
+drops entries it no longer finds, for the re-record steps releases ask for
+(re-keying after a counting change). It keeps the rules every write keeps:
+the entries of unmeasured functions and files, and of files outside what the
+gate checks, stay as they were, and an unreadable baseline stops it, so
+delete that file first. In `comment-debt` it records the silencer baseline
+too.
 `qg tolerated` still reports what grew, so the builder's label records the
 yes.
 

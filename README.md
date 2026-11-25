@@ -373,8 +373,9 @@ other, the same on every machine and in CI. The details are in the
   adds a function; it exits 1 and writes nothing if the tree has either.
 - Without the baseline file, the check exits 2; `--update` creates it from the
   current tree, unless the default branch has it committed: then restore it.
-- `--rerecord` records the baseline afresh from the tree, replacing the file.
-  Use it when a release's CHANGELOG says to re-record; the pull request
+- `--rerecord` records the measured entries afresh from the tree, keeping
+  unmeasured ones; an unreadable baseline must be deleted first. Use it when
+  a release's CHANGELOG says to re-record; the pull request
   then needs the builder's `tolerated-growth` label.
 
 Commit the baseline, then add a test that calls the gate's `main` with it so CI

@@ -19,9 +19,11 @@ enforce the limits in CI without first paying it all off.
   the file and running `--update` would record every new and worse function.
   It guards only the local default branch's copy; CI compares against the
   real base.
-- **`--rerecord` records a baseline afresh** from the tree, replacing the
-  file, for the re-record steps a release asks for. CI's `qg tolerated` then
-  asks for the builder's label.
+- **`--rerecord` records a baseline afresh** from the tree for the re-record
+  steps a release asks for: measured entries become what the gate finds now.
+  Unmeasured entries and entries outside what the gate checks stay, and an
+  unreadable baseline stops it, so delete that file first. CI's
+  `qg tolerated` then asks for the builder's label.
 - **An unmeasured function is never recorded, and keeps a nonzero entry.**
   `--update` lowers and removes entries for measured functions, adds none for an
   unmeasured one, and keeps an existing nonzero entry as it is while the
