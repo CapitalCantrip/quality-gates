@@ -875,6 +875,7 @@ STEP_LINES = (
     "  shell: bash",
     "  env:",
     "    BASE: ${{ github.base_ref }}",
+    "    QG_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}",
     "  run: |",
     '    git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"',
     '    qg tolerated --against "origin/${BASE}"',

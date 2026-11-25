@@ -647,6 +647,102 @@ class PaidDebtLeavesTheBaselineTest(unittest.TestCase):
         self.assertEqual(self.baseline(), {})
 
 
+def git(root, *args):
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root, check=True,
+                   capture_output=True)
+
+
+class UpdateWillNotRecreateABaselineMainHasTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name).resolve()
+        git(self.root, "init", "-q", "-b", "main")
+        self.module = self.root / "mod.py"
+        self.module.write_text(branchy("old", 10))
+        git(self.root, "add", "mod.py")
+        self.file = self.root / "cc.json"
+
+    def commit_baseline(self, text):
+        self.file.write_text(text)
+        git(self.root, "add", "cc.json")
+        git(self.root, "commit", "-q", "-m", "baseline")
+
+    def cc_check(self, file):
+        return call(qc.main, [str(self.module), "--threshold", "8", "--baseline", str(file), "--update"], self.root)
+
+    def assertRefused(self, code, out, file):
+        self.assertEqual(code, 2)
+        self.assertFalse(file.exists())
+        refusal = ratchet.MAIN_HAS_THE_BASELINE.format(file=file, branch="main")
+        self.assertIn(refusal, out.splitlines())
+        self.assertIn(f"git checkout main -- {file}", refusal)
+
+    def test_cc_check_update_will_not_recreate_a_deleted_baseline_main_has_and_names_why_in_one_line(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        self.module.write_text(branchy("old", 10) + "\n\n" + branchy("new", 12))
+        self.file.unlink()
+        self.assertRefused(*self.cc_check(self.file), self.file)
+
+    def test_crap_update_will_not_recreate_a_deleted_baseline_main_has(self):
+        self.commit_baseline('{"mod.py::old": 132}\n')
+        coverage = self.root / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": [1]}}}))
+        self.file.unlink()
+        argv = ["--lang", "python", str(self.module), "--coverage-json", str(coverage), "--baseline", str(self.file)]
+        self.assertRefused(*call(crap.main, [*argv, "--update"], self.root), self.file)
+
+    def test_comment_debt_update_will_not_recreate_a_deleted_baseline_main_has(self):
+        self.module.write_text("# one\nx = 1\n")
+        self.commit_baseline('{"mod.py": 1}\n')
+        self.file.unlink()
+        out = io.StringIO()
+        with redirect_stderr(io.StringIO()):
+            code = cd.main(["--update"], root=self.root, baseline=self.file, out=out)
+        self.assertRefused(code, out.getvalue(), self.file)
+
+    def test_update_records_a_first_baseline_when_main_has_none(self):
+        git(self.root, "commit", "-q", "-m", "code")
+        self.assertEqual(self.cc_check(self.file)[0], 0)
+        self.assertEqual(json.loads(self.file.read_text()), {"mod.py::old": 11})
+
+    def test_update_records_a_first_baseline_in_a_repo_with_no_commits(self):
+        self.assertEqual(self.cc_check(self.file)[0], 0)
+        self.assertEqual(json.loads(self.file.read_text()), {"mod.py::old": 11})
+
+    def test_update_records_a_baseline_outside_any_repo_since_no_main_can_hold_it(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        elsewhere = Path(tempfile.mkdtemp()).resolve() / "cc.json"
+        self.assertEqual(self.cc_check(elsewhere)[0], 0)
+        self.assertEqual(json.loads(elsewhere.read_text()), {"mod.py::old": 11})
+
+    def test_update_will_not_recreate_a_baseline_the_main_of_the_other_repo_holding_it_has(self):
+        git(self.root, "commit", "-q", "-m", "code")
+        other = Path(tempfile.mkdtemp()).resolve()
+        git(other, "init", "-q", "-b", "main")
+        file = other / "cc.json"
+        file.write_text("{}\n")
+        git(other, "add", "cc.json")
+        git(other, "commit", "-q", "-m", "baseline")
+        file.unlink()
+        self.assertRefused(*self.cc_check(file), file)
+
+    def test_update_with_a_relative_baseline_path_checks_the_file_it_names(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        self.file.unlink()
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(self.root)
+        self.assertRefused(*self.cc_check(Path("cc.json")), Path("cc.json"))
+
+    def test_update_that_finds_the_baseline_file_present_does_not_look_for_main(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        with mock.patch.object(ratchet.project_files, "default_branch") as looked:
+            self.assertEqual(self.cc_check(self.file)[0], 0)
+        looked.assert_not_called()
+
+
 class CcCheckRatchetTest(unittest.TestCase):
 
     def setUp(self):

@@ -281,8 +281,9 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   workflow runs SwiftLint only.
 - **The tolerated list:** paste the step in
   [ci-tolerated.md](ci-tolerated.md) at the end of the steps of the job that
-  runs the gates, in a workflow that runs on pull requests. `qg setup` never
-  edits a workflow; it prints the same step when none runs it.
+  runs the gates, in a workflow that runs on pull requests, and give that
+  workflow's `pull_request` trigger the types the file names. `qg setup`
+  never edits a workflow; it prints the same step when none runs it.
 
 A project with no tests gets no CRAP step: report CRAP as **not done**, as
 step 3 says.

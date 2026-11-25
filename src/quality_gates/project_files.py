@@ -51,6 +51,7 @@ DEFAULT_BRANCHES = (
     "refs/remotes/origin/HEAD", "refs/heads/main", "refs/heads/master", "refs/remotes/origin/main",
     "refs/remotes/origin/master",
 )
+BRANCH_PREFIXES = ("refs/heads/", "refs/remotes/")
 NOT_A_GIT_REPO = (
     "not inside a git repository: quality-gates looks at the files git would commit, so run it inside the "
     "project's repository, or run `git init` there first"
@@ -118,13 +119,16 @@ NOT_PLAIN = ("|", ">", '"', "'")
 TOLERATED_COMMAND = ("qg", "tolerated")
 STEP_INDENT = "      "
 PASTE_THE_STEP = ("No workflow that runs on pull requests runs `qg tolerated` yet; paste it at the end of the steps "
-                  "of the job that runs the gates, indented like the other steps of that job:")
+                  "of the job that runs the gates, indented like the other steps of that job, and give the workflow's "
+                  "pull_request trigger `types: [opened, synchronize, reopened, labeled, unlabeled]` so that adding "
+                  "or removing a label runs it again:")
 TOLERATED_STEP = (
     "- name: qg tolerated",
     "  if: github.event_name == 'pull_request'",
     "  shell: bash",
     "  env:",
     "    BASE: ${{ github.base_ref }}",
+    "    QG_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}",
     "  run: |",
     '    git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"',
     '    qg tolerated --against "origin/${BASE}"',
@@ -499,11 +503,16 @@ def run_git(command, cwd, text=False):
         raise ToolError(NO_GIT) from None
 
 
-def git_root(start=None):
+def top_of(start):
     found = run_git(GIT_ROOT, start, text=True)
-    if found.returncode != 0 or not found.stdout.strip():
+    return Path(found.stdout.strip()) if found.returncode == 0 and found.stdout.strip() else None
+
+
+def git_root(start=None):
+    found = top_of(start)
+    if found is None:
         raise ToolError(NOT_A_GIT_REPO)
-    return Path(found.stdout.strip())
+    return found
 
 
 def commit_of(root, ref):
@@ -572,6 +581,19 @@ def any_format_choice(data, where):
 def main_copy(root, name):
     branch = default_branch(root)
     return None if branch is None else copy_at(root, branch, name)
+
+
+def short_branch(ref):
+    return next((ref[len(prefix):] for prefix in BRANCH_PREFIXES if ref.startswith(prefix)), ref)
+
+
+def branch_holding(path):
+    file = Path(path).absolute()
+    repo = top_of(file.parent) if file.parent.is_dir() else None
+    branch = None if repo is None else default_branch(repo)
+    if branch is None or copy_at(repo, branch, file) is None:
+        return None
+    return short_branch(branch)
 
 
 def root_of_skills_folder(dest):

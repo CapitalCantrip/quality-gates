@@ -17,6 +17,8 @@ BAD_BASELINE = "bad baseline {}: {}"
 NOT_AN_OBJECT = "must be an object, got {}"
 NOT_A_NUMBER = "value for {} must be a number, got {}"
 NAN = "NaN"
+MAIN_HAS_THE_BASELINE = ("{file}: the default branch {branch} has this baseline committed. "
+                         "Restore it with `git checkout {branch} -- {file}` and run --update from there.")
 UNMEASURED_ADVICE = (
     "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
     "the baseline keeps any entry they already have and records none for them."
@@ -229,6 +231,12 @@ def baseline_from(data: bytes, where, out=None) -> dict:
     return baseline
 
 
+def refuse_recreating(file: Path, out=None) -> None:
+    branch = project_files.branch_holding(file)
+    if branch is not None:
+        raise BaselineError(MAIN_HAS_THE_BASELINE.format(file=file, branch=branch), out)
+
+
 def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
     try:
         if not file.exists():
@@ -237,6 +245,11 @@ def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
     except OSError as error:
         raise BaselineError(str(error), out) from None
     return baseline_from(data, file, out)
+
+
+def baseline_at(root, ref, name) -> Optional[dict]:
+    data = project_files.copy_at(root, ref, name)
+    return None if data is None else baseline_from(data, f"{ref}:{name}")
 
 
 def silencer_asked(root, updating: bool = False) -> Asked:
@@ -278,6 +291,8 @@ def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=
            covers: Callable[[str], bool] = covers_every_file) -> Settled:
     find = keyed(find, root)
     stored = stored_baseline(file, updating, out)
+    if updating and stored is None:
+        refuse_recreating(file, out)
     held = held_back(stored, covers)
     findings = find()
     unmeasured = frozenset(unmeasured_keys(findings))

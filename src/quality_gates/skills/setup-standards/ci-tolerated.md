@@ -11,9 +11,27 @@ of that job:
         shell: bash
         env:
           BASE: ${{ github.base_ref }}
+          QG_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
           qg tolerated --against "origin/${BASE}"
+```
+
+The step fails the pull request when the tolerated list grew (a baseline
+entry new or raised, a new or wider `exclude` or `settings.no-comments.exclude`
+prefix) unless it carries the builder's `tolerated-growth` label, or
+`loosening` on a loosening pull request. It reads the labels from
+`QG_PR_LABELS`. An agent never applies either label itself: the label is the
+builder's yes on record.
+
+Give the workflow's `pull_request` trigger these types, so that adding or
+removing a label runs the check again; a re-run of an old job still sees the
+labels it started with:
+
+```yaml
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled, unlabeled]
 ```
 
 The job must have installed quality-gates before this step. `qg setup` never
