@@ -256,6 +256,9 @@ it as the gate. Takes any number of files and directories in one run:
 `.cjs` and `.mjs` with lizard instead. With `--baseline FILE` it fails only on
 functions that are new or worse than the baseline; see
 [Adopting the ratchet](#adopting-the-ratchet).
+A Python file it cannot open, parse or decode as UTF-8 is `UNMEASURED`: the gate
+names it and fails, as `comment-debt` and `crap` do. A function behind lizard's
+`#lizard forgives` comment is scored like any other.
 
 ### `crap`: complexity weighted by missing tests
 
@@ -294,6 +297,9 @@ CRAP score (`—` in the table, `"crap": null` in `--json`), a failing gate,
 and the summary names its file. `--baseline --update` records none and keeps
 any entry it already has, so a coverage outage can neither add debt nor drop it
 (ADR-001's addendum "unmeasured functions (v0.12.0)").
+A Python file `crap` cannot open, parse or decode as UTF-8 is `UNMEASURED` as
+well: named, failing, listed under `"unmeasured"` in `--json`, and a function
+behind `#lizard forgives` is scored like any other.
 When a report is given and none of the scored functions gets a figure from it,
 `crap` prints one line to stderr saying so (ADR-001's addendum "Coverage
 readers fail loudly").
