@@ -8,6 +8,7 @@ import stat
 import subprocess
 import sys
 from dataclasses import dataclass, replace
+from itertools import dropwhile
 from pathlib import Path, PurePosixPath
 
 from quality_gates import languages
@@ -39,6 +40,7 @@ GIT_ROOT = ("git", "rev-parse", "--show-toplevel")
 FILES_GIT_WOULD_COMMIT = ("git", "ls-files", "-z", "--cached", "--others", "--exclude-standard")
 COMMIT_OF = ("git", "rev-parse", "--verify", "--quiet")
 OPTION_START = "-"
+NO_COMMIT_AT = "{} names no commit in this repository: fetch it, or name a branch, tag or commit that exists"
 OUTSIDE_THE_REPO = "{} is outside the repository at {}: name a file inside it"
 AS_A_COMMIT = "^{commit}"
 BLOB_AT = ("git", "cat-file", "blob")
@@ -86,6 +88,8 @@ COMMENT_GATE_REQUIRED = ("exclude", "conventions")
 ON_WITHOUT_A_CHOICE_FILE = frozenset({COMMENT_GATE})
 RECOGNISED_CONVENTIONS = frozenset({"rust-safety"})
 DEFAULT_COMMIT_TIME_LIMIT_SECONDS = 2
+CHOICE_DEFAULTS = {"languages": [], "exclude": [], "components": {"chosen": [], "declined": []},
+                   "commit_time_limit_seconds": DEFAULT_COMMIT_TIME_LIMIT_SECONDS, "settings": {}}
 KEPT_BY_QUALITY_GATES = (".claude/skills/", ".claude/hooks/", PRE_COMMIT_HOOK)
 FIXTURE_FOLDERS = ("fixtures", "fixture", "__fixtures__", "testdata")
 FIRST_LINE_BYTES = 256
@@ -107,7 +111,16 @@ TRAILING_COMMENT = re.compile(r"(?:^|\s)#")
 TRIGGERS_KEY, JOBS_KEY, PULL_REQUEST = "on", "jobs", "pull_request"
 COMMENT_START, ITEM_START = "#", "- "
 MARKED_OFF = ("{} holds the qg tolerated step but does not run on pull requests, so the step never runs: "
-              "add pull_request to its `on:`, or remove the lines between quality-gates' markers")
+              "add pull_request to its `on:`, or remove quality-gates' markers and the lines between them")
+WHERE_TO_ADD = (", so the qg tolerated step was not added: put a `# quality-gates: begin` line and a "
+                "`# quality-gates: end` line at the end of the steps of the job that should run it, then run "
+                "`qg setup --go` again")
+NO_GATE_JOB = "no job runs comment-debt, cc-check or crap on pull requests" + WHERE_TO_ADD
+MANY_GATE_JOBS = "more than one job runs a gate on pull requests ({})" + WHERE_TO_ADD
+MANY_MARKED = "{} all hold quality-gates' markers, so none was changed: keep them in one workflow and run `qg setup --go` again"
+ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
+FLOW_OPEN, FLOW_CLOSE = ("[", "{"), ("]", "}")
+NOT_PLAIN = ("|", ">", '"', "'")
 CI_BEGIN = "# quality-gates: begin"
 CI_END = "# quality-gates: end"
 TOLERATED_STEP = (
@@ -525,9 +538,16 @@ def path_in_repo(root, name):
 
 
 def choice_at(root, ref):
+    if commit_of(root, ref) is None:
+        raise ToolError(NO_COMMIT_AT.format(ref))
     data = copy_at(root, ref, CHOICE_FILE)
     where = f"{ref}:{CHOICE_FILE}"
-    return None if data is None else choice_from(json_from(data, where), where)
+    return None if data is None else any_format_choice(json_from(data, where), where)
+
+
+def any_format_choice(data, where):
+    require(data, (), where)
+    return choice_from({**CHOICE_DEFAULTS, **data, "format_version": CHOICE_FORMAT_VERSION}, where)
 
 
 def main_copy(root, name):
@@ -896,11 +916,15 @@ def is_top_level(line):
     return is_content(line) and not line[0].isspace()
 
 
+def ends_block(line):
+    return is_top_level(line) and not line.startswith(ITEM_START)
+
+
 def top_block(lines, key):
     for at, line in enumerate(lines):
         found = TOP_KEY.fullmatch(line.rstrip(CRLF)) if is_top_level(line) else None
         if found and found.group(2) == key:
-            end = next((after for after in range(at + 1, len(lines)) if is_top_level(lines[after])), len(lines))
+            end = next((after for after in range(at + 1, len(lines)) if ends_block(lines[after])), len(lines))
             return found.group(3), at + 1, end
     return None
 
@@ -916,13 +940,26 @@ def child_names(lines):
     return {found.group(2) for found in named if found}
 
 
+def outer_flow_text(text):
+    depth, kept = 0, []
+    for char in text:
+        depth += (char in FLOW_OPEN) - (char in FLOW_CLOSE)
+        kept.append(char if depth == 1 and char not in FLOW_OPEN else " ")
+    return "".join(kept)
+
+
+def flow_words(text):
+    return set(FLOW_WORD.findall(outer_flow_text(text) if text.startswith(FLOW_OPEN) else text))
+
+
 def triggers(lines):
     found = top_block(lines, TRIGGERS_KEY)
     if found is None:
         return set()
     inline, start, end = found
-    inline = without_comment(inline)
-    return set(FLOW_WORD.findall(inline)) if inline else child_names(lines[start:end])
+    if not without_comment(inline):
+        return child_names(lines[start:end])
+    return flow_words(" ".join(without_comment(line) for line in [inline, *lines[start:end]]))
 
 
 def runs_on_pull_requests(lines):
@@ -989,17 +1026,32 @@ def run_text(item):
     for at, line in enumerate(item):
         found = RUN_KEY.match(line[column:]) if at == 0 or len(indent_of(line)) == column else None
         if found:
-            return found.group(1) + "".join(continuation(item[at + 1:], column))
+            return plain_value(found.group(1)) + "".join(continuation(item[at + 1:], column))
     return ""
 
 
+def plain_value(value):
+    return value if value.strip().startswith(NOT_PLAIN) else without_comment(value) + LF
+
+
+def command_word(segment):
+    words = list(dropwhile(ASSIGNMENT.match, segment))
+    return PurePosixPath(words[0]).name if words else None
+
+
 def runs_a_gate(text):
-    return any(runs_command(text, command) for command in GATE_COMMANDS)
+    return any(command_word(segment) in GATE_COMMANDS
+               for line in logical_lines(text) for segment in command_segments(words_of(line)))
 
 
 def gate_steps(lines):
-    return next((listed for listed in steps_lists(lines)
-                 if any(runs_a_gate(run_text(item)) for item in listed.item_lines(lines))), None)
+    return [listed for listed in steps_lists(lines)
+            if any(runs_a_gate(run_text(item)) for item in listed.item_lines(lines))]
+
+
+def gate_jobs(text):
+    lines = text.splitlines(keepends=True)
+    return gate_steps(lines) if runs_on_pull_requests(lines) else []
 
 
 def ended(lines, newline):
@@ -1008,8 +1060,9 @@ def ended(lines, newline):
 
 def with_step_added(lines, newline):
     found = gate_steps(lines)
-    if found is None:
+    if len(found) != 1:
         return None
+    found = found[0]
     return "".join(ended(lines[:found.end], newline) + marked_step(found.indent, newline) + lines[found.end:])
 
 
@@ -1034,18 +1087,28 @@ def holds_markers(text):
     return any(line.strip() in (CI_BEGIN, CI_END) for line in text.splitlines())
 
 
-def marked_plan(name, text):
+def marked_plan(marked):
+    if len(marked) > 1:
+        return [], [MANY_MARKED.format(", ".join(name for name, _ in marked))]
+    name, text = marked[0]
     changed = with_tolerated_step(text, name)
     return ([PlannedChange(name, changed)], []) if changed is not None else ([], [MARKED_OFF.format(name)])
+
+
+def unmarked_plan(texts):
+    jobs = [(name, text) for name, text in texts for _ in gate_jobs(text)]
+    if len(jobs) == 1:
+        name, text = jobs[0]
+        return [PlannedChange(name, with_tolerated_step(text, name))], []
+    if jobs:
+        return [], [MANY_GATE_JOBS.format(", ".join(dict.fromkeys(name for name, _ in jobs)))]
+    return [], [NO_GATE_JOB] if texts else []
 
 
 def tolerated_step_plan(root):
     texts = workflow_texts(root)
     marked = [(name, text) for name, text in texts if holds_markers(text)]
-    if marked:
-        return marked_plan(*marked[0])
-    changed = ((name, with_tolerated_step(text, name)) for name, text in texts)
-    return next(([PlannedChange(name, text)] for name, text in changed if text is not None), []), []
+    return marked_plan(marked) if marked else unmarked_plan(texts)
 
 
 def comment_gate_exclusions(root):

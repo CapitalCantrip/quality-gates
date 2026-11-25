@@ -908,6 +908,20 @@ class ToleratedStepInCi(unittest.TestCase):
             with self.subTest(text):
                 self.assertIsNone(pf.with_tolerated_step(text, "ci.yml"))
 
+    def test_hostile_workflow_shapes_that_only_mention_a_gate_get_no_step(self):
+        for run in ("git diff --exit-code comment-debt.json", "make lint  # was comment-debt", "echo comment-debt",
+                    "echo \"then run crap\"", "cat cc-check.log", "pip install comment-debt",
+                    "make 'lint  # ; comment-debt"):
+            with self.subTest(run):
+                self.assertIsNone(pf.with_tolerated_step(job(f"      - run: {run}\n"), "ci.yml"))
+
+    def test_a_gate_run_by_path_after_an_assignment_or_after_another_command_counts(self):
+        for run in (".venv/bin/comment-debt", "FORCE_COLOR=1 crap --lang python src", "pip install . && cc-check src",
+                    "|\n          make lint\n          comment-debt  # gate"):
+            with self.subTest(run):
+                text = job(f"      - run: {run}\n")
+                self.assertEqual(pf.with_tolerated_step(text, "ci.yml"), text + step_at("      "))
+
     def test_a_step_whose_run_key_follows_its_name_counts(self):
         text = job("      - name: gates\n        run: |\n          cc-check src\n      - run: echo after\n")
         self.assertEqual(pf.with_tolerated_step(text, "ci.yml"), text + step_at("      "))
@@ -930,13 +944,14 @@ class ToleratedStepInCi(unittest.TestCase):
 
     def test_every_spelling_of_a_pull_request_trigger_counts(self):
         for on in ("pull_request", "[push, pull_request]", "\n  - push\n  - pull_request",
-                   "\n  push:\n    branches: [main]\n  pull_request:\n", "pull_request  # PRs"):
+                   "\n  push:\n    branches: [main]\n  pull_request:\n", "pull_request  # PRs",
+                   "\n- push\n- pull_request", "[push,\n     pull_request]", "{push: {branches: [main]},\n  pull_request: {}}"):
             with self.subTest(on):
                 self.assertIsNotNone(pf.with_tolerated_step(job("      - run: comment-debt\n", on), "ci.yml"))
 
     def test_a_workflow_that_does_not_run_on_pull_requests_gets_no_step(self):
         for on in ("push", "pull_request_target", "\n  push:\n    branches: [pull_request]",
-                   "push\nenv:\n  PR: ${{ github.event.pull_request.number }}"):
+                   "push\nenv:\n  PR: ${{ github.event.pull_request.number }}", "{push: {branches: [pull_request]}}"):
             with self.subTest(on):
                 self.assertIsNone(pf.with_tolerated_step(job("      - run: comment-debt\n", on), "ci.yml"))
 
@@ -960,10 +975,10 @@ class ToleratedStepInCi(unittest.TestCase):
                     pf.with_tolerated_step(job("      - run: comment-debt\n" + markers), ".github/workflows/ci.yml")
                 self.assertIn(".github/workflows/ci.yml", str(raised.exception))
 
-    def test_the_step_goes_into_the_first_workflow_that_runs_a_gate_on_pull_requests(self):
+    def test_the_step_goes_into_the_one_workflow_that_runs_a_gate_on_pull_requests(self):
         self.workflow("a.yml", job("      - run: comment-debt\n", "push"))
         self.workflow("b.yml", job("      - run: crap --lang python src\n"))
-        self.workflow("c.yml", job("      - run: cc-check src\n"))
+        self.workflow("c.yml", job("      - run: pytest\n"))
         changes, notes = pf.tolerated_step_plan(self.root)
         self.assertEqual(([change.name for change in changes], notes), ([".github/workflows/b.yml"], []))
 
@@ -982,11 +997,45 @@ class ToleratedStepInCi(unittest.TestCase):
         self.assertIn(".github/workflows/b.yml", notes[0])
         self.assertIn("pull request", notes[0])
 
-    def test_a_project_without_a_workflow_that_runs_a_gate_has_no_ci_change(self):
+    def test_a_project_without_workflows_has_no_ci_change_and_no_note(self):
         self.assertEqual(pf.tolerated_step_plan(self.root), ([], []))
+
+    def test_workflows_where_no_job_runs_a_gate_on_pull_requests_get_no_change_and_a_note_saying_where_to_add_it(self):
         self.workflow("a.yml", job("      - run: pytest\n"))
+        self.workflow("c.yml", job("      - run: comment-debt\n", "push"))
         (self.root / ".github" / "workflows" / "b.yml").write_bytes(b"\xff\xfe")
-        self.assertEqual(pf.tolerated_step_plan(self.root), ([], []))
+        changes, notes = pf.tolerated_step_plan(self.root)
+        self.assertEqual((changes, len(notes)), ([], 1))
+        self.assertIn("no job runs comment-debt, cc-check or crap on pull requests", notes[0])
+        self.assertIn("# quality-gates: begin", notes[0])
+
+    def test_two_jobs_that_run_a_gate_on_pull_requests_get_no_step_and_a_note_naming_their_workflows(self):
+        two_jobs = job("      - run: comment-debt\n") + "  lint:\n    steps:\n      - run: cc-check src\n"
+        for files in ({"a.yml": two_jobs}, {"a.yml": job("      - run: comment-debt\n"), "b.yml": job("      - run: crap\n")}):
+            with self.subTest(files):
+                for old in (self.root / ".github" / "workflows").glob("*.yml"):
+                    old.unlink()
+                for name, text in files.items():
+                    self.workflow(name, text)
+                changes, notes = pf.tolerated_step_plan(self.root)
+                self.assertEqual((changes, len(notes)), ([], 1))
+                self.assertIn("more than one job runs a gate on pull requests", notes[0])
+                for name in files:
+                    self.assertIn(f".github/workflows/{name}", notes[0])
+
+    def test_two_workflows_holding_the_markers_are_both_reported_and_neither_changed(self):
+        marked = job("      - run: comment-debt\n      # quality-gates: begin\n      # quality-gates: end\n")
+        self.workflow("a.yml", marked)
+        self.workflow("b.yml", marked)
+        changes, notes = pf.tolerated_step_plan(self.root)
+        self.assertEqual((changes, len(notes)), ([], 1))
+        self.assertIn(".github/workflows/a.yml, .github/workflows/b.yml", notes[0])
+
+    def test_the_note_on_a_marked_workflow_off_pull_requests_says_how_to_clear_it_even_when_the_markers_are_empty(self):
+        self.workflow("b.yml", job("      - run: cc-check src\n      # quality-gates: begin\n      # quality-gates: end\n",
+                                   "push"))
+        _, notes = pf.tolerated_step_plan(self.root)
+        self.assertIn("remove quality-gates' markers and the lines between them", notes[0])
 
 
 class ChoiceFileAtARef(unittest.TestCase):
@@ -1002,6 +1051,17 @@ class ChoiceFileAtARef(unittest.TestCase):
     def test_a_ref_without_a_choice_file_has_no_choice(self):
         committed(self.root, "a.py", b"x = 1\n")
         self.assertIsNone(pf.choice_at(self.root, "main"))
+
+    def test_a_ref_naming_no_commit_is_an_error_naming_the_ref_not_an_absent_choice(self):
+        committed(self.root, "a.py", b"x = 1\n")
+        with self.assertRaises(ToolError) as raised:
+            pf.choice_at(self.root, "origin/nowhere")
+        self.assertIn("origin/nowhere", str(raised.exception))
+
+    def test_a_choice_file_of_an_older_format_at_a_ref_is_read_for_what_it_holds(self):
+        old = {"format_version": 0, "languages": ["python"], "exclude": ["vendor/"]}
+        committed(self.root, pf.CHOICE_FILE, json.dumps(old).encode())
+        self.assertEqual(pf.choice_at(self.root, "main"), pf.Choice(languages=("python",), exclude=("vendor/",)))
 
     def test_a_malformed_choice_file_at_a_ref_is_a_broken_file_naming_the_ref(self):
         for data in (b"{", b"\xff", b"[]"):
