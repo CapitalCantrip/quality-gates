@@ -97,8 +97,10 @@ _Avoid_: block, unit
 
 **Unmeasured**:
 A Function the coverage report holds no usable figure for, because the report
-never saw its file or cannot place it within one. It is a gap in measuring, not
-untested code, and it fails the CRAP gate until it is measured.
+never saw its file or cannot place it within one, or a file a gate could not
+read, because it could not be opened, does not parse or is not UTF-8. It is a
+gap in measuring, not untested code or clean code, and it fails the gate until
+it is measured.
 _Avoid_: unknown coverage, 0% covered, untested
 
 **Asking rule**:
