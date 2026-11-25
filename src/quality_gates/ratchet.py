@@ -17,9 +17,15 @@ BAD_BASELINE = "bad baseline {}: {}"
 NOT_AN_OBJECT = "must be an object, got {}"
 NOT_A_NUMBER = "value for {} must be a number, got {}"
 NAN = "NaN"
+UNREAD_FILE = "could not be opened, does not parse or is not UTF-8"
 UNMEASURED_ADVICE = (
     "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
     "the baseline keeps any entry they already have and records none for them."
+)
+
+UNREAD_ADVICE = (
+    "Unmeasured files fail the gate. Fix them or take them out of the scan; "
+    "the baseline keeps any entry their functions already have and records none for them."
 )
 
 Number = Union[int, float]
@@ -54,6 +60,7 @@ class Finding:
     number: Optional[Number]
     kind: str
     display: str
+    reason: str = ""
 
 
 @dataclass(frozen=True)
@@ -134,6 +141,15 @@ def unmeasured_keys(findings) -> set:
     return {f.location.key for f in findings if f.number is None}
 
 
+def unmeasured_files(findings) -> set:
+    return {f.location.file for f in findings if f.number is None and f.location.function is None}
+
+
+def dark_keys(findings, baseline: dict) -> set:
+    files = unmeasured_files(findings)
+    return unmeasured_keys(findings) | {key for key in baseline if Location.from_key(key).file in files}
+
+
 def located(findings) -> Callable[[str], Location]:
     found = {finding.location.key: finding.location for finding in findings}
     return lambda key: found.get(key) or Location.from_key(key)
@@ -156,7 +172,7 @@ def _verdict(place: Location, now, dark: bool, allowed) -> Verdict:
 def judge(findings, baseline: dict) -> Result:
     at = located(findings)
     numbers = strongest(findings)
-    unmeasured = unmeasured_keys(findings)
+    unmeasured = dark_keys(findings, baseline)
     keys = sorted(set(numbers) | unmeasured | set(baseline))
     return Result(tuple(_verdict(at(k), numbers.get(k), k in unmeasured, baseline.get(k)) for k in keys))
 
@@ -276,6 +292,10 @@ class Settled:
     def displays(self) -> dict:
         return {finding.location.key: finding.display for finding in self.findings}
 
+    @cached_property
+    def reasons(self) -> dict:
+        return {finding.location.key: finding.reason for finding in self.findings if finding.reason}
+
     def shown(self, verdict: Verdict) -> str:
         return self.displays[verdict.location.key]
 
@@ -348,12 +368,26 @@ def unmeasured_in(settled: Settled) -> list:
     return [verdict for verdict in settled.result.verdicts if verdict.location.key in settled.unmeasured]
 
 
-def describe_unmeasured(unmeasured, out, wording: Wording):
+def describe_unread(findings, out):
+    for finding in findings:
+        if finding.number is None and finding.reason:
+            out.write(f"UNMEASURED {finding.location.key}: {finding.reason}\n")
+
+
+def advice_for(unmeasured, settled: Settled, wording: Wording) -> list:
+    unread = [verdict.location.key in settled.reasons for verdict in unmeasured]
+    return ([wording.unmeasured_advice] if not all(unread) else []) + ([UNREAD_ADVICE] if any(unread) else [])
+
+
+def describe_unmeasured(settled: Settled, out, wording: Wording):
+    unmeasured = unmeasured_in(settled)
     if not unmeasured:
         return
     for verdict in unmeasured:
-        out.write(f"UNMEASURED {verdict.location.key}: {wording.unmeasured}\n")
-    out.write(f"\n{wording.unmeasured_advice}\n")
+        key = verdict.location.key
+        out.write(f"UNMEASURED {key}: {settled.reasons.get(key, wording.unmeasured)}\n")
+    for advice in advice_for(unmeasured, settled, wording):
+        out.write(f"\n{advice}\n")
 
 
 def describe_check(settled: Settled, file, out, wording: Wording):
@@ -363,7 +397,7 @@ def describe_check(settled: Settled, file, out, wording: Wording):
         wording.failed(settled, out)
     elif behind:
         wording.behind(behind, file, out)
-    describe_unmeasured(unmeasured_in(settled), out, wording)
+    describe_unmeasured(settled, out, wording)
     if exit_code(result) == 0:
         wording.passed(result, out)
 
@@ -374,7 +408,7 @@ def describe_update(settled: Settled, out, wording: Wording):
         out.write(wording.refusal)
         return
     wording.recorded(settled.recorded, out)
-    describe_unmeasured(unmeasured_in(settled), out, wording)
+    describe_unmeasured(settled, out, wording)
 
 
 def describe(settled: Settled, file: Path, updating: bool, out, wording: Wording = FUNCTION_WORDING):
@@ -386,9 +420,12 @@ def describe(settled: Settled, file: Path, updating: bool, out, wording: Wording
 
 def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNCTION_WORDING, root=None) -> Result:
     if not asked.judged:
+        describe_unread(find(), out)
         return NOT_JUDGED
     if asked.baseline is None:
-        return judge(find(), {})
+        found = find()
+        describe_unread(found, out)
+        return judge(found, {})
     settled = settle(find, asked.baseline, asked.updating, root, out, asked.covers)
     describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result

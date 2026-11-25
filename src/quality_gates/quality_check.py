@@ -64,24 +64,33 @@ def display_path(file):
     return path.relative_to(Path.cwd()) if path.is_relative_to(Path.cwd()) else path.name
 
 
-def print_flagged(flagged):
+def print_flagged(flagged, unread):
     if not flagged:
-        print("  All functions at or below threshold. ✓")
+        if not unread:
+            print("  All functions at or below threshold. ✓")
         return
     print(f"FLAGGED — {len(flagged)} function(s) above threshold:\n")
     for finding in sorted(flagged, key=lambda f: -f.number):
         print(f"  {finding.display}")
 
 
-def print_text(flagged, functions, files, threshold):
+def verdict_line(flagged, unread):
+    if flagged:
+        return "Refactoring needed. Exit 1."
+    return "Unmeasured files. Exit 1." if unread else "Clean. Exit 0."
+
+
+def print_text(flagged, found, threshold):
     print(f"\n=== Cyclomatic Complexity Report (threshold: CC > {threshold}) ===\n")
-    print_flagged(flagged)
+    print_flagged(flagged, found.unread)
     print("\nSUMMARY:")
-    print(f"  Files analysed:     {len(files)}")
-    print(f"  Functions checked:  {len(functions)}")
+    print(f"  Files analysed:     {len(found.files)}")
+    print(f"  Functions checked:  {len(found.functions)}")
     print(f"  Above threshold:    {len(flagged)}")
-    print(f"  At/below threshold: {len(functions) - len(flagged)}")
-    print("\n  → Refactoring needed. Exit 1." if flagged else "\n  → Clean. Exit 0.")
+    print(f"  At/below threshold: {len(found.functions) - len(flagged)}")
+    if found.unread:
+        print(f"  Unmeasured:         {len(found.unread)}")
+    print(f"\n  → {verdict_line(flagged, found.unread)}")
 
 
 def to_finding(fn):
@@ -93,11 +102,15 @@ def findings(functions, threshold):
     return [to_finding(fn) for fn in functions if fn.cc > threshold]
 
 
+def unread_findings(unread):
+    return [complexity_scan.unread_finding(file, FINDING_KIND) for file in unread]
+
+
 def report(found, flagged, args):
     if args.format == "json":
         print(json_report.dumped([to_result(fn, args.threshold) for fn in found.functions]))
     else:
-        print_text(flagged, found.functions, found.files, args.threshold)
+        print_text(flagged, found, args.threshold)
 
 
 def asked(args) -> ratchet.Asked:
@@ -125,7 +138,8 @@ def gate(argv, root):
     report(found, flagged, args)
     out = sys.stderr if args.format == "json" else sys.stdout
     complexity_scan.print_skipped(found.skipped, out)
-    return ratchet.enforce(lambda: flagged, asked(args), out, root=lambda: project_files.root_for(args.paths, root))
+    owed = flagged + unread_findings(found.unread)
+    return ratchet.enforce(lambda: owed, asked(args), out, root=lambda: project_files.root_for(args.paths, root))
 
 
 def main(argv=None, root=None):

@@ -242,6 +242,38 @@ class PythonScanTest(InTempDir):
                 complexity_scan.scan(["mod.py"], "python")
 
 
+class UnreadablePythonTest(InTempDir):
+    def scan(self):
+        return complexity_scan.scan(["."], "python")
+
+    def test_a_python_file_that_does_not_parse_is_listed_as_unread_and_gives_no_functions(self):
+        self.write("a.py", "def f(:\n")
+        found = self.scan()
+        self.assertEqual((found.unread, found.functions), (["a.py"], []))
+
+    def test_a_python_file_that_is_not_utf8_is_listed_as_unread(self):
+        Path("bad.py").write_bytes(b"\xff\xfe\ndef h(): pass\n")
+        self.assertEqual(self.scan().unread, ["bad.py"])
+
+    def test_a_python_file_with_a_null_byte_is_listed_as_unread(self):
+        Path("nul.py").write_bytes(b"x = 1\x00\n")
+        self.assertEqual(self.scan().unread, ["nul.py"])
+
+    def test_a_python_file_nested_too_deep_to_read_is_listed_as_unread(self):
+        self.write("deep.py", "x = " + "-" * 100000 + "1\n")
+        self.assertEqual(self.scan().unread, ["deep.py"])
+
+    def test_the_readable_files_beside_an_unread_one_are_still_scanned(self):
+        self.write("good.py")
+        self.write("a.py", "def f(:\n")
+        found = self.scan()
+        self.assertEqual(([fn.file for fn in found.functions], found.unread), (["good.py"], ["a.py"]))
+
+    def test_a_scan_of_readable_files_lists_none_unread(self):
+        self.write("good.py")
+        self.assertEqual(self.scan().unread, [])
+
+
 class GitScopeTest(InTempDir):
     def test_a_folder_the_projects_gitignore_lists_is_not_scanned(self):
         self.write(".gitignore", "venv/\nbuild/\n")

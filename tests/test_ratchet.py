@@ -147,6 +147,47 @@ def finding(file, number):
     return ratchet.Finding(ratchet.Location(file, "f"), number, "complexity", "")
 
 
+def unread(file):
+    return ratchet.Finding(ratchet.Location(file), None, "complexity", "", "file reason")
+
+
+class UnreadFileTest(unittest.TestCase):
+
+    def test_a_baselined_function_of_a_file_that_cannot_be_read_is_unmeasured_and_not_paid(self):
+        result = ratchet.judge([unread("a.py")], {"a.py::f": 9, "b.py::g": 4})
+        outcomes = [(v.location.key, v.outcome) for v in result.verdicts]
+        self.assertEqual(outcomes, [("a.py", ratchet.Outcome.UNMEASURED), ("a.py::f", ratchet.Outcome.UNMEASURED),
+                                    ("b.py::g", ratchet.Outcome.BEHIND)])
+
+    def test_the_baselined_functions_of_a_file_that_cannot_be_read_keep_their_entries(self):
+        result = ratchet.judge([unread("a.py")], {"a.py::f": 9})
+        self.assertEqual(ratchet.lowered(result), {"a.py::f": 9})
+
+    def test_a_file_whose_name_starts_like_an_unread_one_is_not_held(self):
+        result = ratchet.judge([unread("a.py")], {"a.pyc::f": 9})
+        self.assertEqual([v.outcome for v in result.verdicts if v.location.file == "a.pyc"], [ratchet.Outcome.BEHIND])
+
+    def test_a_file_and_a_function_unmeasured_together_get_both_pieces_of_advice(self):
+        out = io.StringIO()
+        found = [unread("a.py"), ratchet.Finding(ratchet.Location("b.py", "g"), None, "crap", "", "")]
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline = Path(tmp) / "b.json"
+            baseline.write_text("{}")
+            ratchet.enforce(lambda: found, ratchet.Asked(baseline), out)
+        self.assertIn(ratchet.UNREAD_ADVICE, out.getvalue())
+        self.assertIn(ratchet.UNMEASURED_ADVICE, out.getvalue())
+
+    def test_a_unmeasured_file_is_named_with_its_own_reason_and_a_function_with_the_gates_wording(self):
+        out = io.StringIO()
+        found = [unread("a.py"), ratchet.Finding(ratchet.Location("b.py", "g"), None, "crap", "", "")]
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline = Path(tmp) / "b.json"
+            baseline.write_text("{}")
+            ratchet.enforce(lambda: found, ratchet.Asked(baseline), out)
+        self.assertIn("UNMEASURED a.py: file reason\n", out.getvalue())
+        self.assertIn(f"UNMEASURED b.py::g: {ratchet.FUNCTION_WORDING.unmeasured}\n", out.getvalue())
+
+
 class SettleTest(unittest.TestCase):
 
     def setUp(self):
@@ -528,12 +569,12 @@ class AskedTest(unittest.TestCase):
         self.assertEqual(outcomes, [("a.py::f", ratchet.Outcome.FAILED), ("b.py::f", ratchet.Outcome.UNMEASURED)])
         self.assertEqual(out.getvalue(), "")
 
-    def test_a_run_that_is_not_judged_never_asks_the_gate_to_find_and_passes(self):
-        def find():
-            raise AssertionError("the gate was asked to find")
-
-        result = ratchet.enforce(find, ratchet.Asked(judged=False), io.StringIO())
+    def test_a_run_that_is_not_judged_passes_and_names_only_the_files_it_could_not_read(self):
+        out = io.StringIO()
+        found = [finding("a.py", 5), unread("b.py")]
+        result = ratchet.enforce(lambda: found, ratchet.Asked(judged=False), out)
         self.assertEqual(ratchet.exit_code(result), 0)
+        self.assertEqual(out.getvalue(), "UNMEASURED b.py: file reason\n")
 
     def test_a_run_without_a_baseline_never_keys_a_location_from_the_root(self):
         def root():
@@ -678,6 +719,33 @@ class CcCheckRatchetTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("--update", out)
         self.assertFalse(self.file.exists())
+
+    def test_a_baselined_function_whose_file_stops_parsing_is_unmeasured_kept_and_not_reported_as_paid(self):
+        self.put(branchy("f", 5))
+        self.gate("--update")
+        self.put("def f(:\n")
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn("UNMEASURED pkg/mod.py: " + complexity_scan.UNREAD, out)
+        self.assertNotIn("PAID", out)
+        self.assertEqual(self.gate("--update")[0], 1)
+        self.assertEqual(self.baseline(), {"pkg/mod.py::f": 6})
+
+    def test_an_unmeasured_file_gets_the_advice_for_files_and_not_the_advice_for_coverage(self):
+        self.put(branchy("f", 5))
+        self.gate("--update")
+        self.put("def f(:\n")
+        out = self.gate()[1]
+        self.assertIn(ratchet.UNREAD_ADVICE, out)
+        self.assertNotIn(ratchet.UNMEASURED_ADVICE, out)
+
+    def test_the_baselined_function_is_scored_again_once_its_file_parses(self):
+        self.put(branchy("f", 5))
+        self.gate("--update")
+        self.put("def f(:\n")
+        self.gate("--update")
+        self.put(branchy("f", 5))
+        self.assertEqual(self.gate()[0], 0)
 
     def test_update_without_a_baseline_flag_is_a_usage_error(self):
         self.put(branchy("f", 5))
