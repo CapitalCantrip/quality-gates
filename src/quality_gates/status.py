@@ -31,7 +31,7 @@ PIN_VERDICTS = {
     False: "differs from the installed version",
     None: "could not tell whether it matches",
 }
-HOOK_STATES = {
+COPY_STATES = {
     project_files.UNSHIPPED: UNKNOWN,
     project_files.MISSING: MISSING,
     project_files.DIFFERS: DIFFERENT,
@@ -59,7 +59,7 @@ class Project:
         return project_files.claude_dir(self.root)
 
 
-def project_at(root, source, hooks, agents=skills_sync.SHIPPED_AGENTS):
+def project_at(root, source, hooks, agents=project_files.AGENTS_SOURCE):
     return Project(root, source, hooks, frozenset(skills_sync.skill_names(source)), agents)
 
 
@@ -73,11 +73,11 @@ def skill_status(project, part):
 
 
 def agent_status(project, part):
-    return HOOK_STATES[project_files.copied_agent(project_files.agents_dir(project.claude_dir), part.id, project.agents)]
+    return COPY_STATES[project_files.copied_agent(project_files.agents_dir(project.claude_dir), part.id, project.agents)]
 
 
 def copied_hook_status(project, name):
-    return HOOK_STATES[project_files.copied_hook(project_files.hooks_dir(project.claude_dir), name, project.hooks)]
+    return COPY_STATES[project_files.copied_hook(project_files.hooks_dir(project.claude_dir), name, project.hooks)]
 
 
 def hook_status(project, part):
@@ -345,7 +345,7 @@ def build_parser():
 
 
 def main(argv=None, root=None, source=skills_sync.SHIPPED, hooks=project_files.HOOKS_SOURCE, manifest=None,
-         components_path=COMPONENTS_PATH, agents=skills_sync.SHIPPED_AGENTS):
+         components_path=COMPONENTS_PATH, agents=project_files.AGENTS_SOURCE):
     args = build_parser().parse_args(argv)
     try:
         manifest = manifest or load_components(components_path)

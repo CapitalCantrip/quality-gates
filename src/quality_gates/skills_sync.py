@@ -10,7 +10,6 @@ from quality_gates import project_files
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
 
 SHIPPED = Path(__file__).parent / "skills"
-SHIPPED_AGENTS = project_files.AGENTS_SOURCE
 SKILL_FILE = "SKILL.md"
 UNKNOWN_VERSION = "unknown"
 
@@ -65,7 +64,7 @@ def agents_dest(dest):
     return project_files.agents_dir(dest.parent)
 
 
-def check(dest, source=SHIPPED, hooks=project_files.HOOKS_SOURCE, agents=SHIPPED_AGENTS):
+def check(dest, source=SHIPPED, hooks=project_files.HOOKS_SOURCE, agents=project_files.AGENTS_SOURCE):
     found = differences(dest, source) + project_files.agent_differences(agents_dest(dest), agents)
     found += project_files.differences(dest.parent, project_files.root_of_skills_folder(dest), hooks)
     for line in found:
@@ -99,7 +98,7 @@ def install(dest, source, hooks, agents):
     return 0
 
 
-def main(argv=None, source=SHIPPED, hooks=project_files.HOOKS_SOURCE, agents=SHIPPED_AGENTS):
+def main(argv=None, source=SHIPPED, hooks=project_files.HOOKS_SOURCE, agents=project_files.AGENTS_SOURCE):
     args = build_parser().parse_args(argv)
     try:
         dest = args.dest or Path(os.path.relpath(project_files.git_root() / project_files.SKILLS_DEST))

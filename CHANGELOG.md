@@ -10,6 +10,10 @@
   the file: rename or remove it, then rerun. An orchestration prompt that
   names the `builder` agent now names `implementer`. No score, threshold or
   scanned file changes.
+- **`qg status` lists each agent under the core** as installed, missing or
+  different, and `components.json` gains the part kind `agent`.
+- **`/setup-standards` asks you** whether to rename or remove a project agent
+  that has a shipped agent's name.
 
 ## 0.14.2 — 2026-11-26
 

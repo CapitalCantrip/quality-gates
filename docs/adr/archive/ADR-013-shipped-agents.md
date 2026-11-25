@@ -53,6 +53,9 @@ project's `.claude/agents/`, beside the skills:
   file; `/setup-standards` puts the choice to the builder. An unlisted agent
   identical to the shipped one is taken over. This differs from skills, where
   `qg-skills` replaces any folder with a shipped skill's name.
+- **The agent file handling lives in the project module** (`project_files`),
+  beside the hook copier, because ADR-011 routes every file quality-gates
+  keeps in a project through it; `qg-skills` only calls it.
 - **`qg-skills --check` fails** on a shipped agent that is missing or differs, on
   an agent it shipped that the release no longer ships, and on a project's own
   agent with a shipped name.

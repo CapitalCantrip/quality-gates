@@ -92,12 +92,16 @@ def hook_names(source=HOOKS_SOURCE):
     return sorted(p.name for p in source.glob("*.py"))
 
 
-def copied_hook(dest, name, source=HOOKS_SOURCE):
-    if not (source / name).is_file():
+def copied_file(shipped, copy):
+    if not shipped.is_file():
         return UNSHIPPED
-    if not (dest / name).is_file():
+    if not copy.is_file():
         return MISSING
-    return SAME if filecmp.cmp(source / name, dest / name, shallow=False) else DIFFERS
+    return SAME if filecmp.cmp(shipped, copy, shallow=False) else DIFFERS
+
+
+def copied_hook(dest, name, source=HOOKS_SOURCE):
+    return copied_file(source / name, dest / name)
 
 
 def hook_differences(dest, source=HOOKS_SOURCE):
@@ -132,11 +136,7 @@ def shipped_agents(dest):
 
 
 def copied_agent(dest, name, source=AGENTS_SOURCE):
-    if not agent_file(source, name).is_file():
-        return UNSHIPPED
-    if not agent_file(dest, name).is_file():
-        return MISSING
-    return SAME if filecmp.cmp(agent_file(source, name), agent_file(dest, name), shallow=False) else DIFFERS
+    return copied_file(agent_file(source, name), agent_file(dest, name))
 
 
 def agent_state(dest, name, listed, source=AGENTS_SOURCE):

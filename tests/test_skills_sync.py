@@ -201,7 +201,7 @@ class SkillsSync(unittest.TestCase):
         self.assertIn("agents/reviewer.md: the project's own agent has a name quality-gates ships", out)
 
     def test_the_package_ships_the_four_engineering_agents(self):
-        self.assertEqual(project_files.agent_names(skills_sync.SHIPPED_AGENTS),
+        self.assertEqual(project_files.agent_names(project_files.AGENTS_SOURCE),
                          ["debt-payer", "diagnoser", "implementer", "reviewer"])
 
     def in_folder(self, folder):
