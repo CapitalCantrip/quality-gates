@@ -221,3 +221,9 @@ _Avoid_: violation, result, issue
 A problem a gate stopped, counted once and ended as fixed, given a reason, or
 accepted as debt. Not a proven bug.
 _Avoid_: bug caught, issue caught
+
+**Escape**:
+A problem that got past every gate and was found later, by the builder using
+the product, by a review or by a crash. Counted by the gate that should have
+caught it, or as one no gate could. The opposite of a catch.
+_Avoid_: miss, leak, bug
