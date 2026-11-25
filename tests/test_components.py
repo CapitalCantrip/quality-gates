@@ -30,13 +30,9 @@ def admissions_of(kind):
     return {a.name: a for a in MANIFEST.admissions if a.kind == kind}
 
 
-def version_tuple(version):
-    return tuple(int(number) for number in version.split("."))
-
-
 def pyproject_requirements():
     listed = re.search(r"(?m)^dependencies = \[(.*)\]$", PYPROJECT).group(1)
-    return dict(re.findall(r'"([\w-]+)>=([\d.]+)"', listed))
+    return {name: (operator, version) for name, operator, version in re.findall(r'"([\w-]+)([<>=!~]+)([\d.]+)"', listed)}
 
 
 def parts(kind=None):
@@ -208,16 +204,16 @@ class AdmissionsAgreeWithWhatShips(unittest.TestCase):
     def test_every_upstream_admission_is_a_source_in_the_upstream_record(self):
         self.assertEqual(set(admissions_of("upstream")), {source.repo for source in SOURCES})
 
-    def test_every_python_requirement_of_the_package_has_a_dependency_admission_at_the_same_minimum(self):
+    def test_every_python_requirement_of_the_package_is_an_exact_pin(self):
+        for name, (operator, version) in pyproject_requirements().items():
+            self.assertEqual(operator, "==", name)
+
+    def test_every_python_requirement_of_the_package_has_a_dependency_admission_naming_the_same_version_as_minimum_and_tested(self):
         dependencies = admissions_of("dependency")
         requirements = pyproject_requirements()
         self.assertEqual(sorted(requirements), sorted(dependencies))
-        for name, minimum in requirements.items():
-            self.assertEqual(dependencies[name].minimum_version, minimum, name)
-
-    def test_the_version_ci_tested_is_at_or_above_the_minimum_for_every_dependency(self):
-        for name, admission in admissions_of("dependency").items():
-            self.assertGreaterEqual(version_tuple(admission.tested_version), version_tuple(admission.minimum_version), name)
+        for name, (operator, version) in requirements.items():
+            self.assertEqual((dependencies[name].minimum_version, dependencies[name].tested_version), (version, version), name)
 
     def test_every_test_only_tool_has_a_licence_and_no_part_installs_it(self):
         named = {origin_of(c, p).name for c, p in parts()}
