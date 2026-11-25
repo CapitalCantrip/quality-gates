@@ -153,7 +153,8 @@ Source: [ADR-013](archive/ADR-013-shipped-agents.md#decision).
 - **The copier touches only what it shipped,** listed in
   `.claude/agents/.shipped-by-quality-gates`. It overwrites and removes only
   agents on that list and never touches another file there. A project's own
-  agent with a shipped name stops `qg-skills` with exit 2 before anything
+  agent with a shipped name, as its filename or its frontmatter `name:`, stops
+  `qg-skills` with exit 2 before anything
   changes, and `/setup-standards` puts the choice to the builder.
 - **`qg-skills --check` fails** on a shipped agent that is missing or differs,
   on one the release no longer ships, and on a project agent with a shipped

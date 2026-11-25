@@ -87,7 +87,7 @@ def build_parser():
 
 
 def install(dest, source, hooks, agents):
-    project_files.refuse_agent_clashes(agents_dest(dest), agents)
+    project_files.check_before_install(dest.parent, agents)
     names = sync(dest, source)
     agent_files = project_files.sync_agents(agents_dest(dest), agents)
     project_files.sync(dest.parent, project_files.root_of_skills_folder(dest), hooks)

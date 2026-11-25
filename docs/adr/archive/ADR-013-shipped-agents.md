@@ -48,10 +48,14 @@ project's `.claude/agents/`, beside the skills:
 - **The copier touches only what it shipped.** It records the agents it
   installed in `.claude/agents/.shipped-by-quality-gates`. It overwrites and
   removes only agents on that list. Any other file in `.claude/agents/` is never
-  changed or removed. When the project already has a different agent with a
-  shipped name, `qg-skills` stops with exit 2, changes nothing and names the
-  file; `/setup-standards` puts the choice to the builder. An unlisted agent
-  identical to the shipped one is taken over. This differs from skills, where
+  changed or removed, and a name on the list that is not a plain agent name
+  (letters, digits, `-` and `_`) is ignored. When the project already has a
+  different agent with a shipped name, either as its filename or as the
+  `name:` in its frontmatter (the name Claude Code goes by), `qg-skills` stops
+  with exit 2, changes nothing and names the file; `/setup-standards` puts the
+  choice to the builder. An unlisted agent identical to the shipped one, under
+  the same filename, is taken over. `qg-skills` also reads `settings.json`
+  before it copies anything, so a broken one stops it with nothing changed. This differs from skills, where
   `qg-skills` replaces any folder with a shipped skill's name.
 - **The agent file handling lives in the project module** (`project_files`),
   beside the hook copier, because ADR-011 routes every file quality-gates
@@ -77,7 +81,7 @@ the map lacks a module, and the reviewer's shape check) are a separate change
   brief, instead of pasting the rules into every prompt.
 - A consumer reruns `qg-skills` at the pin bump. An orchestration prompt that
   names the old `builder` agent now names `implementer`.
-- A project that already has its own `reviewer.md` or `implementer.md` gets a
+- A project that already has its own `reviewer` or `implementer` agent gets a
   stop at its first `qg-skills` run after the bump, and chooses whether to
   rename its agent or take the shipped one.
 - The agent texts change through a release, like the skills. After the release

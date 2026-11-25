@@ -23,7 +23,7 @@ Done when every acceptance criterion has a passing test and evidence, the suite 
 ## Rules
 
 - Follow the repo's own comment policy exactly; where it has none, write no code comments.
-- Put new code in the module the Module map names. Create a new module only for a concept in GLOSSARY.md or on the map, or for a real adapter (something tests swap for a scripted stand-in). Never one module per ticket. If the ticket seems to need a module the map lacks, build it and list it under design choices in your report.
+- Put new code in the module the Module map names. Create a new module only for a concept in GLOSSARY.md or on the map, or for a real adapter (something tests swap for a scripted stand-in). Never one module per ticket. If the ticket seems to need a module the map lacks, stop and report what that module would hold.
 - Match the surrounding hand-formatted style; leave formatters (cargo fmt, prettier, black) unrun.
 - Keep history intact: back up a file with `cp f f.bak` and delete the copy afterwards, in place of `git checkout --`, `git restore`, `git stash` or `git reset`.
 - Change a threshold, counting tool, gate scope or standard only when the brief asks; when a change seems unavoidable, stop and say so. A change to a standard gets an ADR or a dated addendum.

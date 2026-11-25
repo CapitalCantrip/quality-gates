@@ -749,7 +749,8 @@ line, like any other tool error.
   Outside a git repo and without `--dest`, it stops with exit 2 and says so. It touches only the skills it ships; the project's own
   skills are left alone. It records the agents it copied in
   `.claude/agents/.shipped-by-quality-gates` and overwrites or removes only
-  those; a project agent with a shipped agent's name stops it with exit 2
+  those; a project agent with a shipped agent's name, as its filename or its
+  frontmatter `name:`, stops it with exit 2
   before anything changes. `qg-skills --check` exits 1 if any copy differs from
   the installed version, and `/setup-standards` adds a test that runs it, so CI
   catches a stale copy.

@@ -200,6 +200,39 @@ class SkillsSync(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertIn("agents/reviewer.md: the project's own agent has a name quality-gates ships", out)
 
+    def test_sync_stops_when_a_project_agent_under_another_filename_declares_a_shipped_name(self):
+        self.write(self.agents / "code-reviewer.md", "---\nname: reviewer\ndescription: ours\n---\nbody")
+        code, out = self.sync()
+        self.assertEqual(code, 2)
+        self.assertIn(str(self.agents / "code-reviewer.md"), out)
+        self.assertFalse((self.agents / "reviewer.md").exists())
+
+    def test_check_names_a_project_agent_under_another_filename_that_declares_a_shipped_name(self):
+        self.sync()
+        self.write(self.agents / "code-reviewer.md", "---\nname: 'reviewer'\n---\nbody")
+        code, out = self.check()
+        self.assertEqual(code, 1)
+        self.assertIn("agents/code-reviewer.md: the project's own agent has a name quality-gates ships", out)
+
+    def test_a_project_agent_whose_frontmatter_names_its_own_agent_passes(self):
+        self.write(self.agents / "planner.md", "---\nname: planner\n---\nreviewer: mentioned in the body")
+        self.assertEqual(self.sync()[0], 0)
+        self.assertEqual(self.check()[0], 0)
+
+    def test_sync_deletes_nothing_outside_the_agents_folder_whatever_the_shipped_list_says(self):
+        self.sync()
+        self.write(self.repo / "notes.md", "the repo's notes")
+        self.write(self.agents / ".shipped-by-quality-gates", "implementer\nreviewer\n../../notes\n")
+        self.assertEqual(self.sync()[0], 0)
+        self.assertEqual((self.repo / "notes.md").read_text(), "the repo's notes")
+
+    def test_broken_settings_json_stops_qg_skills_before_it_copies_anything(self):
+        self.write(self.repo / ".claude" / "settings.json", "{oops")
+        code, _ = self.sync()
+        self.assertEqual(code, 2)
+        self.assertFalse(self.dest.exists())
+        self.assertFalse(self.agents.exists())
+
     def test_the_package_ships_the_four_engineering_agents(self):
         self.assertEqual(project_files.agent_names(project_files.AGENTS_SOURCE),
                          ["debt-payer", "diagnoser", "implementer", "reviewer"])

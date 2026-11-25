@@ -175,6 +175,19 @@ class Status(unittest.TestCase):
         (self.agents / "reviewer.md").unlink()
         self.assertEqual(part(self.report(), "core", "agent", "reviewer")["status"], "unknown")
 
+    def test_a_project_agent_claiming_a_shipped_name_makes_that_agent_different(self):
+        self.set_up()
+        self.write(self.repo / ".claude" / "agents" / "code-reviewer.md", "---\nname: reviewer\n---\n")
+        self.assertEqual(part(self.report(), "core", "agent", "reviewer")["status"], "different")
+
+    def test_an_agent_the_release_stopped_shipping_still_needs_attention_under_the_core(self):
+        self.write(self.agents / "diagnoser.md", "diagnoser v1")
+        self.set_up()
+        (self.agents / "diagnoser.md").unlink()
+        report = self.report()
+        self.assertEqual(part(report, "core", "agent", "diagnoser")["status"], "different")
+        self.assertIn("agent diagnoser: different", component(report, "core")["needs_attention"])
+
     def test_status_agrees_with_qg_skills_check_on_a_copied_file(self):
         self.set_up()
         self.write(self.repo / ".claude" / "skills" / "tdd" / "SKILL.md", "edited")

@@ -26,6 +26,7 @@ PIN_PATTERN = re.compile(r"quality-gates\s*@\s*git\+\S*?@(v[0-9][\w.\-]*)")
 ASKING_RULE = "asking-rule"
 PROVIDED_BY_PACKAGE = {"command", "dependency"}
 COPIED_TO_EVERY_PROJECT = "skill"
+AGENT_PART = "agent"
 PIN_VERDICTS = {
     True: "matches",
     False: "differs from the installed version",
@@ -72,8 +73,19 @@ def skill_status(project, part):
     return DIFFERENT if skills_sync.skill_differences(part.id, project.source, dest) else INSTALLED
 
 
+AGENT_STATES = {**COPY_STATES, project_files.OWN_AGENT: DIFFERENT}
+
+
 def agent_status(project, part):
-    return COPY_STATES[project_files.copied_agent(project_files.agents_dir(project.claude_dir), part.id, project.agents)]
+    states = project_files.agent_states(project_files.agents_dir(project.claude_dir), project.agents)
+    return AGENT_STATES[states.get(part.id, project_files.UNSHIPPED)]
+
+
+def stale_agent_parts(project, component):
+    if not component.core:
+        return []
+    stale = project_files.stale_agents(project_files.agents_dir(project.claude_dir), project.agents)
+    return [{"kind": AGENT_PART, "id": name, "status": DIFFERENT} for name in stale]
 
 
 def copied_hook_status(project, name):
@@ -120,7 +132,7 @@ def precommit_step_status(project, part):
 
 PART_STATUS = {
     "skill": skill_status,
-    "agent": agent_status,
+    AGENT_PART: agent_status,
     "hook": hook_status,
     "claude_md_line": claude_md_line_status,
     "baseline": file_status,
@@ -210,7 +222,7 @@ def installed_state(component, parts, used):
 
 def component_report(project, component, used, choice=None):
     wanted = list(component.languages)
-    parts = [part_report(project, p, used) for p in component.parts]
+    parts = [part_report(project, p, used) for p in component.parts] + stale_agent_parts(project, component)
     counted = counted_parts(component, parts, choice)
     rolled = installed_state(component, counted, used)
     return {
