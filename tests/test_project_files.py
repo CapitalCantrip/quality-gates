@@ -918,7 +918,8 @@ class ToleratedStepCheck(unittest.TestCase):
 
     def test_a_workflow_that_only_mentions_qg_tolerated_does_not_count(self):
         for run in ("echo qg tolerated", "make lint  # qg tolerated", "cat qg-tolerated.log", "qg status tolerated",
-                    "echo \"qg tolerated --against main\"", "make 'lint  # ; qg tolerated"):
+                    "echo \"qg tolerated --against main\"", "make 'lint  # ; qg tolerated",
+                    '"echo ok" # "; qg tolerated --against x"'):
             with self.subTest(run):
                 self.assertFalse(self.has_step(run))
         self.workflow("ci.yml", job("      - name: qg tolerated\n        run: echo hi\n# qg tolerated\n"))
@@ -927,9 +928,7 @@ class ToleratedStepCheck(unittest.TestCase):
     def test_qg_tolerated_run_by_path_after_an_assignment_or_after_another_command_counts(self):
         for run in (".venv/bin/qg tolerated --against origin/main", "BASE=main qg tolerated --against origin/main",
                     "git fetch origin main && qg tolerated --against origin/main",
-                    "|\n          git fetch origin main\n          qg tolerated --against origin/main  # check",
-                    '"qg tolerated --against x"', "'qg tolerated --against x'  # quoted",
-                    '"BASE=main qg tolerated --against \\"origin/main\\""'):
+                    "|\n          git fetch origin main\n          qg tolerated --against origin/main  # check"):
             with self.subTest(run):
                 self.assertTrue(self.has_step(run))
 

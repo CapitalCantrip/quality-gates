@@ -114,8 +114,7 @@ TRIGGERS_KEY, JOBS_KEY, PULL_REQUEST = "on", "jobs", "pull_request"
 COMMENT_START, ITEM_START = "#", "- "
 ASSIGNMENT = re.compile(r"[A-Za-z_]\w*=")
 FLOW_OPEN, FLOW_CLOSE = ("[", "{"), ("]", "}")
-BLOCK_SCALAR = ("|", ">")
-QUOTED_SCALAR = re.compile(r"""\s*(["'])(.*)\1\s*(?:#.*)?\s*""", re.DOTALL)
+NOT_PLAIN = ("|", ">", '"', "'")
 TOLERATED_COMMAND = ("qg", "tolerated")
 STEP_INDENT = "      "
 PASTE_THE_STEP = ("No workflow that runs on pull requests runs `qg tolerated` yet; paste it at the end of the steps "
@@ -1028,11 +1027,7 @@ def run_text(item):
 
 
 def plain_value(value):
-    quoted = QUOTED_SCALAR.fullmatch(value)
-    if quoted:
-        return quoted.group(2) + LF
-    return value if value.strip().startswith(BLOCK_SCALAR) else without_comment(value) + LF
-
+    return value if value.strip().startswith(NOT_PLAIN) else without_comment(value) + LF
 
 
 def command_of(segment):
