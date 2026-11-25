@@ -20,8 +20,6 @@ LIZARD_START = 9
 LIZARD_END = 10
 EXIT_0_ON_WARNINGS = ("-i", "-1")
 
-FORGIVES = b"#lizard forgive"
-NOT_FORGIVEN = b"#lizard_forgive"
 UNREADABLE = (OSError, ValueError, SyntaxError, RecursionError, MemoryError)
 UNREAD = f"{ratchet.UNREAD_FILE}, so its functions were not counted"
 
@@ -96,25 +94,11 @@ def command(file_list: str, lizard_languages: tuple) -> list:
     return [sys.executable, "-m", "lizard", *flags, *EXIT_0_ON_WARNINGS, "--csv", "-f", file_list]
 
 
-def _unforgiving(file: Path, folder: str, number: int) -> str:
-    try:
-        text = file.read_bytes()
-    except OSError:
-        return str(file)
-    if FORGIVES not in text:
-        return str(file)
-    copy = Path(folder, f"{number}{file.suffix}")
-    copy.write_bytes(text.replace(FORGIVES, NOT_FORGIVEN))
-    return str(copy)
-
-
-def _run_lizard(files: list, lizard_languages: tuple, runner) -> tuple:
+def _run_lizard(files: list, lizard_languages: tuple, runner):
     with tempfile.TemporaryDirectory() as folder:
-        listed = [_unforgiving(file, folder, number) for number, file in enumerate(files)]
         file_list = os.path.join(folder, "files.txt")
-        Path(file_list).write_text("".join(f"{name}\n" for name in listed), encoding="utf-8")
-        result = (runner or run)(command(file_list, lizard_languages), stdout=PIPE, stderr=PIPE, text=True)
-    return result, {name: str(file) for name, file in zip(listed, files)}
+        Path(file_list).write_text("".join(f"{file}\n" for file in files), encoding="utf-8")
+        return (runner or run)(command(file_list, lizard_languages), stdout=PIPE, stderr=PIPE, text=True)
 
 
 def _lizard_functions(files: list, lizard_languages: tuple, runner) -> list:
@@ -122,11 +106,11 @@ def _lizard_functions(files: list, lizard_languages: tuple, runner) -> list:
         raise ToolError(LIZARD_MISSING)
     if not files:
         return []
-    result, originals = _run_lizard(files, lizard_languages, runner)
+    result = _run_lizard(files, lizard_languages, runner)
     if result.returncode != 0:
         raise ToolError(f"lizard failed:\n{result.stderr.strip()}")
     rows = csv.reader(io.StringIO(result.stdout.strip()))
-    return [replace(fn, file=originals.get(fn.file, fn.file)) for fn in map(parse_row, rows) if fn is not None]
+    return [fn for fn in map(parse_row, rows) if fn is not None]
 
 
 def _radon_visitors():

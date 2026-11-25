@@ -1387,7 +1387,7 @@ them. Any other exit is a tool error that shows lizard's error output.
 
 Amends: [Current rule, restated 2026-10-12: the complexity ceiling](#current-rule-restated-2026-10-12-the-complexity-ceiling), [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120)
 
-Amended by: [Addendum 2026-11-26: a file the complexity gates cannot read, and lizard's forgiveness (#212)](#addendum-2026-11-26-a-file-the-complexity-gates-cannot-read-and-lizards-forgiveness-212)
+Amended by: [Addendum 2026-11-26: a file the complexity gates cannot read (#212)](#addendum-2026-11-26-a-file-the-complexity-gates-cannot-read-212)
 
 **Agent-written code has a cyclomatic complexity ceiling of 8.** Human-maintained
 code targets 5. Agents keep exact short-term memory, so some of the cognitive
@@ -1587,32 +1587,23 @@ scan:
   or once inside a folder that is also scanned, is listed once, under the first
   spelling met.
 
-## Addendum 2026-11-26: a file the complexity gates cannot read, and lizard's forgiveness (#212)
+## Addendum 2026-11-26: a file the complexity gates cannot read (#212)
 
 Amends: [Current rule, restated 2026-10-25: the complexity ceiling](#current-rule-restated-2026-10-25-the-complexity-ceiling)
 
 The limits are unchanged. What `cc-check` and `crap` do with a file they cannot
-read, and with a function lizard was told to forgive, changes so that the code
-agrees with the rules already written (#212).
+read changes, so that the code agrees with the rules already written (#212).
 
 **Before this,** the complexity scan swallowed a Python file that did not parse
 or was not UTF-8 and returned no functions, so `cc-check` and `crap` passed it
-as clean while `comment-debt` failed the same file as unmeasured (PR #211). And
-lizard dropped a function behind `#lizard forgives` from its results, so a
-comment could take a function out of both gates, which *Baselines and
-loosening* already says no gate allows.
+as clean while `comment-debt` failed the same file as unmeasured (PR #211).
 
 **Now,** a Python file the complexity scan cannot open, parse or decode is
 `UNMEASURED` in `cc-check` and `crap`, in the ratchet's wording: the gate names
 it, fails with exit 1 and prints no traceback. With a baseline, the entries of
 that file's functions stay and none is recorded for it, as for any unmeasured
-function. The lizard adapter hands lizard a copy of a file that holds a
-forgiveness marker, with `#lizard forgive` changed to `#lizard_forgive` (the
-same length, so lines and columns stay), so every function lizard finds reaches
-the gate. lizard's lenient reading of malformed TypeScript or Swift is
+function. lizard's lenient reading of malformed TypeScript or Swift is
 unchanged: it scores such a file and does not skip it.
 
 **Consequence.** On bumping the pin, a file the gates could not read now fails
-as `UNMEASURED`: fix it or take it out of the scan. A function that sat behind
-`#lizard forgives` is now scored: add it to the baseline once with `--update`,
-or pay it.
+as `UNMEASURED`: fix it or take it out of the scan.

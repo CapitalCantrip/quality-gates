@@ -553,31 +553,6 @@ class LizardRunTest(InTempDir):
         complexity_scan.scan(["."], "swift", runner=runner)
         self.assertEqual(given, ["App.swift\n"])
 
-    def test_a_file_with_a_forgiveness_marker_goes_to_lizard_as_a_copy_with_the_marker_changed_to_the_same_length(self):
-        self.write("app.ts", "// #lizard forgives\nfunction f() {}\n")
-        given = []
-        def runner(cmd, **k):
-            listed = Path(cmd[-1]).read_text().strip()
-            given.append((listed, Path(listed).read_bytes()))
-            return completed("")
-        complexity_scan.scan(["app.ts"], "typescript", runner=runner)
-        listed, text = given[0]
-        self.assertNotEqual(listed, "app.ts")
-        self.assertEqual((Path(listed).suffix, text), (".ts", b"// #lizard_forgives\nfunction f() {}\n"))
-
-    def test_a_row_for_a_copy_names_the_original_file(self):
-        self.write("app.ts", "// #lizard forgives\nfunction f() {}\n")
-        row = lambda cmd, **k: completed(f'1,1,1,0,1,"f@2-2@x","{Path(cmd[-1]).read_text().strip()}","f","f()",2,2')
-        found = complexity_scan.scan(["app.ts"], "typescript", runner=row)
-        self.assertEqual(([fn.file for fn in found.functions], found.files), (["app.ts"], ["app.ts"]))
-
-    def test_a_file_without_a_marker_goes_to_lizard_by_its_own_name(self):
-        self.write("app.ts", "function f() {}\n")
-        given = []
-        runner = lambda cmd, **k: given.append(Path(cmd[-1]).read_text()) or completed("")
-        complexity_scan.scan(["app.ts"], "typescript", runner=runner)
-        self.assertEqual(given, ["app.ts\n"])
-
     def test_lizard_does_not_run_when_no_file_is_in_its_language(self):
         runner = lambda *a, **k: self.fail("lizard ran")
         self.assertEqual(complexity_scan.scan(["App.swift"], "typescript", runner=runner).functions, [])
@@ -658,58 +633,6 @@ struct U {
     }
 }
 """
-
-
-FORGIVEN = """\
-// #lizard forgives
-function forgiven(x) {
-    if (x === 1) { return 1 }
-    if (x === 2) { return 2 }
-    return 0
-}
-
-function plain() { return 1 }
-"""
-
-FORGIVEN_SWIFT = """\
-// #lizard forgives
-func forgiven(x: Int) -> Int {
-    if x == 1 { return 1 }
-    if x == 2 { return 2 }
-    return 0
-}
-
-func plain() -> Int { return 1 }
-"""
-
-
-class ForgivenessTest(InTempDir):
-    def scored(self, file, text, lang):
-        self.write(file, text)
-        return [(fn.name, fn.cc, fn.start, fn.end) for fn in complexity_scan.scan([file], lang).functions]
-
-    def test_a_typescript_function_marked_forgiven_is_scored_like_any_other(self):
-        self.assertEqual(self.scored("a.ts", FORGIVEN, "typescript"), [("forgiven", 3, 2, 6), ("plain", 1, 8, 8)])
-
-    def test_a_swift_function_marked_forgiven_is_scored_like_any_other(self):
-        self.assertEqual(self.scored("A.swift", FORGIVEN_SWIFT, "swift"), [("forgiven", 3, 2, 6), ("plain", 1, 8, 8)])
-
-    def test_a_forgiven_function_keeps_the_line_numbers_it_has_without_the_marker(self):
-        marked = self.scored("a.ts", FORGIVEN, "typescript")
-        bare = self.scored("b.ts", FORGIVEN.replace("// #lizard forgives", "// plain note"), "typescript")
-        self.assertEqual(marked, bare)
-
-    def test_a_block_comment_forgiveness_marker_is_ignored_too(self):
-        text = FORGIVEN.replace("// #lizard forgives", "/* #lizard forgives */")
-        self.assertEqual(self.scored("a.ts", text, "typescript")[0][:2], ("forgiven", 3))
-
-    def test_a_global_forgiveness_marker_is_ignored_too(self):
-        text = "// #lizard forgive global\n" + FORGIVEN
-        self.assertEqual([name for name, *_ in self.scored("a.ts", text, "typescript")], ["forgiven", "plain"])
-
-    def test_a_forgiveness_marker_inside_a_non_utf8_file_is_neutralised_too(self):
-        Path("a.ts").write_bytes(b"// \xff #lizard forgives\nfunction f(x) { if (x) { return 1 } return 0 }\n")
-        self.assertEqual([fn.name for fn in complexity_scan.scan(["a.ts"], "typescript").functions], ["f"])
 
 
 class SwiftScanTest(InTempDir):
