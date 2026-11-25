@@ -18,16 +18,15 @@ files itself. It also owns reading and writing every
 file quality-gates keeps in a project: the choice file, baselines, the hook,
 CI, the instruction file, `docs/agents/*` and the PR template. Every write goes
 through one planned-changes step that setup shows before the builder's "go".
-Built for CI (quality-gates#234): setup adds the `qg tolerated` step between
-quality-gates' markers in the one job that runs a gate on pull requests,
-writes nothing and prints a note when no job or more than one qualifies, and
-edits only the lines between the markers. Decided, not built yet: the same for
-the hook.
+Setup never edits a CI workflow (quality-gates#234): it checks that a workflow
+running on pull requests runs `qg tolerated` in a step, and prints the step to
+paste when none does. Decided, not built yet: code edits the hook only between
+quality-gates' markers.
 Built (quality-gates#234): it reads main's copy of a file, the bytes
 committed on the default branch or a plain "absent", a file's bytes at any
 ref that names a commit, and the choice file at a ref; no gate or `qg`
 command runs git outside the project module. The default branch is the
-remote's `HEAD`, then `main`, `master`, `origin/main` and `origin/master`. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+remote's `HEAD`, then `main`, `master`, `origin/main` and `origin/master`. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [addendum 2026-11-26](archive/ADR-011-code-structure.md#addendum-2026-11-26-setup-never-edits-a-ci-workflow))
 
 ## The tolerated module
 

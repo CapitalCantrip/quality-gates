@@ -45,9 +45,10 @@ file.
    by such a find writes nothing unless exactly one place qualifies.** It
    prints a note saying where to put it by hand. Each reader has a test for a
    file name, an argument and a trailing comment that name the command.
-   Reason: both hard review findings on #234 came from deciding "this job
+   Reason: two of #234's hard review findings came from deciding "this job
    runs a gate" by a substring of the workflow text, the second in the fix
-   for the first.
+   for the first; `qg setup` now only checks for its CI step by command
+   word and prints it to paste.
    Source: #234 retro (2026-11-26).
 
 ## Changing behaviour
