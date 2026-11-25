@@ -7,8 +7,9 @@ import shutil
 import stat
 import subprocess
 import sys
+from collections import namedtuple
 from dataclasses import dataclass, replace
-from itertools import dropwhile
+from itertools import dropwhile, takewhile
 from pathlib import Path, PurePosixPath
 
 from quality_gates import languages
@@ -52,6 +53,12 @@ DEFAULT_BRANCHES = (
     "refs/remotes/origin/master",
 )
 BRANCH_PREFIXES = ("refs/heads/", "refs/remotes/")
+ORIGIN_HEAD = DEFAULT_BRANCHES[0]
+SYMBOLIC_REF = ("git", "symbolic-ref", "--quiet")
+IGNORES_CASE = ("git", "config", "--bool", "core.ignorecase")
+GIT_TRUE = "true"
+LIST_TREE = ("git", "ls-tree", "-r", "-z", "--name-only")
+MainCopy = namedtuple("MainCopy", "branch data")
 NOT_A_GIT_REPO = (
     "not inside a git repository: quality-gates looks at the files git would commit, so run it inside the "
     "project's repository, or run `git init` there first"
@@ -118,17 +125,29 @@ FLOW_OPEN, FLOW_CLOSE = ("[", "{"), ("]", "}")
 NOT_PLAIN = ("|", ">", '"', "'")
 TOLERATED_COMMAND = ("qg", "tolerated")
 STEP_INDENT = "      "
+RERUN_TYPES = "types: [opened, synchronize, reopened, labeled, unlabeled]"
 PASTE_THE_STEP = ("No workflow that runs on pull requests runs `qg tolerated` yet; paste it at the end of the steps "
                   "of the job that runs the gates, indented like the other steps of that job, and give the workflow's "
-                  "pull_request trigger `types: [opened, synchronize, reopened, labeled, unlabeled]` so that adding "
-                  "or removing a label runs it again:")
+                  "pull_request trigger `" + RERUN_TYPES + "` so that adding or removing a label runs it again:")
+LABELS_VARIABLE = "QG_PR_LABELS"
+LABELS_ENV_LINE = LABELS_VARIABLE + ": ${{ join(github.event.pull_request.labels.*.name, ',') }}"
+RERUN_ON = frozenset({"labeled", "unlabeled"})
+TYPES_KEY = "types"
+ENV_KEY = re.compile(r"env[ \t]*:(.*)", re.DOTALL)
+KEY_LINE = re.compile(r"""[ \t]*(["']?)([\w-]+)\1[ \t]*:(.*)""")
+FLOW_KEY = re.compile(r"([\w-]+)[ \t]*:")
+PASS_THE_LABELS = ("The `qg tolerated` step in {} does not pass the pull request's labels; add this line under the "
+                   "step's `env:`, indented like its other variables: "
+                   + LABELS_ENV_LINE.replace("{", "{{").replace("}", "}}"))
+RERUN_ON_LABELS = ("The pull_request trigger of {} does not run the workflow again when a label is added or removed; "
+                   "give it `" + RERUN_TYPES + "`.")
 TOLERATED_STEP = (
     "- name: qg tolerated",
     "  if: github.event_name == 'pull_request'",
     "  shell: bash",
     "  env:",
     "    BASE: ${{ github.base_ref }}",
-    "    QG_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}",
+    "    " + LABELS_ENV_LINE,
     "  run: |",
     '    git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"',
     '    qg tolerated --against "origin/${BASE}"',
@@ -578,22 +597,42 @@ def any_format_choice(data, where):
     return choice_from({**CHOICE_DEFAULTS, **data, "format_version": CHOICE_FORMAT_VERSION}, where)
 
 
+def branch_name(root, ref):
+    if ref == ORIGIN_HEAD:
+        found = run_git([*SYMBOLIC_REF, ref], root, text=True)
+        ref = found.stdout.strip() if found.returncode == 0 and found.stdout.strip() else ref
+    return next((ref[len(prefix):] for prefix in BRANCH_PREFIXES if ref.startswith(prefix)), ref)
+
+
+def ignores_case(root):
+    return run_git(IGNORES_CASE, root, text=True).stdout.strip() == GIT_TRUE
+
+
+def spelled_at(root, ref, relative):
+    listing = run_git([*LIST_TREE, ref], root)
+    names = os.fsdecode(listing.stdout).split("\0") if listing.returncode == 0 else []
+    return next((name for name in names if name.casefold() == relative.casefold()), None)
+
+
+def copy_in_any_case(root, ref, name):
+    data = copy_at(root, ref, name)
+    if data is not None or not ignores_case(root):
+        return data
+    spelled = spelled_at(root, ref, path_in_repo(root, name))
+    return None if spelled is None else copy_at(root, ref, spelled)
+
+
 def main_copy(root, name):
     branch = default_branch(root)
-    return None if branch is None else copy_at(root, branch, name)
-
-
-def short_branch(ref):
-    return next((ref[len(prefix):] for prefix in BRANCH_PREFIXES if ref.startswith(prefix)), ref)
+    data = None if branch is None else copy_in_any_case(root, branch, name)
+    return None if data is None else MainCopy(branch_name(root, branch), data)
 
 
 def branch_holding(path):
     file = Path(path).absolute()
     repo = top_of(file.parent) if file.parent.is_dir() else None
-    branch = None if repo is None else default_branch(repo)
-    if branch is None or copy_at(repo, branch, file) is None:
-        return None
-    return short_branch(branch)
+    found = None if repo is None else main_copy(repo, file)
+    return None if found is None else found.branch
 
 
 def root_of_skills_folder(dest):
@@ -707,6 +746,13 @@ def checked_choice(root):
         return read_choice(root)
     except BrokenFileError as error:
         raise ToolError(str(error)) from error
+
+
+def exclusions(root):
+    choice = checked_choice(root)
+    if choice is None:
+        return default_exclusions(committable_files(root)), ()
+    return choice.exclude, choice.comment_gate_exclude
 
 
 def scope_exclusions(root, listed):
@@ -1039,13 +1085,22 @@ def continuation(lines, column):
         yield line
 
 
-def run_text(item):
-    column = len(item[0]) - len(item[0].lstrip()[len(ITEM_START.rstrip()):].lstrip())
+def item_column(item):
+    return len(item[0]) - len(item[0].lstrip()[len(ITEM_START.rstrip()):].lstrip())
+
+
+def item_key(item, pattern):
+    column = item_column(item)
     for at, line in enumerate(item):
-        found = RUN_KEY.match(line[column:]) if at == 0 or len(indent_of(line)) == column else None
+        found = pattern.match(line[column:]) if at == 0 or len(indent_of(line)) == column else None
         if found:
-            return plain_value(found.group(1)) + "".join(continuation(item[at + 1:], column))
-    return ""
+            return found.group(1), list(continuation(item[at + 1:], column))
+    return None
+
+
+def run_text(item):
+    found = item_key(item, RUN_KEY)
+    return "" if found is None else plain_value(found[0]) + "".join(found[1])
 
 
 def plain_value(value):
@@ -1068,10 +1123,68 @@ def runs_tolerated_on_pull_requests(text):
                                                 for listed in steps_lists(lines) for item in listed.item_lines(lines))
 
 
+def env_names(item):
+    found = item_key(item, ENV_KEY)
+    if found is None:
+        return set()
+    inline = without_comment(found[0])
+    return set(FLOW_KEY.findall(outer_flow_text(inline))) if inline else child_names(found[1])
+
+
+def assigned_names(text):
+    return {word.split("=", 1)[0] for line in logical_lines(text) for segment in command_segments(words_of(line))
+            if command_of(segment) == TOLERATED_COMMAND for word in takewhile(ASSIGNMENT.match, segment)}
+
+
+def passes_labels(item):
+    return LABELS_VARIABLE in env_names(item) | assigned_names(run_text(item))
+
+
+def tolerated_items(lines):
+    return [item for listed in steps_lists(lines) for item in listed.item_lines(lines) if runs_qg_tolerated(run_text(item))]
+
+
+def child_block(lines, name):
+    content = [at for at, line in enumerate(lines) if is_content(line)]
+    depth = min((len(indent_of(lines[at])) for at in content), default=0)
+    for at in content:
+        found = KEY_LINE.fullmatch(lines[at].rstrip(CRLF)) if len(indent_of(lines[at])) == depth else None
+        if found and found.group(2) == name:
+            return found.group(3), list(continuation(lines[at + 1:], depth))
+    return None
+
+
+def listed_values(found):
+    inline = without_comment(found[0])
+    return flow_words(inline) if inline else child_names(found[1])
+
+
+def pull_request_types(lines):
+    found = top_block(lines, TRIGGERS_KEY)
+    if found is None or without_comment(found[0]):
+        return set()
+    request = child_block(lines[found[1]:found[2]], PULL_REQUEST)
+    types = None if request is None else child_block(request[1], TYPES_KEY)
+    return set() if types is None else listed_values(types)
+
+
+def step_notes(name, lines):
+    notes = [] if any(passes_labels(item) for item in tolerated_items(lines)) else [PASS_THE_LABELS.format(name)]
+    return notes + ([] if RERUN_ON <= pull_request_types(lines) else [RERUN_ON_LABELS.format(name)])
+
+
+def workflows_running_tolerated(root):
+    paths = workflow_files(root)
+    return [(path.relative_to(root).as_posix(), text.splitlines(keepends=True))
+            for path, text in zip(paths, each_text(paths)) if text is not None and runs_tolerated_on_pull_requests(text)]
+
+
 def tolerated_step_notes(root):
-    if any(text is not None and runs_tolerated_on_pull_requests(text) for text in each_text(workflow_files(root))):
-        return []
-    return ["\n".join([PASTE_THE_STEP, *(STEP_INDENT + line for line in TOLERATED_STEP)])]
+    running = workflows_running_tolerated(root)
+    if not running:
+        return ["\n".join([PASTE_THE_STEP, *(STEP_INDENT + line for line in TOLERATED_STEP)])]
+    found = [step_notes(name, lines) for name, lines in running]
+    return [] if [] in found else [note for notes in found for note in notes]
 
 
 def comment_gate_exclusions(root):

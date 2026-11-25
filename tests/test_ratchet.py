@@ -664,6 +664,11 @@ class UpdateWillNotRecreateABaselineMainHasTest(unittest.TestCase):
         git(self.root, "add", "mod.py")
         self.file = self.root / "cc.json"
 
+    def scratch(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        return Path(folder.name).resolve()
+
     def commit_baseline(self, text):
         self.file.write_text(text)
         git(self.root, "add", "cc.json")
@@ -678,6 +683,8 @@ class UpdateWillNotRecreateABaselineMainHasTest(unittest.TestCase):
         refusal = ratchet.MAIN_HAS_THE_BASELINE.format(file=file, branch="main")
         self.assertIn(refusal, out.splitlines())
         self.assertIn(f"git checkout main -- {file}", refusal)
+        self.assertIn("--rerecord", refusal)
+        self.assertIn("`tolerated-growth` label", refusal)
 
     def test_cc_check_update_will_not_recreate_a_deleted_baseline_main_has_and_names_why_in_one_line(self):
         self.commit_baseline('{"mod.py::old": 11}\n')
@@ -713,13 +720,13 @@ class UpdateWillNotRecreateABaselineMainHasTest(unittest.TestCase):
 
     def test_update_records_a_baseline_outside_any_repo_since_no_main_can_hold_it(self):
         self.commit_baseline('{"mod.py::old": 11}\n')
-        elsewhere = Path(tempfile.mkdtemp()).resolve() / "cc.json"
+        elsewhere = self.scratch() / "cc.json"
         self.assertEqual(self.cc_check(elsewhere)[0], 0)
         self.assertEqual(json.loads(elsewhere.read_text()), {"mod.py::old": 11})
 
     def test_update_will_not_recreate_a_baseline_the_main_of_the_other_repo_holding_it_has(self):
         git(self.root, "commit", "-q", "-m", "code")
-        other = Path(tempfile.mkdtemp()).resolve()
+        other = self.scratch()
         git(other, "init", "-q", "-b", "main")
         file = other / "cc.json"
         file.write_text("{}\n")
@@ -728,6 +735,13 @@ class UpdateWillNotRecreateABaselineMainHasTest(unittest.TestCase):
         file.unlink()
         self.assertRefused(*self.cc_check(file), file)
 
+    def test_update_will_not_recreate_a_baseline_under_another_spelling_where_git_ignores_case(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        git(self.root, "config", "core.ignorecase", "true")
+        self.file.unlink()
+        respelled = self.root / "CC.json"
+        self.assertRefused(*self.cc_check(respelled), respelled)
+
     def test_update_with_a_relative_baseline_path_checks_the_file_it_names(self):
         self.commit_baseline('{"mod.py::old": 11}\n')
         self.file.unlink()
@@ -735,6 +749,53 @@ class UpdateWillNotRecreateABaselineMainHasTest(unittest.TestCase):
         self.addCleanup(os.chdir, here)
         os.chdir(self.root)
         self.assertRefused(*self.cc_check(Path("cc.json")), Path("cc.json"))
+
+    def assertRerecorded(self, code, expected):
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(self.file.read_text()), expected)
+
+    def test_cc_check_rerecord_records_every_function_over_the_threshold_afresh_whatever_the_file_or_main_holds(self):
+        self.commit_baseline('{"gone.py::f": 20, "mod.py::old": 9}\n')
+        self.module.write_text(branchy("old", 10) + "\n\n" + branchy("new", 12))
+        for present in (True, False):
+            with self.subTest(present=present):
+                if not present:
+                    self.file.unlink()
+                argv = [str(self.module), "--threshold", "8", "--baseline", str(self.file), "--rerecord"]
+                self.assertRerecorded(call(qc.main, argv, self.root)[0], {"mod.py::new": 13, "mod.py::old": 11})
+
+    def test_crap_rerecord_records_afresh_when_main_has_the_baseline(self):
+        self.commit_baseline('{"mod.py::old": 1}\n')
+        coverage = self.root / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": [1]}}}))
+        self.file.unlink()
+        argv = ["--lang", "python", str(self.module), "--coverage-json", str(coverage), "--baseline", str(self.file)]
+        code, _ = call(crap.main, [*argv, "--rerecord"], self.root)
+        self.assertEqual(code, 0)
+        self.assertEqual(list(json.loads(self.file.read_text())), ["mod.py::old"])
+        self.assertGreater(json.loads(self.file.read_text())["mod.py::old"], 1)
+
+    def test_comment_debt_rerecord_records_afresh_when_main_has_the_baseline(self):
+        self.module.write_text("# one\n# two\nx = 1\n")
+        self.commit_baseline('{"mod.py": 1}\n')
+        self.file.unlink()
+        with redirect_stderr(io.StringIO()):
+            code = cd.main(["--rerecord"], root=self.root, baseline=self.file, out=io.StringIO())
+        self.assertRerecorded(code, {"mod.py": 2})
+
+    def test_rerecord_without_a_baseline_flag_is_a_usage_error(self):
+        for gate, argv in ((qc.main, [str(self.module), "--rerecord"]),
+                           (crap.main, ["--lang", "python", str(self.module), "--no-coverage", "--rerecord"])):
+            with self.subTest(gate.__module__):
+                code, out = call(gate, argv, self.root)
+                self.assertEqual(code, 2)
+                self.assertIn("--rerecord needs --baseline", out)
+
+    def test_rerecord_and_update_together_are_a_usage_error(self):
+        argv = [str(self.module), "--baseline", str(self.file), "--update", "--rerecord"]
+        self.assertEqual(call(qc.main, argv, self.root)[0], 2)
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            cd.main(["--update", "--rerecord"], root=self.root, baseline=self.file, out=io.StringIO())
 
     def test_update_that_finds_the_baseline_file_present_does_not_look_for_main(self):
         self.commit_baseline('{"mod.py::old": 11}\n')

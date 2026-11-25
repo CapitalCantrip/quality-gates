@@ -195,8 +195,9 @@ label allows it, or "the tolerated list did not grow".
   covers a path no prefix at `<ref>` covered. A prefix in
   `settings.no-comments.exclude` is new only when neither list at `<ref>`
   covered it, because the top-level list already skips the comment gate.
-  Lowering or removing entries or prefixes, or deleting a baseline, is not
-  growth.
+  With no choice file in the tree, the tree's list is the fixture folders the
+  scan then skips, so deleting the choice file counts. Lowering or removing
+  entries or prefixes, or deleting a baseline, is not growth.
 - First adoption: a baseline for a gate that has none at `<ref>`, and a choice
   file when `<ref>` has none, are not growth. Problems found at adoption are
   debt (ADR-006). When `<ref>` has the file, a re-created one is compared entry
@@ -206,18 +207,31 @@ label allows it, or "the tolerated list did not grow".
   exits 0 and still prints the line. It reads the labels from `QG_PR_LABELS`,
   which the CI step fills from the pull request's labels, comma-separated. The
   workflow's `pull_request` trigger lists `labeled` and `unlabeled`, so adding
-  the label runs the check again.
+  the label runs the check again. `qg setup` says what to add when the step
+  does not pass `QG_PR_LABELS` or the trigger lacks those types.
 - An agent never applies either label itself. The label is the builder's yes
-  on record, not a lock: one GitHub account cannot tell the two apart, and an
-  agent's label is an escape.
+  on record, not a lock: one GitHub account cannot tell the two apart, a pull
+  request can set `QG_PR_LABELS` in its own workflow because `pull_request`
+  runs the head's workflow, and an agent's label is an escape.
 
 **`--update` will not recreate a baseline that main has.** When the baseline
 file is missing and the default branch of the repository holding it has the
 file committed, `--update` writes nothing, exits 2 and says in one line to
-restore it with `git checkout <branch> -- <file>` and update from there. With
+restore it with `git checkout <branch> -- <file>` and update from there, or to
+record it afresh with `--rerecord`, after which the pull request needs the
+builder's label. Where git ignores case, a copy under another spelling counts.
+The branch is named as the remote's `HEAD` points, such as `origin/main`. With
 no such copy, no default branch, or a baseline outside any repository, it
 records a new one as before. This holds for `cc-check`, `crap` and
-`comment-debt` through the one ratchet.
+`comment-debt` through the one ratchet. It protects only the default branch's
+copy on the machine that runs it; CI's check compares against the pull
+request's real base.
+
+**`--rerecord` records a baseline afresh.** It replaces the file with every
+finding over the threshold, whatever the file or main holds, for the
+re-record steps releases ask for (re-keying after a counting change).
+`qg tolerated` still reports what grew, so the builder's label records the
+yes.
 
 Rejected:
 
@@ -229,3 +243,5 @@ Rejected:
   in every consumer's CI, for the same list the event already holds.
 - **Refusing `--update` for a baseline outside the repository.** Main cannot
   hold such a file, so there is nothing to restore.
+- **No way to re-record but deleting the file.** Every release that changes
+  how a gate counts asks for a re-record, and the refusal would block it.

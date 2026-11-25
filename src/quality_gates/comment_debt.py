@@ -454,6 +454,7 @@ def parse_args(argv):
     )
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
+    ratchet.add_rerecord(mode)
     mode.add_argument("--status", action="store_true", help="print the remaining debt, by area")
     mode.add_argument("--report", choices=sorted(LANGUAGES), metavar="LANGUAGE",
                       help="print one language's comment debt, chosen or not")
@@ -471,7 +472,8 @@ def asked(args, root, baseline) -> ratchet.Asked:
     if args.status or args.report:
         return ratchet.Asked(judged=False)
     file = Path(baseline or args.baseline or project_files.comment_debt_baseline(root))
-    return ratchet.Asked(file, args.update, covers=written_in(root, chosen_languages(root)))
+    return ratchet.Asked(file, args.update or args.rerecord, covers=written_in(root, chosen_languages(root)),
+                         rerecording=args.rerecord)
 
 
 def shown_first(args, root, out):

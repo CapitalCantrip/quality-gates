@@ -17,8 +17,12 @@ BAD_BASELINE = "bad baseline {}: {}"
 NOT_AN_OBJECT = "must be an object, got {}"
 NOT_A_NUMBER = "value for {} must be a number, got {}"
 NAN = "NaN"
+RERECORD_FLAG = "--rerecord"
+RERECORD_HELP = "record the baseline afresh from the tree, replacing it; CI then asks for the builder's label"
 MAIN_HAS_THE_BASELINE = ("{file}: the default branch {branch} has this baseline committed. "
-                         "Restore it with `git checkout {branch} -- {file}` and run --update from there.")
+                         "Restore it with `git checkout {branch} -- {file}` and run --update from there, "
+                         "or record it afresh with --rerecord; the pull request then needs the builder's "
+                         "`tolerated-growth` label.")
 UNMEASURED_ADVICE = (
     "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
     "the baseline keeps any entry they already have and records none for them."
@@ -95,6 +99,7 @@ class Asked:
     updating: bool = False
     judged: bool = True
     covers: Callable[[str], bool] = covers_every_file
+    rerecording: bool = False
 
 
 def location(root, file, function) -> Location:
@@ -256,6 +261,10 @@ def silencer_asked(root, updating: bool = False) -> Asked:
     return Asked(project_files.silencer_baseline(root), updating)
 
 
+def add_rerecord(group) -> None:
+    group.add_argument(RERECORD_FLAG, dest="rerecord", action="store_true", help=RERECORD_HELP)
+
+
 def told_on(error: ToolError, err):
     return getattr(error, "stream", None) or err or sys.stderr
 
@@ -288,15 +297,15 @@ class Settled:
 
 
 def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=None,
-           covers: Callable[[str], bool] = covers_every_file) -> Settled:
+           covers: Callable[[str], bool] = covers_every_file, rerecording: bool = False) -> Settled:
     find = keyed(find, root)
     stored = stored_baseline(file, updating, out)
-    if updating and stored is None:
+    if updating and stored is None and not rerecording:
         refuse_recreating(file, out)
     held = held_back(stored, covers)
     findings = find()
     unmeasured = frozenset(unmeasured_keys(findings))
-    judged = strongest(findings) if stored is None else {k: v for k, v in stored.items() if k not in held}
+    judged = strongest(findings) if stored is None or rerecording else without(stored, held)
     result = judge(findings, judged)
     if not updating or result.having(Outcome.FAILED):
         return Settled(findings, result, unmeasured)
@@ -398,7 +407,7 @@ def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNC
         return NOT_JUDGED
     if asked.baseline is None:
         return judge(find(), {})
-    settled = settle(find, asked.baseline, asked.updating, root, out, asked.covers)
+    settled = settle(find, asked.baseline, asked.updating, root, out, asked.covers, asked.rerecording)
     describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result
 

@@ -34,6 +34,11 @@ on:
     types: [opened, synchronize, reopened, labeled, unlabeled]
 ```
 
+On the agent's machine, `--update` refuses to recreate a deleted baseline only
+when the default branch's copy is there to compare; this step compares against
+the pull request's real base. To re-record a baseline on purpose, run the
+gate with `--rerecord`; the pull request then needs the builder's label.
+
 The job must have installed quality-gates before this step. `qg setup` never
 edits a workflow; it prints this step when no workflow that runs on pull
 requests runs `qg tolerated`.

@@ -364,7 +364,10 @@ other, the same on every machine and in CI. The details are in the
 - `--update` only lowers scores and removes entries. It never raises a score or
   adds a function; it exits 1 and writes nothing if the tree has either.
 - Without the baseline file, the check exits 2; `--update` creates it from the
-  current tree.
+  current tree, unless the default branch has it committed: then restore it.
+- `--rerecord` records the baseline afresh from the tree, replacing the file.
+  Use it when a release's CHANGELOG says to re-record; CI's `qg tolerated`
+  then asks for the builder's label.
 
 Commit the baseline, then add a test that calls the gate's `main` with it so CI
 enforces it:

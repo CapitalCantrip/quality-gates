@@ -10,10 +10,11 @@ SUMMARY = "say whether the tolerated list grew against a git ref"
 DID_NOT_GROW = "the tolerated list did not grow"
 GREW = "the tolerated list grew by {count}: {what}; {verdict}"
 ITEM_SEPARATOR = ", "
-NEEDS_A_LABEL = "it needs the builder's `tolerated-growth` label, or `loosening` on a loosening pull request"
+NEEDS_A_LABEL = ("it needs the builder's `tolerated-growth` label, or `loosening` on a loosening pull request: "
+                 "ask the builder; an agent never applies it")
 ALLOWED_BY = "the builder's `{label}` label allows it"
 BUILDER_LABELS = ("tolerated-growth", "loosening")
-LABELS_VARIABLE = "QG_PR_LABELS"
+LABELS_VARIABLE = project_files.LABELS_VARIABLE
 LABEL_SEPARATOR = ","
 TOP_EXCLUDE = "exclude"
 COMMENT_GATE_EXCLUDE = f"settings.{project_files.COMMENT_GATE}.exclude"
@@ -56,11 +57,12 @@ def widened(where, now, then):
 
 
 def excludes_grown(root, ref):
-    now, then = project_files.checked_choice(root), project_files.choice_at(root, ref)
-    if now is None or then is None:
+    then = project_files.choice_at(root, ref)
+    if then is None:
         return []
-    return (widened(TOP_EXCLUDE, now.exclude, then.exclude)
-            + widened(COMMENT_GATE_EXCLUDE, now.comment_gate_exclude, then.exclude + then.comment_gate_exclude))
+    top, comment_gate = project_files.exclusions(root)
+    return (widened(TOP_EXCLUDE, top, then.exclude)
+            + widened(COMMENT_GATE_EXCLUDE, comment_gate, then.exclude + then.comment_gate_exclude))
 
 
 SOURCES = (baselines_grown, excludes_grown)

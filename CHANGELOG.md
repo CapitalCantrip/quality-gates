@@ -29,17 +29,20 @@
   step from the `setup-standards` skill's `ci-tolerated.md` at the end of the
   steps of the job that runs the gates, in a workflow that runs on pull
   requests, add `types: [opened, synchronize, reopened, labeled, unlabeled]`
-  to that workflow's `pull_request` trigger, and commit it. If you pasted the
-  earlier step, paste it again: it now passes the labels in `QG_PR_LABELS`.
-  `qg setup` never edits a workflow: when no such workflow runs
-  `qg tolerated`, it prints the step to paste, and `qg setup --json` lists it
-  under `notes`. No score, threshold or scanned file changes.
-- **`--update` will not recreate a baseline that main has** (`cc-check`,
-  `crap`, `comment-debt`; ADR-009 addendum 2026-11-26). Deleting a committed
-  baseline and running `--update` used to record every new and worse
-  function; now it exits 2 and says to restore the file with
-  `git checkout <branch> -- <file>`. A first baseline, where the default
-  branch has none, is recorded as before. Nothing to do on bumping the pin.
+  to that workflow's `pull_request` trigger, and commit it. `qg setup` never
+  edits a workflow: when no such workflow runs `qg tolerated`, it prints the
+  step to paste, and when the step does not pass `QG_PR_LABELS` or the
+  trigger lacks those types, it says what to add; `qg setup --json` lists the
+  same under `notes`. No score, threshold or scanned file changes.
+- **`--update` will not recreate a baseline that main has; `--rerecord`
+  records one afresh** (`cc-check`, `crap`, `comment-debt`; ADR-009 addendum
+  2026-11-26). Deleting a committed baseline and running `--update` used to
+  record every new and worse function; now it exits 2 and says to restore the
+  file with `git checkout <branch> -- <file>`, or to run `--rerecord`. A first
+  baseline, where the default branch has none, is recorded as before. On
+  bumping the pin: wherever an earlier entry, or this release, says to delete
+  a baseline and run `--update`, run the gate with `--rerecord` instead and
+  ask the builder for the `tolerated-growth` label on that pull request.
 
 ## 0.14.2 — 2026-11-26
 

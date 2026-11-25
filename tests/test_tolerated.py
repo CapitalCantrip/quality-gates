@@ -23,6 +23,12 @@ def git(root, *args):
                    capture_output=True)
 
 
+def scratch(test):
+    folder = tempfile.TemporaryDirectory()
+    test.addCleanup(folder.cleanup)
+    return Path(folder.name).resolve()
+
+
 def run(argv):
     out, err = io.StringIO(), io.StringIO()
     with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
@@ -35,7 +41,7 @@ def run(argv):
 
 class QgTolerated(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp()).resolve()
+        self.root = scratch(self)
         git(self.root, "init", "-q", "-b", "main")
         (self.root / "cc-baseline.json").write_text('{"a.py::old": 11}\n', encoding="utf-8")
         git(self.root, "add", "cc-baseline.json")
@@ -81,7 +87,7 @@ GROWTH_LABELS = ("tolerated-growth", "loosening")
 
 class ToleratedListGrowth(unittest.TestCase):
     def setUp(self):
-        self.root = Path(tempfile.mkdtemp()).resolve()
+        self.root = scratch(self)
         git(self.root, "init", "-q", "-b", "main")
         self.write("a.py", "x = 1\n")
         self.write("cc-baseline.json", '{"a.py::old": 11}\n')
@@ -113,6 +119,7 @@ class ToleratedListGrowth(unittest.TestCase):
         for item in grown:
             self.assertIn(item, out)
         self.assertIn("tolerated-growth", out)
+        self.assertIn("ask the builder; an agent never applies it", out)
         return out
 
     def assertDidNotGrow(self):
@@ -204,6 +211,21 @@ class ToleratedListGrowth(unittest.TestCase):
         self.write("quality-gates.json", choice(exclude=["gen/"]))
         self.assertGrew("quality-gates.json exclude gen/ (new)")
 
+    def commit_fixture(self, exclude=()):
+        self.write("tests/fixtures/f.py", "x = 1\n")
+        self.write("quality-gates.json", choice(exclude=exclude))
+        git(self.root, "add", "tests/fixtures/f.py", "quality-gates.json")
+        git(self.root, "commit", "-q", "-m", "fixture")
+        (self.root / "quality-gates.json").unlink()
+
+    def test_deleting_the_choice_file_counts_the_fixture_folders_the_scan_then_skips_as_growth(self):
+        self.commit_fixture()
+        self.assertGrew("quality-gates.json exclude tests/fixtures/ (new)")
+
+    def test_deleting_a_choice_file_that_already_excluded_the_fixture_folders_is_not_growth(self):
+        self.commit_fixture(exclude=["tests/"])
+        self.assertDidNotGrow()
+
     def test_both_growths_in_one_change_are_counted_on_the_one_line(self):
         self.route_2()
         self.route_3()
@@ -251,7 +273,7 @@ class TheCiStepPassesTheLabels(unittest.TestCase):
         self.assertIn(passed, [line.strip() for line in project_files.TOLERATED_STEP])
 
     def test_the_paste_note_says_the_trigger_must_rerun_the_check_when_a_label_is_added_or_removed(self):
-        note = " ".join(project_files.tolerated_step_notes(Path(tempfile.mkdtemp()))[0].split())
+        note = " ".join(project_files.tolerated_step_notes(scratch(self))[0].split())
         self.assertIn("types: [opened, synchronize, reopened, labeled, unlabeled]", note)
 
 

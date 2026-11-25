@@ -17,11 +17,16 @@ enforce the limits in CI without first paying it all off.
   permissive would let a mistyped path pass CI.
 - **`--update` will not recreate a baseline that main has.** When the file is
   missing and the default branch of the repository holding it has it
-  committed, `--update` writes nothing, exits 2 and says to restore it with
-  `git checkout <branch> -- <file>` and update from there. With no such copy,
-  no default branch, or a baseline outside any repository, it records a new
-  one. Otherwise deleting the file and running `--update` would record every
-  new and worse function.
+  committed (under any spelling where git ignores case), `--update` writes
+  nothing, exits 2 and says to restore it with `git checkout <branch> --
+  <file>`, or to run `--rerecord`. With no such copy, no default branch, or a
+  baseline outside any repository, it records a new one. Otherwise deleting
+  the file and running `--update` would record every new and worse function.
+  It guards only the local default branch's copy; CI compares against the
+  real base.
+- **`--rerecord` records a baseline afresh** from the tree, replacing the
+  file, for the re-record steps a release asks for. CI's `qg tolerated` then
+  asks for the builder's label.
 - **An unmeasured function is never recorded, and keeps a nonzero entry.**
   `--update` lowers and removes entries for measured functions, adds none for an
   unmeasured one, and keeps an existing nonzero entry as it is while the
@@ -105,14 +110,16 @@ often.
   choice file's `exclude` and `settings.no-comments.exclude`. Growth is a
   baseline entry new or higher, or an exclude prefix covering a path no
   prefix at the base covered; a `settings.no-comments.exclude` prefix the
-  base's top-level `exclude` covered is not new. Lowering or removing is not
-  growth. A baseline for a gate with none at the base, or a choice file where
+  base's top-level `exclude` covered is not new. With no choice file in the
+  tree, the tree's list is the fixture folders the scan then skips. Lowering
+  or removing is not growth. A baseline for a gate with none at the base, or a choice file where
   the base has none, is adoption, not growth. With growth it exits 1 unless
   the pull request carries `tolerated-growth`, or `loosening` on a loosening
   pull request, read from `QG_PR_LABELS` that the CI step fills; the
   `pull_request` trigger lists `labeled` and `unlabeled` so the label re-runs
-  it. An agent never applies either label: the label is the builder's yes on
-  record, not a lock.
+  it, and `qg setup` says what to add when either is missing. An agent never
+  applies either label: the label is the builder's yes on record, not a lock,
+  since a pull request can set `QG_PR_LABELS` in its own workflow.
   ([ADR-009 addendum 2026-11-26](archive/ADR-009-recorded-reasons-and-loosening.md#addendum-2026-11-26-the-tolerated-check-as-built---update-will-not-recreate-mains-baseline))
 - **Decided, not built yet (quality-gates#115): recorded reasons are part
   of the tolerated list.** A new record needs the builder's label on its pull
