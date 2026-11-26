@@ -121,9 +121,10 @@
   reason lines stay comment debt. A marker in a string, template or regex
   literal is neither a silencer nor comment debt, though a coverage tool may
   still read it there: `c8` matches `/* c8 ignore start */` anywhere on a line,
-  and Vitest's `v8` provider matches `istanbul`, `c8` or `v8` then `ignore start`
-  or `stop` on any raw source line, so `const s = 'v8 ignore start';` hides the
-  code below it and the gate counts it nowhere (a known gap, ADR-010 addendum); `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and
+  Vitest's `v8` provider matches `istanbul`, `c8` or `v8` then `ignore start`
+  or `stop` on any raw source line, and its `istanbul` provider matches
+  `istanbul ignore start` or `stop` the same way, so `const s = 'v8 ignore start';`
+  hides the code below it and the gate counts it nowhere (a known gap, ADR-010 addendum); `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and
   `prettier-ignore` stay exempt. On bumping the pin, a TypeScript consumer with
   `no-comments-typescript` chosen runs `comment-debt --update` once and commits
   `silencer-baseline.json` and `comment-debt.json`: their comment debt falls and

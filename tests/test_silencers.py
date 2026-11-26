@@ -538,6 +538,14 @@ def ts_with(comment):
     return f'{comment}\nfunction f(x: number): number {{\n  return x;\n}}\n'
 
 
+class CommentSilencerPatternTest(unittest.TestCase):
+
+    def test_a_comment_silencer_pattern_with_no_marker_group_reports_the_line_its_match_starts_on(self):
+        comment = dataclasses.make_dataclass("Comment", ["start", "text"])(3, "/*\n  why\n  hush */")
+        reading = dataclasses.make_dataclass("Reading", ["comments"])([comment])
+        self.assertEqual(cd.in_comments(re.compile(r"hush"))(reading, ""), (5,))
+
+
 class TypeScriptSilencerReaderTest(unittest.TestCase):
 
     def silenced_by(self, comment):

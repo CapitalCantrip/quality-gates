@@ -113,7 +113,8 @@ def silences_nothing(reading, source):
 
 
 def marker_line(comment, found):
-    return comment.start + comment.text.count(code_reader.NEWLINE, 0, found.start(MARKER_GROUP))
+    at = found.start(MARKER_GROUP) if MARKER_GROUP in found.re.groupindex else found.start()
+    return comment.start + comment.text.count(code_reader.NEWLINE, 0, at)
 
 
 def in_comments(pattern):

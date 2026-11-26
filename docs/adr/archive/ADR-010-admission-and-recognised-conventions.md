@@ -439,9 +439,10 @@ of the marked code left the Istanbul JSON.
 
 | Tool (versions run) | Reads |
 |---|---|
-| `istanbul-lib-instrument` 6.0.3 (nyc, babel-plugin-istanbul, Jest's default, Vitest's `istanbul` provider) | the word `istanbul` only. `//` and `/* */`, where the comment text opens with `istanbul ignore` and `if`, `else`, `next` or `file`, with any whitespace. Not `/** */`. No `start` or `stop`. Whatever follows the hint is ignored |
+| `istanbul-lib-instrument` 6.0.3 (nyc, babel-plugin-istanbul, Jest's default) | the word `istanbul` only. `//` and `/* */`, where the comment text opens with `istanbul ignore` and `if`, `else`, `next` or `file`, with any whitespace. Not `/** */`. No `start` or `stop`. Whatever follows the hint is ignored |
 | `v8-to-istanbul` 9.3.0 under `c8` 12.0.0 (Jest's `v8` provider) | the words `c8` and `v8`, line by line. `/* c8 ignore next [N]` with exactly one space after `/*`, and `start` and `stop`. Not `//`, not `/*c8`, not `/**`. No `if`, `else` or `file` |
 | `ast-v8-to-istanbul` 1.0.8 under Vitest 5.1.2's `v8` provider | all three words, each hint (`if`, `else`, `next`, `file`, `start`, `stop`) and each form (`//`, `/* */`, `/** */`), with any whitespace; 54 of 54 combinations hid code or dropped the file |
+| `@vitest/istanbul-lib-instrument` 2.1.1 under Vitest 5.1.2's `istanbul` provider | what `istanbul-lib-instrument` reads, and also `istanbul ignore start` or `stop` on any raw source line (it runs with `ignoreLines: true`), with no comment opener |
 
 **The gate cannot tell which tool made the report,** since `crap` reads one
 Istanbul JSON whatever wrote it. So the silencer is what any of the three reads,
@@ -495,6 +496,9 @@ and is neither a silencer nor comment debt (each run on 2026-11-26):
 - Vitest's `v8` provider matches `istanbul`, `c8` or `v8` then `ignore start`
   or `stop` on any raw source line, with no comment opener: `const s = 'v8
   ignore start';` hides the code below it to a `stop` or the end of the file.
+- Vitest's `istanbul` provider matches `istanbul ignore start` or `stop` on any
+  raw source line: `const s = "istanbul ignore start";` hides the code below it
+  the same way.
 - Vitest's `start` and `stop` are also read on any line of a block comment, where
   the gate reads only the line the marker opens.
 - `node:coverage ignore next`, `disable` and `enable`, which Node's runner,
