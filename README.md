@@ -75,8 +75,8 @@ files; it needs no install of its own.
 
 ### Keep it up to date
 
-Each [CHANGELOG.md](CHANGELOG.md) entry ends with what to do for that version.
-In general, on your computer or by asking Claude in a cloud session:
+Each release in [CHANGELOG.md](CHANGELOG.md) says what to do for that version,
+in an *On bumping the pin* block or at the end of an entry. In general, on your computer or by asking Claude in a cloud session:
 
 1. Install quality-gates again with the new version number in the line from
    step 1.

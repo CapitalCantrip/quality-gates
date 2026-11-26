@@ -2,6 +2,34 @@
 
 ## Unreleased
 
+**On bumping the pin,** do these in order; each step applies only to a project
+that uses what it names, and one pull request can carry them all.
+
+1. Run `qg-skills` and commit `.claude/` (the skills and `.claude/agents/`).
+2. Run `qg-agent-docs --tracker <github|gitlab|local>` (or `/setup-standards`),
+   and on a GitHub tracker `gh label create escaped`; commit
+   `.github/ISSUE_TEMPLATE/` and `docs/agents/.base/escaped.md`.
+3. Paste the step from the `setup-standards` skill's `ci-tolerated.md` at the
+   end of the steps of the job that runs the gates, in a workflow that runs on
+   pull requests, add `types: [opened, synchronize, reopened, labeled,
+   unlabeled]` to that workflow's `pull_request` trigger, and commit it.
+4. Run `comment-debt --update` once and commit `silencer-baseline.json` and
+   `comment-debt.json`: it records every language's silencers at once (Python's
+   pragmas; Swift's disable lines, TypeScript's ignore markers, Rust's allow
+   attributes and lizard's forgive marker, for each comment row the project
+   chose). Where main
+   already has `silencer-baseline.json`, `--update` records no new silencer: run
+   `comment-debt --rerecord` instead, check that `git diff comment-debt.json`
+   shows no count that grew, and ask the builder for the `tolerated-growth`
+   label on that pull request (an agent never applies it). Where an entry of an
+   earlier release says to delete a baseline and run `--update`, run
+   `--rerecord` and ask for the label the same way.
+5. For TypeScript, JavaScript and Swift, run `cc-check --lang typescript
+   --baseline <file>` and `crap`: a baseline that reports entries as PAID takes
+   `--update`; one that reports a function as new or worse takes `--rerecord`,
+   and the builder's `tolerated-growth` label. Fix or exclude each file shown
+   as `UNMEASURED`.
+
 - **An escape log: an `escaped` label and a four-question issue template
   (#196).** An escape is a problem that got past every gate and was found
   later. `/setup-standards` now creates the `escaped` label, and
@@ -19,10 +47,8 @@
   of its files nor the PR template; replace the link with a folder to get
   updates. The `standards` skill gains *file an escape*: an agent files one when
   it fixes a problem a merged change introduced, and never applies
-  `tolerated-growth` or `loosening`. On bumping the pin, rerun `qg-skills`,
-  then `/setup-standards` (or `gh label create escaped` and `qg-agent-docs
-  --tracker <github|gitlab|local>`), and commit `.github/ISSUE_TEMPLATE/` and
-  `docs/agents/.base/escaped.md`. No score, threshold or scanned file changes.
+  `tolerated-growth` or `loosening`. No score, threshold or scanned file
+  changes.
 - **radon and lizard are pinned to exact versions, and TypeScript and Swift
   counts move (#198, #123, #173).** The package asks for `radon==6.0.1` and
   `lizard==1.26.1`, so the date of an install no longer chooses the counter; it
@@ -32,27 +58,20 @@
   They also count `guard` and `if` condition-list commas and string
   interpolation in Swift, and report computed properties as functions, so some
   functions appear that no baseline holds, some disappear, and some score higher
-  or lower. On a public Swift project, rows above CC 8 went from 73 to 96. On
-  bumping the pin, run `cc-check --lang typescript --baseline <file>` and `crap`
-  for TypeScript, JavaScript and Swift; where a baseline now fails as new or
-  worse, run the gate once with `--rerecord`, commit the file, and ask the
-  builder for the `tolerated-growth` label on that pull request (an agent never
-  applies it). This is the last time a counter moves without a release saying
-  so. A project that adds
-  quality-gates to its dev dependencies and needs another radon or lizard now
-  gets a resolver conflict: move its own requirement, or install with
+  or lower. On a public Swift project, rows above CC 8 went from 73 to 96. This
+  is the last time a counter moves without a release saying so. A project that
+  adds quality-gates to its dev dependencies and needs another radon or lizard
+  now gets a resolver conflict: move its own requirement, or install with
   `uv tool install`.
 - **A file the complexity gates cannot read now fails as unmeasured (#212).**
   `cc-check` and `crap` used to pass a Python file that did not parse or was
   not UTF-8 as clean; each now names it as `UNMEASURED` in the ratchet's
   wording and exits 1, with no traceback, and `crap --json` lists it under
-  `"unmeasured"`. A baselined function in such a file keeps its entry. On
-  bumping the pin, fix or exclude a file that now fails as `UNMEASURED`.
+  `"unmeasured"`. A baselined function in such a file keeps its entry.
   lizard still scores malformed TypeScript and Swift leniently.
 - **Four agents ship (ADR-013):** `implementer`, `reviewer`, `debt-payer` and
   `diagnoser`. `qg-skills` copies them into `.claude/agents/` and
-  `qg-skills --check` fails on a stale copy. On bumping the pin, rerun
-  `qg-skills` and commit `.claude/agents/`. If the project already has its own
+  `qg-skills --check` fails on a stale copy. If the project already has its own
   agent with one of those names, as its filename or the `name:` in its
   frontmatter, `qg-skills` stops, changes nothing and names
   the file: rename or remove it, then rerun. An orchestration prompt that
@@ -72,11 +91,7 @@
   `settings.no-comments.exclude`; adopting a gate with no baseline on the
   base is not growth. The step prints one line saying what grew; the builder
   applies `tolerated-growth` (or `loosening` on a loosening pull request) to
-  say yes, and an agent never applies either. On bumping the pin, paste the
-  step from the `setup-standards` skill's `ci-tolerated.md` at the end of the
-  steps of the job that runs the gates, in a workflow that runs on pull
-  requests, add `types: [opened, synchronize, reopened, labeled, unlabeled]`
-  to that workflow's `pull_request` trigger, and commit it. `qg setup` never
+  say yes, and an agent never applies either. `qg setup` never
   edits a workflow: when no such workflow runs `qg tolerated`, it prints the
   step to paste, and when the step does not pass `QG_PR_LABELS` or the
   trigger lacks those types, it says what to add; `qg setup --json` lists the
@@ -89,10 +104,7 @@
   baseline, where the default branch has none, is recorded as before.
   `--rerecord` records measured entries afresh and keeps unmeasured ones; in
   `comment-debt` it records the silencer baseline too. An unreadable baseline
-  stops it: delete the file first. On
-  bumping the pin: wherever an earlier entry, or this release, says to delete
-  a baseline and run `--update`, run the gate with `--rerecord` instead and
-  ask the builder for the `tolerated-growth` label on that pull request.
+  stops it: delete the file first.
 - **Python's `# pragma: no cover` and `# pragma: no branch` are silencers
   (ADR-010 addendum 2026-11-26).** `comment-debt` now reports a marker that
   switches off one of our own gates as its own finding, held in
@@ -101,12 +113,10 @@
   hiding its untested branches under the pragma; now each pragma fails the
   gate unless it is recorded. The pragma counts wherever it sits on a line, a
   string or docstring included, as coverage.py reads the line. `# noqa`, `# type: ignore` and `# fmt:` are
-  neither comment lines nor silencers. On bumping the pin, run
-  `comment-debt --update` once and commit `silencer-baseline.json`: until it
-  exists `comment-debt` exits 2, and it records the pragmas already there.
-  Your comment-debt count drops by any pragma that carried prose. `qg setup`
-  now records `silencer-baseline.json` beside `comment-debt.json` when it
-  switches a comment language on. TypeScript, Swift and Rust silencers follow.
+  neither comment lines nor silencers. Until `silencer-baseline.json` exists
+  `comment-debt` exits 2. Your comment-debt count drops by any pragma that
+  carried prose. `qg setup` now records `silencer-baseline.json` beside
+  `comment-debt.json` when it switches a comment language on.
 - **Swift's `// swiftlint:disable` is a silencer (ADR-010 addendum 2026-11-26,
   #235).** `swiftlint:disable` switches off SwiftLint's `cyclomatic_complexity`,
   and the comment gate used to exempt it, so a failing function passed with one
@@ -118,15 +128,8 @@
   stays an ordinary comment line. `swiftlint:enable` in every form stays
   exempt; a `swiftlint:disable` in a string literal is neither a silencer nor
   comment debt. A disable that carried prose used to count as a comment line and
-  no longer does. On bumping the pin, a Swift consumer with `no-comments-swift`
-  chosen runs `comment-debt --update` once and commits `silencer-baseline.json`
-  to record their disable lines. If `silencer-baseline.json` already exists
-  from an earlier bump, `--update` records no new silencer: run
-  `comment-debt --rerecord`, which replaces both `comment-debt.json` and
-  `silencer-baseline.json` afresh, so check that `git diff comment-debt.json`
-  shows no count that grew, and ask the builder for the `tolerated-growth`
-  label. `/cc-swift` and `/setup-standards` now say to record the disable lines
-  they tell a consumer to add; run `qg-skills`.
+  no longer does. `/cc-swift` and `/setup-standards` now say to record the
+  disable lines they tell a consumer to add.
 - **TypeScript's `istanbul ignore`, `c8 ignore` and `v8 ignore` comments are
   silencers (ADR-010 addendum 2026-11-26, #236).** They take lines and branches
   out of the coverage report `crap --lang typescript` reads, and the comment
@@ -146,15 +149,9 @@
   or `stop` on any raw source line, and its `istanbul` provider matches
   `istanbul ignore start` or `stop` the same way, so `const s = 'v8 ignore start';`
   hides the code below it and the gate counts it nowhere (a known gap, ADR-010 addendum); `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and
-  `prettier-ignore` stay exempt. On bumping the pin, a TypeScript consumer with
-  `no-comments-typescript` chosen runs `comment-debt --update` once and commits
-  `silencer-baseline.json` and `comment-debt.json`: their comment debt falls and
-  their silencer baseline records the markers, by the same lines. If
-  `silencer-baseline.json` already exists from an earlier bump, `--update`
-  records no new silencer: run `comment-debt --rerecord`, check that `git diff
-  comment-debt.json` shows no count that grew, and ask the builder for the
-  `tolerated-growth` label. `/no-comments` and `/setup-standards` now say so;
-  run `qg-skills`.
+  `prettier-ignore` stay exempt. A TypeScript consumer's comment debt falls and
+  its silencer baseline records the markers, by the same lines. `/no-comments`
+  and `/setup-standards` now say so.
 - **Rust's complexity `allow` attributes are silencers (ADR-010 addendum
   2026-11-26, #237).** `#[allow(clippy::cognitive_complexity)]` and
   `#[allow(clippy::too_many_lines)]` switch off the two lints `cc-rust` denies,
@@ -176,15 +173,9 @@
   `clippy.toml`; `#[warn(clippy::cognitive_complexity)]` (or `too_many_lines`)
   downgrades the deny to a warning, so plain `cargo clippy --all-targets` exits 0
   (checked with clippy 0.1.98). None is counted yet (#255), and a Rust consumer without
-  `no-comments-rust` still has its allow attributes uncounted. On bumping the
-  pin, a Rust consumer with `no-comments-rust` chosen runs
-  `comment-debt --update` once and commits `silencer-baseline.json` to record
-  their allow attributes. If `silencer-baseline.json` already exists from an
-  earlier bump, `--update` records no new silencer: run `comment-debt --rerecord`,
-  which replaces both `comment-debt.json` and `silencer-baseline.json` afresh, so
-  check that `git diff comment-debt.json` shows no count that grew, and ask the
-  builder for the `tolerated-growth` label. `/cc-rust` and `/setup-standards`
-  now say to record the attributes they tell a consumer to add; run `qg-skills`.
+  `no-comments-rust` still has its allow attributes uncounted. `/cc-rust` and
+  `/setup-standards` now say to record the attributes they tell a consumer to
+  add.
 - **lizard's `#lizard forgive` comment is a silencer (ADR-010 addendum
   2026-11-26, #244).** lizard drops the next function that ends, so `cc-check
   --lang typescript` and `crap` for TypeScript, JavaScript and Swift never scored
@@ -207,16 +198,10 @@
   or a lone carriage return, in a Swift extended regex, or above an expression
   lizard abandons is counted though lizard ignores it. lizard stops reading a
   file at any comment containing `GENERATED CODE`, so no function after it is
-  scored (#261). On bumping the pin, a TypeScript, JavaScript or Swift
-  consumer with the comment row chosen and a `#lizard forgive` in their code runs
-  `comment-debt --update` once and commits `silencer-baseline.json` and
-  `comment-debt.json`: their comment debt falls and their silencer baseline
-  records the markers, by the same lines. If `silencer-baseline.json` already
-  exists from an earlier bump, `--update` records no new silencer: run
-  `comment-debt --rerecord`, check that `git diff comment-debt.json` shows no
-  count that grew, and ask the builder for the `tolerated-growth` label.
-  `/no-comments`, `/setup-standards`, `/cc-swift` and `/cc-typescript` now say
-  so; run `qg-skills`.
+  scored (#261). A TypeScript, JavaScript or Swift consumer with the comment row
+  chosen and a `#lizard forgive` in its code sees its comment debt fall and its
+  silencer baseline record the markers, by the same lines. `/no-comments`,
+  `/setup-standards`, `/cc-swift` and `/cc-typescript` now say so.
 
 ## 0.14.2 — 2026-11-26
 
