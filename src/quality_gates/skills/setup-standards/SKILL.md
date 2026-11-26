@@ -42,11 +42,14 @@ explanation fresh.
    `docs/agents/` from Matt Pocock's setup templates, writes
    `.github/pull_request_template.md` with the `pr` skill's headings, adds the
    Agent skills block to `CLAUDE.md` (with a *Pull requests* section that
-   sends PR bodies to the `pr` skill), and never overwrites a file the project edited. Copy
-   every line of its output into the report, including any template diff, so
-   the builder can choose to adopt it.
+   sends PR bodies to the `pr` skill), on a GitHub tracker writes
+   `.github/ISSUE_TEMPLATE/escaped.md` (the escape template: four questions,
+   the fourth listing the project's gates), and never overwrites a file the project edited. Copy
+   every line of its output into the report, including any template diff and
+   any `not written` line, so the builder can choose to adopt it.
 4. On GitHub, create each of the five labels in `docs/agents/triage-labels.md`
-   that `gh label list` lacks, with `gh label create`.
+   that `gh label list` lacks, with `gh label create`, and the `escaped` label
+   the same way: `gh label create escaped --description "A problem that got past every gate and was found later" --color D93F0B`.
 5. Glossary: if `CONTEXT.md` exists and `GLOSSARY.md` does not, `git mv` it to
    `GLOSSARY.md`, replace `CONTEXT` with `GLOSSARY` in `docs/agents/domain.md`,
    and run `qg-agent-docs` again. If neither exists, write `GLOSSARY.md`
@@ -65,8 +68,8 @@ explanation fresh.
    `CLAUDE.md` the same way, and rewrite any that only name a file. Put each
    before and after in the report.
 
-Done when `qg-agent-docs` reports every file, the five labels exist, a
-glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
+Done when `qg-agent-docs` reports every file, the five labels and `escaped`
+exist, a glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 `docs/agents/`, and every line in `CLAUDE.md` that names a file in
 `docs/agents/` also says what that file holds.
 
@@ -133,6 +136,9 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    `quality-gates.json` and `comment-debt.json`. For a row to record as debt,
    run `qg setup --go --choose <id>` and `comment-debt`, then commit
    `quality-gates.json` and `comment-debt.json`.
+7. Run `qg-agent-docs --tracker <github|gitlab|local>` again. On GitHub, the
+   escape template's fourth question now lists every chosen gate; commit
+   `.github/ISSUE_TEMPLATE/escaped.md` and `docs/agents/.base/escaped.md`.
 
 From here on, do only the blocks for the languages the file records, and only
 for chosen components.
@@ -166,8 +172,9 @@ for chosen components.
 Done when `quality-gates.json` records the builder's answer, every offered
 comment row is recorded as debt, cleaned first and then chosen, or declined,
 every recorded language's chosen gates are configured, each CRAP gate step 2 or 3 says to
-report as not done is reported not done with its reason, and `qg-skills` has
-run.
+report as not done is reported not done with its reason, `qg-skills` has
+run, and on GitHub the escape template's fourth question names every chosen
+gate, or `qg-agent-docs` reported it kept.
 
 ## 3. Baselines
 
