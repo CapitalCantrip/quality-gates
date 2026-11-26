@@ -20,5 +20,5 @@ The gate reads a coverage report from a test run, so run the tests with coverage
 
 ## Want to go deeper?
 
-- [Test Coverage, Martin Fowler](https://martinfowler.com/bliki/TestCoverage.html): why a coverage percentage is a poor target on its own, which is why this gate reads the tangle too. Checked 2026-11-25.
-- [Cyclomatic Complexity, radon documentation](https://radon.readthedocs.io/en/latest/intro.html): how the tangle count is made, one for each place the code can branch. Checked 2026-11-25.
+- [Test Coverage, Martin Fowler](https://martinfowler.com/bliki/TestCoverage.html): why a coverage percentage is a poor target on its own, which is why this gate reads the tangle too. Checked 2026-11-27.
+- [Cyclomatic Complexity, radon documentation](https://radon.readthedocs.io/en/latest/intro.html): how the tangle count is made, one for each place the code can branch. Checked 2026-11-27.
