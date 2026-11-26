@@ -485,7 +485,9 @@ an unchanged tag the day an install resolved the new release (#173).
 record's `minimum_version` and `tested_version` both name that same version, and
 a test fails when the requirement is not `==`, or when either field disagrees
 with it. The test holds every entry of `dependencies` to this rule, so a package
-that counts nothing needs the rule and the test changed first.
+that counts nothing needs the rule and the test changed first. The optional
+`coverage` extra (`coverage>=7.10`) is not in `dependencies`, so the rule does
+not hold it.
 
 **Moving a counting tool is a release.** The change that moves it:
 
