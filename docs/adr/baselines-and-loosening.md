@@ -45,10 +45,8 @@ enforce the limits in CI without first paying it all off.
   not a gate.
 <!-- /rule:baseline-ratchet -->
 
-`--rerecord` and `--update` keep files outside what the gate checks only in
-`comment-debt`, which passes the ratchet the languages it chose; `cc-check` and
-`crap` pass none, so the entries of a file outside their scan are dropped
-(quality-gates#263).
+Only `comment-debt` passes the ratchet the languages it chose, so only it keeps
+the entries of the others; `cc-check` and `crap` pass none (quality-gates#263).
 
 ## Baseline keys
 
