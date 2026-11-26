@@ -888,6 +888,9 @@ class EveryWayToWriteABaselineKeepsTheBaselineRulesTest(unittest.TestCase):
     def stored(self):
         return json.loads(self.file.read_text())
 
+    def silencers(self):
+        return json.loads((self.root / "silencer-baseline.json").read_text())
+
     def cc_check(self, flag):
         self.module.write_text(branchy("old", 10))
         (self.root / "bad.py").write_text("def f(:\n")
@@ -906,7 +909,7 @@ class EveryWayToWriteABaselineKeepsTheBaselineRulesTest(unittest.TestCase):
 
     def comment_debt(self, flag):
         self.module.write_text("# one\ndef f(:\n")
-        (self.root / "silencer-baseline.json").write_text("{}\n")
+        (self.root / "silencer-baseline.json").write_text('{"mod.py": 1}\n')
         with redirect_stderr(io.StringIO()):
             return cd.main([flag], root=self.root, baseline=self.file, out=io.StringIO()), ""
 
@@ -919,21 +922,25 @@ class EveryWayToWriteABaselineKeepsTheBaselineRulesTest(unittest.TestCase):
                     self.file.write_text(json.dumps(baseline))
                     self.assertEqual(gate(flag)[0], 1)
                     self.assertEqual(self.stored(), baseline)
+                    if gate == self.comment_debt:
+                        self.assertEqual(self.silencers(), {"mod.py": 1})
 
     def test_every_write_keeps_the_entry_of_a_file_outside_what_the_gate_checks(self):
         (self.root / "quality-gates.json").write_text(json.dumps({
             "format_version": 1, "languages": ["python"], "exclude": [],
             "components": {"chosen": [], "declined": []}, "commit_time_limit_seconds": 2,
             "settings": {"no-comments": {"exclude": [], "conventions": []}}}))
-        (self.root / "silencer-baseline.json").write_text("{}\n")
         self.module.write_text("# one\n# two\n")
+        (self.root / "b.js").write_text("f(); // istanbul ignore next\n")
         for flag in WRITES:
             with self.subTest(write=flag):
-                self.file.write_text('{"mod.py": 2}\n')
+                self.file.write_text('{"mod.py": 2, "b.js": 1}\n')
+                (self.root / "silencer-baseline.json").write_text('{"b.js": 1}\n')
                 with redirect_stderr(io.StringIO()):
                     code = cd.main([flag], root=self.root, baseline=self.file, out=io.StringIO())
                 self.assertEqual(code, 0)
-                self.assertEqual(self.stored(), {"mod.py": 2})
+                self.assertEqual(self.stored(), {"mod.py": 2, "b.js": 1})
+                self.assertEqual(self.silencers(), {"b.js": 1})
 
     def test_every_write_stops_at_an_unreadable_baseline_and_leaves_it_as_it_was_in_every_gate(self):
         for gate in (self.cc_check, self.crap, self.comment_debt):
