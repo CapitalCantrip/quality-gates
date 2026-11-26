@@ -17,18 +17,25 @@ that uses what it names, and one pull request can carry them all.
    `comment-debt.json`: it records every language's silencers at once (Python's
    pragmas; Swift's disable lines, TypeScript's ignore markers, Rust's allow
    attributes and lizard's forgive marker, for each comment row the project
-   chose). Where main
-   already has `silencer-baseline.json`, `--update` records no new silencer: run
-   `comment-debt --rerecord` instead, check that `git diff comment-debt.json`
-   shows no count that grew, and ask the builder for the `tolerated-growth`
-   label on that pull request (an agent never applies it). Where an entry of an
-   earlier release says to delete a baseline and run `--update`, run
-   `--rerecord` and ask for the label the same way.
-5. For TypeScript, JavaScript and Swift, run `cc-check --lang typescript
-   --baseline <file>` and `crap`: a baseline that reports entries as PAID takes
-   `--update`; one that reports a function as new or worse takes `--rerecord`,
-   and the builder's `tolerated-growth` label. Fix or exclude each file shown
-   as `UNMEASURED`.
+   chose). Where main already has `silencer-baseline.json`, `--update` records
+   no new silencer: run `comment-debt --rerecord` instead, check that `git diff
+   comment-debt.json` shows no count that grew, and ask the builder for the
+   `tolerated-growth` label on that pull request (an agent never applies it).
+5. Run `cc-check` and `crap` as the project's hook and CI do. A Python file
+   that does not parse or is not UTF-8 now fails as `UNMEASURED` (#212), as does
+   any file a gate cannot read: fix it or exclude it.
+6. For TypeScript, JavaScript and Swift, run `cc-check --lang typescript
+   <source dirs> --baseline <file>` and `crap --lang <typescript|swift>
+   <source dirs> <coverage flag> --baseline <file>`: entries reported as PAID
+   take `--update`; a function reported as new or worse takes `--rerecord` and
+   the builder's `tolerated-growth` label. Commit each baseline file. If Python
+   and TypeScript share `cc-baseline.json` (or `crap-baseline.json`), either
+   language's `--update` or `--rerecord` drops the other's entries (#263), and
+   re-recording the second language drops the first's again: give each language
+   its own file, in the hook and CI too, before you record.
+7. Where an entry of an earlier release says to delete a baseline and run
+   `--update`, run `--rerecord` on `cc-check`, `crap` or `comment-debt` instead
+   and ask the builder for the `tolerated-growth` label on that pull request.
 
 - **An escape log: an `escaped` label and a four-question issue template
   (#196).** An escape is a problem that got past every gate and was found
