@@ -180,9 +180,14 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     and only the line the marker word sits on is the silencer, so the reason
     lines of a multi-line marker stay comment debt. A marker outside a comment
     that a coverage tool still reads (`'v8 ignore start'` in a string) hides
-    code and is counted nowhere: a known gap. Rust follows in its own ticket
-    (quality-gates#237).
-    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [addendum 2026-11-26, TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236))
+    code and is counted nowhere: a known gap. In TypeScript, JavaScript and
+    Swift, lizard's `#lizard forgive` is one too, in a `//` or `/* */` comment
+    that opens with it (`#lizard forgive global`, `#lizard forgives(metric)`,
+    `/** */` and `///` forms drop nothing and stay comment lines): lizard drops
+    the function behind it from `cc-check` and `crap`, so the marker is how
+    it is counted, in the rows `no-comments-typescript` and `no-comments-swift`
+    switch on. Rust follows in its own ticket (quality-gates#237).
+    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [addendum 2026-11-26, TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [addendum 2026-11-26, lizard](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-lizards-lizard-forgive-marker-is-a-silencer-244))
   - **Each new language is its own component** (`no-comments-rust`,
     `no-comments-typescript`, `no-comments-swift`, `no-comments-shell`);
     `no-comments` stays Python's. A language is checked only when its

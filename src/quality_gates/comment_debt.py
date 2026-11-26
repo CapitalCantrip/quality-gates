@@ -127,6 +127,10 @@ def in_line_comments(pattern):
                                                  if c.kind == code_reader.LINE and pattern.search(c.text)}))
 
 
+def any_of(*silencers):
+    return lambda reading, source: tuple(sorted(set().union(*(silencer(reading, source) for silencer in silencers))))
+
+
 SAFETY_START = "// SAFETY:"
 UNSAFE_BELOW = re.compile(r"\bunsafe\s*\{|^\s*unsafe\s+impl\b")
 
@@ -207,6 +211,7 @@ TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
 ESLINT_RULES = r"[@\w/-]+(?:\s*,\s*[@\w/-]+)*"
 TYPESCRIPT_PRAGMA = rf"eslint-(?:disable(?:-next-line|-line)?|enable)(?:\s+{ESLINT_RULES})?|@ts-expect-error|@ts-ignore|prettier-ignore"
 
+LIZARD_SILENCER = re.compile(r"\A(?://|/\*)\s*(?P<marker>#lizard forgive(?! global)(?!s\())")
 TYPESCRIPT_SILENCER = re.compile(r"\A(?://|/\*\*?)\s*(?P<marker>(?:istanbul|c8|v8)\s+ignore\s+(?:if|else|next|file|start|stop)\b)")
 
 TYPESCRIPT = CommentSyntax(code_reader.Syntax(
@@ -281,8 +286,10 @@ class CommentLanguage:
 LANGUAGES = {
     "python": CommentLanguage("no-comments", python_silencers),
     "rust": CommentLanguage("no-comments-rust", silences_nothing, RUST),
-    "typescript": CommentLanguage("no-comments-typescript", in_comments(TYPESCRIPT_SILENCER), TYPESCRIPT),
-    "swift": CommentLanguage("no-comments-swift", in_line_comments(SWIFT_SILENCER), SWIFT),
+    "typescript": CommentLanguage("no-comments-typescript",
+                                  any_of(in_comments(TYPESCRIPT_SILENCER), in_comments(LIZARD_SILENCER)), TYPESCRIPT),
+    "swift": CommentLanguage("no-comments-swift",
+                             any_of(in_line_comments(SWIFT_SILENCER), in_comments(LIZARD_SILENCER)), SWIFT),
     "shell": CommentLanguage("no-comments-shell", silences_nothing, SHELL),
 }
 

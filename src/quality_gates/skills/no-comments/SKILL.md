@@ -28,8 +28,13 @@ comment that opens with one counts, on the line its marker word sits on only, so
 the reason lines of a multi-line marker stay comment lines, and a marker in a
 string never does (a tool may still read it there: a known gap);
 `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` stay
-exempt. A
-recognised convention, such as Rust's `// SAFETY:` above `unsafe`
+exempt. lizard's `#lizard forgive` is a silencer too, in TypeScript, JavaScript
+and Swift (lizard drops the function behind it, so `cc-check` and `crap` never
+score it): with the language's comment row chosen, a `//` or `/* */` comment that
+opens with it counts, lower case, with anything after it, on the line the marker
+sits on. `#lizard forgive global`, `#lizard forgives(metric)`, `/** */` and
+`///` forms drop nothing and stay comment lines. Add none to make a gate pass.
+A recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.
 Existing comments are debt, held by a per-file baseline that only goes down.

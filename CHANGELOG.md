@@ -155,6 +155,33 @@
   comment-debt.json` shows no count that grew, and ask the builder for the
   `tolerated-growth` label. `/no-comments` and `/setup-standards` now say so;
   run `qg-skills`.
+- **lizard's `#lizard forgive` comment is a silencer (ADR-010 addendum
+  2026-11-26, #244).** lizard drops the function behind it, so `cc-check
+  --lang typescript` and `crap` for TypeScript, JavaScript and Swift never scored
+  that function, and `comment-debt` counted the comment as an ordinary comment
+  line. With `no-comments-typescript` or `no-comments-swift` chosen,
+  `comment-debt` now reports a `//` or `/* */` comment that opens with
+  `#lizard forgive` (lower case; white space or a line break may come before it;
+  any text may follow) at its file and line, held in `silencer-baseline.json` and
+  no longer a comment line. It counts what lizard 1.26.1 honours, checked
+  against the real tool: `#lizard forgive global`, `#lizard forgives(metric)`,
+  `/** */` and `///` forms drop no function and stay comment lines. The function
+  stays unscored, as before: the marker is how it is counted, and `qg
+  tolerated` counts growth. TypeScript's `istanbul`, `c8` and `v8 ignore`
+  markers and Swift's `swiftlint:disable` count as before, with the forgive
+  marker beside them. This replaces the one criterion #212 left open (scoring a
+  forgiven function): it is not scored. A `//` in JSX text or in a template
+  literal's `${ }` is read as a comment, so a forgive written there is counted
+  though lizard ignores it. On bumping the pin, a TypeScript, JavaScript or Swift
+  consumer with the comment row chosen and a `#lizard forgive` in their code runs
+  `comment-debt --update` once and commits `silencer-baseline.json` and
+  `comment-debt.json`: their comment debt falls and their silencer baseline
+  records the markers, by the same lines. If `silencer-baseline.json` already
+  exists from an earlier bump, `--update` records no new silencer: run
+  `comment-debt --rerecord`, check that `git diff comment-debt.json` shows no
+  count that grew, and ask the builder for the `tolerated-growth` label.
+  `/no-comments`, `/setup-standards`, `/cc-swift` and `/cc-typescript` now say
+  so; run `qg-skills`.
 
 ## 0.14.2 — 2026-11-26
 

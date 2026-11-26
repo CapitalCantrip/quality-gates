@@ -71,7 +71,7 @@ never reach a consumer.
 
 ### The comment gate in more languages
 
-Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Addendum 2026-11-26: Swift's `swiftlint:disable` is a silencer (#235)](#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [Addendum 2026-11-26: TypeScript's `istanbul`, `c8` and `v8 ignore` markers are silencers (#236)](#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236)
+Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Addendum 2026-11-26: Swift's `swiftlint:disable` is a silencer (#235)](#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [Addendum 2026-11-26: TypeScript's `istanbul`, `c8` and `v8 ignore` markers are silencers (#236)](#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [Addendum 2026-11-26: lizard's `#lizard forgive` marker is a silencer (#244)](#addendum-2026-11-26-lizards-lizard-forgive-marker-is-a-silencer-244)
 
 **Languages.** Rust, TypeScript (including `.tsx`, `.js`, `.jsx`, `.mjs` and
 `.cjs`), Swift and shell join Python. Shell becomes a language in the choice
@@ -534,3 +534,99 @@ step does.
 - **Counting only what every tool reads.** Almost nothing is read by all three,
   so a consumer would pick the form their tool alone reads.
 - **The whole block comment as the silencer.** See above.
+
+## Addendum 2026-11-26: lizard's `#lizard forgive` marker is a silencer (#244)
+
+Amends: [The comment gate in more languages](#the-comment-gate-in-more-languages)
+
+Settled by the builder on #244 (2026-11-26): "A lizard `#lizard forgive` marker
+counts as a silencer, recorded in `silencer-baseline.json` like Python's pragmas
+(only shrinks)." The other choice, scoring the function anyway, was built in
+#212 and backed out of it, as that ticket's brief did not cover a change to what
+the gates cover. This is the gate-scope change that decision needs. It replaces
+the one criterion #212 left open, that a function behind `#lizard forgive` is
+scored like any other: **it is not, and the function stays out of `cc-check` and
+`crap` as before.** What changes is that the marker that hides it is counted.
+
+**Why it is a silencer.** lizard reads the TypeScript, JavaScript and Swift
+files `cc-check` and `crap` score. A `#lizard forgive` comment makes it drop the
+function from its results, so the function never reaches either gate. That is
+one more way to make a failing function pass, and until now the comment counted
+as one comment line like any other, and nothing said a gate had stopped looking.
+
+**What lizard honours,** run on 2026-11-26 against lizard 1.26.1, the pinned
+version, with the CSV scan `cc-check` and `crap` run (`-i -1 --csv`), in `.ts`,
+`.tsx`, `.js`, `.jsx`, `.mjs` and `.cjs` files and in Swift. Each form was
+measured by whether the function behind it left the result.
+
+| Form | lizard 1.26.1 |
+|---|---|
+| a `//` or `/* */` comment whose text, after the opener and any white space (a line break included), opens with `#lizard forgive` | drops the next function that ends, or the function the marker sits in. Anything may follow: `forgives`, `forgiveness`, `forgive(x)`, `forgives (x)`, `forgive  global` (two spaces), a reason |
+| `#lizard forgive global` (one space; also `globally`) | drops nothing. It forgives the file's top-level pseudo function, which no TypeScript, JavaScript or Swift scan lists |
+| `#lizard forgives(metric)`, closed or not | drops nothing. It forgives a metric in lizard's own warning filter, and the scan reads every function from the CSV, which has none |
+| `/** */` or `///` comment | not read: lizard takes the text after the first two characters, which starts with `*` or `/` |
+| capitals, `# lizard`, `lizard forgive` with no `#`, two spaces inside, or other text before the marker | not read |
+| a marker in a string, template, regex or Swift raw or multi-line string | not read |
+| a Swift block comment that holds a nested one before the marker (`/* a /* b */ #lizard forgive */`) | not read: lizard ends the comment at the first `*/` |
+
+**The silencer is what lizard honours, and no more.** A `//` or `/* */` comment
+that opens with `#lizard forgive`, not followed by ` global` (one space) or
+`s(`, with any text after it, in the TypeScript row (every file kind it reads)
+and the Swift row. Lower case, as lizard reads it. A form lizard drops nothing
+for (`forgive global`, `forgives(metric)`, `/** */`, `///`, text before the
+marker, capitals) stays an ordinary comment line: counting it would cost the
+consumer a baseline entry for a comment that hides nothing. A
+test runs real lizard over every form listed and fails when the reader and
+lizard disagree about which function is dropped.
+
+**Where a marker stands is not checked,** as for the coverage markers. lizard
+holds the forgiveness until the next function ends, so a marker above a function,
+inside its body, above a method or an arrow function, or after the last function
+in a file (where it drops the next function a later edit adds) is a silencer in
+each case.
+
+**One line, as every comment silencer:** the line the marker sits on, so the
+reason lines of a multi-line block stay comment debt, and a marker with its
+reason on the same line leaves no comment line. A line that holds a marker of
+two kinds (`/* istanbul ignore next */ /* #lizard forgive */`) is one silencer.
+
+**Combined with the row's own silencers, not in place of them.** TypeScript's row
+now reads `istanbul`, `c8` and `v8 ignore` and `#lizard forgive`; Swift's reads
+`swiftlint:disable` in `//` line comments and `#lizard forgive` in `//` and
+`/* */` comments, since lizard honours both and SwiftLint only the first.
+
+**Python, Rust and shell are not read.** Python's scan is radon, Rust's is
+clippy, and shell has no complexity gate; none runs lizard, so a
+`#lizard forgive` in one of them is an ordinary comment line (tested for each).
+
+**The silencers are read only when the language's comment row is chosen,**
+`no-comments-typescript` or `no-comments-swift`, as the comment gate reads
+nothing else of a language. With neither chosen the markers go uncounted; that
+wider gap is #252's.
+
+**The silencer baseline holds them** as it holds the others: count per file,
+only shrinking, `qg tolerated` counting growth. A consumer's comment debt falls
+and the silencer count rises by the same lines, so they record once, with the
+step `/setup-standards` step 3 already gives for Swift and TypeScript.
+
+**Known differences from lizard, both on the counting side.** The reader treats
+a `//` inside JSX text (`<p>// #lizard forgive</p>`) as a comment, where lizard
+reads text, and a `//` or `/* */` inside a template literal's `${ }`, where
+lizard reads the template whole and does not honour it. Each costs a consumer
+one baseline entry for a marker that hides nothing, and none lets a function
+through. The JSX one is the comment reader's own limit and affects comment debt
+the same way.
+
+**Rejected.**
+
+- **Scoring the function anyway** (the same-length rewrite of the marker before
+  handing lizard the file). Strictest, and built in #212, but it re-baselines
+  every forgiven function the consumer has and changes what the complexity gates
+  cover; the builder chose the count.
+- **Counting `forgive global` and `forgives(metric)` as well.** They drop no
+  function from either gate in lizard 1.26.1. A later lizard that gives them an
+  effect moves the pin, which is a release that re-reads this list (the #198
+  addendum).
+- **Telling a marker that hides a function from one that hides nothing.** It
+  would mean running lizard per file in the comment gate; the form is the
+  decision, as it is for the coverage markers.
