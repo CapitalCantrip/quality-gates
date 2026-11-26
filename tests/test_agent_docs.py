@@ -13,7 +13,7 @@ class AgentDocs(unittest.TestCase):
         self.root = Path(tempfile.mkdtemp())
         self.templates = self.root / "templates"
         self.templates.mkdir()
-        for name in ["issue-tracker-github.md", "issue-tracker-local.md", "triage-labels.md", "domain.md", "pull-request.md"]:
+        for name in ["issue-tracker-github.md", "issue-tracker-gitlab.md", "issue-tracker-local.md", "triage-labels.md", "domain.md", "pull-request.md"]:
             (self.templates / name).write_text(f"{name} v1\n")
         (self.templates / "escaped.md").write_text("escaped.md v1 ({gates})\n")
         self.repo = self.root / "repo"
@@ -242,13 +242,72 @@ class AgentDocs(unittest.TestCase):
         self.assertEqual(self.issue_templates.read_text(), "not a folder\n")
         self.assertIn("not written; .github/ISSUE_TEMPLATE is not a folder", out)
 
-    def test_a_github_folder_that_links_outside_the_project_is_not_written_through(self):
+    def test_a_github_folder_that_links_outside_the_project_has_nothing_written_through_it(self):
         outside = self.root / "outside"
         outside.mkdir()
         (self.repo / ".github").symlink_to(outside, target_is_directory=True)
         out = self.run_tool()
-        self.assertFalse((outside / "ISSUE_TEMPLATE").exists())
-        self.assertIn("not written; .github leads outside the project", out)
+        self.assertEqual(list(outside.rglob("*")), [])
+        self.assertIn(".github/ISSUE_TEMPLATE/escaped.md: not written; .github/ISSUE_TEMPLATE/escaped.md leads outside the project", out)
+        self.assertIn(".github/pull_request_template.md: not written; .github/pull_request_template.md leads outside the project", out)
+
+    def test_an_escaped_template_that_is_a_dangling_link_outside_the_project_is_not_written_through(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        self.issue_templates.mkdir(parents=True)
+        self.escaped.symlink_to(outside / "x.md")
+        out = self.run_tool()
+        self.assertEqual(list(outside.rglob("*")), [])
+        self.assertIn("not written; .github/ISSUE_TEMPLATE/escaped.md leads outside the project", out)
+
+    def test_a_record_of_the_template_that_is_a_dangling_link_outside_the_project_is_not_written_through(self):
+        outside = self.root / "outside"
+        outside.mkdir()
+        (self.docs / ".base").mkdir(parents=True)
+        (self.docs / ".base" / "escaped.md").symlink_to(outside / "x.md")
+        out = self.run_tool()
+        self.assertEqual(list(outside.rglob("*")), [])
+        self.assertFalse(self.escaped.exists())
+        self.assertIn("not written; docs/agents/.base/escaped.md leads outside the project", out)
+
+    def test_an_escaped_template_that_is_a_link_leading_nowhere_inside_the_project_is_reported(self):
+        self.issue_templates.mkdir(parents=True)
+        self.escaped.symlink_to(self.repo / "nowhere.md")
+        out = self.run_tool()
+        self.assertFalse((self.repo / "nowhere.md").exists())
+        self.assertIn("not written; .github/ISSUE_TEMPLATE/escaped.md is a link that leads nowhere", out)
+
+    def test_an_escaped_template_that_is_a_link_to_itself_is_reported_without_a_traceback(self):
+        self.issue_templates.mkdir(parents=True)
+        self.escaped.symlink_to(self.escaped)
+        out = self.run_tool()
+        self.assertIn("not written; .github/ISSUE_TEMPLATE/escaped.md", out)
+
+    def test_a_form_whose_name_has_a_trailing_comment_still_names_itself_escaped(self):
+        self.issue_templates.mkdir(parents=True)
+        (self.issue_templates / "esc.yml").write_text("name: escaped # the escape form\nbody: []\n")
+        out = self.run_tool()
+        self.assertFalse(self.escaped.exists())
+        self.assertIn("not written; .github/ISSUE_TEMPLATE/esc.yml is already an escaped template", out)
+
+    @unittest.skipIf(hasattr(os, "geteuid") and os.geteuid() == 0, "root reads every file")
+    def test_a_template_that_cannot_be_read_stops_the_escaped_write_and_is_reported(self):
+        self.issue_templates.mkdir(parents=True)
+        locked = self.issue_templates / "bug.md"
+        locked.write_text("---\nname: bug\n---\n")
+        locked.chmod(0)
+        self.addCleanup(locked.chmod, 0o644)
+        out = self.run_tool()
+        self.assertFalse(self.escaped.exists())
+        self.assertFalse((self.docs / ".base" / "escaped.md").exists())
+        self.assertIn("not written; .github/ISSUE_TEMPLATE/bug.md cannot be read", out)
+
+    def test_a_gitlab_or_local_tracker_gets_no_github_issue_template_and_the_report_says_so(self):
+        for tracker in ("gitlab", "local"):
+            with self.subTest(tracker):
+                out = self.run_tool(tracker)
+                self.assertFalse(self.issue_templates.exists())
+                self.assertIn(".github/ISSUE_TEMPLATE/escaped.md: not written; GitHub issue templates are for a GitHub tracker", out)
 
     def test_an_unreadable_choice_file_stops_before_anything_is_written(self):
         (self.repo / "quality-gates.json").write_text("{not json")

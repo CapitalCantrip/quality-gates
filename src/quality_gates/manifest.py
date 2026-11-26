@@ -90,10 +90,9 @@ class Component:
         return applies(self.languages, used)
 
     def gates(self):
-        if not any(part.kind in STEP_KINDS for part in self.parts):
-            return ()
-        commands = [part.id for part in self.parts if part.kind == "command"]
-        return tuple(commands or dict.fromkeys(part.id for part in self.parts if part.kind in STEP_KINDS))
+        steps = tuple(dict.fromkeys(part.id for part in self.parts if part.kind in STEP_KINDS))
+        commands = tuple(part.id for part in self.parts if part.kind == "command")
+        return (commands or steps) if steps else ()
 
 
 @dataclass(frozen=True)

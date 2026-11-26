@@ -91,10 +91,6 @@ ISSUE_TEMPLATES = GITHUB_FOLDER / "ISSUE_TEMPLATE"
 ESCAPED_TEMPLATE = ISSUE_TEMPLATES / "escaped.md"
 ESCAPED_NAME = "escaped"
 FORM_SUFFIXES = (".yml", ".yaml")
-FRONT_MATTER_FENCE = "---"
-TEMPLATE_NAME_LINE = re.compile(r"name\s*:\s*(.+?)\s*$")
-QUOTES = " '\""
-BYTE_ORDER_MARK = "\ufeff"
 COMMENT_DEBT_BASELINE = "comment-debt.json"
 CC_BASELINE = "cc-baseline.json"
 CRAP_BASELINE = "crap-baseline.json"
@@ -233,14 +229,14 @@ def frontmatter_lines(path):
     except (OSError, UnicodeDecodeError):
         return []
     if not lines or lines[0].strip() != FRONTMATTER_FENCE:
-        return []
+        return lines if path.suffix.lower() in FORM_SUFFIXES else []
     for end, line in enumerate(lines[1:], 1):
         if line.strip() == FRONTMATTER_FENCE:
             return lines[1:end]
     return []
 
 
-def declared_agent_name(path):
+def declared_name(path):
     for line in frontmatter_lines(path):
         found = FRONTMATTER_NAME.match(line)
         if found:
@@ -269,7 +265,7 @@ def clashes_in(dest, source, listed, names):
     found = []
     for path in agent_files_in(dest):
         if path.name not in {agent_file(Path(), name).name for name in listed}:
-            claimed = sorted({path.stem.lower(), declared_agent_name(path)} & names)
+            claimed = sorted({path.stem.lower(), declared_name(path)} & names)
             found += [(path, name) for name in claimed if claims_shipped_name(path, name, source)]
     return found
 
@@ -467,37 +463,47 @@ def write_kept(root, name, text):
     path.write_text(text, encoding="utf-8")
 
 
-def header_lines(path):
-    lines = path.read_text(encoding="utf-8", errors="replace").lstrip(BYTE_ORDER_MARK).splitlines()
-    if lines[:1] == [FRONT_MATTER_FENCE]:
-        return list(takewhile(lambda line: line.strip() != FRONT_MATTER_FENCE, lines[1:]))
-    return lines if path.suffix in FORM_SUFFIXES else []
-
-
-def names_itself_escaped(path):
-    if path.stem.casefold() == ESCAPED_NAME:
-        return True
-    found = (TEMPLATE_NAME_LINE.match(line) for line in header_lines(path))
-    return any(match.group(1).strip(QUOTES).casefold() == ESCAPED_NAME for match in found if match)
+def claims_the_escaped_name(path):
+    return path.stem.lower() == ESCAPED_NAME or declared_name(path) == ESCAPED_NAME
 
 
 def other_escaped_template(root):
     folder = root / ISSUE_TEMPLATES
     if not folder.is_dir():
         return None
-    for path in sorted(folder.iterdir()):
-        if path.name != ESCAPED_TEMPLATE.name and path.is_file() and names_itself_escaped(path):
-            return f"{(ISSUE_TEMPLATES / path.name).as_posix()} is already an escaped template"
+    for path in sorted(p for p in folder.iterdir() if p.name != ESCAPED_TEMPLATE.name and p.is_file()):
+        shown = (ISSUE_TEMPLATES / path.name).as_posix()
+        try:
+            path.read_bytes()
+        except OSError:
+            return f"{shown} cannot be read"
+        if claims_the_escaped_name(path):
+            return f"{shown} is already an escaped template"
     return None
 
 
-def unusable_folder(root, folder):
+def leads_outside(root, name):
+    path = root / name
+    shown = name.as_posix()
+    try:
+        inside = path.resolve().is_relative_to(root.resolve())
+    except (OSError, RuntimeError):
+        return f"{shown} cannot be resolved"
+    if not inside:
+        return f"{shown} leads outside the project"
+    if path.is_symlink() and not path.exists():
+        return f"{shown} is a link that leads nowhere"
+    return None
+
+
+def planned_file_problem(root, name):
+    root = Path(root)
+    return leads_outside(root, name) or leads_outside(root, template_base(name))
+
+
+def not_a_folder(root, folder):
     path = root / folder
-    if path.is_symlink() and not path.resolve().is_relative_to(root.resolve()):
-        return f"{folder.as_posix()} leads outside the project"
-    if path.exists() and not path.is_dir():
-        return f"{folder.as_posix()} is not a folder"
-    return None
+    return f"{folder.as_posix()} is not a folder" if path.exists() and not path.is_dir() else None
 
 
 def unusable_file(root, name):
@@ -513,9 +519,9 @@ def unusable_file(root, name):
 
 def escaped_template_problem(root):
     root = Path(root)
-    checks = (lambda: unusable_folder(root, GITHUB_FOLDER), lambda: unusable_folder(root, ISSUE_TEMPLATES),
-              lambda: unusable_file(root, ESCAPED_TEMPLATE), lambda: unusable_file(root, template_base(ESCAPED_TEMPLATE)),
-              lambda: other_escaped_template(root))
+    checks = (lambda: planned_file_problem(root, ESCAPED_TEMPLATE), lambda: not_a_folder(root, GITHUB_FOLDER),
+              lambda: not_a_folder(root, ISSUE_TEMPLATES), lambda: unusable_file(root, ESCAPED_TEMPLATE),
+              lambda: unusable_file(root, template_base(ESCAPED_TEMPLATE)), lambda: other_escaped_template(root))
     return next((problem for problem in (check() for check in checks) if problem), None)
 
 

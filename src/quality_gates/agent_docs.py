@@ -11,6 +11,8 @@ TEMPLATES = Path(__file__).parent / "agent_doc_templates"
 AGENT_SKILLS_HEADING = "## Agent skills"
 GATES_PLACEHOLDER = "{gates}"
 NO_GATE_COULD = "none could"
+GITHUB = "github"
+NOT_GITHUB = "GitHub issue templates are for a GitHub tracker"
 
 TRACKER_SUMMARIES = {
     "github": "GitHub Issues on this repo, through the `gh` CLI",
@@ -117,20 +119,28 @@ def add_pull_requests_section(root, lines):
     return "pull requests section added"
 
 
-def settle(root, name, template, gates):
+def problem_with(root, tracker, name):
     if name != project_files.ESCAPED_TEMPLATE:
-        return reconcile(root, name, template)
-    problem = project_files.escaped_template_problem(root)
+        return project_files.planned_file_problem(root, name)
+    if tracker != GITHUB:
+        return NOT_GITHUB
+    return project_files.escaped_template_problem(root)
+
+
+def settle(root, name, template, gates, problem):
     if problem:
         return f"not written; {problem}", ""
-    return reconcile(root, name, template.replace(GATES_PLACEHOLDER, gate_options(gates)))
+    if name == project_files.ESCAPED_TEMPLATE:
+        template = template.replace(GATES_PLACEHOLDER, gate_options(gates))
+    return reconcile(root, name, template)
 
 
 def run(root, tracker, templates=TEMPLATES, gates=()):
     report = []
+    problems = {name: problem_with(root, tracker, name) for name in plan(tracker)}
     for name, template_name in plan(tracker).items():
         template = (templates / template_name).read_text(encoding="utf-8")
-        status, detail = settle(root, name, template, gates)
+        status, detail = settle(root, name, template, gates, problems[name])
         report.append((name.as_posix(), status, detail))
     report.append((f"{project_files.instruction_file(root).name} Agent skills block", add_agent_skills_block(root, tracker), ""))
     return report

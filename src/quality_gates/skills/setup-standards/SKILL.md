@@ -173,7 +173,8 @@ Done when `quality-gates.json` records the builder's answer, every offered
 comment row is recorded as debt, cleaned first and then chosen, or declined,
 every recorded language's chosen gates are configured, each CRAP gate step 2 or 3 says to
 report as not done is reported not done with its reason, `qg-skills` has
-run, and the escape template's third question names every chosen gate.
+run, and the escape template's third question names every chosen gate, or
+`qg-agent-docs` reported it kept.
 
 ## 3. Baselines
 

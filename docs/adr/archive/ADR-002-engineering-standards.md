@@ -439,7 +439,10 @@ on a guess.
   list as it changes, an edited one is kept and its diff shown, and a template
   named `escaped` that quality-gates did not write (by file name in any case,
   or by the `name:` in its header) is kept and reported, with no second one
-  written. `qg setup` writes none of this: it creates only files it owns in
+  written. A file whose path, or whose record under `docs/agents/.base/`, is a
+  link leading outside the project or nowhere, and a template that cannot be
+  read, is reported and not written. A GitLab or local tracker gets no GitHub
+  issue template. `qg setup` writes none of this: it creates only files it owns in
   its own list, and the label belongs to the skill.
 - **The kind of an escape is the gate named in the third answer.** The
   between-sprints routine's retro step prints the count by kind with the
@@ -452,9 +455,8 @@ on a guess.
 - **A threshold, or the order of the gates, changes only with the escape count
   cited.** This is a rule on the compendium page *How standards are made*.
 
-Not adopted: the 2026-11-14 amendment on the issue (ask for "the earliest
-point this could have been stopped: idea, spec, module map, ticket brief,
-build, review, gate" in place of the gate). The brief that moved the work into
-sprint 3a keeps the gate question, and that amendment would need a second
-count by stage; it comes back if the count by gate shows escapes that no gate
-could catch.
+Not in this brief; the builder decides: the 2026-11-14 amendment on the issue
+(ask for "the earliest point this could have been stopped: idea, spec, module
+map, ticket brief, build, review, gate" in place of the gate). The brief that
+moved the work into sprint 3a keeps the gate question, and the amendment would
+need a second count by stage.

@@ -17,8 +17,11 @@ files of each language, and it applies the choice file, so the gate lists no
 files itself. It also owns reading and writing every
 file quality-gates keeps in a project: the choice file, baselines, the hook,
 CI, the instruction file, `docs/agents/*`, the PR template and the escaped
-issue template. Every write goes
-through one planned-changes step that setup shows before the builder's "go".
+issue template. `qg setup`'s writes go
+through one planned-changes step that setup shows before the builder's "go";
+`qg-agent-docs` writes `docs/agents/*`, the PR template and the escaped issue
+template itself, each only after checking that its path and its record stay
+inside the project.
 Setup never edits a CI workflow (quality-gates#234): it checks that a workflow
 running on pull requests runs `qg tolerated` in a step, and prints the step to
 paste when none does. Decided, not built yet: code edits the hook only between

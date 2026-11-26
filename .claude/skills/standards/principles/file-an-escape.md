@@ -14,8 +14,7 @@ of the gates.
    it, answered with one of the project's gates by name, or `none could`.
 2. File it in the project's tracker with the `escaped` label; on GitHub,
    `gh issue create --label escaped --title "<what broke>" --body-file <file>`.
-3. Apply no other label. `tolerated-growth` and `loosening` are the builder's
-   to apply, never yours.
+3. Apply only `escaped`; the builder's labels: see *ask the builder*.
 
 Done when the issue exists with the `escaped` label, its third answer names one
 gate or `none could`, and the fix's commit message holds its number.

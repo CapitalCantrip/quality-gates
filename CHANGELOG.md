@@ -9,7 +9,11 @@
   how it was found, and which gate should have caught it, the third question
   listing the gates in `quality-gates.json` plus "none could". A template named
   `escaped` that it did not write is kept and reported, with no second one
-  written. The `standards` skill gains *file an escape*: an agent files one when
+  written; a path that leads outside the project, or a template it cannot read,
+  is reported and left alone; a GitLab or local tracker gets no GitHub issue
+  template. `qg-agent-docs` now exits 3 on a malformed `quality-gates.json`,
+  and it also refuses to write any file it owns through a link that leads
+  outside the project. The `standards` skill gains *file an escape*: an agent files one when
   it fixes a problem a merged change introduced, and never applies
   `tolerated-growth` or `loosening`. On bumping the pin, rerun `qg-skills`,
   then `/setup-standards` (or `gh label create escaped` and `qg-agent-docs
