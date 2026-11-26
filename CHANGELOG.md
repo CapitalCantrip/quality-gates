@@ -104,7 +104,10 @@ that uses what it names, and one pull request can carry them all.
   baseline, where the default branch has none, is recorded as before.
   `--rerecord` records measured entries afresh and keeps unmeasured ones; in
   `comment-debt` it records the silencer baseline too. An unreadable baseline
-  stops it: delete the file first.
+  stops it: delete the file first. Only `comment-debt` keeps the entries of a
+  language it did not choose; `cc-check` and `crap` drop the entries of a file
+  outside their scan, so a baseline file shared by Python and TypeScript loses
+  the other language's entries (#263).
 - **Python's `# pragma: no cover` and `# pragma: no branch` are silencers
   (ADR-010 addendum 2026-11-26).** `comment-debt` now reports a marker that
   switches off one of our own gates as its own finding, held in
