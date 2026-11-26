@@ -8,6 +8,20 @@ from pathlib import Path
 from quality_gates import agent_docs, project_files
 
 
+EARLIER_ESCAPED = """---
+name: escaped
+about: A problem that got past every gate and was found later
+labels: escaped
+---
+
+## What happened
+
+## How it was found (using the product, a review, a crash, other)
+
+## Which gate should have caught it (none could)
+"""
+
+
 class AgentDocs(unittest.TestCase):
     def setUp(self):
         self.root = Path(tempfile.mkdtemp())
@@ -147,7 +161,7 @@ class AgentDocs(unittest.TestCase):
         self.assertEqual(self.escaped.read_text(), "escaped.md v1 (none could)\n")
         self.assertIn(".github/ISSUE_TEMPLATE/escaped.md: created", out)
 
-    def test_the_third_question_offers_the_projects_gates_and_none_could(self):
+    def test_the_fourth_question_offers_the_projects_gates_and_none_could(self):
         self.choose("complexity-python", "crap", "no-comments", "no-comments-shell", "session-helpers")
         self.run_tool()
         self.assertEqual(self.escaped.read_text(), "escaped.md v1 (comment-debt, cc-check, crap, or none could)\n")
@@ -317,7 +331,7 @@ class AgentDocs(unittest.TestCase):
         self.assertIn("quality-gates.json: not valid JSON", err)
         self.assertEqual(sorted(p.name for p in self.repo.iterdir()), ["CLAUDE.md", "quality-gates.json"])
 
-    def test_the_shipped_escaped_template_takes_the_projects_gates_in_its_third_heading(self):
+    def test_the_shipped_escaped_template_takes_the_projects_gates_in_its_fourth_heading(self):
         self.choose("complexity-python", "crap", "no-comments")
         out = io.StringIO()
         with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
@@ -325,15 +339,41 @@ class AgentDocs(unittest.TestCase):
         self.assertIn("\n## Which gate should have caught it (comment-debt, cc-check, crap, or none could)\n",
                       self.escaped.read_text())
 
-    def test_the_shipped_escaped_template_asks_exactly_three_questions_in_front_matter_that_labels_it(self):
+    def test_the_shipped_escaped_template_asks_four_questions_in_front_matter_that_labels_it(self):
         text = (agent_docs.TEMPLATES / "escaped.md").read_text()
         self.assertTrue(text.startswith("---\nname: escaped\n"))
         self.assertIn("\nlabels: escaped\n", text)
         self.assertEqual([line for line in text.splitlines() if line.startswith("## ")], [
             "## What happened",
             "## How it was found (using the product, a review, a crash, other)",
+            "## Earliest point it could have been stopped (idea, spec, module map, ticket brief, build, review, gate)",
             "## Which gate should have caught it ({gates})",
         ])
+
+    def test_the_stage_list_is_fixed_text_that_no_gate_choice_changes(self):
+        stage = "## Earliest point it could have been stopped (idea, spec, module map, ticket brief, build, review, gate)\n"
+        for chosen in ((), ("complexity-python", "crap", "no-comments")):
+            with self.subTest(chosen):
+                self.choose(*chosen)
+                with contextlib.redirect_stdout(io.StringIO()), self.assertRaises(SystemExit):
+                    agent_docs.main(["--tracker", "github", "--root", str(self.repo)])
+                self.assertIn("\n" + stage, self.escaped.read_text())
+                self.escaped.unlink()
+                (self.docs / ".base" / "escaped.md").unlink()
+
+    def test_an_unedited_three_question_template_from_an_earlier_run_updates_to_the_four_question_one(self):
+        self.escaped.parent.mkdir(parents=True)
+        (self.docs / ".base").mkdir(parents=True)
+        self.escaped.write_text(EARLIER_ESCAPED)
+        (self.docs / ".base" / "escaped.md").write_text(EARLIER_ESCAPED)
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out), self.assertRaises(SystemExit):
+            agent_docs.main(["--tracker", "github", "--root", str(self.repo)])
+        self.assertIn("escaped.md: updated to the new template; you had not edited it", out.getvalue())
+        text = self.escaped.read_text()
+        self.assertIn("\n## Earliest point it could have been stopped (", text)
+        self.assertEqual(len([line for line in text.splitlines() if line.startswith("## ")]), 4)
+        self.assertEqual((self.docs / ".base" / "escaped.md").read_text(), text)
 
 
 if __name__ == "__main__":

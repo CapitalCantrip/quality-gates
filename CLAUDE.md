@@ -14,7 +14,7 @@ only to learn why something was decided.
   tool or what a gate covers means a new ADR in `docs/adr/archive/`, or a dated
   addendum on the one it amends, then the compendium page, the code, the skills
   and the README in the same PR. None of them may disagree with the ADR. A
-  threshold or gate-order change also quotes the escape count by kind
+  threshold or gate-order change also quotes the escape count by stage and by gate
   (`docs/agents/escape-log.md`).
 - **What a consumer receives is released, at most once a day.** `README.md`
   § Releasing says what counts and lists the steps. The `CHANGELOG.md` entry

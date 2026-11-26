@@ -8,4 +8,6 @@ labels: escaped
 
 ## How it was found (using the product, a review, a crash, other)
 
+## Earliest point it could have been stopped (idea, spec, module map, ticket brief, build, review, gate)
+
 ## Which gate should have caught it (comment-debt, cc-check, crap, or none could)

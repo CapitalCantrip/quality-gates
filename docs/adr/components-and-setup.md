@@ -140,7 +140,7 @@ until they rerun `qg-skills`, so a stale copy cannot pass CI.
 - **On GitHub it also gives a project the escape log:** the `escaped` label, created by
   the skill with `gh label create` when missing, and
   `.github/ISSUE_TEMPLATE/escaped.md`, written by `qg-agent-docs` with the
-  project's chosen gates in its third question. `qg setup` writes neither.
+  project's chosen gates in its fourth question. `qg setup` writes neither.
   ([ADR-002 addendum 2026-11-26](archive/ADR-002-engineering-standards.md#addendum-2026-11-26-the-escape-log-196))
 
 ## Shipped agents

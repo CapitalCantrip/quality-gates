@@ -536,7 +536,7 @@ Three more commands support them:
   Matt Pocock's setup templates, `.github/pull_request_template.md` from
   the `pr` skill's headings, and, with `--tracker github`,
   `.github/ISSUE_TEMPLATE/escaped.md`, the
-  three questions to answer when a problem got past every gate; its third
+  four questions to answer when a problem got past every gate; its fourth
   question lists the gates in `quality-gates.json`. It never overwrites a file
   you edited; it shows the template's own change instead, so you can choose to
   adopt it. A template named `escaped` that it did not write is kept and

@@ -424,17 +424,19 @@ to one language, or are too general to change what an agent does.
 Amends: [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path) and [Setting up a project: one command](#setting-up-a-project-one-command)
 
 An **escape** is a problem that got past every gate and was found later (see
-`GLOSSARY.md`). The escape log is the count of them by the gate that should
-have caught each one, so a change to a gate rests on what happened rather than
-on a guess.
+`GLOSSARY.md`). The escape log is the count of them by the earliest point each
+could have been stopped and by the gate that should have caught it, so a change
+to a gate rests on what happened rather than on a guess.
 
 - **Setup gives every GitHub project the log.** `/setup-standards` creates an
   `escaped` label, the way it creates the triage labels: the agent runs
   `gh label create` for the one `gh label list` lacks, so a second run changes
   nothing. `qg-agent-docs` writes `.github/ISSUE_TEMPLATE/escaped.md`, a file
-  quality-gates owns: it asks exactly three things (what happened, how it was
-  found, which gate should have caught it), and the third lists the gates in
-  the project's choice file plus "none could". It follows the same rules as the
+  quality-gates owns: it asks four things (what happened; how it was
+  found; the earliest point it could have been stopped, one of idea, spec,
+  module map, ticket brief, build, review, gate; which gate should have caught
+  it), and the fourth lists the gates in the project's choice file plus "none
+  could". The stage list is fixed text. It follows the same rules as the
   other files `qg-agent-docs` writes: an unedited template follows the gate
   list as it changes, an edited one is kept and its diff shown, and a template
   named `escaped` that quality-gates did not write (by file name in any case,
@@ -444,10 +446,12 @@ on a guess.
   read, is reported and not written. A GitLab or local tracker gets no GitHub
   issue template, and the plan for it leaves the template out. `qg setup` writes none of this: it creates only files it owns in
   its own list, and the label belongs to the skill.
-- **The kind of an escape is the gate named in the third answer.** The
-  between-sprints routine's retro step prints the count by kind with the
-  command in `docs/agents/escape-log.md`, which reads `gh issue list --label
-  escaped`.
+- **An escape has two kinds: the stage named in the third answer and the gate
+  named in the fourth.** The between-sprints routine's retro step prints the
+  count by stage and by gate, each with `unanswered`, with the command in
+  `docs/agents/escape-log.md`, which reads `gh issue list --label escaped`. An
+  escape filed before the stage question existed counts as `unanswered` by
+  stage.
 - **An agent files an escape when it fixes a problem a merged change
   introduced.** It is a principle in the `standards` skill, *file an escape*.
   An agent never applies `tolerated-growth` or `loosening`; those labels are
@@ -455,8 +459,19 @@ on a guess.
 - **A threshold, or the order of the gates, changes only with the escape count
   cited.** This is a rule on the compendium page *How standards are made*.
 
-Not in this brief; the builder decides: the 2026-11-14 amendment on the issue
-(ask for "the earliest point this could have been stopped: idea, spec, module
-map, ticket brief, build, review, gate" in place of the gate). The brief that
-moved the work into sprint 3a keeps the gate question, and the amendment would
-need a second count by stage.
+**Decided by the builder, 2026-11-26: the template asks both.** The 2026-11-14
+amendment on the issue asked for the earliest point the problem could have been
+stopped in place of the gate; the brief that moved the work into sprint 3a kept
+the gate question. The builder chose both (#196, #232): knowing which gate would
+have caught it and at what stage it could have been stopped are each useful, so
+the template has four questions, not "exactly three", and the count reports by
+stage and by gate.
+
+**Why `qg tolerated` is not in the gate list.** The list comes from the
+components in the project's choice file, and `qg tolerated` is a command a CI
+workflow runs, not a component: setup prints its step and never edits a
+workflow, so the choice file does not say whether a project runs it. An escape
+that `qg tolerated` should have caught is answered in the fourth answer's free
+text, `qg tolerated`, and the count shows it as its own gate line. Offering it
+in the list would need the choice file to record the step; that is a separate
+change.

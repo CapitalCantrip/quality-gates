@@ -2,12 +2,15 @@
 
 ## Unreleased
 
-- **An escape log: an `escaped` label and a three-question issue template
+- **An escape log: an `escaped` label and a four-question issue template
   (#196).** An escape is a problem that got past every gate and was found
   later. `/setup-standards` now creates the `escaped` label, and
   on a GitHub tracker `qg-agent-docs` writes `.github/ISSUE_TEMPLATE/escaped.md`: what happened,
-  how it was found, and which gate should have caught it, the third question
-  listing the gates in `quality-gates.json` plus "none could". A template named
+  how it was found, the earliest point it could have been stopped (idea, spec,
+  module map, ticket brief, build, review, gate), and which gate should have
+  caught it, the fourth question listing the gates in `quality-gates.json` plus
+  "none could". `docs/agents/escape-log.md` counts escapes by stage and by gate,
+  each with `unanswered`. A template named
   `escaped` that it did not write is kept and reported, with no second one
   written; a path that leads outside the project, or a template it cannot read,
   is reported and left alone; a GitLab or local tracker gets no GitHub issue
@@ -19,7 +22,12 @@
   `tolerated-growth` or `loosening`. On bumping the pin, rerun `qg-skills`,
   then `/setup-standards` (or `gh label create escaped` and `qg-agent-docs
   --tracker <github|gitlab|local>`), and commit `.github/ISSUE_TEMPLATE/` and
-  `docs/agents/.base/escaped.md`. No score, threshold or scanned file changes.
+  `docs/agents/.base/escaped.md`. An escaped template you had not edited
+  updates to the four-question one; an edited one is kept and its diff shown, so
+  add the stage question by hand if you want it. The between-sprints count now
+  prints by stage and by gate (rerun the command in
+  `docs/agents/escape-log.md`); an escape filed before this release counts as
+  `unanswered` by stage. No score, threshold or scanned file changes.
 - **radon and lizard are pinned to exact versions, and TypeScript and Swift
   counts move (#198, #123, #173).** The package asks for `radon==6.0.1` and
   `lizard==1.26.1`, so the date of an install no longer chooses the counter; it
