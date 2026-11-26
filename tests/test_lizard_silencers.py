@@ -119,6 +119,31 @@ class LizardForgiveFormsTest(unittest.TestCase):
                 self.assertEqual(lizard_sees(text, 'swift', 'swift'), ['f'])
                 self.assertEqual((found.silencers, found.debt), ((), {}))
 
+    def test_a_forgive_after_a_division_the_reader_takes_for_a_regex_start_is_missed_where_lizard_honours_it_a_known_gap_of_260(self):
+        for line in ('return of / 2;', 'const y = await / 2;', 'const y = a.b<c> / 2;'):
+            with self.subTest(line=line):
+                text = f'{line} // #lizard forgive\n' + ts_function()
+                found = TYPESCRIPT.reading(text, ())
+                self.assertTrue(lizard_forgives(text, 'ts', 'typescript'))
+                self.assertEqual((found.silencers, found.debt), ((), {}))
+
+    def test_a_forgive_the_reader_counts_and_lizard_ignores_is_a_known_over_count_listed_in_the_addendum(self):
+        cases = (
+            ('tsx', TYPESCRIPT, 'export const E = () => <p>/* #lizard forgive */</p>;\n' + ts_function(), 'typescript'),
+            ('tsx', TYPESCRIPT, 'export const E = () => <p>// #lizard forgive</p>;\n' + ts_function(), 'typescript'),
+            ('ts', TYPESCRIPT, 'const s = `${ // #lizard forgive\n 1 }`;\n' + ts_function(), 'typescript'),
+            ('ts', TYPESCRIPT, '//\u2028#lizard forgive\n' + ts_function(), 'typescript'),
+            ('ts', TYPESCRIPT, '//\u2029#lizard forgive\n' + ts_function(), 'typescript'),
+            ('ts', TYPESCRIPT, '//\r#lizard forgive\n' + ts_function(), 'typescript'),
+            ('swift', SWIFT, '//\r#lizard forgive\n' + swift_function(), 'swift'),
+            ('swift', SWIFT, 'let r = #/a// #lizard forgive/#\n' + swift_function(), 'swift'),
+            ('ts', TYPESCRIPT, '// #lizard forgive\nconst g = (a, b);\n' + ts_function(), 'typescript'),
+        )
+        for suffix, language, text, name in cases:
+            with self.subTest(text=text):
+                self.assertEqual(lizard_sees(text, suffix, name)[-1], 'f')
+                self.assertEqual(len(language.reading(text, ()).silencers), 1)
+
     def test_a_forgive_inside_a_function_body_is_a_silencer_where_it_hides_that_function(self):
         ts = 'export function f(x: number): number { // #lizard forgive\n' + ts_function().split('\n', 1)[1]
         swift = 'func f(_ x: Int) -> Int { // #lizard forgive\n' + swift_function().split('\n', 1)[1]

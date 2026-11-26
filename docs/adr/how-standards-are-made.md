@@ -191,7 +191,7 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     Swift, lizard's `#lizard forgive` is one too, in a `//` or `/* */` comment
     that opens with it (`#lizard forgive global`, `#lizard forgives(metric)`,
     `/** */` and `///` forms drop nothing and stay comment lines): lizard drops
-    the function behind it from `cc-check` and `crap`, so the marker is how
+    the next function that ends from `cc-check` and `crap`, so the marker is how
     it is counted, in the rows `no-comments-typescript` and `no-comments-swift`
     switch on. Counting a silencer whenever the gate it switches off is
     chosen is quality-gates#252.

@@ -238,8 +238,8 @@ tool still reads, such as `'v8 ignore start'` in a string, hides code and is
 not counted ([ADR-010 addendum](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236)).
 A `//` or `/* */` comment that opens with `#lizard forgive` (lower case, any text
 after it, white space or a line break before it) is a silencer in TypeScript,
-JavaScript and Swift: lizard drops the function behind it, so `cc-check` and
-`crap` never score it. `#lizard forgive global`, `#lizard forgives(metric)`,
+JavaScript and Swift: lizard drops the next function that ends, so `cc-check`
+and `crap` never score it. `#lizard forgive global`, `#lizard forgives(metric)`,
 `/** */` and `///` forms drop nothing and stay comment lines
 ([ADR-010 addendum](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-lizards-lizard-forgive-marker-is-a-silencer-244)). In Swift
 `// MARK:` counts, `\( )` interpolation is read as code, a bare
@@ -287,9 +287,10 @@ it as the gate. Takes any number of files and directories in one run:
 functions that are new or worse than the baseline; see
 [Adopting the ratchet](#adopting-the-ratchet).
 A Python file it cannot open, parse or decode as UTF-8 is `UNMEASURED`: the gate
-names it and fails, as `comment-debt` and `crap` do. lizard drops a function
-behind a `// #lizard forgive` comment, so the gate never scores it; with
-`no-comments-typescript` chosen `comment-debt` counts that comment as a silencer,
+names it and fails, as `comment-debt` and `crap` do. lizard drops the next
+function that ends after a `// #lizard forgive` comment, so the gate never scores
+it; with `no-comments-typescript` chosen (otherwise uncounted, #252) `comment-debt`
+counts that comment as a silencer,
 held in `silencer-baseline.json`, so add none to make the gate pass.
 
 ### `crap`: complexity weighted by missing tests
@@ -332,7 +333,8 @@ any entry it already has, so a coverage outage can neither add debt nor drop it
 A Python file `crap` cannot open, parse or decode as UTF-8 is `UNMEASURED` as
 well: named, failing, and listed under `"unmeasured"` in `--json`. A function
 behind `#lizard forgive` is not scored for TypeScript, JavaScript or Swift;
-`comment-debt` counts the marker as a silencer.
+with `no-comments-typescript` or `no-comments-swift` chosen (otherwise uncounted,
+#252) `comment-debt` counts the marker as a silencer.
 When a report is given and none of the scored functions gets a figure from it,
 `crap` prints one line to stderr saying so (ADR-001's addendum "Coverage
 readers fail loudly").

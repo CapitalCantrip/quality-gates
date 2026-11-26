@@ -37,7 +37,7 @@ Done when every flagged function is reported with a refactor, or the run is clea
 
 The [TypeScript counting rule](references/typescript-counting.md) says what lizard counts, including default values.
 
-lizard drops a function behind a `// #lizard forgive` comment, so `cc-check` never scores it. Add none: with `no-comments-typescript` chosen `comment-debt` counts it as a silencer, held in `silencer-baseline.json`, and a new one fails the gate.
+lizard drops the next function that ends after a `// #lizard forgive` comment, so `cc-check` never scores it. Add none: with `no-comments-typescript` chosen `comment-debt` counts it as a silencer, held in `silencer-baseline.json`, and a new one fails the gate.
 
 Functions that start on the same line, such as a callback in the first line of its holder, are each counted on their own. `crap` matches their coverage by the [shared start line rule](references/shared-start-line.md); `cc-check` is unaffected.
 

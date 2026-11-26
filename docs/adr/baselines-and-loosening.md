@@ -104,7 +104,7 @@ often.
   the attributes go uncounted). In TypeScript, JavaScript and
   Swift a `//` or `/* */` comment that opens with `#lizard forgive` is one
   too, read when that language's comment row is chosen: lizard drops the
-  function behind it, so `cc-check` and `crap` never score it, and the marker is
+  next function that ends, so `cc-check` and `crap` never score it, and the marker is
   how it is counted. `#lizard forgive global` and `#lizard forgives(metric)`
   drop nothing and stay comment lines.
   ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237), [lizard](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-lizards-lizard-forgive-marker-is-a-silencer-244))

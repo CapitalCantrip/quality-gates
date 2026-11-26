@@ -34,7 +34,7 @@ or `clippy::too_many_lines` is a silencer as well (it switches off the complexit
 lint), outer or inner, alone or in a list: with `no-comments-rust` chosen it is
 read from the code, so a lint name in a comment or string is not one, `allow` of
 any other lint is not, and a comment on its line still counts. lizard's `#lizard forgive` is a silencer too,
-in TypeScript, JavaScript and Swift (lizard drops the function behind it, so
+in TypeScript, JavaScript and Swift (lizard drops the next function that ends, so
 `cc-check` and `crap` never score it): with the language's comment row chosen, a
 `//` or `/* */` comment that opens with it counts, lower case, with anything
 after it, on the line the marker sits on. `#lizard forgive global`,

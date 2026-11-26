@@ -635,7 +635,7 @@ measured by whether the function behind it left the result.
 
 | Form | lizard 1.26.1 |
 |---|---|
-| a `//` or `/* */` comment whose text, after the opener and any white space (a line break included), opens with `#lizard forgive` | drops the next function that ends, or the function the marker sits in. Anything may follow: `forgives`, `forgiveness`, `forgive(x)`, `forgives (x)`, `forgive  global` (two spaces), a reason |
+| a `//` or `/* */` comment whose text, after the opener and any white space (a line break included), opens with `#lizard forgive` | drops the next function that ends: the one after it, or the one it sits in when none ends first. An inner function that ends first takes it instead, and a marker above an expression lizard abandons is spent there. Anything may follow: `forgives`, `forgiveness`, `forgive(x)`, `forgives (x)`, `forgive  global` (two spaces), a reason |
 | `#lizard forgive global` (one space; also `globally`) | drops nothing. It forgives the file's top-level pseudo function, which no TypeScript, JavaScript or Swift scan lists |
 | `#lizard forgives(metric)`, closed or not | drops nothing. It forgives a metric in lizard's own warning filter, and the scan reads every function from the CSV, which has none |
 | `/** */` or `///` comment | not read: lizard takes the text after the first two characters, which starts with `*` or `/` |
@@ -651,7 +651,8 @@ for (`forgive global`, `forgives(metric)`, `/** */`, `///`, text before the
 marker, capitals) stays an ordinary comment line: counting it would cost the
 consumer a baseline entry for a comment that hides nothing. A
 test runs real lizard over every form listed and fails when the reader and
-lizard disagree about which function is dropped.
+lizard disagree about which function is dropped, apart from the known
+differences below.
 
 **Where a marker stands is not checked,** as for the coverage markers. lizard
 holds the forgiveness until the next function ends, so a marker above a function,
@@ -683,13 +684,30 @@ only shrinking, `qg tolerated` counting growth. A consumer's comment debt falls
 and the silencer count rises by the same lines, so they record once, with the
 step `/setup-standards` step 3 already gives for Swift and TypeScript.
 
-**Known differences from lizard, both on the counting side.** The reader treats
-a `//` inside JSX text (`<p>// #lizard forgive</p>`) as a comment, where lizard
-reads text, and a `//` or `/* */` inside a template literal's `${ }`, where
-lizard reads the template whole and does not honour it. Each costs a consumer
-one baseline entry for a marker that hides nothing, and none lets a function
-through. The JSX one is the comment reader's own limit and affects comment debt
-the same way.
+**Known differences from lizard.** One lets a function through; the others only
+over-count.
+
+- **A marker the reader misses (the reader issue, #260).** The TypeScript reader
+  takes a `/` after `of`, `await` or a generic's closing `>` (`return of / 2;`,
+  `await / 2`, `a.b<c> / 2`) for the start of a regex, so it reads a trailing
+  `// #lizard forgive` as regex text and counts nothing, where lizard honours
+  it and drops the next function. A function over the limit then passes every
+  gate with its marker uncounted. A test asserts today's miss for those three
+  lines, so fixing the reader flips it.
+- **Markers counted that hide nothing,** each costing a consumer one baseline
+  entry. A `//` or `/* */` inside JSX text (`<p>// #lizard forgive</p>`); a `//`
+  or `/* */` inside a template literal's `${ }`, where lizard reads the template
+  whole; `//` followed by U+2028, U+2029 or a lone carriage return before the
+  marker, which the reader counts as white space and lizard's comment ends at;
+  a Swift extended regex literal (`#/a// #lizard forgive/#`); and a marker above
+  an expression lizard abandons (`// #lizard forgive` then `const g = (a, b);`),
+  where lizard spends it on the abandoned expression and drops nothing. A test
+  lists each. The JSX ones are the comment reader's own limit and affect comment
+  debt the same way.
+
+A related escape that is not about the marker: lizard skips a file whose opening
+lines say `GENERATED CODE`, so no function in it reaches either gate with no
+marker to count. It is filed separately (#261).
 
 **Rejected.**
 
