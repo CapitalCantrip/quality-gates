@@ -47,7 +47,7 @@ source lines, and `comment-debt` judges the silencers against
 row reads `swiftlint:disable` in every `//` line comment (quality-gates#235); Rust's
 row reads the `allow` and `expect` attributes that name a complexity lint from
 `reading.blanked`, the code with comments and strings blanked (quality-gates#237); the
-other row matches nothing until quality-gates#236. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding))
+TypeScript's row matches nothing until quality-gates#236, and shell's has no silencer. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding))
 
 ## One language registry
 
