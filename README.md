@@ -76,7 +76,9 @@ files; it needs no install of its own.
 ### Keep it up to date
 
 Each release in [CHANGELOG.md](CHANGELOG.md) says what to do for that version,
-in an *On bumping the pin* block or at the end of an entry. In general, on your computer or by asking Claude in a cloud session:
+in an *On bumping the pin* block, or *When you bump the pin* in 0.13.0 and
+older, or at the end of an entry. In general, on your computer or by asking
+Claude in a cloud session:
 
 1. Install quality-gates again with the new version number in the line from
    step 1.
