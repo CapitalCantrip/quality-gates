@@ -173,7 +173,9 @@
   `deny` of these two. Under `cc-rust setup`'s deny attributes, clippy also stops
   reporting under `#[allow(clippy::pedantic)]` and `#[allow(clippy::restriction)]`,
   a per-function `#[clippy::cognitive_complexity = "N"]` and a raised threshold in
-  `clippy.toml`: none is counted yet, and a Rust consumer without
+  `clippy.toml`; `#[warn(clippy::cognitive_complexity)]` (or `too_many_lines`)
+  downgrades the deny to a warning, so plain `cargo clippy --all-targets` exits 0
+  (checked with clippy 0.1.98). None is counted yet (#255), and a Rust consumer without
   `no-comments-rust` still has its allow attributes uncounted. On bumping the
   pin, a Rust consumer with `no-comments-rust` chosen runs
   `comment-debt --update` once and commits `silencer-baseline.json` to record
