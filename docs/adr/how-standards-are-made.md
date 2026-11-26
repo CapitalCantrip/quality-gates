@@ -143,7 +143,7 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     `// SAFETY:` run may sit anywhere on the next line
     (`let ev = unsafe { … };`), since Rust takes a block's result in an
     assignment as often as it opens one alone. Bare tool pragmas are exempt
-    and include Rust's `// @generated`, `eslint-enable` and
+    and include Rust's `// @generated`, `eslint-disable`, `eslint-enable` and
     `swiftlint:enable`: a tool reads each one, and prose after one counts. TypeScript's `/// <reference … />` counts, as a
     doc comment, because an `import` or `tsconfig.json` does its job.
     ([ADR-010 addendum 2026-11-23](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references))
@@ -152,10 +152,12 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     `# pragma: no branch`, is reported by `comment-debt` at its file and line,
     held in `silencer-baseline.json` as a count per file that only shrinks, and
     not counted as a comment line. `# noqa`, `# type: ignore` and `# fmt:` stay
-    exempt: they silence no gate of ours. Swift's `swiftlint:disable` is one, in
+    exempt: they silence no gate of ours. Swift's `// swiftlint:disable` is one, in
     every form (plain, `:next`, `:this`, `:previous`, with or without rule
-    names, whatever rule it names); `swiftlint:enable` stays exempt and a
-    `swiftlint:disable` in a string literal is neither. TypeScript and Rust
+    names, whatever rule it names), read only when `no-comments-swift` is
+    chosen; `swiftlint:enable` stays exempt, a `swiftlint:disable` in a string
+    literal is neither, and one in a block or doc comment, which SwiftLint
+    ignores, stays a comment line. TypeScript and Rust
     follow in their own tickets (quality-gates#236, #237).
     ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235))
   - **Each new language is its own component** (`no-comments-rust`,

@@ -17,8 +17,10 @@ docstrings and strings used as comments too. Bare tool pragmas
 switch off the coverage half of `crap`), reported as their own finding, held in
 `silencer-baseline.json` and not counted as comment lines. They count wherever
 they sit on a line, a string included, as coverage.py reads the line. Swift's
-`swiftlint:disable`, in every form and for any rule, is a silencer too (it
-switches off the complexity lint); it counts only in a comment. A
+`// swiftlint:disable`, in every form and for any rule, is a silencer too (it
+switches off the complexity lint): with `no-comments-swift` chosen, a `//` line
+comment holding it counts, a block or doc comment does not (SwiftLint ignores
+it there), and a string never does. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.

@@ -142,7 +142,7 @@ def coverage_without_pragmas(root):
         [[2, 3], [4, 5], [6, 7], [8, 9], [10, 11], [12, 13]])
 
 
-class SilencerGateTest(unittest.TestCase):
+class SilencerGateCase(unittest.TestCase):
 
     def setUp(self):
         self.tmp = tempfile.TemporaryDirectory()
@@ -162,6 +162,10 @@ class SilencerGateTest(unittest.TestCase):
 
     def recorded(self):
         return json.loads(self.silencers.read_text())
+
+
+
+class SilencerGateTest(SilencerGateCase):
 
     def crap_exit(self, coverage):
         (self.root / 'cov.json').write_text(coverage)
@@ -382,20 +386,40 @@ class SwiftSilencerReaderTest(unittest.TestCase):
     def test_a_swiftlint_disable_that_carries_prose_is_a_silencer_and_not_also_a_comment_line(self):
         self.silenced_by('// swiftlint:disable force_cast, the API returns Any')
 
-    def test_a_swiftlint_disable_in_a_block_comment_or_a_doc_comment_is_a_silencer(self):
-        for comment in ('/* swiftlint:disable:next cyclomatic_complexity */', '/// swiftlint:disable cyclomatic_complexity'):
+    def test_a_swiftlint_disable_in_a_block_comment_is_comment_debt_and_not_a_silencer(self):
+        for comment in ('/* swiftlint:disable:next cyclomatic_complexity */', '/* swiftlint:disable */',
+                        '/* swiftlint:disable cyclomatic_complexity\n   the reason */'):
             with self.subTest(comment=comment):
-                self.silenced_by(comment)
+                found = swift_reading(swift_with(comment))
+                self.assertEqual((found.silencers, set(found.debt.values())), ((), {'block'}))
+
+    def test_a_swiftlint_disable_in_a_doc_comment_is_comment_debt_and_not_a_silencer(self):
+        for comment in ('/// swiftlint:disable cyclomatic_complexity', '/** swiftlint:disable:next force_cast */'):
+            with self.subTest(comment=comment):
+                found = swift_reading(swift_with(comment))
+                self.assertEqual((found.silencers, set(found.debt.values())), ((), {'doc'}))
 
     def test_a_trailing_swiftlint_disable_this_is_a_silencer_on_its_own_line(self):
         found = swift_reading('func f() {  // swiftlint:disable:this cyclomatic_complexity\n}\n')
         self.assertEqual((found.silencers, found.debt), ((1,), {}))
 
-    def test_swiftlint_enable_is_neither_a_comment_line_nor_a_silencer(self):
-        for comment in ('// swiftlint:enable', f'// swiftlint:enable {RULES}'):
+    def exempt(self, form):
+        for comment in (f'// swiftlint:{form}', f'// swiftlint:{form} {RULES}'):
             with self.subTest(comment=comment):
                 found = swift_reading(swift_with(comment))
                 self.assertEqual((found.silencers, found.debt), ((), {}))
+
+    def test_a_plain_swiftlint_enable_is_neither_a_comment_line_nor_a_silencer(self):
+        self.exempt('enable')
+
+    def test_a_swiftlint_enable_next_is_neither_a_comment_line_nor_a_silencer(self):
+        self.exempt('enable:next')
+
+    def test_a_swiftlint_enable_this_is_neither_a_comment_line_nor_a_silencer(self):
+        self.exempt('enable:this')
+
+    def test_a_swiftlint_enable_previous_is_neither_a_comment_line_nor_a_silencer(self):
+        self.exempt('enable:previous')
 
     def test_a_swiftlint_disable_inside_a_string_literal_is_neither_a_comment_line_nor_a_silencer(self):
         source = ('let a = "// swiftlint:disable"\nlet b = "x \\(y) // swiftlint:disable:next force_cast"\n'
@@ -421,31 +445,15 @@ DISABLE_NEXT = '// swiftlint:disable:next cyclomatic_complexity\n'
 SWIFTLINT_CONFIG = 'only_rules:\n  - cyclomatic_complexity\ncyclomatic_complexity:\n  warning: 8\n  error: 8\n'
 
 
-class SwiftSilencerGateTest(unittest.TestCase):
+class SwiftSilencerGateTest(SilencerGateCase):
 
     def setUp(self):
-        self.tmp = tempfile.TemporaryDirectory()
-        self.addCleanup(self.tmp.cleanup)
-        self.root = Path(self.tmp.name)
-        subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
+        super().setUp()
         (self.root / 'quality-gates.json').write_text(json.dumps({
             'format_version': 1, 'languages': ['swift'], 'exclude': [],
             'components': {'chosen': ['no-comments-swift'], 'declined': []}, 'commit_time_limit_seconds': 2,
             'settings': {'no-comments': {'exclude': [], 'conventions': []}},
         }))
-        self.comments = self.root / 'comment-debt.json'
-        self.silencers = self.root / 'silencer-baseline.json'
-
-    def put(self, name, text):
-        (self.root / name).write_text(text)
-        subprocess.run(['git', 'add', name], cwd=self.root, check=True)
-
-    def gate(self, *argv):
-        out = io.StringIO()
-        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
-
-    def recorded(self):
-        return json.loads(self.silencers.read_text())
 
     def swiftlint_exit(self):
         (self.root / '.swiftlint.yml').write_text(SWIFTLINT_CONFIG)
@@ -453,10 +461,8 @@ class SwiftSilencerGateTest(unittest.TestCase):
                              cwd=self.root, capture_output=True, text=True)
         return run.returncode
 
-    @unittest.skipUnless(shutil.which('swiftlint'), 'swiftlint is not installed')
-    def test_a_function_over_the_limit_hidden_by_swiftlint_disable_next_passes_swiftlint_and_fails_the_comment_gate_until_it_is_recorded(self):
+    def test_a_function_over_the_limit_hidden_by_swiftlint_disable_next_fails_the_comment_gate_until_it_is_recorded(self):
         self.put('A.swift', swift_function_over_the_limit(DISABLE_NEXT))
-        self.assertEqual(self.swiftlint_exit(), 0)
         self.comments.write_text('{}\n')
         self.silencers.write_text('{}\n')
         code, out = self.gate()
@@ -466,6 +472,11 @@ class SwiftSilencerGateTest(unittest.TestCase):
         self.assertEqual(self.gate('--update')[0], 0)
         self.assertEqual(self.recorded(), {'A.swift': 1})
         self.assertEqual(self.gate()[0], 0)
+
+    @unittest.skipUnless(shutil.which('swiftlint'), 'swiftlint is not installed')
+    def test_swiftlint_passes_the_function_over_the_limit_that_swiftlint_disable_next_hides(self):
+        self.put('A.swift', swift_function_over_the_limit(DISABLE_NEXT))
+        self.assertEqual(self.swiftlint_exit(), 0)
 
     @unittest.skipUnless(shutil.which('swiftlint'), 'swiftlint is not installed')
     def test_the_same_function_without_its_swiftlint_disable_fails_swiftlint(self):

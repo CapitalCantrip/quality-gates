@@ -259,8 +259,9 @@ the form.
 `// @generated`; TypeScript's `eslint-disable`, `eslint-disable-line`,
 `eslint-disable-next-line` and `eslint-enable`, each with or without rule
 names, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore`; Swift's
-`swiftlint:disable` and `swiftlint:enable`, with or without `:next`, `:this`
-or `:previous` and rule names; shell's `# shellcheck disable=` with its
+`swiftlint:enable`, with or without `:next`, `:this` or `:previous` and rule
+names (its `swiftlint:disable` became a silencer, [addendum 2026-11-26,
+Swift](#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235)); shell's `# shellcheck disable=` with its
 codes. A tool reads each of them and none can move into a name or a test; an
 `enable` only closes what a `disable` opened. Any of them followed by prose
 counts.
@@ -350,23 +351,32 @@ adding one was how a failing function got to pass.
 forms are plain, `:next`, `:this` and `:previous`, with or without rule names and
 whatever rule they name: the literal reading. A list of complexity rule names
 would have to guess which names SwiftLint ties to complexity, and one miss lets
-a failing function pass. The match is the word `swiftlint:disable` anywhere in a
-comment of any kind (line, block or doc), with anything after it. A silencer is
-not also a comment line, so a disable that carries prose is a silencer and not
-comment debt. The reader looks only at comments, so a `swiftlint:disable`
-inside a string literal is neither a silencer nor debt.
+a failing function pass. The match is the word `swiftlint:disable` in a `//`
+line comment, with anything after it. A block comment (`/* … */`) or a doc
+comment (`///`, `/** … */`) is not read: SwiftLint 0.65.1 does not honour a
+disable there, so it hides nothing and stays an ordinary comment line. A
+silencer is not also a comment line, so a disable that carries prose is a
+silencer and not comment debt. The reader looks only at comments, so a
+`swiftlint:disable` inside a string literal is neither a silencer nor debt.
 
-**`swiftlint:enable` stays a bare tool pragma, exempt.** It only closes what a
-`disable` opened and switches nothing off. Prose after it counts as before.
+**`swiftlint:enable` stays a bare tool pragma, exempt,** in its plain, `:next`,
+`:this` and `:previous` forms, with or without rule names. It only closes what
+a `disable` opened and switches nothing off. Prose after it counts as before.
+
+**The silencers are read only when `no-comments-swift` is chosen,** as the
+comment gate reads nothing else of a language. Without it the disable lines go
+uncounted.
 
 **The silencer baseline holds the Swift ones** exactly as it holds Python's:
 count per file, only shrinking, `--update` recording them when the file does
-not exist yet. A consumer who recorded existing debt with a disable line (the
-setup step for Swift) records those lines once with `comment-debt --update`.
-That step comes after `qg setup` has written `silencer-baseline.json`, and
-`--update` records a silencer only when the file does not exist, so the step
-deletes that file first, where the default branch holds none. `/cc-swift` and
-`/setup-standards` say so.
+not exist yet. A consumer who records existing debt with a disable line (the
+setup step for Swift) runs `comment-debt`. That step comes after `qg setup` has
+written `silencer-baseline.json`, and `--update` records a silencer only when
+the file does not exist, so where the default branch holds none the step
+deletes the file and runs `--update`; otherwise it runs `--rerecord`, which
+records the comment baseline afresh too and needs the builder's
+`tolerated-growth` label. `/setup-standards` says so and `/cc-swift` points
+there.
 
 ## Addendum 2026-11-26: counting tools are pinned exactly (#198)
 

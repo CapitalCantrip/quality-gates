@@ -192,7 +192,7 @@ Which gates score each language, and which components install for it:
 Code carries no comments, docstrings or strings used as comments; bare pragmas
 such as `# noqa` are exempt. A marker that switches off one of our own gates,
 Python's `# pragma: no cover` and `# pragma: no branch` and Swift's
-`swiftlint:disable` in every form, is a *silencer*: it is
+`// swiftlint:disable` in every form, is a *silencer*: it is
 not counted as a comment line, and the gate holds it in `silencer-baseline.json`
 as a count per file that only shrinks (`comment-debt --update` records the ones
 already there once). Comments drift from the code and agents copy them as
@@ -221,8 +221,10 @@ regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
 `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` are exempt, while
 `/// <reference … />` counts as a doc comment. In Swift
 `// MARK:` counts, `\( )` interpolation is read as code, a bare
-`swiftlint:enable` is exempt, and `swiftlint:disable` (plain, `:next`, `:this`,
-`:previous`, with or without rule names) is a silencer, not a comment line. In shell a `#` counts only
+`swiftlint:enable` (any form) is exempt, and a `// swiftlint:disable` line
+comment (plain, `:next`, `:this`, `:previous`, with or without rule names) is a
+silencer, not a comment line; in a block or doc comment, which SwiftLint
+ignores, it is an ordinary comment line. In shell a `#` counts only
 where it starts a word, so `$#`, `${#x}`, quotes and heredoc bodies do not;
 the shebang on line 1 and a bare `# shellcheck disable=` are exempt.
 `comment-debt --report <language>` prints a language's comment debt, chosen or

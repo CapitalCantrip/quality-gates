@@ -91,9 +91,10 @@ often.
   (`PAID`, `new`, `worse`, unmeasured) like any baseline; `comment-debt
   --update` records the silencers already there once and only lowers the file
   after that. Python's are `# pragma: no cover` and `# pragma: no branch`;
-  Swift's is `swiftlint:disable` in every form (the Swift setup step records
-  existing debt with one, so the silencer baseline is where that debt is
-  counted); TypeScript and Rust follow in quality-gates#236 and #237.
+  Swift's is a `// swiftlint:disable` line comment in every form, read when
+  `no-comments-swift` is chosen (the Swift setup step records existing debt
+  with one, so with that component the silencer baseline is where that debt is
+  counted, and without it the lines go uncounted); TypeScript and Rust follow in quality-gates#236 and #237.
   ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235))
 
 ## Loosening

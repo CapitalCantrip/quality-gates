@@ -187,11 +187,16 @@ from the repo root and commit the file it writes.
   them as debt.
 - **Swift:** run SwiftLint. Each function already over the limit gets
   `// swiftlint:disable:next cyclomatic_complexity` above it; that line is its
-  baseline entry, and `comment-debt` counts it as a silencer. Record the lines:
-  delete `silencer-baseline.json` (step 2 wrote it before these lines existed;
-  `--update` records silencers only when the file is missing, and a baseline the
-  default branch holds needs `--rerecord`), run `comment-debt --update` once, and
-  commit the file. Then record CRAP from the project's coverage. In a SwiftPM
+  baseline entry. With `no-comments-swift` chosen, `comment-debt` counts each
+  one as a silencer, so record them: run `comment-debt`. If it fails as new
+  silencers on the lines you added, then where the default branch has no
+  `silencer-baseline.json`, delete the file (step 2 wrote it before these
+  lines existed) and run `comment-debt --update`; otherwise run
+  `comment-debt --rerecord` and ask the builder for the `tolerated-growth`
+  label. `--rerecord` rewrites `comment-debt.json` too: check its diff and
+  that no count grew, and remove any comment you added, then rerun. Commit the
+  files, and `comment-debt` passes. Without `no-comments-swift` the disable
+  lines go uncounted and nothing records them. Then record CRAP from the project's coverage. In a SwiftPM
   package with a test target, run `swift test --enable-code-coverage`, then
   `crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json --update`.
   In an Xcode project with an `.xcresult`, run

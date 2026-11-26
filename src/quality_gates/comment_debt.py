@@ -115,6 +115,11 @@ def in_comments(pattern):
     return lambda reading, source: tuple(sorted({c.start for c in reading.comments if pattern.search(c.text)}))
 
 
+def in_line_comments(pattern):
+    return lambda reading, source: tuple(sorted({c.start for c in reading.comments
+                                                 if c.kind == code_reader.LINE and pattern.search(c.text)}))
+
+
 SAFETY_START = "// SAFETY:"
 UNSAFE_BELOW = re.compile(r"\bunsafe\s*\{|^\s*unsafe\s+impl\b")
 
@@ -226,7 +231,7 @@ SWIFT = CommentSyntax(code_reader.Syntax(
                             code_reader.Interpolation(SWIFT_INTERPOLATION, SWIFT_MULTILINE_PIECE)),
         code_reader.Literal(r'"', r'"' + SWIFT_PIECE, code_reader.Interpolation(SWIFT_INTERPOLATION, SWIFT_PIECE)),
     ),
-), re.compile(r"//\s*swiftlint:enable(?:\s+[\w-]+)*\s*"), {})
+), re.compile(r"//\s*swiftlint:enable(?::(?:next|this|previous))?(?:\s+[\w-]+)*\s*"), {})
 
 
 SHELL_WORD_BREAK = r"\s;&|()<>"
@@ -268,7 +273,7 @@ LANGUAGES = {
     "python": CommentLanguage("no-comments", python_silencers),
     "rust": CommentLanguage("no-comments-rust", silences_nothing, RUST),
     "typescript": CommentLanguage("no-comments-typescript", silences_nothing, TYPESCRIPT),
-    "swift": CommentLanguage("no-comments-swift", in_comments(SWIFT_SILENCER), SWIFT),
+    "swift": CommentLanguage("no-comments-swift", in_line_comments(SWIFT_SILENCER), SWIFT),
     "shell": CommentLanguage("no-comments-shell", silences_nothing, SHELL),
 }
 

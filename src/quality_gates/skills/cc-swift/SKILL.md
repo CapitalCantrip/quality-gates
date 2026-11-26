@@ -55,7 +55,9 @@ counting one per case (the [complexity ceiling](references/complexity-ceiling.md
 
 ## Recording existing debt
 
-A function already over the limit gets `// swiftlint:disable:next cyclomatic_complexity` above it, and `comment-debt` counts that line as a silencer, in `silencer-baseline.json`, a count per file that only shrinks. After adding the lines, delete `silencer-baseline.json` if the default branch has none, run `comment-debt --update` once and commit the file. `--update` records silencers only when the file is missing. A disable added once the file is recorded fails the gate: fix the function.
+A function already over the limit gets `// swiftlint:disable:next cyclomatic_complexity` above it. With `no-comments-swift` chosen, `comment-debt` counts that line as a silencer, held in `silencer-baseline.json`; without it the line goes uncounted. `/setup-standards` step 3 gives the commands that record the lines. A disable added once the file is recorded fails the gate: fix the function.
+
+Done when `comment-debt` passes with the disable lines in place (with `no-comments-swift` chosen) and `swiftlint lint` reports no error.
 
 ## Architectural constraints — apply when writing new Swift in this session
 
