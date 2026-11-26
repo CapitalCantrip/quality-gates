@@ -67,6 +67,18 @@ file.
    Source: AgenticOS coding standards, rule 6, adapted; #101 retro
    (2026-11-25).
 
+10. **A new way to write a baseline goes through every existing baseline
+    rule, and its tests run those rules through it:** unmeasured entries
+    kept, entries outside what the gate checks kept, an unreadable baseline
+    stops it, for every gate and every baseline a gate writes, a merged
+    sibling's included. The tests loop over the ways to write, so a new way
+    joins the list rather than getting hand-picked cases.
+    Reason: #192 needed three review rounds with hard findings; each fix
+    added a path (`--rerecord`, the refusal before `settle`) that skipped a
+    rule the old path kept, and its ADR sentence described the intent, not
+    the code.
+    Source: #192 retro (2026-11-26).
+
 ## Tests
 
 7. **A derived view is tested against its source by ID.**

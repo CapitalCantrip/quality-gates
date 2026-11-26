@@ -690,6 +690,277 @@ class PaidDebtLeavesTheBaselineTest(unittest.TestCase):
         self.assertEqual(self.baseline(), {})
 
 
+def git(root, *args):
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root, check=True,
+                   capture_output=True)
+
+
+class UpdateWillNotRecreateABaselineMainHasTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name).resolve()
+        git(self.root, "init", "-q", "-b", "main")
+        self.module = self.root / "mod.py"
+        self.module.write_text(branchy("old", 10))
+        git(self.root, "add", "mod.py")
+        self.file = self.root / "cc.json"
+
+    def scratch(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        return Path(folder.name).resolve()
+
+    def commit_baseline(self, text):
+        self.file.write_text(text)
+        git(self.root, "add", "cc.json")
+        git(self.root, "commit", "-q", "-m", "baseline")
+
+    def cc_check(self, file):
+        return call(qc.main, [str(self.module), "--threshold", "8", "--baseline", str(file), "--update"], self.root)
+
+    def assertRefused(self, code, out, file, restore=None):
+        self.assertEqual(code, 2)
+        self.assertFalse(file.exists())
+        restore = file if restore is None else restore
+        refusal = ratchet.MAIN_HAS_THE_BASELINE.format(file=file, restore=restore, branch="main")
+        self.assertIn(refusal, out.splitlines())
+        self.assertIn(f"git checkout main -- {restore}", refusal)
+        self.assertIn("--rerecord", refusal)
+        self.assertIn("`tolerated-growth` label", refusal)
+
+    def test_cc_check_update_will_not_recreate_a_deleted_baseline_main_has_and_names_why_in_one_line(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        self.module.write_text(branchy("old", 10) + "\n\n" + branchy("new", 12))
+        self.file.unlink()
+        self.assertRefused(*self.cc_check(self.file), self.file)
+
+    def test_crap_update_will_not_recreate_a_deleted_baseline_main_has(self):
+        self.commit_baseline('{"mod.py::old": 132}\n')
+        coverage = self.root / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": [1]}}}))
+        self.file.unlink()
+        argv = ["--lang", "python", str(self.module), "--coverage-json", str(coverage), "--baseline", str(self.file)]
+        self.assertRefused(*call(crap.main, [*argv, "--update"], self.root), self.file)
+
+    def test_comment_debt_update_will_not_recreate_a_deleted_baseline_main_has(self):
+        self.module.write_text("# one\nx = 1\n")
+        self.commit_baseline('{"mod.py": 1}\n')
+        self.file.unlink()
+        out = io.StringIO()
+        with redirect_stderr(io.StringIO()):
+            code = cd.main(["--update"], root=self.root, baseline=self.file, out=out)
+        self.assertRefused(code, out.getvalue(), self.file)
+
+    def test_update_records_a_first_baseline_when_main_has_none(self):
+        git(self.root, "commit", "-q", "-m", "code")
+        self.assertEqual(self.cc_check(self.file)[0], 0)
+        self.assertEqual(json.loads(self.file.read_text()), {"mod.py::old": 11})
+
+    def test_update_records_a_first_baseline_in_a_repo_with_no_commits(self):
+        self.assertEqual(self.cc_check(self.file)[0], 0)
+        self.assertEqual(json.loads(self.file.read_text()), {"mod.py::old": 11})
+
+    def test_update_records_a_baseline_outside_any_repo_since_no_main_can_hold_it(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        elsewhere = self.scratch() / "cc.json"
+        self.assertEqual(self.cc_check(elsewhere)[0], 0)
+        self.assertEqual(json.loads(elsewhere.read_text()), {"mod.py::old": 11})
+
+    def test_update_will_not_recreate_a_baseline_the_main_of_the_other_repo_holding_it_has(self):
+        git(self.root, "commit", "-q", "-m", "code")
+        other = self.scratch()
+        git(other, "init", "-q", "-b", "main")
+        file = other / "cc.json"
+        file.write_text("{}\n")
+        git(other, "add", "cc.json")
+        git(other, "commit", "-q", "-m", "baseline")
+        file.unlink()
+        self.assertRefused(*self.cc_check(file), file)
+
+    def test_update_will_not_recreate_a_baseline_under_another_spelling_where_git_ignores_case(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        git(self.root, "config", "core.ignorecase", "true")
+        self.file.unlink()
+        respelled = self.root / "CC.json"
+        self.assertRefused(*self.cc_check(respelled), respelled, restore=self.file)
+
+    def test_update_with_a_relative_baseline_path_checks_the_file_it_names(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        self.file.unlink()
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(self.root)
+        self.assertRefused(*self.cc_check(Path("cc.json")), Path("cc.json"))
+
+    def assertRerecorded(self, code, expected):
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(self.file.read_text()), expected)
+
+    def test_cc_check_rerecord_records_what_it_measures_and_drops_entries_it_no_longer_finds_with_or_without_the_file(self):
+        self.commit_baseline('{"gone.py::f": 20, "mod.py::old": 9}\n')
+        self.module.write_text(branchy("old", 10) + "\n\n" + branchy("new", 12))
+        for present in (True, False):
+            with self.subTest(present=present):
+                if not present:
+                    self.file.unlink()
+                argv = [str(self.module), "--threshold", "8", "--baseline", str(self.file), "--rerecord"]
+                self.assertRerecorded(call(qc.main, argv, self.root)[0], {"mod.py::new": 13, "mod.py::old": 11})
+
+    def test_crap_rerecord_records_afresh_when_main_has_the_baseline(self):
+        self.commit_baseline('{"mod.py::old": 1}\n')
+        coverage = self.root / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": [1]}}}))
+        self.file.unlink()
+        argv = ["--lang", "python", str(self.module), "--coverage-json", str(coverage), "--baseline", str(self.file)]
+        code, _ = call(crap.main, [*argv, "--rerecord"], self.root)
+        self.assertEqual(code, 0)
+        self.assertEqual(list(json.loads(self.file.read_text())), ["mod.py::old"])
+        self.assertGreater(json.loads(self.file.read_text())["mod.py::old"], 1)
+
+    def commit_both_comment_baselines(self):
+        self.module.write_text("# one\n# two\nx = 1  # " + SILENCER + "\n")
+        self.silencers = self.root / "silencer-baseline.json"
+        self.silencers.write_text('{"mod.py": 0}\n')
+        git(self.root, "add", "mod.py", "silencer-baseline.json")
+        self.commit_baseline('{"mod.py": 3}\n')
+
+    def comment_debt(self, flag):
+        out = io.StringIO()
+        with redirect_stderr(out):
+            code = cd.main([flag], root=self.root, baseline=self.file, out=out)
+        return code, out.getvalue()
+
+    def test_comment_debt_rerecord_records_afresh_when_main_has_the_baseline(self):
+        self.commit_both_comment_baselines()
+        self.file.unlink()
+        self.silencers.unlink()
+        self.assertRerecorded(self.comment_debt("--rerecord")[0], {"mod.py": 2})
+        self.assertEqual(json.loads(self.silencers.read_text()), {"mod.py": 1})
+
+    def test_comment_debt_update_after_main_s_silencer_baseline_is_deleted_writes_nothing_and_refuses(self):
+        self.commit_both_comment_baselines()
+        self.silencers.unlink()
+        before = self.file.read_text()
+        code, out = self.comment_debt("--update")
+        self.assertEqual(code, 2)
+        self.assertFalse(self.silencers.exists())
+        self.assertEqual(self.file.read_text(), before)
+        self.assertIn(ratchet.MAIN_HAS_THE_BASELINE.format(file=self.silencers, restore=self.silencers, branch="main"),
+                      out.splitlines())
+
+    def test_rerecord_without_a_baseline_flag_is_a_usage_error(self):
+        for gate, argv in ((qc.main, [str(self.module), "--rerecord"]),
+                           (crap.main, ["--lang", "python", str(self.module), "--no-coverage", "--rerecord"])):
+            with self.subTest(gate.__module__):
+                code, out = call(gate, argv, self.root)
+                self.assertEqual(code, 2)
+                self.assertIn("--rerecord needs --baseline", out)
+
+    def test_rerecord_and_update_together_are_a_usage_error(self):
+        argv = [str(self.module), "--baseline", str(self.file), "--update", "--rerecord"]
+        self.assertEqual(call(qc.main, argv, self.root)[0], 2)
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            cd.main(["--update", "--rerecord"], root=self.root, baseline=self.file, out=io.StringIO())
+
+    def test_update_that_finds_the_baseline_file_present_does_not_look_for_main(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        with mock.patch.object(ratchet.project_files, "default_branch") as looked:
+            self.assertEqual(self.cc_check(self.file)[0], 0)
+        looked.assert_not_called()
+
+
+WRITES = ("--update", "--rerecord")
+SILENCER = "prag" + "ma: no cover"
+
+
+class EveryWayToWriteABaselineKeepsTheBaselineRulesTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name).resolve()
+        git(self.root, "init", "-q", "-b", "main")
+        self.module = self.root / "mod.py"
+        self.file = self.root / "baseline.json"
+
+    def stored(self):
+        return json.loads(self.file.read_text())
+
+    def silencers(self):
+        return json.loads((self.root / "silencer-baseline.json").read_text())
+
+    def cc_check(self, flag):
+        self.module.write_text(branchy("old", 10))
+        (self.root / "bad.py").write_text("def f(:\n")
+        argv = [str(self.module), str(self.root / "bad.py"), "--threshold", "8", "--baseline", str(self.file), flag]
+        return call(qc.main, argv, self.root)
+
+    def crap(self, flag):
+        self.module.write_text(branchy("old", 10))
+        other = self.root / "other.py"
+        other.write_text(branchy("g", 2))
+        coverage = self.root / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": [1]}}}))
+        argv = ["--lang", "python", str(self.module), str(other), "--coverage-json", str(coverage),
+                "--baseline", str(self.file), flag]
+        return call(crap.main, argv, self.root)
+
+    def comment_debt(self, flag):
+        self.module.write_text("# one\ndef f(:\n")
+        (self.root / "silencer-baseline.json").write_text('{"mod.py": 1}\n')
+        with redirect_stderr(io.StringIO()):
+            return cd.main([flag], root=self.root, baseline=self.file, out=io.StringIO()), ""
+
+    def test_every_write_keeps_the_entry_of_an_unmeasured_function_or_file_in_every_gate(self):
+        for gate, baseline in ((self.cc_check, {"bad.py::f": 11, "mod.py::old": 11}),
+                               (self.crap, {"mod.py::old": 132, "other.py::g": 5}),
+                               (self.comment_debt, {"mod.py": 1})):
+            for flag in WRITES:
+                with self.subTest(gate=gate.__name__, write=flag):
+                    self.file.write_text(json.dumps(baseline))
+                    self.assertEqual(gate(flag)[0], 1)
+                    self.assertEqual(self.stored(), baseline)
+                    if gate == self.comment_debt:
+                        self.assertEqual(self.silencers(), {"mod.py": 1})
+
+    def test_every_write_keeps_the_entry_of_a_file_outside_what_the_gate_checks(self):
+        (self.root / "quality-gates.json").write_text(json.dumps({
+            "format_version": 1, "languages": ["python"], "exclude": [],
+            "components": {"chosen": [], "declined": []}, "commit_time_limit_seconds": 2,
+            "settings": {"no-comments": {"exclude": [], "conventions": []}}}))
+        self.module.write_text("# one\n# two\n")
+        (self.root / "b.js").write_text("f(); // istanbul ignore next\n")
+        for flag in WRITES:
+            with self.subTest(write=flag):
+                self.file.write_text('{"mod.py": 2, "b.js": 1}\n')
+                (self.root / "silencer-baseline.json").write_text('{"b.js": 1}\n')
+                with redirect_stderr(io.StringIO()):
+                    code = cd.main([flag], root=self.root, baseline=self.file, out=io.StringIO())
+                self.assertEqual(code, 0)
+                self.assertEqual(self.stored(), {"mod.py": 2, "b.js": 1})
+                self.assertEqual(self.silencers(), {"b.js": 1})
+
+    def test_every_write_stops_at_an_unreadable_baseline_and_leaves_it_as_it_was_in_every_gate(self):
+        for gate in (self.cc_check, self.crap, self.comment_debt):
+            for flag in WRITES:
+                with self.subTest(gate=gate.__name__, write=flag):
+                    self.file.write_text("{not json\n")
+                    self.assertEqual(gate(flag)[0], 2)
+                    self.assertEqual(self.file.read_text(), "{not json\n")
+
+    def test_every_write_stops_at_an_unreadable_silencer_baseline_before_writing_the_comment_baseline(self):
+        self.module.write_text("# one\n")
+        for flag in WRITES:
+            with self.subTest(write=flag):
+                self.file.write_text('{"mod.py": 5}\n')
+                (self.root / "silencer-baseline.json").write_text("{not json\n")
+                with redirect_stderr(io.StringIO()):
+                    self.assertEqual(cd.main([flag], root=self.root, baseline=self.file, out=io.StringIO()), 2)
+                self.assertEqual(self.stored(), {"mod.py": 5})
+
+
 class CcCheckRatchetTest(unittest.TestCase):
 
     def setUp(self):
