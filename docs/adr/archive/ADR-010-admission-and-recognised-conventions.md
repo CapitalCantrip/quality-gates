@@ -467,7 +467,7 @@ TypeScript functions that 1.24.x had merged, so a consumer's baseline failed on
 an unchanged tag the day an install resolved the new release (#173).
 
 **Now, a counting tool is pinned to an exact version.** radon 6.0.1 and lizard
-1.26.1 are the only two packages this package installs, and both count code, so
+1.26.1 are the only two entries of `dependencies`, and both count code, so
 `pyproject.toml` asks for `radon==6.0.1` and `lizard==1.26.1`. The admission
 record's `minimum_version` and `tested_version` both name that same version, and
 a test fails when the requirement is not `==`, or when either field disagrees
