@@ -89,6 +89,11 @@ class Component:
     def applies_to(self, used):
         return applies(self.languages, used)
 
+    def gates(self):
+        steps = tuple(dict.fromkeys(part.id for part in self.parts if part.kind in STEP_KINDS))
+        commands = tuple(part.id for part in self.parts if part.kind == "command")
+        return (commands or steps) if steps else ()
+
 
 @dataclass(frozen=True)
 class Admission:
@@ -111,6 +116,10 @@ class Manifest:
 
     def component(self, component_id):
         return next((c for c in self.components if c.id == component_id), None)
+
+    def gates_among(self, chosen):
+        names = [name for component in self.components if component.id in chosen for name in component.gates()]
+        return tuple(dict.fromkeys(names))
 
     def explainer_path(self, component):
         return None if component.explainer is None else self.folder / component.explainer

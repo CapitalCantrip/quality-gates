@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- **An escape log: an `escaped` label and a four-question issue template
+  (#196).** An escape is a problem that got past every gate and was found
+  later. `/setup-standards` now creates the `escaped` label, and
+  on a GitHub tracker `qg-agent-docs` writes `.github/ISSUE_TEMPLATE/escaped.md`: what happened,
+  how it was found, the earliest point it could have been stopped (idea, spec,
+  module map, ticket brief, build, review, gate), and which gate should have
+  caught it, the fourth question listing the gates in `quality-gates.json` plus
+  "none could". `docs/agents/escape-log.md` counts escapes by stage and by gate,
+  each with `unanswered`. A template named
+  `escaped` that it did not write is kept and reported, with no second one
+  written; a path that leads outside the project, or a template it cannot read,
+  is reported and left alone; a GitLab or local tracker gets no GitHub issue
+  template. `qg-agent-docs` now exits 3 on a malformed `quality-gates.json`.
+  If `docs/agents` is a link outside the repo, `qg-agent-docs` now updates none
+  of its files nor the PR template; replace the link with a folder to get
+  updates. The `standards` skill gains *file an escape*: an agent files one when
+  it fixes a problem a merged change introduced, and never applies
+  `tolerated-growth` or `loosening`. On bumping the pin, rerun `qg-skills`,
+  then `/setup-standards` (or `gh label create escaped` and `qg-agent-docs
+  --tracker <github|gitlab|local>`), and commit `.github/ISSUE_TEMPLATE/` and
+  `docs/agents/.base/escaped.md`. No score, threshold or scanned file changes.
 - **radon and lizard are pinned to exact versions, and TypeScript and Swift
   counts move (#198, #123, #173).** The package asks for `radon==6.0.1` and
   `lizard==1.26.1`, so the date of an install no longer chooses the counter; it

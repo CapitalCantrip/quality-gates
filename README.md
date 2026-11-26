@@ -541,9 +541,14 @@ file-level record `qg-upstream` reads.
 Three more commands support them:
 
 - `qg-agent-docs --tracker github|gitlab|local` writes `docs/agents/` from
-  Matt Pocock's setup templates, and `.github/pull_request_template.md` from
-  the `pr` skill's headings. It never overwrites a file you edited; it
-  shows the template's own change instead, so you can choose to adopt it.
+  Matt Pocock's setup templates, `.github/pull_request_template.md` from
+  the `pr` skill's headings, and, with `--tracker github`,
+  `.github/ISSUE_TEMPLATE/escaped.md`, the
+  four questions to answer when a problem got past every gate; its fourth
+  question lists the gates in `quality-gates.json`. It never overwrites a file
+  you edited; it shows the template's own change instead, so you can choose to
+  adopt it. A template named `escaped` that it did not write is kept and
+  reported.
 - `qg-upstream` reports what changed upstream in the files this repo copies
   from Pocock and pstack; see
   [Keeping the copied skills current](#keeping-the-copied-skills-current).

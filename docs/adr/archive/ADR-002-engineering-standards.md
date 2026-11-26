@@ -90,7 +90,7 @@ and a rename would change nothing about how they work.
 
 ### Principles: a vocabulary with a promotion path
 
-Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Current rule, restated 2026-10-12: principles from use](#current-rule-restated-2026-10-12-principles-from-use), [Current rule, restated 2026-10-12: the promotion path](#current-rule-restated-2026-10-12-the-promotion-path), [Addendum 2026-11-26: three more pstack principles](#addendum-2026-11-26-three-more-pstack-principles)
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Current rule, restated 2026-10-12: principles from use](#current-rule-restated-2026-10-12-principles-from-use), [Current rule, restated 2026-10-12: the promotion path](#current-rule-restated-2026-10-12-the-promotion-path), [Addendum 2026-11-26: three more pstack principles](#addendum-2026-11-26-three-more-pstack-principles), [Addendum 2026-11-26: the escape log (#196)](#addendum-2026-11-26-the-escape-log-196)
 
 The principles ship as one skill, `standards`, through `qg-skills` like the
 gates' skills. Its `SKILL.md` is an index of one line per principle, saying
@@ -144,7 +144,7 @@ when that line is missing.
 
 ### Setting up a project: one command
 
-Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040)
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Addendum 2026-11-26: the escape log (#196)](#addendum-2026-11-26-the-escape-log-196)
 
 **A `/setup-standards` skill prepares a new or existing project for all three
 layers.** A builder can't be expected to know that a project needs a
@@ -418,3 +418,60 @@ projects allow subagents only on request. The rest of pstack's principles and
 all its skills stay out. *Never block on the human* conflicts with asking the
 builder; the others repeat a principle or skill already shipped, are specific
 to one language, or are too general to change what an agent does.
+
+## Addendum 2026-11-26: the escape log (#196)
+
+Amends: [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path) and [Setting up a project: one command](#setting-up-a-project-one-command)
+
+An **escape** is a problem that got past every gate and was found later (see
+`GLOSSARY.md`). The escape log is the count of them by the earliest point each
+could have been stopped and by the gate that should have caught it, so a change
+to a gate rests on what happened rather than on a guess.
+
+- **Setup gives every GitHub project the log.** `/setup-standards` creates an
+  `escaped` label, the way it creates the triage labels: the agent runs
+  `gh label create` for the one `gh label list` lacks, so a second run changes
+  nothing. `qg-agent-docs` writes `.github/ISSUE_TEMPLATE/escaped.md`, a file
+  quality-gates owns: it asks four things (what happened; how it was
+  found; the earliest point it could have been stopped, one of idea, spec,
+  module map, ticket brief, build, review, gate; which gate should have caught
+  it), and the fourth lists the gates in the project's choice file plus "none
+  could". The stage list is fixed text. It follows the same rules as the
+  other files `qg-agent-docs` writes: an unedited template follows the gate
+  list as it changes, an edited one is kept and its diff shown, and a template
+  named `escaped` that quality-gates did not write (by file name in any case,
+  or by the `name:` in its header) is kept and reported, with no second one
+  written. A file whose path, or whose record under `docs/agents/.base/`, is a
+  link leading outside the project or nowhere, and a template that cannot be
+  read, is reported and not written. A GitLab or local tracker gets no GitHub
+  issue template, and the plan for it leaves the template out. `qg setup` writes none of this: it creates only files it owns in
+  its own list, and the label belongs to the skill.
+- **An escape has two kinds: the stage named in the third answer and the gate
+  named in the fourth.** The between-sprints routine's retro step prints the
+  count by stage and by gate, each with `unanswered`, with the command in
+  `docs/agents/escape-log.md`, which reads `gh issue list --label escaped`. An
+  escape filed before the stage question existed counts as `unanswered` by
+  stage.
+- **An agent files an escape when it fixes a problem a merged change
+  introduced.** It is a principle in the `standards` skill, *file an escape*.
+  An agent never applies `tolerated-growth` or `loosening`; those labels are
+  the builder's.
+- **A threshold, or the order of the gates, changes only with the escape count
+  cited.** This is a rule on the compendium page *How standards are made*.
+
+**Decided by the builder, 2026-11-26: the template asks both.** The 2026-11-14
+amendment on the issue asked for the earliest point the problem could have been
+stopped in place of the gate; the brief that moved the work into sprint 3a kept
+the gate question. The builder chose both (#196, #232): knowing which gate would
+have caught it and at what stage it could have been stopped are each useful, so
+the template has four questions, not "exactly three", and the count reports by
+stage and by gate.
+
+**Why `qg tolerated` is not in the gate list.** The list comes from the
+components in the project's choice file, and `qg tolerated` is a command a CI
+workflow runs, not a component: setup prints its step and never edits a
+workflow, so the choice file does not say whether a project runs it. An escape
+that `qg tolerated` should have caught is answered in the fourth answer's free
+text, `qg tolerated`, and the count shows it as its own gate line. Offering it
+in the list would need the choice file to record the step; that is a separate
+change.
