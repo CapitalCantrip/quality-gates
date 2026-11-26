@@ -218,6 +218,7 @@ class AgentDocs(unittest.TestCase):
                                 ("form.yml", "\ufeffname: escaped\nbody: []\n")):
             with self.subTest(file_name):
                 (self.issue_templates / file_name).write_text(text, encoding="utf-8")
+                self.addCleanup((self.issue_templates / file_name).unlink, missing_ok=True)
                 out = self.run_tool()
                 self.assertFalse(self.escaped.exists())
                 self.assertIn(f"not written; .github/ISSUE_TEMPLATE/{file_name} is already an escaped template", out)

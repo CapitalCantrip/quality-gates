@@ -255,6 +255,7 @@ class SkillsSync(unittest.TestCase):
     def test_a_quoted_or_spaced_frontmatter_name_key_still_counts_as_that_name(self):
         for text in ('---\n"name": reviewer\n---\n', "---\n'name': reviewer\n---\n", "---\nname : reviewer\n---\n"):
             with self.subTest(text):
+                self.addCleanup((self.agents / "code-reviewer.md").unlink, missing_ok=True)
                 self.assert_sync_stops_on("code-reviewer.md", text)
                 (self.agents / "code-reviewer.md").unlink()
 

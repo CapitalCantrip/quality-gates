@@ -24,15 +24,16 @@ that uses what it names, and one pull request can carry them all.
 5. Run `cc-check` and `crap` as the project's hook and CI do. A Python file
    that does not parse or is not UTF-8 now fails as `UNMEASURED` (#212), as does
    any file a gate cannot read: fix it or exclude it.
-6. For TypeScript, JavaScript and Swift, run `cc-check --lang typescript
-   <source dirs> --baseline <file>` and `crap --lang <typescript|swift>
-   <source dirs> <coverage flag> --baseline <file>`: entries reported as PAID
-   take `--update`; a function reported as new or worse takes `--rerecord` and
-   the builder's `tolerated-growth` label. Commit each baseline file. If Python
-   and TypeScript share `cc-baseline.json` (or `crap-baseline.json`), either
-   language's `--update` or `--rerecord` drops the other's entries (#263), and
-   re-recording the second language drops the first's again: give each language
-   its own file, in the hook and CI too, before you record.
+6. For TypeScript and JavaScript, run `cc-check --lang typescript <source
+   dirs> --baseline <file>` and `crap --lang typescript <source dirs> <coverage
+   flag> --baseline <file>`; for Swift, `crap --lang swift <source dirs>
+   <coverage flag> --baseline <file>`. Entries reported as PAID take
+   `--update`; a function reported as new or worse takes `--rerecord` and the
+   builder's `tolerated-growth` label. Commit each baseline file. If two
+   languages share a baseline file, either language's `--update` or
+   `--rerecord` drops the other's entries, and a file of another name is not
+   read by `qg tolerated`: stop and ask the builder rather than split the file
+   (#263).
 7. Where an entry of an earlier release says to delete a baseline and run
    `--update`, run `--rerecord` on `cc-check`, `crap` or `comment-debt` instead
    and ask the builder for the `tolerated-growth` label on that pull request.
@@ -113,8 +114,8 @@ that uses what it names, and one pull request can carry them all.
   `comment-debt` it records the silencer baseline too. An unreadable baseline
   stops it: delete the file first. Only `comment-debt` keeps the entries of a
   language it did not choose; `cc-check` and `crap` drop the entries of a file
-  outside their scan, so a baseline file shared by Python and TypeScript loses
-  the other language's entries (#263).
+  outside their scan, so a baseline file two languages share loses the other
+  language's entries, on `--update` as well as `--rerecord` (#263).
 - **Python's `# pragma: no cover` and `# pragma: no branch` are silencers
   (ADR-010 addendum 2026-11-26).** `comment-debt` now reports a marker that
   switches off one of our own gates as its own finding, held in

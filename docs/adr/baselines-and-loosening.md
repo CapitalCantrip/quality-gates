@@ -28,7 +28,8 @@ enforce the limits in CI without first paying it all off.
   steps a release asks for: measured entries become what the gate finds now.
   Unmeasured entries stay. So do the entries of a language `comment-debt` did
   not choose; `cc-check` and `crap` drop the entries of a file outside their
-  scan, so a baseline file two languages share loses the other's entries. An
+  scan, so a baseline file two languages share loses the other's entries, on
+  `--update` as well. An
   unreadable baseline stops it, so delete that file first. CI's
   `qg tolerated` then asks for the builder's label.
 - **An unmeasured function is never recorded, and keeps a nonzero entry.**
