@@ -75,8 +75,10 @@ files; it needs no install of its own.
 
 ### Keep it up to date
 
-Each [CHANGELOG.md](CHANGELOG.md) entry ends with what to do for that version.
-In general, on your computer or by asking Claude in a cloud session:
+Each release in [CHANGELOG.md](CHANGELOG.md) says what to do for that version,
+in an *On bumping the pin* block, or *When you bump the pin* in 0.13.0 and
+older, or at the end of an entry. In general, on your computer or by asking
+Claude in a cloud session:
 
 1. Install quality-gates again with the new version number in the line from
    step 1.
@@ -467,7 +469,7 @@ file-level record `qg-upstream` reads.
   dependency any OSI-approved licence, a test-only tool any), `practice` (one
   sentence on the author's practice, ending in a full stop), and either
   `last_release` (a date like `2026-10-29`) or `stable` (the reason it needs no
-  releases), never both. A Python package this package installs also has
+  releases), never both. An entry of `dependencies` in `pyproject.toml` also has
   `minimum_version` and `tested_version`, both the exact version `pyproject.toml`
   pins ([ADR-010 addendum 2026-11-26](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-counting-tools-are-pinned-exactly-198)).
   An admission holds no repo

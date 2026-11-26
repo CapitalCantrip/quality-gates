@@ -252,6 +252,13 @@ class SkillsSync(unittest.TestCase):
     def test_a_frontmatter_name_after_a_byte_order_mark_still_counts(self):
         self.assert_sync_stops_on("code-reviewer.md", "\ufeff---\nname: reviewer\n---\n")
 
+    def test_a_quoted_or_spaced_frontmatter_name_key_still_counts_as_that_name(self):
+        for text in ('---\n"name": reviewer\n---\n', "---\n'name': reviewer\n---\n", "---\nname : reviewer\n---\n"):
+            with self.subTest(text):
+                self.addCleanup((self.agents / "code-reviewer.md").unlink, missing_ok=True)
+                self.assert_sync_stops_on("code-reviewer.md", text)
+                (self.agents / "code-reviewer.md").unlink()
+
     def test_a_closing_fence_with_trailing_spaces_still_ends_the_frontmatter(self):
         self.assert_sync_stops_on("code-reviewer.md", "---\nname: reviewer\n---   \nbody\n")
 

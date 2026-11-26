@@ -234,9 +234,11 @@ changes.
 with what the gate finds now, adds every new finding over the threshold and
 drops entries it no longer finds, for the re-record steps releases ask for
 (re-keying after a counting change). It keeps the rules every write keeps:
-the entries of unmeasured functions and files, and of files outside what the
-gate checks, stay as they were, and an unreadable baseline stops it, so
-delete that file first. In `comment-debt` it records the silencer baseline
+the entries of unmeasured functions and files stay as they were, so do those
+of files outside the languages `comment-debt` chose (it alone tells the ratchet
+what it covers; `cc-check` and `crap` do not, so they drop the entries of a
+file outside the scan, quality-gates#263), and an unreadable baseline stops it,
+so delete that file first. In `comment-debt` it records the silencer baseline
 too.
 `qg tolerated` still reports what grew, so the builder's label records the
 yes.

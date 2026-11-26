@@ -25,7 +25,7 @@ OWN_AGENT = "the project's own agent has a name quality-gates ships"
 NO_LONGER_SHIPPED = "not shipped"
 AGENT_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]*")
 FRONTMATTER_FENCE = "---"
-FRONTMATTER_NAME = re.compile(r"name:\s*(?P<value>.*?)\s*(?:\s#.*)?$")
+FRONTMATTER_NAME = re.compile(r"(?P<quote>[\"']?)name(?P=quote)\s*:\s*(?P<value>.*?)\s*(?:\s#.*)?$")
 TEXT_WITH_BOM = "utf-8-sig"
 STAGE_GUARD = "stage_guard.py"
 STAGE_GUARD_COMMAND = 'python3 "$CLAUDE_PROJECT_DIR/.claude/hooks/stage_guard.py"'
@@ -228,8 +228,10 @@ def frontmatter_lines(path):
         lines = path.read_text(encoding=TEXT_WITH_BOM).splitlines()
     except (OSError, UnicodeDecodeError):
         return []
+    if path.suffix.lower() in FORM_SUFFIXES:
+        return lines
     if not lines or lines[0].strip() != FRONTMATTER_FENCE:
-        return lines if path.suffix.lower() in FORM_SUFFIXES else []
+        return []
     for end, line in enumerate(lines[1:], 1):
         if line.strip() == FRONTMATTER_FENCE:
             return lines[1:end]

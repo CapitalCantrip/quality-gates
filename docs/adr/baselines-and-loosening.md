@@ -26,7 +26,10 @@ enforce the limits in CI without first paying it all off.
   real base.
 - **`--rerecord` records a baseline afresh** from the tree for the re-record
   steps a release asks for: measured entries become what the gate finds now.
-  Unmeasured entries and entries outside what the gate checks stay, and an
+  Unmeasured entries stay. So do the entries of a language `comment-debt` did
+  not choose; `cc-check` and `crap` drop the entries of a file outside their
+  scan, so a baseline file two languages share loses the other's entries, on
+  `--update` as well. An
   unreadable baseline stops it, so delete that file first. CI's
   `qg tolerated` then asks for the builder's label.
 - **An unmeasured function is never recorded, and keeps a nonzero entry.**
@@ -42,6 +45,9 @@ enforce the limits in CI without first paying it all off.
 - **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
   not a gate.
 <!-- /rule:baseline-ratchet -->
+
+Only `comment-debt` passes the ratchet the languages it chose, so only it keeps
+the entries of the others; `cc-check` and `crap` pass none (quality-gates#263).
 
 ## Baseline keys
 

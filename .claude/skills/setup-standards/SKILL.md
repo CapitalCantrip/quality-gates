@@ -261,7 +261,8 @@ except a CRAP gate step 2 or 3 says to report as not done, which is reported
 not done with its reason.
 
 On an upgrade, a baseline that fails after the bump is re-recorded as the
-release's CHANGELOG entry says under *When you bump the pin*. From 0.15.0,
+release's CHANGELOG says under *On bumping the pin* (*When you bump the pin* in
+0.13.0 and older). From 0.15.0,
 re-record with the gate's `--rerecord` in place of deleting the baseline and
 running `--update`; the pull request then needs the builder's
 `tolerated-growth` label.

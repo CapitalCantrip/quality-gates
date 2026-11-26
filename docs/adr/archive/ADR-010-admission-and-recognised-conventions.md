@@ -407,7 +407,9 @@ attribute naming both lints is one silencer; two attributes on one line are two.
 A lint name in a string, a raw string, a comment (nested block comments
 included) or the string argument of another attribute is not a silencer, because
 those are blanked before the reader looks. `#[allow(…)]` for any other lint, and
-`deny`, `warn` and `forbid` of these two (what `cc-rust setup` writes), are not.
+`deny` and `forbid` of these two (what `cc-rust setup` writes), are not.
+`#[warn(…)]` of these two is not counted either, but it is not harmless: see *Not
+counted, and known*.
 
 **A Rust silencer is code, so a comment on its line still counts.** Python's
 pragma and Swift's disable are comments, and the silencer swallows the comment
@@ -434,6 +436,17 @@ stops reporting `too_many_lines` under `#[allow(clippy::pedantic)]` and
 `clippy::style` stop neither lint, and neither does `#[allow(warnings)]`. A
 `[lints.clippy]` allow in `Cargo.toml` does nothing against the deny attributes;
 it matters only to a project without them.
+
+`#[warn(clippy::cognitive_complexity)]` and `#[warn(clippy::too_many_lines)]`,
+also inside `cfg_attr`, are not counted and also switch the gate off: they
+downgrade the crate's `deny` to a warning, and the CI step `/setup-standards`
+asks for is plain `cargo clippy --all-targets`, with no `-D warnings`. A real run
+(clippy 0.1.98, `clippy.toml` threshold 3, `#![deny(clippy::cognitive_complexity)]`)
+printed `warning: the function has a cognitive complexity of (8/3)` and exited 0
+with the attribute above the function; without it, `error: the function has a
+cognitive complexity of (8/3)` and exit 101. The two ways to close it, counting
+`warn` as a silencer or adding `-D warnings` to the setup step, change what the
+gate covers and wait for the builder (#255).
 
 **The silencers are read only when `no-comments-rust` is chosen,** as the
 comment gate reads nothing else of a language. A Rust consumer with `cc-rust`
@@ -467,12 +480,14 @@ TypeScript functions that 1.24.x had merged, so a consumer's baseline failed on
 an unchanged tag the day an install resolved the new release (#173).
 
 **Now, a counting tool is pinned to an exact version.** radon 6.0.1 and lizard
-1.26.1 are the only two packages this package installs, and both count code, so
+1.26.1 are the only two entries of `dependencies`, and both count code, so
 `pyproject.toml` asks for `radon==6.0.1` and `lizard==1.26.1`. The admission
 record's `minimum_version` and `tested_version` both name that same version, and
 a test fails when the requirement is not `==`, or when either field disagrees
 with it. The test holds every entry of `dependencies` to this rule, so a package
-that counts nothing needs the rule and the test changed first.
+that counts nothing needs the rule and the test changed first. The optional
+`coverage` extra (`coverage>=7.10`) is not in `dependencies`, so the rule does
+not hold it.
 
 **Moving a counting tool is a release.** The change that moves it:
 

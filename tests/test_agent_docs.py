@@ -213,13 +213,51 @@ class AgentDocs(unittest.TestCase):
     def test_a_template_in_another_file_that_names_itself_escaped_is_kept_and_no_second_one_is_written(self):
         self.issue_templates.mkdir(parents=True)
         for file_name, text in (("bug.md", "---\nname: 'Escaped'\nabout: ours\n---\n"),
+                                ("quoted.md", "---\n\"name\": escaped\nabout: ours\n---\nbody\n"),
+                                ("spaced.md", "---\nname : escaped\nabout: ours\n---\nbody\n"),
                                 ("form.yml", "\ufeffname: escaped\nbody: []\n")):
             with self.subTest(file_name):
                 (self.issue_templates / file_name).write_text(text, encoding="utf-8")
+                self.addCleanup((self.issue_templates / file_name).unlink, missing_ok=True)
                 out = self.run_tool()
                 self.assertFalse(self.escaped.exists())
                 self.assertIn(f"not written; .github/ISSUE_TEMPLATE/{file_name} is already an escaped template", out)
                 (self.issue_templates / file_name).unlink()
+
+    def test_a_yaml_form_named_escaped_is_kept_however_its_opening_is_written(self):
+        openings = {
+            "a document start with no end": "---\nname: escaped\nbody: []\n",
+            "a document start with a trailing space": "--- \nname: escaped\nbody: []\n",
+            "a document start after a byte order mark": "\ufeff---\nname: escaped\nbody: []\n",
+            "a document start with a comment on it": "--- # ours\nname: escaped\nbody: []\n",
+            "a document start with Windows line ends": "---\r\nname: escaped\r\nbody: []\r\n",
+            "a document start closed by an end marker": "---\nname: escaped\nbody: []\n...\n",
+            "a comment line before the name": "---\n# our form\nname: escaped\nbody: []\n",
+            "a comment line before the document start": "# our form\n---\nname: escaped\nbody: []\n",
+            "a directive before the document start": "%YAML 1.2\n---\nname: escaped\nbody: []\n",
+            "a name after another key": "---\ndescription: ours\nname: escaped\nbody: []\n",
+            "a quoted name key": "---\n\"name\": escaped\nbody: []\n",
+            "a single quoted name key": "---\n'name': escaped\nbody: []\n",
+            "a space before the colon": "---\nname : escaped\nbody: []\n",
+        }
+        self.issue_templates.mkdir(parents=True)
+        for suffix in (".yml", ".yaml", ".YML"):
+            for label, text in openings.items():
+                with self.subTest(label, suffix=suffix):
+                    form = self.issue_templates / f"form{suffix}"
+                    form.write_bytes(text.encode("utf-8"))
+                    out = self.run_tool()
+                    written = self.escaped.exists()
+                    self.escaped.unlink(missing_ok=True)
+                    form.unlink()
+                    self.assertFalse(written)
+                    self.assertIn(f"not written; .github/ISSUE_TEMPLATE/form{suffix} is already an escaped template", out)
+
+    def test_a_yaml_form_whose_escaped_name_is_only_nested_inside_another_key_does_not_block_ours(self):
+        self.issue_templates.mkdir(parents=True)
+        (self.issue_templates / "form.yml").write_text("---\nname: bug\nbody:\n  - attributes:\n      name: escaped\n")
+        self.run_tool()
+        self.assertTrue(self.escaped.exists())
 
     def test_a_template_that_only_mentions_escaped_in_its_text_does_not_block_ours(self):
         self.issue_templates.mkdir(parents=True)
