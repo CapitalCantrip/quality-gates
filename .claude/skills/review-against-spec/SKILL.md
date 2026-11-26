@@ -57,6 +57,8 @@ Each smell reads *what it is* → *how to fix*; match it against the diff:
 
 ### 4. Spawn both sub-agents in parallel
 
+Without a tool to spawn sub-agents, run the Standards review, then the Spec review, each to its own finished findings before the next starts.
+
 **Standards sub-agent prompt** should include:
 
 - The full diff command and commit list.
