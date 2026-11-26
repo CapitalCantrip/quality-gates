@@ -217,10 +217,11 @@ from the repo root and commit the file it writes.
   baseline: report CRAP as not done, as step 2 says. With `no-comments-typescript`
   chosen, `comment-debt` counts each `istanbul ignore`, `c8 ignore` and
   `v8 ignore` comment as a silencer, so after a pin bump record the ones already
-  there: run `comment-debt`. If it fails as new silencers, then where the
-  default branch has no `silencer-baseline.json`, run `comment-debt --update`;
-  otherwise run `comment-debt --rerecord` and ask the builder for the
-  `tolerated-growth` label. `--rerecord` rewrites `comment-debt.json` too: check
+  there: run `comment-debt`. With no `silencer-baseline.json` it exits 2, naming
+  the missing baseline: where the default branch has none either, run
+  `comment-debt --update`, which records the markers. If the file exists and the
+  run fails as new silencers, run `comment-debt --rerecord` and ask the builder
+  for the `tolerated-growth` label. `--rerecord` rewrites `comment-debt.json` too: check
   its diff and that no count grew, then rerun. Add no marker to make CRAP pass:
   a new one fails the gate, so test the code it would hide.
 - **Rust:** run `cargo clippy --all-targets`. Each function it fails gets

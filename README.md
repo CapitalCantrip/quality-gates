@@ -223,9 +223,11 @@ regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
 `/// <reference … />` counts as a doc comment. A comment that opens with
 `istanbul`, `c8` or `v8`, then `ignore` and one of `if`, `else`, `next`,
 `file`, `start` or `stop` (`//`, `/* */` or `/** */`, any reason after it) is a
-silencer, not a comment line; only its first line is, so the reason lines of a
-multi-line marker stay comment lines, and one inside a string, template or regex
-literal is neither. In Swift
+silencer, not a comment line; only the line its marker word sits on is, so the
+reason lines of a multi-line marker stay comment lines, and one inside a string,
+template or regex literal is neither. A marker outside a comment that a coverage
+tool still reads, such as `'v8 ignore start'` in a string, hides code and is
+not counted ([ADR-010 addendum](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236)). In Swift
 `// MARK:` counts, `\( )` interpolation is read as code, a bare
 `swiftlint:enable` (any form) is exempt, and a `// swiftlint:disable` line
 comment (plain, `:next`, `:this`, `:previous`, with or without rule names) is a

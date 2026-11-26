@@ -100,7 +100,7 @@ class PythonSilencerReadingTest(unittest.TestCase):
 class SharedReaderSilencerTest(unittest.TestCase):
 
     def test_a_comment_matching_a_languages_silencer_pattern_is_a_silencer_and_not_a_comment_line_in_a_language_the_shared_reader_reads(self):
-        row = dataclasses.replace(cd.LANGUAGES['typescript'], silencer=cd.in_comments(re.compile(r'//\s*silence\b')))
+        row = dataclasses.replace(cd.LANGUAGES['typescript'], silencer=cd.in_comments(re.compile(r'//\s*(?P<marker>silence)\b')))
         found = row.reading('// why\nf(); // silence me\nlet s = "// silence";\n', ())
         self.assertEqual((found.silencers, list(found.debt)), ((2,), [1]))
 
@@ -163,21 +163,24 @@ class SilencerGateCase(unittest.TestCase):
     def recorded(self):
         return json.loads(self.silencers.read_text())
 
+    def crap_exit(self, language, flag, report, source):
+        (self.root / 'cov.json').write_text(report)
+        argv = ['--lang', language, flag, str(self.root / 'cov.json'), str(self.root / source)]
+        with contextlib.redirect_stdout(io.StringIO()):
+            return ratchet.exit_code(crap.gate(argv, self.root))
+
 
 
 class SilencerGateTest(SilencerGateCase):
 
-    def crap_exit(self, coverage):
-        (self.root / 'cov.json').write_text(coverage)
-        argv = ['--lang', 'python', '--coverage-json', str(self.root / 'cov.json'), str(self.root / 'm.py')]
-        with contextlib.redirect_stdout(io.StringIO()):
-            return ratchet.exit_code(crap.gate(argv, self.root))
+    def python_crap_exit(self, coverage):
+        return self.crap_exit('python', '--coverage-json', coverage, 'm.py')
 
     def test_a_function_over_the_limit_hidden_by_pragmas_passes_crap_and_fails_the_comment_gate_until_the_silencers_are_recorded(self):
         self.put('m.py', SOURCE_WITH_PRAGMAS)
         self.comments.write_text('{}\n')
         self.silencers.write_text('{}\n')
-        self.assertEqual(self.crap_exit(coverage_with_pragmas(self.root)), 0)
+        self.assertEqual(self.python_crap_exit(coverage_with_pragmas(self.root)), 0)
         code, out = self.gate()
         self.assertEqual(code, 1)
         self.assertIn('FAIL m.py: 6 silencers, baseline allows 0 — lines 2, 4, 6, 8, 10, 12', out)
@@ -188,7 +191,7 @@ class SilencerGateTest(SilencerGateCase):
 
     def test_the_same_function_without_its_pragmas_fails_crap(self):
         self.put('m.py', SOURCE_WITHOUT_PRAGMAS)
-        self.assertEqual(self.crap_exit(coverage_without_pragmas(self.root)), 1)
+        self.assertEqual(self.python_crap_exit(coverage_without_pragmas(self.root)), 1)
 
     def test_the_silencers_are_not_recorded_as_comment_debt(self):
         self.put('m.py', SOURCE_WITH_PRAGMAS)
@@ -606,6 +609,18 @@ class TypeScriptSilencerReaderTest(unittest.TestCase):
         found = ts_reading(ts_with('/* istanbul ignore next -- the reason\n   continues here\n   and ends here */'))
         self.assertEqual((found.silencers, list(found.debt)), ((1,), [2, 3]))
 
+    def test_a_block_marker_whose_words_start_on_the_second_line_is_a_silencer_on_that_line(self):
+        found = ts_reading(ts_with('/*\n   istanbul ignore next */'))
+        self.assertEqual((found.silencers, list(found.debt)), ((2,), [1]))
+
+    def test_a_block_marker_split_between_its_words_is_a_silencer_on_the_line_of_its_first_word(self):
+        found = ts_reading(ts_with('/* istanbul\n   ignore next */'))
+        self.assertEqual((found.silencers, list(found.debt)), ((1,), [2]))
+
+    def test_a_block_marker_split_after_its_first_line_leaves_the_lines_after_the_marker_as_comment_debt(self):
+        found = ts_reading(ts_with('/*\n   c8 ignore next -- why\n   more */'))
+        self.assertEqual((found.silencers, list(found.debt)), ((2,), [1, 3]))
+
     def test_a_block_marker_with_a_reason_on_the_same_line_leaves_no_comment_line(self):
         found = ts_reading(ts_with('/* istanbul ignore next -- the reason ends here */'))
         self.assertEqual((found.silencers, found.debt), ((1,), {}))
@@ -641,7 +656,6 @@ def ts_function_over_the_limit(marker):
 ISTANBUL_NEXT = '  /* istanbul ignore next */\n'
 TS_SOURCE_WITH_MARKERS = ts_function_over_the_limit(ISTANBUL_NEXT)
 TS_SOURCE_WITHOUT_MARKERS = ts_function_over_the_limit('')
-TS_MARKER_LINES = [2, 4, 6, 8, 10, 12]
 
 
 def istanbul_position(line):
@@ -689,19 +703,16 @@ class TypeScriptSilencerGateTest(SilencerGateCase):
             'settings': {'no-comments': {'exclude': [], 'conventions': []}},
         }))
 
-    def crap_exit(self, report):
-        (self.root / 'coverage-final.json').write_text(report)
-        argv = ['--lang', 'typescript', '--istanbul-json', str(self.root / 'coverage-final.json'), str(self.root / 'm.ts')]
-        with contextlib.redirect_stdout(io.StringIO()):
-            return ratchet.exit_code(crap.gate(argv, self.root))
+    def typescript_crap_exit(self, report):
+        return self.crap_exit('typescript', '--istanbul-json', report, 'm.ts')
 
     def test_a_function_over_the_limit_hidden_by_istanbul_ignore_next_passes_crap(self):
         self.put('m.ts', TS_SOURCE_WITH_MARKERS)
-        self.assertEqual(self.crap_exit(istanbul_report_with_markers(self.root / 'm.ts')), 0)
+        self.assertEqual(self.typescript_crap_exit(istanbul_report_with_markers(self.root / 'm.ts')), 0)
 
     def test_the_same_function_without_its_istanbul_ignore_next_fails_crap(self):
         self.put('m.ts', TS_SOURCE_WITHOUT_MARKERS)
-        self.assertEqual(self.crap_exit(istanbul_report_without_markers(self.root / 'm.ts')), 1)
+        self.assertEqual(self.typescript_crap_exit(istanbul_report_without_markers(self.root / 'm.ts')), 1)
 
     def test_istanbul_ignore_next_lines_fail_the_comment_gate_until_the_silencers_are_recorded(self):
         self.put('m.ts', TS_SOURCE_WITH_MARKERS)

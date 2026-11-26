@@ -457,15 +457,22 @@ lets code through.
 **A comment that only looks like a marker is not a silencer** and stays an
 ordinary comment line: `ignore` with no hint, `ignore nextx`, `ignore-next`,
 capitals, a `@preserve` or other word before the marker, `nyc ignore next`, and
-`/// istanbul ignore next`, which no tool reads. A marker that does not open its
-comment (`// why: c8 ignore next`, or the marker on the second line of a block
-comment) is not read: `istanbul-lib-instrument` and `v8-to-istanbul` do not
-honour it there. The reader looks only at comments, so a marker inside a string,
-template literal or regex literal is neither a silencer nor comment debt.
+`/// istanbul ignore next`, which no tool reads. A marker that comes after other
+text in its comment (`// why: c8 ignore next`, `/* why c8 ignore next */`, or a
+later line of a block comment that opens with prose) is not read:
+`istanbul-lib-instrument` and `v8-to-istanbul` do not honour it there. White
+space, a line break included, may sit between the comment opener and the marker
+and between its words (`/*\n   istanbul ignore next */`, `/* istanbul\n
+ignore next */`): `istanbul-lib-instrument` and Vitest's `v8` provider honour
+both, so both are read, and the silencer is reported on the line the marker
+word `istanbul`, `c8` or `v8` sits on. The reader looks only at comments, so a
+marker inside a string, template literal or regex literal is neither a silencer
+nor comment debt.
 
-**A silencer is the first line of its comment and no more.** In
+**A silencer is the one line its marker word sits on, and no more.** In
 `/* istanbul ignore next -- the reason\n continues */`, line 1 is the silencer
-and the continuation lines stay comment debt, as `#249` item 1 left to this
+and the continuation lines stay comment debt; where the marker starts on the
+second line, line 2 is the silencer and line 1 stays comment debt, as `#249` item 1 left to this
 ticket. The alternative, taking the whole block into the silencer, would let any
 length of reason leave the comment count by sitting under a marker, and the
 reason is the prose the comment gate exists to count: agents copy a comment
@@ -476,18 +483,29 @@ until deleted. It is also what a Python docstring holding a pragma does (the
 other lines stay debt), so the two languages agree. A marker with its reason on
 one line leaves no comment line.
 
-**Known gaps, left open.** The markers are read from comments, where the tools
-read source lines, so three things the tools honour are not counted: `v8-to-istanbul`
-honours `/* c8 ignore next */` inside a string on the line it ends, where the
-ticket and the other gates count only comments; Vitest's `v8` provider honours a
-`start` or `stop` on any line of a block comment, where only its first line is
-read; and `node:coverage ignore next`, `disable` and `enable`, which Node's own
-runner, `v8-to-istanbul` and Vitest read, are a fourth marker word this ticket
-does not name. A multi-line `c8 ignore next` hides only its own continuation line
-under `c8` (the code below stays in the report) and is counted all the same.
-Where a marker stands is not checked either: one the tool cannot attach to a
-node, such as a trailing `// istanbul ignore next` after a statement's last
-token, hides nothing and is counted.
+**Known gaps, left open: a marker outside a comment hides code, and the gate
+counts it nowhere.** The reader looks only at comments, as the ticket says, and
+the tools read raw source lines, so each of these hides coverage from `crap`
+and is neither a silencer nor comment debt (each run on 2026-11-26):
+
+- `v8-to-istanbul` under `c8` matches `/* c8 ignore start */` anywhere on a
+  line, a string or template literal included: `const s = '/* c8 ignore start */';`
+  hides every line after it up to a `stop` or the end of the file. `/* c8
+  ignore next */` in a string hides its own line.
+- Vitest's `v8` provider matches `istanbul`, `c8` or `v8` then `ignore start`
+  or `stop` on any raw source line, with no comment opener: `const s = 'v8
+  ignore start';` hides the code below it to a `stop` or the end of the file.
+- Vitest's `start` and `stop` are also read on any line of a block comment, where
+  the gate reads only the line the marker opens.
+- `node:coverage ignore next`, `disable` and `enable`, which Node's runner,
+  `v8-to-istanbul` and Vitest read, are a fourth marker word this ticket does not
+  name.
+
+Two smaller points. A multi-line `c8 ignore next` hides only its own
+continuation line under `c8` (the code below stays in the report) and is
+counted all the same. Where a marker stands is not checked: one the tool cannot
+attach to a node, such as a trailing `// istanbul ignore next` after a
+statement's last token, hides nothing and is counted.
 
 **`eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` stay
 bare tool pragmas, exempt,** since they switch off no gate of ours.

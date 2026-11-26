@@ -24,8 +24,9 @@ it there), and a string never does. TypeScript's `istanbul ignore`, `c8 ignore`
 and `v8 ignore` comments (hints `if`, `else`, `next`, `file`, `start`, `stop`,
 a reason after) are silencers too (they hide code from the coverage half of
 `crap`): with `no-comments-typescript` chosen, a `//`, `/* */` or `/** */`
-comment that opens with one counts, as its first line only, so the reason lines
-of a multi-line marker stay comment lines, and a marker in a string never does;
+comment that opens with one counts, on the line its marker word sits on only, so
+the reason lines of a multi-line marker stay comment lines, and a marker in a
+string never does (a tool may still read it there: a known gap);
 `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` stay
 exempt. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`

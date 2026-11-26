@@ -117,9 +117,13 @@
   line, held in `silencer-baseline.json` and no longer a comment line. It counts
   a form any one of the coverage tools reads (nyc and `istanbul-lib-instrument`,
   `c8`, Vitest's `v8` provider), checked against the real tools. A multi-line
-  marker is a silencer on its first line only: its reason lines stay comment
-  debt. A marker in a string, template or regex literal is neither a silencer
-  nor comment debt; `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and
+  marker is a silencer on the line its marker word sits on, and no other: its
+  reason lines stay comment debt. A marker in a string, template or regex
+  literal is neither a silencer nor comment debt, though a coverage tool may
+  still read it there: `c8` matches `/* c8 ignore start */` anywhere on a line,
+  and Vitest's `v8` provider matches `istanbul`, `c8` or `v8` then `ignore start`
+  or `stop` on any raw source line, so `const s = 'v8 ignore start';` hides the
+  code below it and the gate counts it nowhere (a known gap, ADR-010 addendum); `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and
   `prettier-ignore` stay exempt. On bumping the pin, a TypeScript consumer with
   `no-comments-typescript` chosen runs `comment-debt --update` once and commits
   `silencer-baseline.json` and `comment-debt.json`: their comment debt falls and

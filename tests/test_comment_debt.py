@@ -73,7 +73,7 @@ def rust_lines(source, conventions=()):
 
 
 SILENCERS_TO_COME = (
-    '# prag' 'ma: no cover', '# prag' 'ma: no branch', '/* istanbul ignore next */', '// c8 ignore next',
+    '# prag' 'ma: no cover', '# prag' 'ma: no branch',
     '#[allow(clippy::cognitive_complexity)]', '', 'x = 1',
 )
 

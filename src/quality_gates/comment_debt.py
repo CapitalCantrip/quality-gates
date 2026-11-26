@@ -26,6 +26,7 @@ PRAGMA = re.compile(
 PYTHON_SILENCER = re.compile(r"#\s*(?:pragma|PRAGMA)[:\s]?\s*(?:no|NO)\s*(?:cover|COVER|branch|BRANCH)")
 CODING = re.compile(r"^#.*coding[:=]")
 FINDING_KIND = "comment lines"
+MARKER_GROUP = "marker"
 SILENCER_KIND = "silencer"
 TAG = "comment-debt: "
 UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
@@ -111,8 +112,13 @@ def silences_nothing(reading, source):
     return ()
 
 
+def marker_line(comment, found):
+    return comment.start + comment.text.count(code_reader.NEWLINE, 0, found.start(MARKER_GROUP))
+
+
 def in_comments(pattern):
-    return lambda reading, source: tuple(sorted({c.start for c in reading.comments if pattern.search(c.text)}))
+    found = lambda reading: ((c, pattern.search(c.text)) for c in reading.comments)
+    return lambda reading, source: tuple(sorted({marker_line(c, m) for c, m in found(reading) if m}))
 
 
 def in_line_comments(pattern):
@@ -200,7 +206,7 @@ TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
 ESLINT_RULES = r"[@\w/-]+(?:\s*,\s*[@\w/-]+)*"
 TYPESCRIPT_PRAGMA = rf"eslint-(?:disable(?:-next-line|-line)?|enable)(?:\s+{ESLINT_RULES})?|@ts-expect-error|@ts-ignore|prettier-ignore"
 
-TYPESCRIPT_SILENCER = re.compile(r"\A(?://|/\*\*?)\s*(?:istanbul|c8|v8)\s+ignore\s+(?:if|else|next|file|start|stop)\b")
+TYPESCRIPT_SILENCER = re.compile(r"\A(?://|/\*\*?)\s*(?P<marker>(?:istanbul|c8|v8)\s+ignore\s+(?:if|else|next|file|start|stop)\b)")
 
 TYPESCRIPT = CommentSyntax(code_reader.Syntax(
     line=("//",),
