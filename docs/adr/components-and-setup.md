@@ -174,7 +174,7 @@ Source: [ADR-010](archive/ADR-010-admission-and-recognised-conventions.md#admitt
   upstream workflow flags a source with no release in 12 months.
 - **Pinning:** a downloaded tool gets an exact, checksum-verified version; a
   Python package this package installs is a counting tool and gets an exact
-  version (`radon==6.0.1`, `lizard==1.26.1`), with the admission record's
+  version, written in `pyproject.toml`, with the admission record's
   `minimum_version` and `tested_version` both naming it; a tool setup installs
   into a project gets an exact version moved by a pin bump. A test fails when a
   requirement in `pyproject.toml` is not `==` or disagrees with its admission.

@@ -445,7 +445,7 @@ file-level record `qg-upstream` reads.
   `"changed": true` when the copy is adapted), or `{"type": "dependency",
   "name": "<tool>"}`. A dependency's version is not repeated in its origin:
   loading fills `version` with `==` and the `minimum_version` its admission
-  records, so `qg status` and its `--json` show it. A component's origin is the
+  records. A component's origin is the
   one most of its parts have; a part with a different one carries its own. An
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.

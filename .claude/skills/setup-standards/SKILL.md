@@ -74,7 +74,10 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 
 1. Add the pinned requirement to the project's dev dependencies (Python), or
    to the CI install step (others), replacing any older `quality-gates` pin,
-   and install it.
+   and install it. quality-gates pins `radon` and `lizard` to exact versions:
+   when the project's own dependencies need another radon or lizard, the
+   resolver fails; move the project's own requirement, or install the gates
+   with `uv tool install` instead.
 2. Run `qg setup`. It writes nothing. It proposes the languages, from project
    markers and from the files git would commit, test folders included and
    fixture folders left out (shell

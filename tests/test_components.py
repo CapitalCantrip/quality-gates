@@ -17,6 +17,7 @@ SKILLS = PACKAGE / "skills"
 MANIFEST = manifest.load_components()
 SOURCES = manifest.load_sources()
 PYPROJECT = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+LIZARD_WORKFLOW = (ROOT / ".github/workflows/lizard.yml").read_text(encoding="utf-8")
 README = (ROOT / "README.md").read_text(encoding="utf-8")
 
 HOOK_SECTION = "\n## 4. Hooks\n"
@@ -30,9 +31,24 @@ def admissions_of(kind):
     return {a.name: a for a in MANIFEST.admissions if a.kind == kind}
 
 
+def version_tuple(version):
+    return tuple(int(number) for number in version.split("."))
+
+
+EXACT_PIN = re.compile(r"^([\w-]+)==([\d.]+)$")
+
+
+def requirement_entries(pyproject):
+    listed = re.search(r"(?m)^dependencies = \[(.*)\]$", pyproject).group(1)
+    return re.findall(r'"([^"]*)"', listed)
+
+
+def exact_pins(pyproject):
+    return {match.group(1): match.group(2) for match in map(EXACT_PIN.match, requirement_entries(pyproject)) if match}
+
+
 def pyproject_requirements():
-    listed = re.search(r"(?m)^dependencies = \[(.*)\]$", PYPROJECT).group(1)
-    return {name: (operator, version) for name, operator, version in re.findall(r'"([\w-]+)([<>=!~]+)([\d.]+)"', listed)}
+    return exact_pins(PYPROJECT)
 
 
 def parts(kind=None):
@@ -204,22 +220,47 @@ class AdmissionsAgreeWithWhatShips(unittest.TestCase):
     def test_every_upstream_admission_is_a_source_in_the_upstream_record(self):
         self.assertEqual(set(admissions_of("upstream")), {source.repo for source in SOURCES})
 
-    def test_every_python_requirement_of_the_package_is_an_exact_pin(self):
-        for name, (operator, version) in pyproject_requirements().items():
-            self.assertEqual(operator, "==", name)
+    def test_every_python_requirement_of_the_package_is_written_as_a_name_double_equals_and_a_version_and_nothing_else(self):
+        for entry in requirement_entries(PYPROJECT):
+            self.assertRegex(entry, EXACT_PIN, entry)
+        self.assertEqual(len(pyproject_requirements()), len(requirement_entries(PYPROJECT)))
 
     def test_every_python_requirement_of_the_package_has_a_dependency_admission_naming_the_same_version_as_minimum_and_tested(self):
         dependencies = admissions_of("dependency")
         requirements = pyproject_requirements()
         self.assertEqual(sorted(requirements), sorted(dependencies))
-        for name, (operator, version) in requirements.items():
+        for name, version in requirements.items():
             self.assertEqual((dependencies[name].minimum_version, dependencies[name].tested_version), (version, version), name)
+
+    def test_the_lizard_workflow_has_looked_at_a_release_no_older_than_the_one_pinned(self):
+        seen = re.search(r'LAST_SEEN: "([\d.]+)"', LIZARD_WORKFLOW).group(1)
+        self.assertGreaterEqual(version_tuple(seen), version_tuple(pyproject_requirements()["lizard"]))
 
     def test_every_test_only_tool_has_a_licence_and_no_part_installs_it(self):
         named = {origin_of(c, p).name for c, p in parts()}
         for name, admission in admissions_of("test-only").items():
             self.assertTrue(admission.licence, name)
             self.assertNotIn(name, named)
+
+
+class ExactPinRule(unittest.TestCase):
+    def pinned(self, *entries):
+        return "dependencies = [" + ", ".join(f'"{entry}"' for entry in entries) + "]\n"
+
+    def test_an_entry_with_no_version_is_not_an_exact_pin(self):
+        self.assertEqual(exact_pins(self.pinned("pyyaml")), {})
+
+    def test_a_spaced_or_ranged_entry_is_not_an_exact_pin(self):
+        for entry in ("foo >= 1", "foo == 1.0", "foo>=1", "foo==1.0,<2", "foo~=1.0", "foo==1.*"):
+            self.assertEqual(exact_pins(self.pinned(entry)), {}, entry)
+
+    def test_an_entry_with_an_environment_marker_is_not_an_exact_pin(self):
+        self.assertEqual(exact_pins(self.pinned("foo==1.0; python_version < '3.10'")), {})
+
+    def test_an_entry_is_read_whole_so_one_bad_entry_among_good_ones_shows_in_the_entry_list(self):
+        listed = self.pinned("radon==6.0.1", "pyyaml", "lizard==1.26.1")
+        self.assertEqual(requirement_entries(listed), ["radon==6.0.1", "pyyaml", "lizard==1.26.1"])
+        self.assertEqual(exact_pins(listed), {"radon": "6.0.1", "lizard": "1.26.1"})
 
 
 class ComponentManifestAgreesWithTheReadme(unittest.TestCase):
