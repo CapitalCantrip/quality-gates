@@ -22,12 +22,7 @@
   `tolerated-growth` or `loosening`. On bumping the pin, rerun `qg-skills`,
   then `/setup-standards` (or `gh label create escaped` and `qg-agent-docs
   --tracker <github|gitlab|local>`), and commit `.github/ISSUE_TEMPLATE/` and
-  `docs/agents/.base/escaped.md`. An escaped template you had not edited
-  updates to the four-question one; an edited one is kept and its diff shown, so
-  add the stage question by hand if you want it. The between-sprints count now
-  prints by stage and by gate (rerun the command in
-  `docs/agents/escape-log.md`); an escape filed before this release counts as
-  `unanswered` by stage. No score, threshold or scanned file changes.
+  `docs/agents/.base/escaped.md`. No score, threshold or scanned file changes.
 - **radon and lizard are pinned to exact versions, and TypeScript and Swift
   counts move (#198, #123, #173).** The package asks for `radon==6.0.1` and
   `lizard==1.26.1`, so the date of an install no longer chooses the counter; it
