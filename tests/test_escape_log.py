@@ -17,11 +17,10 @@ import (
 	"fmt"
 	"os"
 	"regexp"
-	"strings"
 )
 
 func main() {
-	re := regexp.MustCompile(strings.ReplaceAll(os.Args[1], "(?<", "(?P<"))
+	re := regexp.MustCompile(os.Args[1])
 	var bodies []string
 	json.Unmarshal([]byte(os.Args[2]), &bodies)
 	var kinds []string

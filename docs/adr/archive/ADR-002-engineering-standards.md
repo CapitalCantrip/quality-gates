@@ -428,7 +428,7 @@ An **escape** is a problem that got past every gate and was found later (see
 have caught each one, so a change to a gate rests on what happened rather than
 on a guess.
 
-- **Setup gives every project the log.** `/setup-standards` creates an
+- **Setup gives every GitHub project the log.** `/setup-standards` creates an
   `escaped` label, the way it creates the triage labels: the agent runs
   `gh label create` for the one `gh label list` lacks, so a second run changes
   nothing. `qg-agent-docs` writes `.github/ISSUE_TEMPLATE/escaped.md`, a file
@@ -442,7 +442,7 @@ on a guess.
   written. A file whose path, or whose record under `docs/agents/.base/`, is a
   link leading outside the project or nowhere, and a template that cannot be
   read, is reported and not written. A GitLab or local tracker gets no GitHub
-  issue template. `qg setup` writes none of this: it creates only files it owns in
+  issue template, and the plan for it leaves the template out. `qg setup` writes none of this: it creates only files it owns in
   its own list, and the label belongs to the skill.
 - **The kind of an escape is the gate named in the third answer.** The
   between-sprints routine's retro step prints the count by kind with the

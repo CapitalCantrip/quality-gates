@@ -42,9 +42,9 @@ explanation fresh.
    `docs/agents/` from Matt Pocock's setup templates, writes
    `.github/pull_request_template.md` with the `pr` skill's headings, adds the
    Agent skills block to `CLAUDE.md` (with a *Pull requests* section that
-   sends PR bodies to the `pr` skill), writes `.github/ISSUE_TEMPLATE/escaped.md`
-   (the escape template: three questions, the third listing the project's
-   gates), and never overwrites a file the project edited. Copy
+   sends PR bodies to the `pr` skill), on a GitHub tracker writes
+   `.github/ISSUE_TEMPLATE/escaped.md` (the escape template: three questions,
+   the third listing the project's gates), and never overwrites a file the project edited. Copy
    every line of its output into the report, including any template diff and
    any `not written` line, so the builder can choose to adopt it.
 4. On GitHub, create each of the five labels in `docs/agents/triage-labels.md`
@@ -136,8 +136,8 @@ exist, a glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    `quality-gates.json` and `comment-debt.json`. For a row to record as debt,
    run `qg setup --go --choose <id>` and `comment-debt`, then commit
    `quality-gates.json` and `comment-debt.json`.
-7. Run `qg-agent-docs --tracker <github|gitlab|local>` again. The escape
-   template's third question now lists every chosen gate; commit
+7. Run `qg-agent-docs --tracker <github|gitlab|local>` again. On GitHub, the
+   escape template's third question now lists every chosen gate; commit
    `.github/ISSUE_TEMPLATE/escaped.md` and `docs/agents/.base/escaped.md`.
 
 From here on, do only the blocks for the languages the file records, and only
@@ -173,8 +173,8 @@ Done when `quality-gates.json` records the builder's answer, every offered
 comment row is recorded as debt, cleaned first and then chosen, or declined,
 every recorded language's chosen gates are configured, each CRAP gate step 2 or 3 says to
 report as not done is reported not done with its reason, `qg-skills` has
-run, and the escape template's third question names every chosen gate, or
-`qg-agent-docs` reported it kept.
+run, and on GitHub the escape template's third question names every chosen
+gate, or `qg-agent-docs` reported it kept.
 
 ## 3. Baselines
 

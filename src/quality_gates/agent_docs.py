@@ -12,7 +12,6 @@ AGENT_SKILLS_HEADING = "## Agent skills"
 GATES_PLACEHOLDER = "{gates}"
 NO_GATE_COULD = "none could"
 GITHUB = "github"
-NOT_GITHUB = "GitHub issue templates are for a GitHub tracker"
 
 TRACKER_SUMMARIES = {
     "github": "GitHub Issues on this repo, through the `gh` CLI",
@@ -45,13 +44,15 @@ Write every PR body with the `pr` skill: Summary, Evidence, Merge Danger. `.gith
 
 
 def plan(tracker):
-    return {
+    files = {
         project_files.ISSUE_TRACKER_DOC: f"issue-tracker-{tracker}.md",
         project_files.TRIAGE_LABELS_DOC: "triage-labels.md",
         project_files.DOMAIN_DOC: "domain.md",
         project_files.PR_TEMPLATE: "pull-request.md",
-        project_files.ESCAPED_TEMPLATE: "escaped.md",
     }
+    if tracker == GITHUB:
+        files[project_files.ESCAPED_TEMPLATE] = "escaped.md"
+    return files
 
 
 def gate_options(gates):
@@ -119,12 +120,10 @@ def add_pull_requests_section(root, lines):
     return "pull requests section added"
 
 
-def problem_with(root, tracker, name):
-    if name != project_files.ESCAPED_TEMPLATE:
-        return project_files.planned_file_problem(root, name)
-    if tracker != GITHUB:
-        return NOT_GITHUB
-    return project_files.escaped_template_problem(root)
+def problem_with(root, name):
+    if name == project_files.ESCAPED_TEMPLATE:
+        return project_files.escaped_template_problem(root)
+    return project_files.planned_file_problem(root, name)
 
 
 def settle(root, name, template, gates, problem):
@@ -137,7 +136,7 @@ def settle(root, name, template, gates, problem):
 
 def run(root, tracker, templates=TEMPLATES, gates=()):
     report = []
-    problems = {name: problem_with(root, tracker, name) for name in plan(tracker)}
+    problems = {name: problem_with(root, name) for name in plan(tracker)}
     for name, template_name in plan(tracker).items():
         template = (templates / template_name).read_text(encoding="utf-8")
         status, detail = settle(root, name, template, gates, problems[name])

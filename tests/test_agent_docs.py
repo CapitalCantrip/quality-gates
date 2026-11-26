@@ -302,12 +302,13 @@ class AgentDocs(unittest.TestCase):
         self.assertFalse((self.docs / ".base" / "escaped.md").exists())
         self.assertIn("not written; .github/ISSUE_TEMPLATE/bug.md cannot be read", out)
 
-    def test_a_gitlab_or_local_tracker_gets_no_github_issue_template_and_the_report_says_so(self):
+    def test_a_gitlab_or_local_tracker_plans_no_github_issue_template_and_the_report_does_not_mention_it(self):
         for tracker in ("gitlab", "local"):
             with self.subTest(tracker):
+                self.assertNotIn(project_files.ESCAPED_TEMPLATE, agent_docs.plan(tracker))
                 out = self.run_tool(tracker)
                 self.assertFalse(self.issue_templates.exists())
-                self.assertIn(".github/ISSUE_TEMPLATE/escaped.md: not written; GitHub issue templates are for a GitHub tracker", out)
+                self.assertNotIn("escaped", out)
 
     def test_an_unreadable_choice_file_stops_before_anything_is_written(self):
         (self.repo / "quality-gates.json").write_text("{not json")
