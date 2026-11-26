@@ -90,7 +90,7 @@ and a rename would change nothing about how they work.
 
 ### Principles: a vocabulary with a promotion path
 
-Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Current rule, restated 2026-10-12: principles from use](#current-rule-restated-2026-10-12-principles-from-use), [Current rule, restated 2026-10-12: the promotion path](#current-rule-restated-2026-10-12-the-promotion-path), [Addendum 2026-11-26: three more pstack principles](#addendum-2026-11-26-three-more-pstack-principles)
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Current rule, restated 2026-10-12: principles from use](#current-rule-restated-2026-10-12-principles-from-use), [Current rule, restated 2026-10-12: the promotion path](#current-rule-restated-2026-10-12-the-promotion-path), [Addendum 2026-11-26: three more pstack principles](#addendum-2026-11-26-three-more-pstack-principles), [Addendum 2026-11-26: the escape log (#196)](#addendum-2026-11-26-the-escape-log-196)
 
 The principles ship as one skill, `standards`, through `qg-skills` like the
 gates' skills. Its `SKILL.md` is an index of one line per principle, saying
@@ -144,7 +144,7 @@ when that line is missing.
 
 ### Setting up a project: one command
 
-Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040)
+Amended by: [Addendum 2026-10-06: building the two skills (v0.4.0)](#addendum-2026-10-06-building-the-two-skills-v040), [Addendum 2026-11-26: the escape log (#196)](#addendum-2026-11-26-the-escape-log-196)
 
 **A `/setup-standards` skill prepares a new or existing project for all three
 layers.** A builder can't be expected to know that a project needs a
@@ -418,3 +418,43 @@ projects allow subagents only on request. The rest of pstack's principles and
 all its skills stay out. *Never block on the human* conflicts with asking the
 builder; the others repeat a principle or skill already shipped, are specific
 to one language, or are too general to change what an agent does.
+
+## Addendum 2026-11-26: the escape log (#196)
+
+Amends: [Principles: a vocabulary with a promotion path](#principles-a-vocabulary-with-a-promotion-path) and [Setting up a project: one command](#setting-up-a-project-one-command)
+
+An **escape** is a problem that got past every gate and was found later (see
+`GLOSSARY.md`). The escape log is the count of them by the gate that should
+have caught each one, so a change to a gate rests on what happened rather than
+on a guess.
+
+- **Setup gives every project the log.** `/setup-standards` creates an
+  `escaped` label, the way it creates the triage labels: the agent runs
+  `gh label create` for the one `gh label list` lacks, so a second run changes
+  nothing. `qg-agent-docs` writes `.github/ISSUE_TEMPLATE/escaped.md`, a file
+  quality-gates owns: it asks exactly three things (what happened, how it was
+  found, which gate should have caught it), and the third lists the gates in
+  the project's choice file plus "none could". It follows the same rules as the
+  other files `qg-agent-docs` writes: an unedited template follows the gate
+  list as it changes, an edited one is kept and its diff shown, and a template
+  named `escaped` that quality-gates did not write (by file name in any case,
+  or by the `name:` in its header) is kept and reported, with no second one
+  written. `qg setup` writes none of this: it creates only files it owns in
+  its own list, and the label belongs to the skill.
+- **The kind of an escape is the gate named in the third answer.** The
+  between-sprints routine's retro step prints the count by kind with the
+  command in `docs/agents/escape-log.md`, which reads `gh issue list --label
+  escaped`.
+- **An agent files an escape when it fixes a problem a merged change
+  introduced.** It is a principle in the `standards` skill, *file an escape*.
+  An agent never applies `tolerated-growth` or `loosening`; those labels are
+  the builder's.
+- **A threshold, or the order of the gates, changes only with the escape count
+  cited.** This is a rule on the compendium page *How standards are made*.
+
+Not adopted: the 2026-11-14 amendment on the issue (ask for "the earliest
+point this could have been stopped: idea, spec, module map, ticket brief,
+build, review, gate" in place of the gate). The brief that moved the work into
+sprint 3a keeps the gate question, and that amendment would need a second
+count by stage; it comes back if the count by gate shows escapes that no gate
+could catch.

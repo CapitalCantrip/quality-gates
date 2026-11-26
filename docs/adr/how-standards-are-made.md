@@ -77,6 +77,19 @@ recur in another project.** One-off and project-specific lessons stay in their
 project.
 <!-- /rule:promotion-path -->
 
+## The escape log
+
+**A threshold, or the order of the gates, changes only with the escape count
+cited.** An escape is a problem that got past every gate and was found later.
+Each project has an `escaped` label and an issue template that asks what
+happened, how it was found and which gate should have caught it (or "none
+could"); an agent files one when it fixes a problem a merged change introduced,
+and never applies the builder's labels (`tolerated-growth`, `loosening`). The
+count by kind comes from `docs/agents/escape-log.md`, which the between-sprints
+retro step runs, and the ADR that changes a threshold or the order of the gates
+quotes it, even when it is zero.
+([ADR-002 addendum 2026-11-26](archive/ADR-002-engineering-standards.md#addendum-2026-11-26-the-escape-log-196))
+
 ## Asking the builder
 
 <!-- rule:asking-the-builder -->

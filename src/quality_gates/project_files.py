@@ -85,7 +85,16 @@ TEMPLATE_BASES = AGENT_DOCS / ".base"
 ISSUE_TRACKER_DOC = AGENT_DOCS / "issue-tracker.md"
 TRIAGE_LABELS_DOC = AGENT_DOCS / "triage-labels.md"
 DOMAIN_DOC = AGENT_DOCS / "domain.md"
-PR_TEMPLATE = Path(".github") / "pull_request_template.md"
+GITHUB_FOLDER = Path(".github")
+PR_TEMPLATE = GITHUB_FOLDER / "pull_request_template.md"
+ISSUE_TEMPLATES = GITHUB_FOLDER / "ISSUE_TEMPLATE"
+ESCAPED_TEMPLATE = ISSUE_TEMPLATES / "escaped.md"
+ESCAPED_NAME = "escaped"
+FORM_SUFFIXES = (".yml", ".yaml")
+FRONT_MATTER_FENCE = "---"
+TEMPLATE_NAME_LINE = re.compile(r"name\s*:\s*(.+?)\s*$")
+QUOTES = " '\""
+BYTE_ORDER_MARK = "\ufeff"
 COMMENT_DEBT_BASELINE = "comment-debt.json"
 CC_BASELINE = "cc-baseline.json"
 CRAP_BASELINE = "crap-baseline.json"
@@ -456,6 +465,58 @@ def write_kept(root, name, text):
     path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def header_lines(path):
+    lines = path.read_text(encoding="utf-8", errors="replace").lstrip(BYTE_ORDER_MARK).splitlines()
+    if lines[:1] == [FRONT_MATTER_FENCE]:
+        return list(takewhile(lambda line: line.strip() != FRONT_MATTER_FENCE, lines[1:]))
+    return lines if path.suffix in FORM_SUFFIXES else []
+
+
+def names_itself_escaped(path):
+    if path.stem.casefold() == ESCAPED_NAME:
+        return True
+    found = (TEMPLATE_NAME_LINE.match(line) for line in header_lines(path))
+    return any(match.group(1).strip(QUOTES).casefold() == ESCAPED_NAME for match in found if match)
+
+
+def other_escaped_template(root):
+    folder = root / ISSUE_TEMPLATES
+    if not folder.is_dir():
+        return None
+    for path in sorted(folder.iterdir()):
+        if path.name != ESCAPED_TEMPLATE.name and path.is_file() and names_itself_escaped(path):
+            return f"{(ISSUE_TEMPLATES / path.name).as_posix()} is already an escaped template"
+    return None
+
+
+def unusable_folder(root, folder):
+    path = root / folder
+    if path.is_symlink() and not path.resolve().is_relative_to(root.resolve()):
+        return f"{folder.as_posix()} leads outside the project"
+    if path.exists() and not path.is_dir():
+        return f"{folder.as_posix()} is not a folder"
+    return None
+
+
+def unusable_file(root, name):
+    path = root / name
+    if path.exists() and not path.is_file():
+        return f"{name.as_posix()} is not a file"
+    try:
+        read_kept(root, name)
+    except (UnicodeDecodeError, OSError):
+        return f"{name.as_posix()} cannot be read as text"
+    return None
+
+
+def escaped_template_problem(root):
+    root = Path(root)
+    checks = (lambda: unusable_folder(root, GITHUB_FOLDER), lambda: unusable_folder(root, ISSUE_TEMPLATES),
+              lambda: unusable_file(root, ESCAPED_TEMPLATE), lambda: unusable_file(root, template_base(ESCAPED_TEMPLATE)),
+              lambda: other_escaped_template(root))
+    return next((problem for problem in (check() for check in checks) if problem), None)
 
 
 def read_instruction_file(root):

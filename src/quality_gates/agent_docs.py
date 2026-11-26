@@ -5,9 +5,12 @@ from pathlib import Path
 
 from quality_gates import project_files
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
+from quality_gates.manifest import BROKEN_EXIT, BrokenFileError, load_components
 
 TEMPLATES = Path(__file__).parent / "agent_doc_templates"
 AGENT_SKILLS_HEADING = "## Agent skills"
+GATES_PLACEHOLDER = "{gates}"
+NO_GATE_COULD = "none could"
 
 TRACKER_SUMMARIES = {
     "github": "GitHub Issues on this repo, through the `gh` CLI",
@@ -45,7 +48,19 @@ def plan(tracker):
         project_files.TRIAGE_LABELS_DOC: "triage-labels.md",
         project_files.DOMAIN_DOC: "domain.md",
         project_files.PR_TEMPLATE: "pull-request.md",
+        project_files.ESCAPED_TEMPLATE: "escaped.md",
     }
+
+
+def gate_options(gates):
+    if not gates:
+        return NO_GATE_COULD
+    return ", ".join(gates) + f", or {NO_GATE_COULD}"
+
+
+def gates_of(root, manifest):
+    choice = project_files.read_choice(root)
+    return () if choice is None else manifest.gates_among(choice.chosen)
 
 
 def diff(old, new, name):
@@ -102,11 +117,20 @@ def add_pull_requests_section(root, lines):
     return "pull requests section added"
 
 
-def run(root, tracker, templates=TEMPLATES):
+def settle(root, name, template, gates):
+    if name != project_files.ESCAPED_TEMPLATE:
+        return reconcile(root, name, template)
+    problem = project_files.escaped_template_problem(root)
+    if problem:
+        return f"not written; {problem}", ""
+    return reconcile(root, name, template.replace(GATES_PLACEHOLDER, gate_options(gates)))
+
+
+def run(root, tracker, templates=TEMPLATES, gates=()):
     report = []
     for name, template_name in plan(tracker).items():
         template = (templates / template_name).read_text(encoding="utf-8")
-        status, detail = reconcile(root, name, template)
+        status, detail = settle(root, name, template, gates)
         report.append((name.as_posix(), status, detail))
     report.append((f"{project_files.instruction_file(root).name} Agent skills block", add_agent_skills_block(root, tracker), ""))
     return report
@@ -124,14 +148,18 @@ def build_parser():
     return parser
 
 
-def main(argv=None, templates=TEMPLATES):
+def main(argv=None, templates=TEMPLATES, manifest=None):
     args = build_parser().parse_args(argv)
     try:
         root = args.root or project_files.git_root()
+        gates = gates_of(root, manifest or load_components())
     except ToolError as error:
         print(f"qg-agent-docs: {error}", file=sys.stderr)
         sys.exit(TOOL_ERROR_EXIT)
-    for name, status, detail in run(root, args.tracker, templates):
+    except BrokenFileError as error:
+        print(f"qg-agent-docs: {error}", file=sys.stderr)
+        sys.exit(BROKEN_EXIT)
+    for name, status, detail in run(root, args.tracker, templates, gates):
         print(f"{name}: {status}")
         if detail:
             print(detail)
