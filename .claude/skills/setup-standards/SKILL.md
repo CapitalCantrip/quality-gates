@@ -42,11 +42,14 @@ explanation fresh.
    `docs/agents/` from Matt Pocock's setup templates, writes
    `.github/pull_request_template.md` with the `pr` skill's headings, adds the
    Agent skills block to `CLAUDE.md` (with a *Pull requests* section that
-   sends PR bodies to the `pr` skill), and never overwrites a file the project edited. Copy
-   every line of its output into the report, including any template diff, so
-   the builder can choose to adopt it.
+   sends PR bodies to the `pr` skill), on a GitHub tracker writes
+   `.github/ISSUE_TEMPLATE/escaped.md` (the escape template: four questions,
+   the fourth listing the project's gates), and never overwrites a file the project edited. Copy
+   every line of its output into the report, including any template diff and
+   any `not written` line, so the builder can choose to adopt it.
 4. On GitHub, create each of the five labels in `docs/agents/triage-labels.md`
-   that `gh label list` lacks, with `gh label create`.
+   that `gh label list` lacks, with `gh label create`, and the `escaped` label
+   the same way: `gh label create escaped --description "A problem that got past every gate and was found later" --color D93F0B`.
 5. Glossary: if `CONTEXT.md` exists and `GLOSSARY.md` does not, `git mv` it to
    `GLOSSARY.md`, replace `CONTEXT` with `GLOSSARY` in `docs/agents/domain.md`,
    and run `qg-agent-docs` again. If neither exists, write `GLOSSARY.md`
@@ -65,8 +68,8 @@ explanation fresh.
    `CLAUDE.md` the same way, and rewrite any that only name a file. Put each
    before and after in the report.
 
-Done when `qg-agent-docs` reports every file, the five labels exist, a
-glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
+Done when `qg-agent-docs` reports every file, the five labels and `escaped`
+exist, a glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 `docs/agents/`, and every line in `CLAUDE.md` that names a file in
 `docs/agents/` also says what that file holds.
 
@@ -74,7 +77,10 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
 
 1. Add the pinned requirement to the project's dev dependencies (Python), or
    to the CI install step (others), replacing any older `quality-gates` pin,
-   and install it.
+   and install it. quality-gates pins `radon` and `lizard` to exact versions:
+   when the project's own dependencies need another radon or lizard, the
+   resolver fails; move the project's own requirement, or install the gates
+   with `uv tool install` instead.
 2. Run `qg setup`. It writes nothing. It proposes the languages, from project
    markers and from the files git would commit, test folders included and
    fixture folders left out (shell
@@ -118,7 +124,8 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    in place of any older entries for that language; every other entry stays
    as it was, less any entry of zero. Then remove the `--exclude` flags from
    the hook and CI, since `comment-debt` refuses them. Run `comment-debt`: it passes. Commit
-   `quality-gates.json`, `comment-debt.json`, the hook and CI together.
+   `quality-gates.json`, `comment-debt.json`, `silencer-baseline.json`, the hook
+   and CI together.
 6. Take each comment row step 4 left out, now that `quality-gates.json`
    exists. When the builder switched a convention on, add its name to
    `settings.no-comments.conventions` in `quality-gates.json` (no flag sets
@@ -129,6 +136,9 @@ glossary and `docs/adr/` exist, no line in `CLAUDE.md` contradicts
    `quality-gates.json` and `comment-debt.json`. For a row to record as debt,
    run `qg setup --go --choose <id>` and `comment-debt`, then commit
    `quality-gates.json` and `comment-debt.json`.
+7. Run `qg-agent-docs --tracker <github|gitlab|local>` again. On GitHub, the
+   escape template's fourth question now lists every chosen gate; commit
+   `.github/ISSUE_TEMPLATE/escaped.md` and `docs/agents/.base/escaped.md`.
 
 From here on, do only the blocks for the languages the file records, and only
 for chosen components.
@@ -162,8 +172,9 @@ for chosen components.
 Done when `quality-gates.json` records the builder's answer, every offered
 comment row is recorded as debt, cleaned first and then chosen, or declined,
 every recorded language's chosen gates are configured, each CRAP gate step 2 or 3 says to
-report as not done is reported not done with its reason, and `qg-skills` has
-run.
+report as not done is reported not done with its reason, `qg-skills` has
+run, and on GitHub the escape template's fourth question names every chosen
+gate, or `qg-agent-docs` reported it kept.
 
 ## 3. Baselines
 
@@ -182,8 +193,21 @@ from the repo root and commit the file it writes.
   fix the measuring or take them out of the scan, then rerun. Do not report
   them as debt.
 - **Swift:** run SwiftLint. Each function already over the limit gets
-  `// swiftlint:disable:next cyclomatic_complexity` above it; that pragma is its
-  baseline entry. Then record CRAP from the project's coverage. In a SwiftPM
+  `// swiftlint:disable:next cyclomatic_complexity` above it; that line is its
+  baseline entry. With `no-comments-swift` chosen, `comment-debt` counts each
+  one, and any `// #lizard forgive` already in a Swift file (lizard drops the
+  next function that ends from `crap`), as a silencer, so record them, and after
+  a pin bump record the ones already there: run `comment-debt`. With no
+  `silencer-baseline.json` it exits 2, naming the missing baseline: where the
+  default branch has none either, run `comment-debt --update`, which records the
+  lines. If it fails as new silencers on the lines you added, then where the
+  default branch has no `silencer-baseline.json`, delete the file (step 2 wrote
+  it before these lines existed) and run `comment-debt --update`; otherwise run
+  `comment-debt --rerecord` and ask the builder for the `tolerated-growth`
+  label. `--rerecord` rewrites `comment-debt.json` too: check its diff and
+  that no count grew, and remove any comment you added, then rerun. Commit the
+  files, and `comment-debt` passes. Without `no-comments-swift` the disable
+  and forgive lines go uncounted and nothing records them. Then record CRAP from the project's coverage. In a SwiftPM
   package with a test target, run `swift test --enable-code-coverage`, then
   `crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json --update`.
   In an Xcode project with an `.xcresult`, run
@@ -201,10 +225,30 @@ from the repo root and commit the file it writes.
   collect coverage as in step 2 and run
   `crap --lang typescript <source dirs> --istanbul-json coverage/coverage-final.json --baseline crap-baseline.json --update`.
   Add `coverage/` to `.gitignore`. A project on `node --test` gets no CRAP
-  baseline: report CRAP as not done, as step 2 says.
+  baseline: report CRAP as not done, as step 2 says. With `no-comments-typescript`
+  chosen, `comment-debt` counts each `istanbul ignore`, `c8 ignore` and
+  `v8 ignore` comment, and each `#lizard forgive` comment (lizard drops the
+  next function that ends from `cc-check` and `crap`), as a silencer, so after a pin
+  bump record the ones already there: run `comment-debt`. With no `silencer-baseline.json` it exits 2, naming
+  the missing baseline: where the default branch has none either, run
+  `comment-debt --update`, which records the markers. If the file exists and the
+  run fails as new silencers, run `comment-debt --rerecord` and ask the builder
+  for the `tolerated-growth` label. `--rerecord` rewrites `comment-debt.json` too: check
+  its diff and that no count grew, then rerun. Add no marker to make CRAP pass:
+  a new one fails the gate, so test the code it would hide.
 - **Rust:** run `cargo clippy --all-targets`. Each function it fails gets
   `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]`;
   that attribute is its baseline entry. Its comments were recorded in step 2.
+  With `no-comments-rust` chosen, `comment-debt` counts each attribute as a
+  silencer, so record them: run `comment-debt`. If it fails as new silencers on
+  the lines you added, then where the default branch has no
+  `silencer-baseline.json`, delete the file (step 2 wrote it before these lines
+  existed) and run `comment-debt --update`; otherwise run
+  `comment-debt --rerecord` and ask the builder for the `tolerated-growth`
+  label. `--rerecord` rewrites `comment-debt.json` too: check its diff and that
+  no count grew, and remove any comment you added, then rerun. Commit the
+  files, and `comment-debt` passes. Without `no-comments-rust` the attributes
+  go uncounted and nothing records them.
 
 A project in any language with no tests has no coverage for `crap` to read, so
 CRAP is not set up for it. Report CRAP as **not done**, with the reason (no
@@ -217,7 +261,11 @@ except a CRAP gate step 2 or 3 says to report as not done, which is reported
 not done with its reason.
 
 On an upgrade, a baseline that fails after the bump is re-recorded as the
-release's CHANGELOG entry says under *When you bump the pin*.
+release's CHANGELOG says under *On bumping the pin* (*When you bump the pin* in
+0.13.0 and older). From 0.15.0,
+re-record with the gate's `--rerecord` in place of deleting the baseline and
+running `--update`; the pull request then needs the builder's
+`tolerated-growth` label.
 
 ## 4. Hooks
 
@@ -279,12 +327,18 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   and pushes to the default branch. A SwiftPM package with no test target has
   no tests to run (`swift test` exits 1 there), so the Swift part of its
   workflow runs SwiftLint only.
+- **The tolerated list:** paste the step in
+  [ci-tolerated.md](ci-tolerated.md) at the end of the steps of the job that
+  runs the gates, in a workflow that runs on pull requests, and give that
+  workflow's `pull_request` trigger the types the file names. `qg setup`
+  never edits a workflow; it prints the same step when none runs it.
 
 A project with no tests gets no CRAP step: report CRAP as **not done**, as
 step 3 says.
 
 Done when the test suite, where the project has one, passes locally with the
-new tests, and every gate the hooks run also runs in CI.
+new tests, every gate the hooks run also runs in CI, and `qg setup` prints no
+`qg tolerated` step to paste.
 
 ## 6. The asking rule
 

@@ -12,7 +12,7 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-from quality_gates import agent_docs, languages, setup_choices, skills_sync, status
+from quality_gates import agent_docs, languages, setup_choices, skills_sync, status, tolerated
 from quality_gates import project_files as pf
 from quality_gates.errors import ToolError
 from quality_gates.manifest import BrokenFileError
@@ -294,7 +294,7 @@ class ProjectModuleOwnsTheRootAndTheWalks(unittest.TestCase):
 KEPT_NAMES = {
     "CLAUDE.md", "AGENTS.md", "agents", "pull_request_template.md", ".github", "workflows",
     ".githooks", "pre-commit", ".claude", "settings.json", "comment-debt.json",
-    "quality-gates.json",
+    "quality-gates.json", "cc-baseline.json", "crap-baseline.json", "silencer-baseline.json",
 }
 
 
@@ -333,10 +333,20 @@ class ProjectModuleOwnsTheKeptFiles(unittest.TestCase):
             'claude_dir / "settings.json"',
             'Path(".claude") / "skills"',
             'root / "comment-debt.json"',
+            '"silencer-baseline.json"',
         ]
         for source in sources:
             with self.subTest(source):
                 self.assertTrue(any(names_kept_file(node) for node in ast.walk(ast.parse(source))))
+
+    def test_the_silencer_baseline_has_its_fixed_name_at_the_root(self):
+        root = Path(tempfile.mkdtemp())
+        self.assertEqual(pf.silencer_baseline(root), root / "silencer-baseline.json")
+
+    def test_the_project_module_names_every_baseline_the_tolerated_list_adds_up(self):
+        root = Path(tempfile.mkdtemp())
+        names = ["cc-baseline.json", "crap-baseline.json", "comment-debt.json", "silencer-baseline.json"]
+        self.assertEqual(pf.baseline_files(root), [root / name for name in names])
 
     def test_the_check_ignores_prose_that_mentions_a_kept_file(self):
         prose = '"Add the asking-rule line to CLAUDE.md. See `docs/agents/domain.md`."'
@@ -422,12 +432,13 @@ CATCHES_ALLOWED = {
     "skills_sync.main": "a non-gate command that reports its own setup errors",
     "agent_docs.main": "a non-gate command that reports its own setup errors",
     "status.main": "qg status reports, it does not gate",
+    "tolerated.main": "qg tolerated checks the tolerated list, not code, and reports its own errors",
 }
 CATCH_EVERY_ERROR = {"Exception", "BaseException"}
 SUPPRESS = "suppress"
 GATE_MODULES = ("comment_debt", "quality_check", "crap")
 RATCHET_PATH = "quality_gates.ratchet"
-GATE_INTERFACE = {"Finding", "Location", "Asked", "Wording", "Result", "enforce", "run_gate"}
+GATE_INTERFACE = {"Finding", "Location", "Asked", "Wording", "Result", "enforce", "run_gate", "silencer_asked", "readable", "add_rerecord"}
 BASELINE_FORMAT = "json"
 
 
@@ -750,6 +761,320 @@ class PlannedChanges(unittest.TestCase):
         self.assertEqual((self.root / "kept.txt").stat().st_mtime_ns, before)
 
 
+def git(root, *args):
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root, check=True,
+                   capture_output=True)
+
+
+def committed(root, name, data, branch="main"):
+    git(root, "checkout", "-q", "-B", branch)
+    (root / name).parent.mkdir(parents=True, exist_ok=True)
+    (root / name).write_bytes(data)
+    git(root, "add", "--", name)
+    git(root, "commit", "-q", "-m", "add")
+
+
+class MainsCopyOfAFile(unittest.TestCase):
+    def setUp(self):
+        self.root = git_repo(tempfile.mkdtemp())
+
+    def test_a_file_committed_on_main_is_read_as_the_bytes_main_holds_even_after_the_tree_changes(self):
+        committed(self.root, "cc-baseline.json", b'{"a.py::old": 11}\n\xff')
+        (self.root / "cc-baseline.json").unlink()
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json").data, b'{"a.py::old": 11}\n\xff')
+
+    def test_a_file_in_a_folder_on_main_is_read_by_its_path_from_the_root(self):
+        committed(self.root, "baselines/cc.json", b"{}\n")
+        self.assertEqual(pf.main_copy(self.root, Path("baselines") / "cc.json").data, b"{}\n")
+
+    def test_a_file_main_does_not_hold_is_absent(self):
+        committed(self.root, "a.py", b"x = 1\n")
+        (self.root / "cc-baseline.json").write_text("{}\n")
+        self.assertIsNone(pf.main_copy(self.root, "cc-baseline.json"))
+
+    def test_a_folder_on_main_is_absent_as_a_file(self):
+        committed(self.root, "baselines/cc.json", b"{}\n")
+        self.assertIsNone(pf.main_copy(self.root, "baselines"))
+
+    def test_a_repo_with_no_default_branch_has_every_file_absent(self):
+        committed(self.root, "cc-baseline.json", b"{}\n", branch="trunk")
+        self.assertIsNone(pf.default_branch(self.root))
+        self.assertIsNone(pf.main_copy(self.root, "cc-baseline.json"))
+
+    def test_a_repo_with_no_commits_has_every_file_absent(self):
+        (self.root / "cc-baseline.json").write_text("{}\n")
+        self.assertIsNone(pf.default_branch(self.root))
+        self.assertIsNone(pf.main_copy(self.root, "cc-baseline.json"))
+
+    def test_master_is_the_default_branch_when_there_is_no_main(self):
+        committed(self.root, "cc-baseline.json", b"{}\n", branch="master")
+        self.assertEqual(pf.default_branch(self.root), "refs/heads/master")
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("master", b"{}\n", "cc-baseline.json"))
+
+    def test_the_remotes_default_branch_comes_before_a_local_main(self):
+        committed(self.root, "cc-baseline.json", b"main\n")
+        committed(self.root, "cc-baseline.json", b"trunk\n", branch="trunk")
+        git(self.root, "update-ref", "refs/remotes/origin/trunk", "trunk")
+        git(self.root, "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/trunk")
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("origin/trunk", b"trunk\n", "cc-baseline.json"))
+
+    def test_a_local_main_is_named_main(self):
+        committed(self.root, "cc-baseline.json", b"{}\n")
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json").branch, "main")
+
+    def test_where_git_ignores_case_a_file_main_holds_is_found_under_another_spelling(self):
+        committed(self.root, "baselines/cc-baseline.json", b"{}\n")
+        git(self.root, "config", "core.ignorecase", "true")
+        self.assertEqual(pf.main_copy(self.root, "Baselines/CC-Baseline.json"), pf.MainCopy("main", b"{}\n", "baselines/cc-baseline.json"))
+
+    def test_where_git_heeds_case_another_spelling_is_absent(self):
+        committed(self.root, "cc-baseline.json", b"{}\n")
+        git(self.root, "config", "core.ignorecase", "false")
+        self.assertIsNone(pf.main_copy(self.root, "CC-Baseline.json"))
+
+    def test_a_file_is_read_at_any_ref_that_names_a_commit(self):
+        committed(self.root, "cc-baseline.json", b"main\n")
+        git(self.root, "update-ref", "refs/remotes/origin/main", "main")
+        committed(self.root, "cc-baseline.json", b"later\n")
+        self.assertEqual(pf.copy_at(self.root, "origin/main", "cc-baseline.json"), b"main\n")
+
+    def test_a_baseline_named_by_its_absolute_path_is_read_from_its_path_in_the_repo(self):
+        committed(self.root, "cc-baseline.json", b"{}\n")
+        self.assertEqual(pf.main_copy(self.root, pf.baseline_files(self.root)[0]).data, b"{}\n")
+        self.assertEqual(pf.copy_at(self.root, "main", pf.silencer_baseline(self.root)), None)
+
+    def test_a_path_that_steps_up_and_back_in_is_read_as_the_file_it_names(self):
+        committed(self.root, "cc-baseline.json", b"{}\n")
+        self.assertEqual(pf.main_copy(self.root, "sub/../cc-baseline.json").data, b"{}\n")
+
+    def test_a_path_outside_the_repo_is_refused(self):
+        committed(self.root, "cc-baseline.json", b"{}\n")
+        for name in ("../cc-baseline.json", self.root.parent / "cc-baseline.json"):
+            with self.subTest(name), self.assertRaises(ToolError) as raised:
+                pf.main_copy(self.root, name)
+            self.assertIn("outside", str(raised.exception))
+
+    def test_origin_main_alone_is_the_default_branch_as_in_a_ci_checkout(self):
+        committed(self.root, "cc-baseline.json", b"base\n", branch="pr")
+        git(self.root, "update-ref", "refs/remotes/origin/main", "pr")
+        self.assertEqual(pf.default_branch(self.root), "refs/remotes/origin/main")
+        self.assertEqual(pf.main_copy(self.root, "cc-baseline.json"), pf.MainCopy("origin/main", b"base\n", "cc-baseline.json"))
+
+    def test_without_git_on_the_path_every_git_call_is_one_tool_error_naming_git(self):
+        calls = (lambda: pf.git_root(self.root), lambda: pf.commit_of(self.root, "main"),
+                 lambda: pf.copy_at(self.root, "main", "a.py"), lambda: pf.committable_files(self.root))
+        for at, call in enumerate(calls):
+            with self.subTest(at), mock.patch.dict(os.environ, {"PATH": str(self.root / "no-bin")}):
+                with self.assertRaises(ToolError) as raised:
+                    call()
+                self.assertEqual(str(raised.exception), pf.NO_GIT)
+
+    def test_a_ref_that_starts_with_a_dash_is_refused_before_git_sees_it(self):
+        with mock.patch.object(pf.subprocess, "run") as run:
+            self.assertIsNone(pf.commit_of(self.root, "--output=x"))
+        run.assert_not_called()
+
+    def test_a_ref_that_names_no_commit_has_every_file_absent(self):
+        committed(self.root, "cc-baseline.json", b"{}\n")
+        git(self.root, "branch", "None")
+        for ref in ("origin/main", "--help", "-x", "main:cc-baseline.json", ""):
+            with self.subTest(ref):
+                self.assertIsNone(pf.commit_of(self.root, ref))
+                self.assertIsNone(pf.copy_at(self.root, ref, "cc-baseline.json"))
+
+
+STEP_LINES = (
+    "- name: qg tolerated",
+    "  if: github.event_name == 'pull_request'",
+    "  shell: bash",
+    "  env:",
+    "    BASE: ${{ github.base_ref }}",
+    "    QG_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}",
+    "  run: |",
+    '    git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"',
+    '    qg tolerated --against "origin/${BASE}"',
+)
+
+
+def step_at(indent):
+    return "".join(indent + line + "\n" for line in STEP_LINES)
+
+
+RERUNS_ON_LABELS = "\n  pull_request:\n    types: [opened, synchronize, reopened, labeled, unlabeled]"
+WITH_LABELS = "      - env:\n          QG_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}\n        run: "
+
+
+def job(steps, on=RERUNS_ON_LABELS):
+    return f"on: {on}\njobs:\n  test:\n    runs-on: ubuntu-24.04\n    steps:\n{steps}"
+
+
+class ToleratedStepCheck(unittest.TestCase):
+    def setUp(self):
+        self.root = git_repo(tempfile.mkdtemp())
+
+    def workflow(self, name, text):
+        pf.write_kept(self.root, f".github/workflows/{name}", text)
+
+    def has_step(self, run, on="pull_request"):
+        self.workflow("ci.yml", job(f"{WITH_LABELS}{run}\n", on))
+        return not any(note.startswith(pf.PASTE_THE_STEP) for note in pf.tolerated_step_notes(self.root))
+
+    def notes_for(self, text):
+        self.workflow("ci.yml", text)
+        return pf.tolerated_step_notes(self.root)
+
+    def test_a_pull_request_workflow_whose_steps_run_qg_tolerated_needs_no_note(self):
+        self.workflow("ci.yml", job("      - run: comment-debt\n" + step_at("      ")))
+        self.assertEqual(pf.tolerated_step_notes(self.root), [])
+
+    def test_without_such_a_workflow_the_one_note_holds_the_step_to_paste(self):
+        for files in ({}, {"ci.yml": job("      - run: comment-debt\n")},
+                      {"ci.yml": job("      - run: comment-debt\n" + step_at("      "), "push")}):
+            with self.subTest(files):
+                for name, text in files.items():
+                    self.workflow(name, text)
+                notes = pf.tolerated_step_notes(self.root)
+                self.assertEqual(len(notes), 1)
+                self.assertIn("paste it at the end of the steps of the job that runs the gates", notes[0])
+                self.assertIn("indented like the other steps of that job", notes[0])
+                self.assertTrue(notes[0].endswith(step_at("      ").rstrip("\n")))
+
+    def test_a_workflow_that_only_mentions_qg_tolerated_does_not_count(self):
+        for run in ("echo qg tolerated", "make lint  # qg tolerated", "cat qg-tolerated.log", "qg status tolerated",
+                    "echo \"qg tolerated --against main\"", "make 'lint  # ; qg tolerated",
+                    '"echo ok" # "; qg tolerated --against x"'):
+            with self.subTest(run):
+                self.assertFalse(self.has_step(run))
+        self.workflow("ci.yml", job("      - name: qg tolerated\n        run: echo hi\n# qg tolerated\n"))
+        self.assertNotEqual(pf.tolerated_step_notes(self.root), [])
+
+    def test_qg_tolerated_run_by_path_after_an_assignment_or_after_another_command_counts(self):
+        for run in (".venv/bin/qg tolerated --against origin/main", "BASE=main qg tolerated --against origin/main",
+                    "git fetch origin main && qg tolerated --against origin/main",
+                    "|\n          git fetch origin main\n          qg tolerated --against origin/main  # check"):
+            with self.subTest(run):
+                self.assertTrue(self.has_step(run))
+
+    def test_every_spelling_of_a_pull_request_trigger_counts(self):
+        for on in ("pull_request", "[push, pull_request]", "\n  - push\n  - pull_request",
+                   "\n  push:\n    branches: [main]\n  pull_request:\n", "pull_request  # PRs",
+                   "\n- push\n- pull_request", "[push,\n     pull_request]", "{push: {branches: [main]},\n  pull_request: {}}"):
+            with self.subTest(on):
+                self.assertTrue(self.has_step("qg tolerated --against origin/main", on))
+
+    def test_a_workflow_that_does_not_run_on_pull_requests_does_not_count(self):
+        for on in ("push", "pull_request_target", "\n  push:\n    branches: [pull_request]",
+                   "push\nenv:\n  PR: ${{ github.event.pull_request.number }}", "{push: {branches: [pull_request]}}"):
+            with self.subTest(on):
+                self.assertFalse(self.has_step("qg tolerated --against origin/main", on))
+
+    def test_an_unreadable_workflow_is_skipped(self):
+        (self.root / ".github" / "workflows").mkdir(parents=True)
+        (self.root / ".github" / "workflows" / "b.yml").write_bytes(b"\xff\xfe")
+        self.workflow("ci.yml", job(step_at("      ")))
+        self.assertEqual(pf.tolerated_step_notes(self.root), [])
+
+    def test_a_step_that_does_not_pass_the_labels_gets_one_note_naming_the_workflow_and_the_variable(self):
+        notes = self.notes_for(job(step_at("      ").replace(STEP_LINES[5].strip(), "QG_OTHER: x")))
+        self.assertEqual(notes, [pf.PASS_THE_LABELS.format(".github/workflows/ci.yml")])
+        self.assertIn("QG_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}", notes[0])
+
+    def test_a_variable_named_only_in_a_value_or_a_comment_does_not_pass_the_labels(self):
+        for env in ("          BASE: QG_PR_LABELS\n", "          # QG_PR_LABELS: x\n          BASE: x\n",
+                    "          BASE: \"QG_PR_LABELS: x\"\n"):
+            with self.subTest(env):
+                text = job(f"      - env:\n{env}        run: qg tolerated --against origin/main\n")
+                self.assertEqual(self.notes_for(text), [pf.PASS_THE_LABELS.format(".github/workflows/ci.yml")])
+
+    def test_labels_passed_in_a_flow_mapping_or_an_assignment_before_the_command_count(self):
+        for step in ("      - env: {BASE: x, QG_PR_LABELS: '${{ github.head_ref }}'}\n        run: qg tolerated --against x\n",
+                     "      - run: QG_PR_LABELS=a,b qg tolerated --against x\n"):
+            with self.subTest(step):
+                self.assertEqual(self.notes_for(job(step)), [])
+
+    def test_a_workflow_that_runs_the_step_wrongly_gets_its_note_even_when_another_runs_it_rightly(self):
+        self.workflow("good.yml", job(step_at("      ")))
+        self.workflow("ci.yml", job("      - run: qg tolerated --against origin/main\n"))
+        self.assertEqual(pf.tolerated_step_notes(self.root), [pf.PASS_THE_LABELS.format(".github/workflows/ci.yml")])
+
+    def test_a_trigger_that_does_not_rerun_on_labels_gets_one_note_naming_the_types(self):
+        for on in ("pull_request", "[push, pull_request]", "\n  pull_request:\n    types: [opened, labeled]",
+                   "\n  pull_request:\n    branches: [labeled, unlabeled]",
+                   "\n  pull_request:\n    types: [opened]  # labeled, unlabeled",
+                   "\n  pull_request:\n    types: opened  # labeled unlabeled"):
+            with self.subTest(on):
+                notes = self.notes_for(job(step_at("      "), on))
+                self.assertEqual(notes, [pf.RERUN_ON_LABELS.format(".github/workflows/ci.yml")])
+                self.assertIn("types: [opened, synchronize, reopened, labeled, unlabeled]", notes[0])
+
+    def test_types_as_a_block_list_count(self):
+        on = "\n  push:\n  pull_request:\n    types:\n      - opened\n      - labeled\n      - unlabeled  # labels\n"
+        self.assertEqual(self.notes_for(job(step_at("      "), on)), [])
+
+    def test_the_skill_shows_the_same_step_setup_prints(self):
+        skill = (Path(pf.__file__).parent / "skills" / "setup-standards" / "ci-tolerated.md").read_text("utf-8")
+        self.assertIn(step_at("      "), skill)
+        self.assertIn("indented like the other steps of that job", " ".join(skill.split()))
+
+
+class ChoiceFileAtARef(unittest.TestCase):
+    def setUp(self):
+        self.root = git_repo(tempfile.mkdtemp())
+
+    def test_the_choice_file_committed_at_a_ref_is_read_as_a_choice(self):
+        text = pf.choice_text(pf.Choice(languages=("python",), exclude=("vendor/",)))
+        committed(self.root, pf.CHOICE_FILE, text.encode())
+        (self.root / pf.CHOICE_FILE).unlink()
+        self.assertEqual(pf.choice_at(self.root, "main"), pf.Choice(languages=("python",), exclude=("vendor/",)))
+
+    def test_a_ref_without_a_choice_file_has_no_choice(self):
+        committed(self.root, "a.py", b"x = 1\n")
+        self.assertIsNone(pf.choice_at(self.root, "main"))
+
+    def test_a_ref_naming_no_commit_is_an_error_naming_the_ref_not_an_absent_choice(self):
+        committed(self.root, "a.py", b"x = 1\n")
+        with self.assertRaises(ToolError) as raised:
+            pf.choice_at(self.root, "origin/nowhere")
+        self.assertEqual(str(raised.exception), pf.NOT_A_COMMIT.format("origin/nowhere"))
+
+    def test_one_check_names_a_ref_that_names_no_commit_and_passes_one_that_does(self):
+        committed(self.root, "a.py", b"x = 1\n")
+        self.assertEqual(pf.checked_commit(self.root, "main"), pf.commit_of(self.root, "main"))
+        with self.assertRaises(ToolError) as raised:
+            pf.checked_commit(self.root, "origin/nowhere")
+        self.assertEqual(str(raised.exception), pf.NOT_A_COMMIT.format("origin/nowhere"))
+
+    def refusal(self, version):
+        committed(self.root, pf.CHOICE_FILE, json.dumps({"format_version": version, "languages": []}).encode())
+        with self.assertRaises(ToolError) as raised:
+            pf.choice_at(self.root, "main")
+        self.assertIn("main:quality-gates.json", str(raised.exception))
+        return str(raised.exception)
+
+    def test_a_choice_file_of_a_newer_format_at_a_ref_is_refused_as_newer_naming_its_version(self):
+        self.assertIn("format_version 2 is newer", self.refusal(2))
+
+    def test_a_format_version_that_is_not_a_positive_whole_number_cannot_be_read(self):
+        for version in ("2", None, True, 1.5, 0, -1):
+            with self.subTest(version):
+                message = self.refusal(version)
+                self.assertIn(f"cannot read format_version {version!r}", message)
+                self.assertNotIn("newer", message)
+
+    def test_a_choice_file_of_an_older_shape_at_a_ref_is_read_for_what_it_holds(self):
+        old = {"format_version": 1, "languages": ["python"], "exclude": ["vendor/"]}
+        committed(self.root, pf.CHOICE_FILE, json.dumps(old).encode())
+        self.assertEqual(pf.choice_at(self.root, "main"), pf.Choice(languages=("python",), exclude=("vendor/",)))
+
+    def test_a_malformed_choice_file_at_a_ref_is_a_tool_error_naming_the_ref(self):
+        for data in (b"{", b"\xff", b"[]", b'{"languages": "python"}', b'{"languages": ["cobol"]}'):
+            with self.subTest(data):
+                committed(self.root, pf.CHOICE_FILE, data)
+                with self.assertRaises(ToolError) as raised:
+                    pf.choice_at(self.root, "main")
+                self.assertIn("main:quality-gates.json", str(raised.exception))
+
+
 class OneRootFinder(unittest.TestCase):
     def test_inside_a_git_repo_the_root_is_the_top_of_the_repo_wherever_the_command_runs(self):
         repo = git_repo(tempfile.mkdtemp())
@@ -768,6 +1093,7 @@ class OneRootFinder(unittest.TestCase):
         commands = {
             "qg status": lambda: status.main([]),
             "qg setup": lambda: setup_choices.main([]),
+            "qg tolerated": lambda: tolerated.main(["--against", "main"]),
             "comment-debt": lambda: comment_debt.main([], out=sys.stderr),
             "cc-check": lambda: quality_check.main(["."]),
             "crap": lambda: crap.main(["--lang", "python", "."]),

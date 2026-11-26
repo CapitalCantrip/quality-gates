@@ -5,12 +5,12 @@ import io
 import os
 import sys
 import tempfile
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from subprocess import PIPE, run
 from typing import Optional
 
-from quality_gates import languages, project_files
+from quality_gates import languages, project_files, ratchet
 from quality_gates.errors import ToolError
 
 LIZARD_CCN = 1
@@ -19,6 +19,9 @@ LIZARD_NAME = 7
 LIZARD_START = 9
 LIZARD_END = 10
 EXIT_0_ON_WARNINGS = ("-i", "-1")
+
+UNREADABLE = (OSError, ValueError, SyntaxError, RecursionError, MemoryError)
+UNREAD = f"{ratchet.UNREAD_FILE}, so its functions were not counted"
 
 ORDINAL_MARK = "#"
 NAME_SEPARATOR = "."
@@ -63,6 +66,11 @@ class Scan:
     functions: list
     files: list
     skipped: list
+    unread: list = field(default_factory=list)
+
+
+def unread_finding(file: str, kind: str) -> ratchet.Finding:
+    return ratchet.Finding(ratchet.Location(file), None, kind, UNREAD, UNREAD)
 
 
 def print_skipped(skipped: list, out) -> None:
@@ -113,12 +121,12 @@ def _radon_visitors():
     return visitors
 
 
-def _read_source(file: Path, visitors) -> tuple:
+def _read_source(file: Path, visitors) -> Optional[tuple]:
     try:
         tree = ast.parse(file.read_text(encoding="utf-8"))
-    except (OSError, ValueError, SyntaxError):
-        return [], {}
-    found = visitors.ComplexityVisitor.from_ast(tree)
+        found = visitors.ComplexityVisitor.from_ast(tree)
+    except UNREADABLE:
+        return None
     nodes = {(n.name, n.lineno, n.col_offset): n for n in ast.walk(tree) if isinstance(n, FUNCTION_NODES)}
     return found.functions + found.classes, nodes
 
@@ -157,13 +165,17 @@ def _flatten(block, file: str, outer: tuple, visitors, nodes: dict) -> list:
     return own + [fn for child in inner for fn in _flatten(child, file, path, visitors, nodes)]
 
 
-def _python_functions(files: list) -> list:
+def _python_functions(files: list) -> tuple:
     visitors = _radon_visitors()
-    functions = []
+    functions, unread = [], []
     for file in files:
-        blocks, nodes = _read_source(file, visitors)
+        source = _read_source(file, visitors)
+        if source is None:
+            unread.append(str(file))
+            continue
+        blocks, nodes = source
         functions.extend(fn for block in blocks for fn in _flatten(block, str(file), (), visitors, nodes))
-    return functions
+    return functions, unread
 
 
 def with_labels(functions: list) -> list:
@@ -175,13 +187,14 @@ def with_labels(functions: list) -> list:
     return labelled
 
 
-def _count_with_radon(sources: list, counter: Counter, runner) -> tuple:
-    return with_labels(_python_functions(sources)), [str(f) for f in sources]
+def _count_with_radon(sources: list, counter: Counter, runner) -> Scan:
+    functions, unread = _python_functions(sources)
+    return Scan(with_labels(functions), [str(f) for f in sources], [], unread)
 
 
-def _count_with_lizard(sources: list, counter: Counter, runner) -> tuple:
+def _count_with_lizard(sources: list, counter: Counter, runner) -> Scan:
     functions = with_labels(_lizard_functions(sources, counter.lizard_languages, runner))
-    return functions, sorted({fn.file for fn in functions})
+    return Scan(functions, sorted({fn.file for fn in functions}), [])
 
 
 COUNTING_TOOLS = {
@@ -198,8 +211,7 @@ def find_sources(paths: list, lang: str, root=None) -> Sources:
 
 def count_functions(sources: Sources, lang: str, runner=None) -> Scan:
     counter = COUNTERS[lang]
-    functions, analysed = COUNTING_TOOLS[counter.tool](sources.files, counter, runner)
-    return Scan(functions, analysed, sources.skipped)
+    return replace(COUNTING_TOOLS[counter.tool](sources.files, counter, runner), skipped=sources.skipped)
 
 
 def scan(paths: list, lang: str, runner=None, root=None) -> Scan:

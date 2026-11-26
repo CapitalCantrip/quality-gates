@@ -40,6 +40,17 @@ file.
    published a private item.
    Source: AgenticOS coding standards, rule 3.
 
+9. **A command found in a consumer's file counts only as the command word of
+   a command segment, never as a substring, and code that places something
+   by such a find writes nothing unless exactly one place qualifies.** It
+   prints a note saying where to put it by hand. Each reader has a test for a
+   file name, an argument and a trailing comment that name the command.
+   Reason: two of #234's hard review findings came from deciding "this job
+   runs a gate" by a substring of the workflow text, the second in the fix
+   for the first; `qg setup` now only checks for its CI step by command
+   word and prints it to paste.
+   Source: #234 retro (2026-11-26).
+
 ## Changing behaviour
 
 5. **When a change replaces a component, list what the old one did that people
@@ -55,6 +66,18 @@ file.
    and reaches no consumer (PR #238 added `agents/*`).
    Source: AgenticOS coding standards, rule 6, adapted; #101 retro
    (2026-11-25).
+
+10. **A new way to write a baseline goes through every existing baseline
+    rule, and its tests run those rules through it:** unmeasured entries
+    kept, entries outside what the gate checks kept, an unreadable baseline
+    stops it, for every gate and every baseline a gate writes, a merged
+    sibling's included. The tests loop over the ways to write, so a new way
+    joins the list rather than getting hand-picked cases.
+    Reason: #192 needed three review rounds with hard findings; each fix
+    added a path (`--rerecord`, the refusal before `settle`) that skipped a
+    rule the old path kept, and its ADR sentence described the intent, not
+    the code.
+    Source: #192 retro (2026-11-26).
 
 ## Tests
 

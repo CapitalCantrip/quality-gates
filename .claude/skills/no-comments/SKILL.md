@@ -12,7 +12,34 @@ Code carries no comments in any language the choice file switches on: Python
 (`no-comments`), Rust, TypeScript, Swift and shell (`no-comments-<language>`).
 Every comment counts once per line, doc comments included, and in Python
 docstrings and strings used as comments too. Bare tool pragmas
-(`# noqa: E402`, `eslint-disable`, `swiftlint:disable`) are exempt. A
+(`# noqa: E402`, `eslint-disable`, `swiftlint:enable`) are exempt. Python's
+`# pragma: no cover` and `# pragma: no branch` are not: they are silencers (they
+switch off the coverage half of `crap`), reported as their own finding, held in
+`silencer-baseline.json` and not counted as comment lines. They count wherever
+they sit on a line, a string included, as coverage.py reads the line. Swift's
+`// swiftlint:disable`, in every form and for any rule, is a silencer too (it
+switches off the complexity lint): with `no-comments-swift` chosen, a `//` line
+comment holding it counts, a block or doc comment does not (SwiftLint ignores
+it there), and a string never does. TypeScript's `istanbul ignore`, `c8 ignore`
+and `v8 ignore` comments (hints `if`, `else`, `next`, `file`, `start`, `stop`,
+a reason after) are silencers too (they hide code from the coverage half of
+`crap`): with `no-comments-typescript` chosen, a `//`, `/* */` or `/** */`
+comment that opens with one counts, on the line its marker word sits on only, so
+the reason lines of a multi-line marker stay comment lines, and a marker in a
+string never does (a tool may still read it there: a known gap);
+`eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` stay
+exempt. Rust's `#[allow(…)]` or `#[expect(…)]`
+naming `clippy::cognitive_complexity` (or its old name `clippy::cyclomatic_complexity`)
+or `clippy::too_many_lines` is a silencer as well (it switches off the complexity
+lint), outer or inner, alone or in a list: with `no-comments-rust` chosen it is
+read from the code, so a lint name in a comment or string is not one, `allow` of
+any other lint is not, and a comment on its line still counts. lizard's `#lizard forgive` is a silencer too,
+in TypeScript, JavaScript and Swift (lizard drops the next function that ends, so
+`cc-check` and `crap` never score it): with the language's comment row chosen, a
+`//` or `/* */` comment that opens with it counts, lower case, with anything
+after it, on the line the marker sits on. `#lizard forgive global`,
+`#lizard forgives(metric)`, `/** */` and `///` forms drop nothing and stay
+comment lines. Add none to make a gate pass. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.
@@ -27,7 +54,8 @@ comment-debt --update   # lower the baseline after paying debt; never raises
 comment-debt --report rust   # one language's comment lines and every file with them, chosen or not
 ```
 
-Option: `--baseline PATH` (default `comment-debt.json` at the repo root). It
+Option: `--baseline PATH` (default `comment-debt.json` at the repo root; the
+silencer baseline stays at `silencer-baseline.json` in the repo root). It
 checks the [comment gate's files](references/comment-gate-files.md), which start
 from the [files in scope](references/files-in-scope.md). Before a language is
 switched on, `/setup-standards` shows its report and offers two choices:
@@ -39,7 +67,11 @@ comments, or clean first (*Clean first*, below). `--update` never adds them.
 
 1. Install the package (see below) and add it to the project's dev
    dependencies, pinned to a tag.
-2. `comment-debt --update` writes the first baseline. A new repo gets `{}`.
+2. `comment-debt --update` writes the first baselines, `comment-debt.json` and
+   `silencer-baseline.json`. A new repo gets `{}` in each. On a repo that
+   already has `comment-debt.json`, run it once after bumping the pin: it
+   records the silencers already there, and the check fails with exit 2 until
+   `silencer-baseline.json` exists.
 3. Add `.githooks/pre-commit` containing `exec comment-debt` and run
    `git config core.hooksPath .githooks`. For cloud sessions, add a
    `SessionStart` hook to `.claude/settings.json` that runs that git config.

@@ -34,7 +34,7 @@ five. Words like module, interface, seam, depth and adapter carry their
 
 ### 1. One project module
 
-Amended by: [Addendum 2026-11-25: main's copy of a file, and the tolerated module](#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module)
+Amended by: [Addendum 2026-11-25: main's copy of a file, and the tolerated module](#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [Addendum 2026-11-26: setup never edits a CI workflow](#addendum-2026-11-26-setup-never-edits-a-ci-workflow)
 
 One module owns three jobs: finding the root, deciding which files the gates
 look at, and reading and writing every file quality-gates keeps in a project.
@@ -231,6 +231,8 @@ exits 3 with one line on stderr naming the problem, in either mode.
 
 Amends: [1. One project module](#1-one-project-module) and [3. One gate interface and one ratchet](#3-one-gate-interface-and-one-ratchet)
 
+Amended by: [Addendum 2026-11-26: setup never edits a CI workflow](#addendum-2026-11-26-setup-never-edits-a-ci-workflow)
+
 Sprint 3a (quality-gates#192, #193, #195) needs two things ADR-011 names no
 module for. Decided by the builder in the sprint 3a grilling (#232, comment of
 2026-11-25).
@@ -268,3 +270,26 @@ their own baseline under a fixed name the project module knows.
   every new command is a `qg` subcommand (§ 5).
 - **Silencer lists in the language registry.** The registry holds nothing
   about gates (§ 2).
+
+## Addendum 2026-11-26: setup never edits a CI workflow
+
+Amends: [1. One project module](#1-one-project-module) and [Addendum 2026-11-25: main's copy of a file, and the tolerated module](#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module)
+
+Decided by the builder (#232, comment of 2026-11-26) after three review rounds
+on quality-gates#234 each found setup placing the `qg tolerated` step wrongly
+in a consumer's workflow, the last one writing a workflow GitHub cannot parse.
+
+**Setup never edits a CI workflow.** `qg setup` checks that some workflow
+running on pull requests runs `qg tolerated` as the command of a step, and
+when none does it prints the step to paste and leaves every workflow file as
+it was. The `setup-standards` skill carries the same step in
+`ci-tolerated.md`, beside the other CI snippets. The decision that code edits
+the hook only between quality-gates' markers stands and is not built yet; the
+2026-11-25 sentence "Setup installs it as a CI step between quality-gates'
+markers" no longer holds.
+
+### Rejected
+
+- **Placing the step between markers.** Each fix opened the next way to put it
+  in the wrong job or break the file, and a broken workflow is worse than six
+  pasted lines.

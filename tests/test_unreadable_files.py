@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import sys
@@ -5,9 +6,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from quality_gates import comment_debt
+from quality_gates import comment_debt, complexity_scan
 
 UNREADABLE_FILES = ("broken.py", "latin.py", "folder.py", "locked.py")
+UNREADABLE_BY_SCAN = ("broken.py", "latin.py", "locked.py")
 GATES = {
     "comment-debt": ["quality_gates.comment_debt"],
     "cc-check": ["quality_gates.quality_check", "."],
@@ -37,6 +39,7 @@ class EveryGateOnFilesItCannotReadTest(unittest.TestCase):
         (self.root / "good.py").write_text("def ok():\n    return 1\n")
         git(self.root, "add", "good.py")
         (self.root / "comment-debt.json").write_text("{}\n")
+        (self.root / "silencer-baseline.json").write_text("{}\n")
         (self.root / "broken.py").write_text("def f(:\n")
         (self.root / "latin.py").write_bytes(b'x = "\xff"\n')
         (self.root / "folder").mkdir()
@@ -58,6 +61,49 @@ class EveryGateOnFilesItCannotReadTest(unittest.TestCase):
         self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
         for name in UNREADABLE_FILES:
             self.assertIn(f"UNMEASURED {name}: {comment_debt.UNREAD}\n", done.stdout)
+
+    def test_cc_check_names_each_python_file_it_cannot_read_as_unmeasured_and_fails(self):
+        done = run_gate(self.root, GATES["cc-check"])
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        for name in UNREADABLE_BY_SCAN:
+            self.assertIn(f"UNMEASURED {name}: {complexity_scan.UNREAD}\n", done.stdout)
+
+    def test_cc_check_does_not_end_its_report_with_clean_when_a_file_is_unmeasured(self):
+        done = run_gate(self.root, GATES["cc-check"])
+        self.assertNotIn("Clean. Exit 0.", done.stdout)
+        self.assertIn("Unmeasured:         3", done.stdout)
+
+    def test_cc_check_json_without_a_baseline_names_each_unreadable_file_on_stderr_and_still_exits_0(self):
+        done = run_gate(self.root, [*GATES["cc-check"][:-1], "--format", "json", "."])
+        self.assertEqual(done.returncode, 0, done.stdout + done.stderr)
+        self.assertEqual([row["file"] for row in json.loads(done.stdout)], ["good.py"])
+        for name in UNREADABLE_BY_SCAN:
+            self.assertIn(f"UNMEASURED {name}: {complexity_scan.UNREAD}\n", done.stderr)
+
+    def test_cc_check_does_not_say_all_functions_are_below_threshold_when_a_file_is_unmeasured(self):
+        done = run_gate(self.root, GATES["cc-check"])
+        self.assertNotIn("All functions at or below threshold", done.stdout)
+
+    def test_crap_names_each_python_file_it_cannot_read_as_unmeasured_and_fails(self):
+        done = run_gate(self.root, GATES["crap"])
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        for name in UNREADABLE_BY_SCAN:
+            self.assertIn(f"UNMEASURED {name}: {complexity_scan.UNREAD}\n", done.stdout)
+
+    def test_crap_json_lists_each_unreadable_python_file_under_unmeasured_and_fails(self):
+        done = run_gate(self.root, [*GATES["crap"][:-1], "--json", "."])
+        report = json.loads(done.stdout)
+        self.assertEqual((done.returncode, report["pass"]), (1, False))
+        self.assertEqual(report["unmeasured"], list(UNREADABLE_BY_SCAN))
+
+    def test_crap_does_not_call_a_scan_of_only_unreadable_files_empty(self):
+        done = run_gate(self.root, ["quality_gates.crap", "--lang", "python", "--no-coverage", "broken.py"])
+        self.assertEqual(done.returncode, 1, done.stdout + done.stderr)
+        self.assertNotIn("no functions analysed", done.stdout + done.stderr)
+
+    def test_the_crap_summary_counts_and_names_the_files_it_could_not_read(self):
+        done = run_gate(self.root, GATES["crap"])
+        self.assertIn("  3 file(s) could not be read: broken.py, latin.py, locked.py", done.stdout)
 
 
 if __name__ == "__main__":

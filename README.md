@@ -75,8 +75,10 @@ files; it needs no install of its own.
 
 ### Keep it up to date
 
-Each [CHANGELOG.md](CHANGELOG.md) entry ends with what to do for that version.
-In general, on your computer or by asking Claude in a cloud session:
+Each release in [CHANGELOG.md](CHANGELOG.md) says what to do for that version,
+in an *On bumping the pin* block, or *When you bump the pin* in 0.13.0 and
+older, or at the end of an entry. In general, on your computer or by asking
+Claude in a cloud session:
 
 1. Install quality-gates again with the new version number in the line from
    step 1.
@@ -190,7 +192,15 @@ Which gates score each language, and which components install for it:
 ### `comment-debt`: no new comments
 
 Code carries no comments, docstrings or strings used as comments; bare pragmas
-such as `# noqa` are exempt. Comments drift from the code and agents copy them as
+such as `# noqa` are exempt. A marker that switches off one of our own gates,
+Python's `# pragma: no cover` and `# pragma: no branch`, Swift's
+`// swiftlint:disable` in every form, TypeScript's `istanbul ignore`,
+`c8 ignore` and `v8 ignore` comments, Rust's `#[allow(…)]` of
+`clippy::cognitive_complexity` or `clippy::too_many_lines`, and lizard's
+`#lizard forgive` in TypeScript, JavaScript and Swift, is a *silencer*: it is
+not counted as a comment line, and the gate holds it in `silencer-baseline.json`
+as a count per file that only shrinks (`comment-debt --update` records the ones
+already there once). Comments drift from the code and agents copy them as
 permission. Put the knowledge where it shows when it stops being true: a test,
 a named constant, an ADR or an issue. Existing comments are debt, held in
 `comment-debt.json` as a line count per file. The gate fails if a file gains a
@@ -210,13 +220,35 @@ counts, doc comments included, once per line; a comment marker inside a string
 or other literal does not. In Rust that covers raw strings and char literals,
 and a bare `// @generated` is exempt; with `rust-safety` switched on, a
 `// SAFETY:` comment directly above `unsafe` does not count either
-([recognised conventions](docs/recognised-conventions.md)). In TypeScript and
+([recognised conventions](docs/recognised-conventions.md)). An `#[allow(…)]` or
+`#[expect(…)]` attribute, outer or inner and inside `cfg_attr` too, that names
+`clippy::cognitive_complexity` (or its old name `clippy::cyclomatic_complexity`)
+or `clippy::too_many_lines` switches off the Rust complexity gate, so it is a
+silencer, read from the code and counted where the Rust comment row is chosen (a
+lint name in a string or comment is not one, nor is `allow` of another lint, and
+a comment on its line still counts). In TypeScript and
 JavaScript, `//` inside a template literal (however deep its `${}` nests) or a
 regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
 `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` are exempt, while
-`/// <reference … />` counts as a doc comment. In Swift
-`// MARK:` counts, `\( )` interpolation is read as code, and bare
-`swiftlint:disable`/`swiftlint:enable` are exempt. In shell a `#` counts only
+`/// <reference … />` counts as a doc comment. A comment that opens with
+`istanbul`, `c8` or `v8`, then `ignore` and one of `if`, `else`, `next`,
+`file`, `start` or `stop` (`//`, `/* */` or `/** */`, any reason after it) is a
+silencer, not a comment line; only the line its marker word sits on is, so the
+reason lines of a multi-line marker stay comment lines, and one inside a string,
+template or regex literal is neither. A marker outside a comment that a coverage
+tool still reads, such as `'v8 ignore start'` in a string, hides code and is
+not counted ([ADR-010 addendum](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236)).
+A `//` or `/* */` comment that opens with `#lizard forgive` (lower case, any text
+after it, white space or a line break before it) is a silencer in TypeScript,
+JavaScript and Swift: lizard drops the next function that ends, so `cc-check`
+and `crap` never score it. `#lizard forgive global`, `#lizard forgives(metric)`,
+`/** */` and `///` forms drop nothing and stay comment lines
+([ADR-010 addendum](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-lizards-lizard-forgive-marker-is-a-silencer-244)). In Swift
+`// MARK:` counts, `\( )` interpolation is read as code, a bare
+`swiftlint:enable` (any form) is exempt, and a `// swiftlint:disable` line
+comment (plain, `:next`, `:this`, `:previous`, with or without rule names) is a
+silencer, not a comment line; in a block or doc comment, which SwiftLint
+ignores, it is an ordinary comment line. In shell a `#` counts only
 where it starts a word, so `$#`, `${#x}`, quotes and heredoc bodies do not;
 the shebang on line 1 and a bare `# shellcheck disable=` are exempt.
 `comment-debt --report <language>` prints a language's comment debt, chosen or
@@ -256,6 +288,12 @@ it as the gate. Takes any number of files and directories in one run:
 `.cjs` and `.mjs` with lizard instead. With `--baseline FILE` it fails only on
 functions that are new or worse than the baseline; see
 [Adopting the ratchet](#adopting-the-ratchet).
+A Python file it cannot open, parse or decode as UTF-8 is `UNMEASURED`: the gate
+names it and fails, as `comment-debt` and `crap` do. lizard drops the next
+function that ends after a `// #lizard forgive` comment, so the gate never scores
+it; with `no-comments-typescript` chosen (otherwise uncounted, #252) `comment-debt`
+counts that comment as a silencer,
+held in `silencer-baseline.json`, so add none to make the gate pass.
 
 ### `crap`: complexity weighted by missing tests
 
@@ -294,6 +332,11 @@ CRAP score (`—` in the table, `"crap": null` in `--json`), a failing gate,
 and the summary names its file. `--baseline --update` records none and keeps
 any entry it already has, so a coverage outage can neither add debt nor drop it
 (ADR-001's addendum "unmeasured functions (v0.12.0)").
+A Python file `crap` cannot open, parse or decode as UTF-8 is `UNMEASURED` as
+well: named, failing, and listed under `"unmeasured"` in `--json`. A function
+behind `#lizard forgive` is not scored for TypeScript, JavaScript or Swift;
+with `no-comments-typescript` or `no-comments-swift` chosen (otherwise uncounted,
+#252) `comment-debt` counts the marker as a silencer.
 When a report is given and none of the scored functions gets a figure from it,
 `crap` prints one line to stderr saying so (ADR-001's addendum "Coverage
 readers fail loudly").
@@ -364,7 +407,11 @@ other, the same on every machine and in CI. The details are in the
 - `--update` only lowers scores and removes entries. It never raises a score or
   adds a function; it exits 1 and writes nothing if the tree has either.
 - Without the baseline file, the check exits 2; `--update` creates it from the
-  current tree.
+  current tree, unless the default branch has it committed: then restore it.
+- `--rerecord` records the measured entries afresh from the tree, keeping
+  unmeasured ones; an unreadable baseline must be deleted first. Use it when
+  a release's CHANGELOG says to re-record; the pull request
+  then needs the builder's `tolerated-growth` label.
 
 Commit the baseline, then add a test that calls the gate's `main` with it so CI
 enforces it:
@@ -422,8 +469,10 @@ file-level record `qg-upstream` reads.
   dependency any OSI-approved licence, a test-only tool any), `practice` (one
   sentence on the author's practice, ending in a full stop), and either
   `last_release` (a date like `2026-10-29`) or `stable` (the reason it needs no
-  releases), never both. A Python package this package installs also has
-  `minimum_version` and `tested_version`, the version CI ran. An admission holds no repo
+  releases), never both. An entry of `dependencies` in `pyproject.toml` also has
+  `minimum_version` and `tested_version`, both the exact version `pyproject.toml`
+  pins ([ADR-010 addendum 2026-11-26](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-counting-tools-are-pinned-exactly-198)).
+  An admission holds no repo
   or commit: those stay in `upstream.json`, whose `sources` each need an
   `upstream` admission. Loading fails when any is missing or breaks the rule,
   and when an `origin` name or an `adapts` entry has no admission, or an
@@ -434,8 +483,8 @@ file-level record `qg-upstream` reads.
 - `origin`: `{"type": "ours"}`, `{"type": "upstream", "name": "<repo>"}` (with
   `"changed": true` when the copy is adapted), or `{"type": "dependency",
   "name": "<tool>"}`. A dependency's version is not repeated in its origin:
-  loading fills `version` with `>=` and the `minimum_version` its admission
-  records, so `qg status` and its `--json` show it. A component's origin is the
+  loading fills `version` with `==` and the `minimum_version` its admission
+  records. A component's origin is the
   one most of its parts have; a part with a different one carries its own. An
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.
@@ -515,9 +564,14 @@ file-level record `qg-upstream` reads.
 Three more commands support them:
 
 - `qg-agent-docs --tracker github|gitlab|local` writes `docs/agents/` from
-  Matt Pocock's setup templates, and `.github/pull_request_template.md` from
-  the `pr` skill's headings. It never overwrites a file you edited; it
-  shows the template's own change instead, so you can choose to adopt it.
+  Matt Pocock's setup templates, `.github/pull_request_template.md` from
+  the `pr` skill's headings, and, with `--tracker github`,
+  `.github/ISSUE_TEMPLATE/escaped.md`, the
+  four questions to answer when a problem got past every gate; its fourth
+  question lists the gates in `quality-gates.json`. It never overwrites a file
+  you edited; it shows the template's own change instead, so you can choose to
+  adopt it. A template named `escaped` that it did not write is kept and
+  reported.
 - `qg-upstream` reports what changed upstream in the files this repo copies
   from Pocock and pstack; see
   [Keeping the copied skills current](#keeping-the-copied-skills-current).
@@ -623,7 +677,10 @@ line, like any other tool error.
 
 - Instead of `uv tool install`, you can add the same requirement to the
   project's dev dependencies; `/setup-standards` does this for a Python
-  project. lizard, which counts Swift and TypeScript, installs with the package.
+  project. lizard, which counts Swift and TypeScript, installs with the package,
+  and radon and lizard are pinned to exact versions: a project whose own
+  dependencies need another radon or lizard gets a resolver conflict, and then
+  moves its own requirement or installs with `uv tool install`.
 - The `coverage` extra installs coverage.py beside the gates, and
   `--with-executables-from coverage` puts its command on your PATH. That
   `coverage` runs tests with the tool's own Python, so it suits a project whose
@@ -642,6 +699,7 @@ line, like any other tool error.
   | `qg status` | [src/quality_gates/status.py](src/quality_gates/status.py) |
   | `qg setup` | [src/quality_gates/setup_choices.py](src/quality_gates/setup_choices.py) |
   | `qg explain` | [src/quality_gates/explain.py](src/quality_gates/explain.py) |
+  | `qg tolerated` | [src/quality_gates/tolerated.py](src/quality_gates/tolerated.py) |
   | `qg-skills` | [src/quality_gates/skills_sync.py](src/quality_gates/skills_sync.py) |
   | `qg-agent-docs` | [src/quality_gates/agent_docs.py](src/quality_gates/agent_docs.py) |
   | `qg-upstream` | [src/quality_gates/upstream.py](src/quality_gates/upstream.py) |
@@ -705,13 +763,28 @@ line, like any other tool error.
       Flags Swift functions that are too tangled to follow, ...
   ```
 
+- `qg tolerated --against <ref>` compares the
+  [tolerated list](GLOSSARY.md) in the working tree with the list at `<ref>`
+  and prints one line: *the tolerated list did not grow*, exit 0, or what
+  grew. Growth exits 1 unless `QG_PR_LABELS`, which the CI step fills from
+  the pull request's labels, holds `tolerated-growth` or `loosening`; then it
+  exits 0 and still prints the line. What counts as growth is in
+  [Baselines and loosening](docs/adr/baselines-and-loosening.md). A ref that
+  names no commit, an unreadable baseline, a folder outside a git repo, or no
+  git on the PATH exits 2 with one line on stderr.
+
 - `qg setup` proposes the project's languages and one row per component, with
   its description, its cost (commit delay, CI time, outside tools) and a tick
   on the recommended set, and lists the files it would change. It writes
   nothing until `--go`, and then only `quality-gates.json`, plus
-  `comment-debt.json` when it switches a comment language on: that language's
-  comments are recorded there as debt, replacing its older entries and leaving
-  the others as they were, less any entry of zero. Without a choice
+  `comment-debt.json` and `silencer-baseline.json` when it switches a comment
+  language on: that language's comments are recorded in the first as debt,
+  replacing its older entries and leaving the others as they were, less any
+  entry of zero, and its silencers go into the second the same way (when that
+  file does not exist yet, the silencers of every chosen comment language). It never edits a CI
+  workflow: when no workflow that runs on pull requests runs `qg tolerated`
+  in a step, it prints the step to paste at the end of the steps of the job
+  that runs the gates, and `--json` lists it under `notes`. Without a choice
   file it records what is installed as chosen, except a new comment language
   such as `no-comments-rust`: the hook, CI step and baseline it shares with
   `no-comments` never make it look installed, so it is switched on only by
@@ -798,11 +871,15 @@ consumer receives gets its line under Unreleased when it merges, not at
 release time. Label the pull request `no-consumer-change` when the change
 reaches no consumer, such as a refactor with no change in behaviour.
 
-The `lizard` workflow checks PyPI every Monday and opens an issue when it
-finds a lizard release newer than the last one checked. A lizard release can
-change scores, so read its changelog for Swift and TypeScript changes, run the
-tests against it, and record any counting change in ADR-001 before raising the
-floor.
+radon and lizard are pinned to exact versions in `pyproject.toml`, so moving
+one is a release. The `lizard` workflow checks PyPI every Monday and opens an
+issue when it finds a lizard release newer than the last one checked. A lizard
+release can change scores, so read its changelog for Swift and TypeScript
+changes, run the tests against it, and record any counting change in ADR-001
+before moving the pin. Move the pin in `pyproject.toml` and the admission
+record in `components.json` together, set `LAST_SEEN` in
+`.github/workflows/lizard.yml`, and write in the CHANGELOG entry what a consumer
+re-keys.
 
 ## Keeping the copied skills current
 

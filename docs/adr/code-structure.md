@@ -16,23 +16,45 @@ needs it.
 files of each language, and it applies the choice file, so the gate lists no
 files itself. It also owns reading and writing every
 file quality-gates keeps in a project: the choice file, baselines, the hook,
-CI, the instruction file, `docs/agents/*` and the PR template. Every write goes
-through one planned-changes step that setup shows before the builder's "go".
-Decided, not built yet: code edits the hook and CI only between quality-gates'
-markers.
-Decided, not built yet (quality-gates#192, #193): it reads main's copy of a
-file, the bytes committed on the default branch or a plain "absent"; nothing
-else runs git. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+CI, the instruction file, `docs/agents/*`, the PR template and the escaped
+issue template. `qg setup`'s writes go
+through one planned-changes step that setup shows before the builder's "go";
+`qg-agent-docs` writes `docs/agents/*`, the PR template and the escaped issue
+template itself, each only after checking that its path and its record stay
+inside the project.
+Setup never edits a CI workflow (quality-gates#234): it checks that a workflow
+running on pull requests runs `qg tolerated` in a step, and prints the step to
+paste when none does. Decided, not built yet: code edits the hook only between
+quality-gates' markers.
+Built (quality-gates#234): it reads main's copy of a file, the bytes
+committed on the default branch or a plain "absent", a file's bytes at any
+ref that names a commit, and the choice file at a ref; no gate or `qg`
+command runs git outside the project module. The default branch is the
+remote's `HEAD`, then `main`, `master`, `origin/main` and `origin/master`. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [addendum 2026-11-26](archive/ADR-011-code-structure.md#addendum-2026-11-26-setup-never-edits-a-ci-workflow))
 
 ## The tolerated module
 
-Decided, not built yet (quality-gates#192): `tolerated` adds up the tolerated
-list (every baseline, both exclude lists, the silencer baseline, and recorded
-reasons once quality-gates#115 lands) for the tree and for a git ref, and
-returns what grew. It reads baselines through the ratchet and files through the
-project module, and parses nothing itself. `qg tolerated --against <ref>` runs
-it in CI. Silencer patterns are rows in `comment-debt`'s per-language table, not
-the registry. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module))
+Built (quality-gates#192): `tolerated` adds up the tolerated list (every
+baseline, both exclude lists, the silencer baseline, and recorded reasons once
+quality-gates#115 lands) for the tree and for a git ref, and returns what grew.
+It reads baselines through the ratchet (`stored_baseline`, `baseline_at`) and
+files through the project module, and parses nothing itself; each part of the
+list is one source in its `SOURCES`, so the reasons file is one more.
+`qg tolerated --against <ref>` runs it in CI. Silencer readers are rows in
+`comment-debt`'s per-language table, not the registry, with the ratchet asking
+for `silencer-baseline.json` by the name the project module knows. The
+ratchet's `--update` asks the project module whether the default branch holds
+a missing baseline (quality-gates#193). Built (quality-gates#195): Python's
+row reads `# pragma: no cover` and `# pragma: no branch` off the physical
+source lines, and `comment-debt` judges the silencers against
+`silencer-baseline.json` beside the comment lines; Swift's
+row reads `swiftlint:disable` in every `//` line comment (quality-gates#235);
+TypeScript's reads `istanbul ignore`, `c8 ignore` and `v8 ignore` at the start of a
+comment (quality-gates#236); both read lizard's `#lizard forgive` at the start of a
+`//` or `/* */` comment too, the two readers combined through `any_of`
+(quality-gates#244); Rust's reads the `allow` and `expect` attributes that
+name a complexity lint from `reading.blanked`, the code with comments and strings
+blanked (quality-gates#237); shell's has no silencer. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237), [lizard](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-lizards-lizard-forgive-marker-is-a-silencer-244))
 
 ## One language registry
 

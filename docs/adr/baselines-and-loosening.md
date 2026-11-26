@@ -15,6 +15,23 @@ enforce the limits in CI without first paying it all off.
 - **A missing baseline is an error, except with `--update`.** Treating it as
   empty would fail every adopting repo on its first run; treating it as
   permissive would let a mistyped path pass CI.
+- **`--update` will not recreate a baseline that main has.** When the file is
+  missing and the default branch of the repository holding it has it
+  committed (under any spelling where git ignores case), `--update` writes
+  nothing, exits 2 and says to restore it with `git checkout <branch> --
+  <file>`, or to run `--rerecord`. With no such copy, no default branch, or a
+  baseline outside any repository, it records a new one. Otherwise deleting
+  the file and running `--update` would record every new and worse function.
+  It guards only the local default branch's copy; CI compares against the
+  real base.
+- **`--rerecord` records a baseline afresh** from the tree for the re-record
+  steps a release asks for: measured entries become what the gate finds now.
+  Unmeasured entries stay. So do the entries of a language `comment-debt` did
+  not choose; `cc-check` and `crap` drop the entries of a file outside their
+  scan, so a baseline file two languages share loses the other's entries, on
+  `--update` as well. An
+  unreadable baseline stops it, so delete that file first. CI's
+  `qg tolerated` then asks for the builder's label.
 - **An unmeasured function is never recorded, and keeps a nonzero entry.**
   `--update` lowers and removes entries for measured functions, adds none for an
   unmeasured one, and keeps an existing nonzero entry as it is while the
@@ -23,9 +40,14 @@ enforce the limits in CI without first paying it all off.
   unmeasured as unmeasured, not as paid. A worst-case score for a function with
   no figure would sit in the baseline as accepted debt, and an entry dropped
   during a coverage outage could never be added back.
+  A file the gate could not read is unmeasured as a whole, and keeps the entries
+  of all its functions the same way.
 - **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
   not a gate.
 <!-- /rule:baseline-ratchet -->
+
+Only `comment-debt` passes the ratchet the languages it chose, so only it keeps
+the entries of the others; `cc-check` and `crap` pass none (quality-gates#263).
 
 ## Baseline keys
 
@@ -69,6 +91,29 @@ often.
 - **No gate accepts an in-code marker** such as `gitleaks:allow` or
   `# pragma: no mutate` as its exception: markers are comments, and they cannot
   be reviewed in one place. ([ADR-006](archive/ADR-006-gates-beyond-complexity.md#two-kinds-of-exception-debt-and-recorded-reasons))
+- **Built: a marker that switches off one of our own gates is a silencer,**
+  recorded in `silencer-baseline.json`, a count per file that only shrinks, and
+  part of the tolerated list. `comment-debt` finds it and the ratchet judges it
+  (`PAID`, `new`, `worse`, unmeasured) like any baseline; `comment-debt
+  --update` records the silencers already there once and only lowers the file
+  after that. Python's are `# pragma: no cover` and `# pragma: no branch`;
+  Swift's is a `// swiftlint:disable` line comment in every form, read when
+  `no-comments-swift` is chosen (the Swift setup step records existing debt
+  with one, so with that component the silencer baseline is where that debt is
+  counted, and without it the lines go uncounted); TypeScript's are `istanbul ignore`,
+  `c8 ignore` and `v8 ignore` comments, read when `no-comments-typescript` is
+  chosen; Rust's is an `#[allow(…)]` or `#[expect(…)]` attribute naming
+  `clippy::cognitive_complexity` or `clippy::too_many_lines` (or the old
+  `clippy::cyclomatic_complexity`), read from the code when `no-comments-rust` is
+  chosen (the Rust setup step records existing debt with one, so with that
+  component the silencer baseline is where that debt is counted, and without it
+  the attributes go uncounted). In TypeScript, JavaScript and
+  Swift a `//` or `/* */` comment that opens with `#lizard forgive` is one
+  too, read when that language's comment row is chosen: lizard drops the
+  next function that ends, so `cc-check` and `crap` never score it, and the marker is
+  how it is counted. `#lizard forgive global` and `#lizard forgives(metric)`
+  drop nothing and stay comment lines.
+  ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237), [lizard](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-lizards-lizard-forgive-marker-is-a-silencer-244))
 
 ## Loosening
 
@@ -90,7 +135,26 @@ often.
   renew a one-case reason in the same pull request; a lapsed loosening blocks
   every pull request until its own renewal is merged. Triggers fire as before.
   ([ADR-009 addendum 2026-11-23](archive/ADR-009-recorded-reasons-and-loosening.md#addendum-2026-11-23-warn-before-a-review-date-reasons-count-as-tolerated-growth))
-- **Decided, not built yet (quality-gates#192, #115): recorded reasons are part
+- **Built (quality-gates#192): a pull request that grows the tolerated list
+  fails CI without the builder's label.** `qg tolerated --against <ref>`
+  compares the tree with the pull request's base and prints one line saying
+  what grew. The list is every baseline (`cc-baseline.json`,
+  `crap-baseline.json`, `comment-debt.json`, `silencer-baseline.json`), the
+  choice file's `exclude` and `settings.no-comments.exclude`. Growth is a
+  baseline entry new or higher, or an exclude prefix covering a path no
+  prefix at the base covered; a `settings.no-comments.exclude` prefix the
+  base's top-level `exclude` covered is not new. With no choice file in the
+  tree, the tree's list is the fixture folders the scan then skips. Lowering
+  or removing is not growth. A baseline for a gate with none at the base, or a choice file where
+  the base has none, is adoption, not growth. With growth it exits 1 unless
+  the pull request carries `tolerated-growth`, or `loosening` on a loosening
+  pull request, read from `QG_PR_LABELS` that the CI step fills; the
+  `pull_request` trigger lists `labeled` and `unlabeled` so the label re-runs
+  it, and `qg setup` says what to add when either is missing. An agent never
+  applies either label: the label is the builder's yes on record, not a lock,
+  since a pull request can set `QG_PR_LABELS` in its own workflow.
+  ([ADR-009 addendum 2026-11-26](archive/ADR-009-recorded-reasons-and-loosening.md#addendum-2026-11-26-the-tolerated-check-as-built---update-will-not-recreate-mains-baseline))
+- **Decided, not built yet (quality-gates#115): recorded reasons are part
   of the tolerated list.** A new record needs the builder's label on its pull
   request; a renewal does not, and is named in the check's one line. The
   `loosening` label counts as that label.

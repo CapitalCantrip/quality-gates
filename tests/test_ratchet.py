@@ -147,6 +147,47 @@ def finding(file, number):
     return ratchet.Finding(ratchet.Location(file, "f"), number, "complexity", "")
 
 
+def unread(file):
+    return ratchet.Finding(ratchet.Location(file), None, "complexity", "", "file reason")
+
+
+class UnreadFileTest(unittest.TestCase):
+
+    def test_a_baselined_function_of_a_file_that_cannot_be_read_is_unmeasured_and_not_paid(self):
+        result = ratchet.judge([unread("a.py")], {"a.py::f": 9, "b.py::g": 4})
+        outcomes = [(v.location.key, v.outcome) for v in result.verdicts]
+        self.assertEqual(outcomes, [("a.py", ratchet.Outcome.UNMEASURED), ("a.py::f", ratchet.Outcome.UNMEASURED),
+                                    ("b.py::g", ratchet.Outcome.BEHIND)])
+
+    def test_the_baselined_functions_of_a_file_that_cannot_be_read_keep_their_entries(self):
+        result = ratchet.judge([unread("a.py")], {"a.py::f": 9})
+        self.assertEqual(ratchet.lowered(result), {"a.py::f": 9})
+
+    def test_a_file_whose_name_starts_like_an_unread_one_is_not_held(self):
+        result = ratchet.judge([unread("a.py")], {"a.pyc::f": 9})
+        self.assertEqual([v.outcome for v in result.verdicts if v.location.file == "a.pyc"], [ratchet.Outcome.BEHIND])
+
+    def test_a_file_and_a_function_unmeasured_together_get_both_pieces_of_advice(self):
+        out = io.StringIO()
+        found = [unread("a.py"), ratchet.Finding(ratchet.Location("b.py", "g"), None, "crap", "", "")]
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline = Path(tmp) / "b.json"
+            baseline.write_text("{}")
+            ratchet.enforce(lambda: found, ratchet.Asked(baseline), out)
+        self.assertIn(ratchet.UNREAD_ADVICE, out.getvalue())
+        self.assertIn(ratchet.UNMEASURED_ADVICE, out.getvalue())
+
+    def test_a_unmeasured_file_is_named_with_its_own_reason_and_a_function_with_the_gates_wording(self):
+        out = io.StringIO()
+        found = [unread("a.py"), ratchet.Finding(ratchet.Location("b.py", "g"), None, "crap", "", "")]
+        with tempfile.TemporaryDirectory() as tmp:
+            baseline = Path(tmp) / "b.json"
+            baseline.write_text("{}")
+            ratchet.enforce(lambda: found, ratchet.Asked(baseline), out)
+        self.assertIn("UNMEASURED a.py: file reason\n", out.getvalue())
+        self.assertIn(f"UNMEASURED b.py::g: {ratchet.FUNCTION_WORDING.unmeasured}\n", out.getvalue())
+
+
 class SettleTest(unittest.TestCase):
 
     def setUp(self):
@@ -249,6 +290,28 @@ class SettleTest(unittest.TestCase):
         result = ratchet.settle(lambda: [finding("a.py", None), finding("b.py", None)], self.file, updating=True).result
         self.assertEqual(json.loads(self.file.read_text()), {"a.py::f": 9})
         self.assertEqual(ratchet.exit_code(result), 1)
+
+
+class BaselineFromBytesTest(unittest.TestCase):
+
+    def test_a_baseline_is_read_from_bytes_as_the_file_would_be(self):
+        self.assertEqual(ratchet.baseline_from(b'{"a.py::f": 11}\n', "main:cc-baseline.json"), {"a.py::f": 11})
+
+    def test_bytes_that_are_not_a_baseline_raise_the_bad_baseline_error_naming_where_they_came_from(self):
+        for data, why in ((b"{", "Expecting"), (b"\xff", "codec"), (b"[]", "must be an object"),
+                          (b'{"a": "x"}', "must be a number")):
+            with self.subTest(data), self.assertRaises(ratchet.BaselineError) as raised:
+                ratchet.baseline_from(data, "main:cc-baseline.json")
+            self.assertTrue(str(raised.exception).startswith("bad baseline main:cc-baseline.json: "))
+            self.assertIn(why, str(raised.exception))
+
+
+class SilencerBaselineTest(unittest.TestCase):
+
+    def test_the_ratchet_asks_for_the_silencer_baseline_by_the_name_the_project_module_knows(self):
+        root = Path(tempfile.mkdtemp())
+        self.assertEqual(ratchet.silencer_asked(root), ratchet.Asked(root / "silencer-baseline.json"))
+        self.assertEqual(ratchet.silencer_asked(root, updating=True).updating, True)
 
 
 class RecordingTest(unittest.TestCase):
@@ -486,7 +549,7 @@ class CommentDebtFindsTest(unittest.TestCase):
         subprocess.run(["git", "-C", str(self.root), "add", "a.py", "pkg/b.py"], check=True)
 
     def located(self):
-        return [f.location for f in cd.findings(self.root)]
+        return [f.location for f in cd.comment_findings(cd.measure(self.root, cd.checked_files(self.root)))]
 
     def test_the_same_code_gives_the_same_locations_on_two_runs(self):
         first = self.located()
@@ -506,12 +569,12 @@ class AskedTest(unittest.TestCase):
         self.assertEqual(outcomes, [("a.py::f", ratchet.Outcome.FAILED), ("b.py::f", ratchet.Outcome.UNMEASURED)])
         self.assertEqual(out.getvalue(), "")
 
-    def test_a_run_that_is_not_judged_never_asks_the_gate_to_find_and_passes(self):
-        def find():
-            raise AssertionError("the gate was asked to find")
-
-        result = ratchet.enforce(find, ratchet.Asked(judged=False), io.StringIO())
+    def test_a_run_that_is_not_judged_passes_and_names_only_the_files_it_could_not_read(self):
+        out = io.StringIO()
+        found = [finding("a.py", 5), unread("b.py")]
+        result = ratchet.enforce(lambda: found, ratchet.Asked(judged=False), out)
         self.assertEqual(ratchet.exit_code(result), 0)
+        self.assertEqual(out.getvalue(), "UNMEASURED b.py: file reason\n")
 
     def test_a_run_without_a_baseline_never_keys_a_location_from_the_root(self):
         def root():
@@ -562,10 +625,12 @@ class EveryRunGoesToTheRatchetTest(unittest.TestCase):
             with self.subTest(extra=extra):
                 self.assertIs(self.handed(crap.gate, ["--lang", "python", str(self.module), *extra]), HANDED)
 
-    def test_comment_debt_hands_every_run_to_the_ratchet(self):
+    def test_comment_debt_hands_every_run_to_the_ratchet_once_for_comments_and_once_for_silencers(self):
+        (self.root / "silencer-baseline.json").write_text("{}\n")
         for extra in ([], ["--status"], ["--update"]):
             with self.subTest(extra=extra):
-                self.assertIs(self.handed(cd.gate, extra, baseline=self.file, out=io.StringIO()), HANDED)
+                result = self.handed(cd.gate, extra, baseline=self.file, out=io.StringIO())
+                self.assertEqual(result.verdicts, HANDED.verdicts * 2)
 
     def test_a_plain_cc_check_run_does_not_key_locations_for_a_baseline(self):
         with mock.patch.object(ratchet, "location", side_effect=ToolError("cannot resolve")) as keyed:
@@ -625,6 +690,277 @@ class PaidDebtLeavesTheBaselineTest(unittest.TestCase):
         self.assertEqual(self.baseline(), {})
 
 
+def git(root, *args):
+    subprocess.run(["git", "-c", "user.name=t", "-c", "user.email=t@t", *args], cwd=root, check=True,
+                   capture_output=True)
+
+
+class UpdateWillNotRecreateABaselineMainHasTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name).resolve()
+        git(self.root, "init", "-q", "-b", "main")
+        self.module = self.root / "mod.py"
+        self.module.write_text(branchy("old", 10))
+        git(self.root, "add", "mod.py")
+        self.file = self.root / "cc.json"
+
+    def scratch(self):
+        folder = tempfile.TemporaryDirectory()
+        self.addCleanup(folder.cleanup)
+        return Path(folder.name).resolve()
+
+    def commit_baseline(self, text):
+        self.file.write_text(text)
+        git(self.root, "add", "cc.json")
+        git(self.root, "commit", "-q", "-m", "baseline")
+
+    def cc_check(self, file):
+        return call(qc.main, [str(self.module), "--threshold", "8", "--baseline", str(file), "--update"], self.root)
+
+    def assertRefused(self, code, out, file, restore=None):
+        self.assertEqual(code, 2)
+        self.assertFalse(file.exists())
+        restore = file if restore is None else restore
+        refusal = ratchet.MAIN_HAS_THE_BASELINE.format(file=file, restore=restore, branch="main")
+        self.assertIn(refusal, out.splitlines())
+        self.assertIn(f"git checkout main -- {restore}", refusal)
+        self.assertIn("--rerecord", refusal)
+        self.assertIn("`tolerated-growth` label", refusal)
+
+    def test_cc_check_update_will_not_recreate_a_deleted_baseline_main_has_and_names_why_in_one_line(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        self.module.write_text(branchy("old", 10) + "\n\n" + branchy("new", 12))
+        self.file.unlink()
+        self.assertRefused(*self.cc_check(self.file), self.file)
+
+    def test_crap_update_will_not_recreate_a_deleted_baseline_main_has(self):
+        self.commit_baseline('{"mod.py::old": 132}\n')
+        coverage = self.root / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": [1]}}}))
+        self.file.unlink()
+        argv = ["--lang", "python", str(self.module), "--coverage-json", str(coverage), "--baseline", str(self.file)]
+        self.assertRefused(*call(crap.main, [*argv, "--update"], self.root), self.file)
+
+    def test_comment_debt_update_will_not_recreate_a_deleted_baseline_main_has(self):
+        self.module.write_text("# one\nx = 1\n")
+        self.commit_baseline('{"mod.py": 1}\n')
+        self.file.unlink()
+        out = io.StringIO()
+        with redirect_stderr(io.StringIO()):
+            code = cd.main(["--update"], root=self.root, baseline=self.file, out=out)
+        self.assertRefused(code, out.getvalue(), self.file)
+
+    def test_update_records_a_first_baseline_when_main_has_none(self):
+        git(self.root, "commit", "-q", "-m", "code")
+        self.assertEqual(self.cc_check(self.file)[0], 0)
+        self.assertEqual(json.loads(self.file.read_text()), {"mod.py::old": 11})
+
+    def test_update_records_a_first_baseline_in_a_repo_with_no_commits(self):
+        self.assertEqual(self.cc_check(self.file)[0], 0)
+        self.assertEqual(json.loads(self.file.read_text()), {"mod.py::old": 11})
+
+    def test_update_records_a_baseline_outside_any_repo_since_no_main_can_hold_it(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        elsewhere = self.scratch() / "cc.json"
+        self.assertEqual(self.cc_check(elsewhere)[0], 0)
+        self.assertEqual(json.loads(elsewhere.read_text()), {"mod.py::old": 11})
+
+    def test_update_will_not_recreate_a_baseline_the_main_of_the_other_repo_holding_it_has(self):
+        git(self.root, "commit", "-q", "-m", "code")
+        other = self.scratch()
+        git(other, "init", "-q", "-b", "main")
+        file = other / "cc.json"
+        file.write_text("{}\n")
+        git(other, "add", "cc.json")
+        git(other, "commit", "-q", "-m", "baseline")
+        file.unlink()
+        self.assertRefused(*self.cc_check(file), file)
+
+    def test_update_will_not_recreate_a_baseline_under_another_spelling_where_git_ignores_case(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        git(self.root, "config", "core.ignorecase", "true")
+        self.file.unlink()
+        respelled = self.root / "CC.json"
+        self.assertRefused(*self.cc_check(respelled), respelled, restore=self.file)
+
+    def test_update_with_a_relative_baseline_path_checks_the_file_it_names(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        self.file.unlink()
+        here = os.getcwd()
+        self.addCleanup(os.chdir, here)
+        os.chdir(self.root)
+        self.assertRefused(*self.cc_check(Path("cc.json")), Path("cc.json"))
+
+    def assertRerecorded(self, code, expected):
+        self.assertEqual(code, 0)
+        self.assertEqual(json.loads(self.file.read_text()), expected)
+
+    def test_cc_check_rerecord_records_what_it_measures_and_drops_entries_it_no_longer_finds_with_or_without_the_file(self):
+        self.commit_baseline('{"gone.py::f": 20, "mod.py::old": 9}\n')
+        self.module.write_text(branchy("old", 10) + "\n\n" + branchy("new", 12))
+        for present in (True, False):
+            with self.subTest(present=present):
+                if not present:
+                    self.file.unlink()
+                argv = [str(self.module), "--threshold", "8", "--baseline", str(self.file), "--rerecord"]
+                self.assertRerecorded(call(qc.main, argv, self.root)[0], {"mod.py::new": 13, "mod.py::old": 11})
+
+    def test_crap_rerecord_records_afresh_when_main_has_the_baseline(self):
+        self.commit_baseline('{"mod.py::old": 1}\n')
+        coverage = self.root / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": [1]}}}))
+        self.file.unlink()
+        argv = ["--lang", "python", str(self.module), "--coverage-json", str(coverage), "--baseline", str(self.file)]
+        code, _ = call(crap.main, [*argv, "--rerecord"], self.root)
+        self.assertEqual(code, 0)
+        self.assertEqual(list(json.loads(self.file.read_text())), ["mod.py::old"])
+        self.assertGreater(json.loads(self.file.read_text())["mod.py::old"], 1)
+
+    def commit_both_comment_baselines(self):
+        self.module.write_text("# one\n# two\nx = 1  # " + SILENCER + "\n")
+        self.silencers = self.root / "silencer-baseline.json"
+        self.silencers.write_text('{"mod.py": 0}\n')
+        git(self.root, "add", "mod.py", "silencer-baseline.json")
+        self.commit_baseline('{"mod.py": 3}\n')
+
+    def comment_debt(self, flag):
+        out = io.StringIO()
+        with redirect_stderr(out):
+            code = cd.main([flag], root=self.root, baseline=self.file, out=out)
+        return code, out.getvalue()
+
+    def test_comment_debt_rerecord_records_afresh_when_main_has_the_baseline(self):
+        self.commit_both_comment_baselines()
+        self.file.unlink()
+        self.silencers.unlink()
+        self.assertRerecorded(self.comment_debt("--rerecord")[0], {"mod.py": 2})
+        self.assertEqual(json.loads(self.silencers.read_text()), {"mod.py": 1})
+
+    def test_comment_debt_update_after_main_s_silencer_baseline_is_deleted_writes_nothing_and_refuses(self):
+        self.commit_both_comment_baselines()
+        self.silencers.unlink()
+        before = self.file.read_text()
+        code, out = self.comment_debt("--update")
+        self.assertEqual(code, 2)
+        self.assertFalse(self.silencers.exists())
+        self.assertEqual(self.file.read_text(), before)
+        self.assertIn(ratchet.MAIN_HAS_THE_BASELINE.format(file=self.silencers, restore=self.silencers, branch="main"),
+                      out.splitlines())
+
+    def test_rerecord_without_a_baseline_flag_is_a_usage_error(self):
+        for gate, argv in ((qc.main, [str(self.module), "--rerecord"]),
+                           (crap.main, ["--lang", "python", str(self.module), "--no-coverage", "--rerecord"])):
+            with self.subTest(gate.__module__):
+                code, out = call(gate, argv, self.root)
+                self.assertEqual(code, 2)
+                self.assertIn("--rerecord needs --baseline", out)
+
+    def test_rerecord_and_update_together_are_a_usage_error(self):
+        argv = [str(self.module), "--baseline", str(self.file), "--update", "--rerecord"]
+        self.assertEqual(call(qc.main, argv, self.root)[0], 2)
+        with redirect_stderr(io.StringIO()), self.assertRaises(SystemExit):
+            cd.main(["--update", "--rerecord"], root=self.root, baseline=self.file, out=io.StringIO())
+
+    def test_update_that_finds_the_baseline_file_present_does_not_look_for_main(self):
+        self.commit_baseline('{"mod.py::old": 11}\n')
+        with mock.patch.object(ratchet.project_files, "default_branch") as looked:
+            self.assertEqual(self.cc_check(self.file)[0], 0)
+        looked.assert_not_called()
+
+
+WRITES = ("--update", "--rerecord")
+SILENCER = "prag" + "ma: no cover"
+
+
+class EveryWayToWriteABaselineKeepsTheBaselineRulesTest(unittest.TestCase):
+
+    def setUp(self):
+        tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(tmp.cleanup)
+        self.root = Path(tmp.name).resolve()
+        git(self.root, "init", "-q", "-b", "main")
+        self.module = self.root / "mod.py"
+        self.file = self.root / "baseline.json"
+
+    def stored(self):
+        return json.loads(self.file.read_text())
+
+    def silencers(self):
+        return json.loads((self.root / "silencer-baseline.json").read_text())
+
+    def cc_check(self, flag):
+        self.module.write_text(branchy("old", 10))
+        (self.root / "bad.py").write_text("def f(:\n")
+        argv = [str(self.module), str(self.root / "bad.py"), "--threshold", "8", "--baseline", str(self.file), flag]
+        return call(qc.main, argv, self.root)
+
+    def crap(self, flag):
+        self.module.write_text(branchy("old", 10))
+        other = self.root / "other.py"
+        other.write_text(branchy("g", 2))
+        coverage = self.root / "coverage.json"
+        coverage.write_text(json.dumps({"files": {str(self.module): {"executed_lines": [], "missing_lines": [1]}}}))
+        argv = ["--lang", "python", str(self.module), str(other), "--coverage-json", str(coverage),
+                "--baseline", str(self.file), flag]
+        return call(crap.main, argv, self.root)
+
+    def comment_debt(self, flag):
+        self.module.write_text("# one\ndef f(:\n")
+        (self.root / "silencer-baseline.json").write_text('{"mod.py": 1}\n')
+        with redirect_stderr(io.StringIO()):
+            return cd.main([flag], root=self.root, baseline=self.file, out=io.StringIO()), ""
+
+    def test_every_write_keeps_the_entry_of_an_unmeasured_function_or_file_in_every_gate(self):
+        for gate, baseline in ((self.cc_check, {"bad.py::f": 11, "mod.py::old": 11}),
+                               (self.crap, {"mod.py::old": 132, "other.py::g": 5}),
+                               (self.comment_debt, {"mod.py": 1})):
+            for flag in WRITES:
+                with self.subTest(gate=gate.__name__, write=flag):
+                    self.file.write_text(json.dumps(baseline))
+                    self.assertEqual(gate(flag)[0], 1)
+                    self.assertEqual(self.stored(), baseline)
+                    if gate == self.comment_debt:
+                        self.assertEqual(self.silencers(), {"mod.py": 1})
+
+    def test_every_write_keeps_the_entry_of_a_file_outside_what_the_gate_checks(self):
+        (self.root / "quality-gates.json").write_text(json.dumps({
+            "format_version": 1, "languages": ["python"], "exclude": [],
+            "components": {"chosen": [], "declined": []}, "commit_time_limit_seconds": 2,
+            "settings": {"no-comments": {"exclude": [], "conventions": []}}}))
+        self.module.write_text("# one\n# two\n")
+        (self.root / "b.js").write_text("f(); // istanbul ignore next\n")
+        for flag in WRITES:
+            with self.subTest(write=flag):
+                self.file.write_text('{"mod.py": 2, "b.js": 1}\n')
+                (self.root / "silencer-baseline.json").write_text('{"b.js": 1}\n')
+                with redirect_stderr(io.StringIO()):
+                    code = cd.main([flag], root=self.root, baseline=self.file, out=io.StringIO())
+                self.assertEqual(code, 0)
+                self.assertEqual(self.stored(), {"mod.py": 2, "b.js": 1})
+                self.assertEqual(self.silencers(), {"b.js": 1})
+
+    def test_every_write_stops_at_an_unreadable_baseline_and_leaves_it_as_it_was_in_every_gate(self):
+        for gate in (self.cc_check, self.crap, self.comment_debt):
+            for flag in WRITES:
+                with self.subTest(gate=gate.__name__, write=flag):
+                    self.file.write_text("{not json\n")
+                    self.assertEqual(gate(flag)[0], 2)
+                    self.assertEqual(self.file.read_text(), "{not json\n")
+
+    def test_every_write_stops_at_an_unreadable_silencer_baseline_before_writing_the_comment_baseline(self):
+        self.module.write_text("# one\n")
+        for flag in WRITES:
+            with self.subTest(write=flag):
+                self.file.write_text('{"mod.py": 5}\n')
+                (self.root / "silencer-baseline.json").write_text("{not json\n")
+                with redirect_stderr(io.StringIO()):
+                    self.assertEqual(cd.main([flag], root=self.root, baseline=self.file, out=io.StringIO()), 2)
+                self.assertEqual(self.stored(), {"mod.py": 5})
+
+
 class CcCheckRatchetTest(unittest.TestCase):
 
     def setUp(self):
@@ -654,6 +990,33 @@ class CcCheckRatchetTest(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("--update", out)
         self.assertFalse(self.file.exists())
+
+    def test_a_baselined_function_whose_file_stops_parsing_is_unmeasured_kept_and_not_reported_as_paid(self):
+        self.put(branchy("f", 5))
+        self.gate("--update")
+        self.put("def f(:\n")
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn("UNMEASURED pkg/mod.py: " + complexity_scan.UNREAD, out)
+        self.assertNotIn("PAID", out)
+        self.assertEqual(self.gate("--update")[0], 1)
+        self.assertEqual(self.baseline(), {"pkg/mod.py::f": 6})
+
+    def test_an_unmeasured_file_gets_the_advice_for_files_and_not_the_advice_for_coverage(self):
+        self.put(branchy("f", 5))
+        self.gate("--update")
+        self.put("def f(:\n")
+        out = self.gate()[1]
+        self.assertIn(ratchet.UNREAD_ADVICE, out)
+        self.assertNotIn(ratchet.UNMEASURED_ADVICE, out)
+
+    def test_the_baselined_function_is_scored_again_once_its_file_parses(self):
+        self.put(branchy("f", 5))
+        self.gate("--update")
+        self.put("def f(:\n")
+        self.gate("--update")
+        self.put(branchy("f", 5))
+        self.assertEqual(self.gate()[0], 0)
 
     def test_update_without_a_baseline_flag_is_a_usage_error(self):
         self.put(branchy("f", 5))

@@ -97,8 +97,10 @@ _Avoid_: block, unit
 
 **Unmeasured**:
 A Function the coverage report holds no usable figure for, because the report
-never saw its file or cannot place it within one. It is a gap in measuring, not
-untested code, and it fails the CRAP gate until it is measured.
+never saw its file or cannot place it within one, or a file a gate could not
+read, because it could not be opened, does not parse or is not UTF-8. It is a
+gap in measuring, not untested code or clean code, and it fails the gate until
+it is measured.
 _Avoid_: unknown coverage, 0% covered, untested
 
 **Asking rule**:
@@ -205,6 +207,15 @@ baselines, the files a project excludes, in-code silencers, and recorded
 reasons, loosenings included. It may grow only with the builder's yes.
 _Avoid_: allowlist, ignore list, exceptions
 
+**Silencer**:
+An in-code marker that switches off one of quality-gates' own gates, such as
+Python's `# pragma: no cover`, Swift's `swiftlint:disable`, Rust's
+`#[allow(clippy::too_many_lines)]` or lizard's `#lizard forgive`. `comment-debt` finds it at a file and line; it is
+held in `silencer-baseline.json`, a count per file that only shrinks, and is
+part of the tolerated list. A marker that silences no gate of ours, such as
+`# noqa`, is not one.
+_Avoid_: pragma, suppression
+
 **Recognised convention**:
 A comment form a language's own community requires, such as Rust's `SAFETY:`
 above an `unsafe` block, that a project may switch on as an ordinary choice.
@@ -224,6 +235,6 @@ _Avoid_: bug caught, issue caught
 
 **Escape**:
 A problem that got past every gate and was found later, by the builder using
-the product, by a review or by a crash. Counted by the gate that should have
-caught it, or as one no gate could. The opposite of a catch.
+the product, by a review or by a crash. Counted by the earliest point it could have
+been stopped and by the gate that should have caught it, or as one no gate could. The opposite of a catch.
 _Avoid_: miss, leak, bug

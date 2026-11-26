@@ -7,7 +7,7 @@ name = "quality-gates"
 version = "0.14.2"
 description = "Quality gates for agent-written code: comment ratchet, cyclomatic complexity, CRAP."
 requires-python = ">=3.9"
-dependencies = ["radon>=6", "lizard>=1.24.2"]
+dependencies = ["radon==6.0.1", "lizard==1.26.1"]
 
 [project.optional-dependencies]
 dev = ["coverage>=7"]

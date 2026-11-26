@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from quality_gates import comment_debt, project_files, ratchet, skills_sync, status
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
-from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, STEP_KINDS, BrokenFileError, known_languages, load_components
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, BrokenFileError, known_languages, load_components
 
 SUMMARY = "propose the languages and components, and record them in quality-gates.json with --go"
 REFUSED_EXIT = 1
@@ -61,7 +61,7 @@ def cost_of(component):
 
 
 def is_gate(component):
-    return any(part.kind in STEP_KINDS for part in component.parts)
+    return bool(component.gates())
 
 
 def check_component_names(manifest, names):
@@ -203,7 +203,11 @@ def offer_lines(proposal):
     return lines
 
 
-def render(proposal, planned, written):
+def note_lines(notes):
+    return [line for note in notes for line in ("", note)]
+
+
+def render(proposal, planned, written, notes):
     lines = ["Languages: " + (", ".join(proposal.languages) or "none"), "", "Components"]
     lines += [line for row in proposal.components for line in row_lines(row)]
     lines += ["", "Excluded from detection and the gates: " + (", ".join(proposal.choice.exclude) or "nothing")]
@@ -211,6 +215,7 @@ def render(proposal, planned, written):
     lines += your_components(proposal)
     lines += offer_lines(proposal)
     lines += ["", "Planned changes"] + [f"  {change.name}: {state}" for change, state in planned]
+    lines += note_lines(notes)
     lines += [""] + closing_lines(proposal, written, planned)
     return "\n".join(lines)
 
@@ -232,21 +237,37 @@ def failed(error, code):
     return code
 
 
+def silencer_names(root, proposal, names):
+    if project_files.silencer_baseline(root).exists():
+        return names
+    return names | comment_debt.chosen_in(proposal.choice)
+
+
 def recording_changes(root, proposal):
     names = comment_debt.languages_of(proposal.switched_on)
     if not names:
         return []
-    found = comment_debt.findings_on_choosing(root, names, proposal.choice)
-    scores = ratchet.recorded(found, project_files.comment_debt_baseline(root), comment_debt.written_in(root, names))
-    return [project_files.comment_debt_change(ratchet.baseline_text(scores))]
+    comments = ratchet.recorded(
+        comment_debt.comment_findings(comment_debt.measured_on_choosing(root, names, proposal.choice)),
+        project_files.comment_debt_baseline(root), comment_debt.written_in(root, names))
+    covered = silencer_names(root, proposal, names)
+    silencers = ratchet.recorded(
+        comment_debt.silencer_findings(comment_debt.measured_on_choosing(root, covered, proposal.choice)),
+        project_files.silencer_baseline(root), comment_debt.written_in(root, covered))
+    return [project_files.comment_debt_change(ratchet.baseline_text(comments)),
+            project_files.silencer_baseline_change(ratchet.baseline_text(silencers))]
 
 
 def run(args, project, manifest):
     proposal = propose(project, manifest, args)
+    notes = project_files.tolerated_step_notes(project.root)
     changes = recording_changes(project.root, proposal) + [project_files.choice_change(proposal.choice)]
     planned = [(change, project_files.planned_state(project.root, change)) for change in changes]
     written = project_files.apply_planned(project.root, changes) if args.go else []
-    print(json.dumps(report_of(proposal, planned), indent=2) if args.json else render(proposal, planned, written))
+    if args.json:
+        print(json.dumps({**report_of(proposal, planned), "notes": notes}, indent=2))
+    else:
+        print(render(proposal, planned, written, notes))
     return 0
 
 

@@ -35,7 +35,7 @@ ADMISSION_REQUIRED = ("name", "kind", "licence", "practice")
 VERSION_FIELDS = ("minimum_version", "tested_version")
 ADMISSION_FIELDS = ADMISSION_REQUIRED + ("last_release", "stable") + VERSION_FIELDS
 ONE_SENTENCE = r"^[^\n]+\.$"
-VERSION_FLOOR = ">="
+VERSION_PIN = "=="
 MARKDOWN_SUFFIX = ".md"
 BROKEN_EXIT = 3
 
@@ -89,6 +89,11 @@ class Component:
     def applies_to(self, used):
         return applies(self.languages, used)
 
+    def gates(self):
+        steps = tuple(dict.fromkeys(part.id for part in self.parts if part.kind in STEP_KINDS))
+        commands = tuple(part.id for part in self.parts if part.kind == "command")
+        return (commands or steps) if steps else ()
+
 
 @dataclass(frozen=True)
 class Admission:
@@ -112,6 +117,10 @@ class Manifest:
     def component(self, component_id):
         return next((c for c in self.components if c.id == component_id), None)
 
+    def gates_among(self, chosen):
+        names = [name for component in self.components if component.id in chosen for name in component.gates()]
+        return tuple(dict.fromkeys(names))
+
     def explainer_path(self, component):
         return None if component.explainer is None else self.folder / component.explainer
 
@@ -133,6 +142,13 @@ def read_json(path):
         raise BrokenFileError(f"{path}: cannot be read: {error.strerror}") from error
     except ValueError as error:
         raise BrokenFileError(f"{path}: not valid JSON: {error}") from error
+
+
+def json_from(data, where):
+    try:
+        return json.loads(data.decode("utf-8"))
+    except (ValueError, RecursionError) as error:
+        raise BrokenFileError(f"{where}: not valid JSON: {error}") from error
 
 
 def fail_unless(holds, message):
@@ -304,7 +320,7 @@ def check_component_admitted(component, kinds, name):
 def versioned(origin, minimums):
     if origin is None or origin.version is not None or minimums.get(origin.name) is None:
         return origin
-    return replace(origin, version=VERSION_FLOOR + minimums[origin.name])
+    return replace(origin, version=VERSION_PIN + minimums[origin.name])
 
 
 def with_versions(component, minimums):

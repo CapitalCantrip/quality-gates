@@ -10,6 +10,23 @@ enforce the limits in CI without first paying it all off.
 - **A missing baseline is an error, except with `--update`.** Treating it as
   empty would fail every adopting repo on its first run; treating it as
   permissive would let a mistyped path pass CI.
+- **`--update` will not recreate a baseline that main has.** When the file is
+  missing and the default branch of the repository holding it has it
+  committed (under any spelling where git ignores case), `--update` writes
+  nothing, exits 2 and says to restore it with `git checkout <branch> --
+  <file>`, or to run `--rerecord`. With no such copy, no default branch, or a
+  baseline outside any repository, it records a new one. Otherwise deleting
+  the file and running `--update` would record every new and worse function.
+  It guards only the local default branch's copy; CI compares against the
+  real base.
+- **`--rerecord` records a baseline afresh** from the tree for the re-record
+  steps a release asks for: measured entries become what the gate finds now.
+  Unmeasured entries stay. So do the entries of a language `comment-debt` did
+  not choose; `cc-check` and `crap` drop the entries of a file outside their
+  scan, so a baseline file two languages share loses the other's entries, on
+  `--update` as well. An
+  unreadable baseline stops it, so delete that file first. CI's
+  `qg tolerated` then asks for the builder's label.
 - **An unmeasured function is never recorded, and keeps a nonzero entry.**
   `--update` lowers and removes entries for measured functions, adds none for an
   unmeasured one, and keeps an existing nonzero entry as it is while the
@@ -18,5 +35,7 @@ enforce the limits in CI without first paying it all off.
   unmeasured as unmeasured, not as paid. A worst-case score for a function with
   no figure would sit in the baseline as accepted debt, and an entry dropped
   during a coverage outage could never be added back.
+  A file the gate could not read is unmeasured as a whole, and keeps the entries
+  of all its functions the same way.
 - **CRAP baselines need coverage,** because CRAP without coverage is a ranking,
   not a gate.

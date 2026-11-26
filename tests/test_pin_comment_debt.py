@@ -34,6 +34,7 @@ class PinTest(unittest.TestCase):
     def baselined(self, files, baseline):
         made = project(self, files)
         made.write("comment-debt.json", baseline)
+        made.write("silencer-baseline.json", "{}\n")
         return made
 
 

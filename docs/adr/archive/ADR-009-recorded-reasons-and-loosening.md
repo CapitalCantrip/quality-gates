@@ -117,6 +117,8 @@ nothing project-wide is loosened before the checkpoint can show it.
 
 Amends: [Who writes them](#who-writes-them), [Review dates](#review-dates)
 
+Amended by: [Addendum 2026-11-26: the tolerated check as built; `--update` will not recreate main's baseline](#addendum-2026-11-26-the-tolerated-check-as-built---update-will-not-recreate-mains-baseline)
+
 The builder decided both in a grilling session on #115 (2026-11-23). The
 design review of 2026-11-11 asked for them (section 9, the comment on #115).
 
@@ -169,3 +171,87 @@ Rejected:
   would wait on the builder.
 - **Both labels on a loosening pull request.** The loosening route is already
   stricter.
+
+## Addendum 2026-11-26: the tolerated check as built; `--update` will not recreate main's baseline
+
+Amends: [Addendum 2026-11-23: warn before a review date; reasons count as tolerated growth](#addendum-2026-11-23-warn-before-a-review-date-reasons-count-as-tolerated-growth), and ADR-001's [baseline ratchet](ADR-001-complexity-standards.md#addendum-2026-10-04-the-baseline-ratchet-v030)
+
+Built in sprint 3a (quality-gates#192, #193), following the builder's
+decisions on #232 (2026-11-25: the label is a record, not a lock; 2026-11-26:
+setup never edits a workflow). Before it, a baseline could grow three ways
+without anyone seeing it: delete it and run `--update`, type an entry in, or
+add a folder to `exclude`.
+
+**`qg tolerated --against <ref>` fails a pull request whose tolerated list
+grew without the builder's label.** It compares the working tree with
+`<ref>`, the pull request's base, and prints one line: what grew and whether a
+label allows it, or "the tolerated list did not grow".
+
+- The list: every baseline the project module names (`cc-baseline.json`,
+  `crap-baseline.json`, `comment-debt.json`, `silencer-baseline.json`), the
+  choice file's top-level `exclude`, and `settings.no-comments.exclude`.
+  Recorded reasons join when #115 lands them.
+- Growth: a baseline entry that is new or higher, or an exclude prefix that
+  covers a path no prefix at `<ref>` covered. A prefix in
+  `settings.no-comments.exclude` is new only when neither list at `<ref>`
+  covered it, because the top-level list already skips the comment gate.
+  With no choice file in the tree, the tree's list is the fixture folders the
+  scan then skips, so deleting the choice file counts. Lowering or removing
+  entries or prefixes, or deleting a baseline, is not growth.
+- First adoption: a baseline for a gate that has none at `<ref>`, and a choice
+  file when `<ref>` has none, are not growth. Problems found at adoption are
+  debt (ADR-006). When `<ref>` has the file, a re-created one is compared entry
+  by entry.
+- With growth the check exits 1, unless the pull request carries
+  `tolerated-growth`, or `loosening` on a loosening pull request; then it
+  exits 0 and still prints the line. It reads the labels from `QG_PR_LABELS`,
+  which the CI step fills from the pull request's labels, comma-separated. The
+  workflow's `pull_request` trigger lists `labeled` and `unlabeled`, so adding
+  the label runs the check again. `qg setup` says what to add when the step
+  does not pass `QG_PR_LABELS` or the trigger lacks those types.
+- An agent never applies either label itself. The label is the builder's yes
+  on record, not a lock: one GitHub account cannot tell the two apart, a pull
+  request can set `QG_PR_LABELS` in its own workflow because `pull_request`
+  runs the head's workflow, and an agent's label is an escape.
+
+**`--update` will not recreate a baseline that main has.** When the baseline
+file is missing and the default branch of the repository holding it has the
+file committed, `--update` writes nothing, exits 2 and says in one line to
+restore it with `git checkout <branch> -- <file>` and update from there, or to
+record it afresh with `--rerecord`, after which the pull request needs the
+builder's label. Where git ignores case, a copy under another spelling counts,
+and the restore command names the spelling the branch holds.
+The branch is named as the remote's `HEAD` points, such as `origin/main`. With
+no such copy, no default branch, or a baseline outside any repository, it
+records a new one as before. This holds for `cc-check`, `crap` and
+`comment-debt` through the one ratchet. It protects only the default branch's
+copy on the machine that runs it; CI's check compares against the pull
+request's real base. `comment-debt` checks both its baselines before writing
+either, so a deleted silencer baseline stops it before the comment baseline
+changes.
+
+**`--rerecord` records a baseline afresh.** It replaces each measured entry
+with what the gate finds now, adds every new finding over the threshold and
+drops entries it no longer finds, for the re-record steps releases ask for
+(re-keying after a counting change). It keeps the rules every write keeps:
+the entries of unmeasured functions and files stay as they were, so do those
+of files outside the languages `comment-debt` chose (it alone tells the ratchet
+what it covers; `cc-check` and `crap` do not, so they drop the entries of a
+file outside the scan, quality-gates#263), and an unreadable baseline stops it,
+so delete that file first. In `comment-debt` it records the silencer baseline
+too.
+`qg tolerated` still reports what grew, so the builder's label records the
+yes.
+
+Rejected:
+
+- **Labels passed as a flag.** An agent types flags; CI reads the labels from
+  the pull request.
+- **Every new baseline file counted in full.** Adopting a gate would always
+  need the builder's label, though adoption debt is the expected case.
+- **Asking the GitHub API for the labels.** It needs a token and the network
+  in every consumer's CI, for the same list the event already holds.
+- **Refusing `--update` for a baseline outside the repository.** Main cannot
+  hold such a file, so there is nothing to restore.
+- **No way to re-record but deleting the file.** Every release that changes
+  how a gate counts asks for a re-record, and the refusal would block it.
