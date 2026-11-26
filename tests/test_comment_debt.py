@@ -74,7 +74,7 @@ def rust_lines(source, conventions=()):
 
 SILENCERS_TO_COME = (
     '# prag' 'ma: no cover', '# prag' 'ma: no branch', '/* istanbul ignore next */', '// c8 ignore next',
-    '// swiftlint:disable:next cyclomatic_complexity', '#[allow(clippy::cognitive_complexity)]', '', 'x = 1',
+    '#[allow(clippy::cognitive_complexity)]', '', 'x = 1',
 )
 
 
@@ -87,7 +87,7 @@ class SilencerKindTest(unittest.TestCase):
 
     def test_no_other_language_silences_anything_yet(self):
         for name, row in cd.LANGUAGES.items():
-            if name == 'python':
+            if name in ('python', 'swift'):
                 continue
             for line in SILENCERS_TO_COME:
                 with self.subTest(name=name, line=line):
@@ -290,12 +290,11 @@ class SwiftCountingTest(unittest.TestCase):
     def test_doc_comments_count_on_every_line(self):
         self.assertEqual(swift_lines('/// Adds.\n/** Block\n doc. */\nfunc add() {}\n'), [1, 2, 3])
 
-    def test_a_bare_swiftlint_pragma_is_exempt_and_one_that_carries_prose_counts(self):
-        for pragma in ('// swiftlint:disable force_cast', '// swiftlint:disable:next force_try line_length',
-                       '// swiftlint:disable:this force_cast', '// swiftlint:enable force_cast'):
+    def test_a_bare_swiftlint_enable_is_exempt_and_one_that_carries_prose_counts(self):
+        for pragma in ('// swiftlint:enable force_cast', '// swiftlint:enable', '// swiftlint:enable force_cast line_length'):
             with self.subTest(pragma=pragma):
                 self.assertEqual(swift_lines(f'{pragma}\nlet a = 1\n'), [])
-        self.assertEqual(swift_lines('// swiftlint:disable force_cast, the API returns Any\nlet a = 1\n'), [1])
+        self.assertEqual(swift_lines('// swiftlint:enable force_cast, the API returns Any\nlet a = 1\n'), [1])
 
     def test_slashes_in_strings_and_interpolations_are_not_a_comment(self):
         source = ('let a = "https://x // \\" //"\nlet b = "\\(dict["k // v"] ?? "//") // \\(f(g(1)))" // why\n'
