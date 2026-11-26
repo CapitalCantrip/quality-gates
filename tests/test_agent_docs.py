@@ -213,6 +213,8 @@ class AgentDocs(unittest.TestCase):
     def test_a_template_in_another_file_that_names_itself_escaped_is_kept_and_no_second_one_is_written(self):
         self.issue_templates.mkdir(parents=True)
         for file_name, text in (("bug.md", "---\nname: 'Escaped'\nabout: ours\n---\n"),
+                                ("quoted.md", "---\n\"name\": escaped\nabout: ours\n---\nbody\n"),
+                                ("spaced.md", "---\nname : escaped\nabout: ours\n---\nbody\n"),
                                 ("form.yml", "\ufeffname: escaped\nbody: []\n")):
             with self.subTest(file_name):
                 (self.issue_templates / file_name).write_text(text, encoding="utf-8")
@@ -250,7 +252,7 @@ class AgentDocs(unittest.TestCase):
                     self.assertFalse(written)
                     self.assertIn(f"not written; .github/ISSUE_TEMPLATE/form{suffix} is already an escaped template", out)
 
-    def test_a_yaml_form_whose_name_is_only_nested_or_in_a_block_does_not_block_ours(self):
+    def test_a_yaml_form_whose_escaped_name_is_only_nested_inside_another_key_does_not_block_ours(self):
         self.issue_templates.mkdir(parents=True)
         (self.issue_templates / "form.yml").write_text("---\nname: bug\nbody:\n  - attributes:\n      name: escaped\n")
         self.run_tool()
