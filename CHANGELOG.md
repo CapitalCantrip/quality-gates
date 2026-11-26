@@ -24,16 +24,16 @@ that uses what it names, and one pull request can carry them all.
 5. Run `cc-check` and `crap` as the project's hook and CI do. A Python file
    that does not parse or is not UTF-8 now fails as `UNMEASURED` (#212), as does
    any file a gate cannot read: fix it or exclude it.
-6. For TypeScript and JavaScript, run `cc-check --lang typescript <source
-   dirs> --baseline <file>` and `crap --lang typescript <source dirs> <coverage
-   flag> --baseline <file>`; for Swift, `crap --lang swift <source dirs>
-   <coverage flag> --baseline <file>`. Entries reported as PAID take
-   `--update`; a function reported as new or worse takes `--rerecord` and the
-   builder's `tolerated-growth` label. Commit each baseline file. If two
-   languages share a baseline file, either language's `--update` or
-   `--rerecord` drops the other's entries, and a file of another name is not
-   read by `qg tolerated`: stop and ask the builder rather than split the file
-   (#263).
+6. First, if two languages share a baseline file, stop and ask the builder
+   (#263): a check of one language reports the other's entries as PAID, either
+   language's `--update` or `--rerecord` drops them, and a file of another name
+   is not read by `qg tolerated`, so do not split it either. Otherwise, for
+   TypeScript and JavaScript, run `cc-check --lang typescript <source dirs>
+   --baseline <file>` and `crap --lang typescript <source dirs> <coverage flag>
+   --baseline <file>`; for Swift, `crap --lang swift <source dirs> <coverage
+   flag> --baseline <file>`. Entries reported as PAID take `--update`; a
+   function reported as new or worse takes `--rerecord` and the builder's
+   `tolerated-growth` label. Commit each baseline file.
 7. Where an entry of an earlier release says to delete a baseline and run
    `--update`, run `--rerecord` on `cc-check`, `crap` or `comment-debt` instead
    and ask the builder for the `tolerated-growth` label on that pull request.
