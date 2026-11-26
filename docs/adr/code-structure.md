@@ -50,9 +50,11 @@ source lines, and `comment-debt` judges the silencers against
 `silencer-baseline.json` beside the comment lines; Swift's
 row reads `swiftlint:disable` in every `//` line comment (quality-gates#235);
 TypeScript's reads `istanbul ignore`, `c8 ignore` and `v8 ignore` at the start of a
-comment (quality-gates#236); Rust's reads the `allow` and `expect` attributes that
+comment (quality-gates#236); both read lizard's `#lizard forgive` at the start of a
+`//` or `/* */` comment too, the two readers combined through `any_of`
+(quality-gates#244); Rust's reads the `allow` and `expect` attributes that
 name a complexity lint from `reading.blanked`, the code with comments and strings
-blanked (quality-gates#237); shell's has no silencer. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237))
+blanked (quality-gates#237); shell's has no silencer. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237), [lizard](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-lizards-lizard-forgive-marker-is-a-silencer-244))
 
 ## One language registry
 

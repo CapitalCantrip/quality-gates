@@ -195,15 +195,19 @@ from the repo root and commit the file it writes.
 - **Swift:** run SwiftLint. Each function already over the limit gets
   `// swiftlint:disable:next cyclomatic_complexity` above it; that line is its
   baseline entry. With `no-comments-swift` chosen, `comment-debt` counts each
-  one as a silencer, so record them: run `comment-debt`. If it fails as new
-  silencers on the lines you added, then where the default branch has no
-  `silencer-baseline.json`, delete the file (step 2 wrote it before these
-  lines existed) and run `comment-debt --update`; otherwise run
+  one, and any `// #lizard forgive` already in a Swift file (lizard drops the
+  next function that ends from `crap`), as a silencer, so record them, and after
+  a pin bump record the ones already there: run `comment-debt`. With no
+  `silencer-baseline.json` it exits 2, naming the missing baseline: where the
+  default branch has none either, run `comment-debt --update`, which records the
+  lines. If it fails as new silencers on the lines you added, then where the
+  default branch has no `silencer-baseline.json`, delete the file (step 2 wrote
+  it before these lines existed) and run `comment-debt --update`; otherwise run
   `comment-debt --rerecord` and ask the builder for the `tolerated-growth`
   label. `--rerecord` rewrites `comment-debt.json` too: check its diff and
   that no count grew, and remove any comment you added, then rerun. Commit the
   files, and `comment-debt` passes. Without `no-comments-swift` the disable
-  lines go uncounted and nothing records them. Then record CRAP from the project's coverage. In a SwiftPM
+  and forgive lines go uncounted and nothing records them. Then record CRAP from the project's coverage. In a SwiftPM
   package with a test target, run `swift test --enable-code-coverage`, then
   `crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json --update`.
   In an Xcode project with an `.xcresult`, run
@@ -223,8 +227,9 @@ from the repo root and commit the file it writes.
   Add `coverage/` to `.gitignore`. A project on `node --test` gets no CRAP
   baseline: report CRAP as not done, as step 2 says. With `no-comments-typescript`
   chosen, `comment-debt` counts each `istanbul ignore`, `c8 ignore` and
-  `v8 ignore` comment as a silencer, so after a pin bump record the ones already
-  there: run `comment-debt`. With no `silencer-baseline.json` it exits 2, naming
+  `v8 ignore` comment, and each `#lizard forgive` comment (lizard drops the
+  next function that ends from `cc-check` and `crap`), as a silencer, so after a pin
+  bump record the ones already there: run `comment-debt`. With no `silencer-baseline.json` it exits 2, naming
   the missing baseline: where the default branch has none either, run
   `comment-debt --update`, which records the markers. If the file exists and the
   run fails as new silencers, run `comment-debt --rerecord` and ask the builder

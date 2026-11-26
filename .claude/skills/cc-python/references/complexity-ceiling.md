@@ -54,4 +54,12 @@ none for it. `crap --json` lists it under `"unmeasured"`. lizard scores
 malformed TypeScript or Swift leniently and does not skip it; that stays as it
 is.
 
+**A function behind `#lizard forgive` is not scored,** in TypeScript,
+JavaScript or Swift: lizard drops it, so neither gate sees it. With
+`no-comments-typescript` or `no-comments-swift` chosen (otherwise the marker goes
+uncounted, quality-gates#252), `comment-debt` counts the marker as a silencer
+instead, held in `silencer-baseline.json`, so the dropped function is visible and
+the count only shrinks. Add no
+`#lizard forgive` to make a gate pass: fix the function.
+
 **A project may tighten these limits, never loosen them.**

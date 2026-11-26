@@ -33,7 +33,13 @@ naming `clippy::cognitive_complexity` (or its old name `clippy::cyclomatic_compl
 or `clippy::too_many_lines` is a silencer as well (it switches off the complexity
 lint), outer or inner, alone or in a list: with `no-comments-rust` chosen it is
 read from the code, so a lint name in a comment or string is not one, `allow` of
-any other lint is not, and a comment on its line still counts. A
+any other lint is not, and a comment on its line still counts. lizard's `#lizard forgive` is a silencer too,
+in TypeScript, JavaScript and Swift (lizard drops the next function that ends, so
+`cc-check` and `crap` never score it): with the language's comment row chosen, a
+`//` or `/* */` comment that opens with it counts, lower case, with anything
+after it, on the line the marker sits on. `#lizard forgive global`,
+`#lizard forgives(metric)`, `/** */` and `///` forms drop nothing and stay
+comment lines. Add none to make a gate pass. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.
