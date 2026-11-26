@@ -209,8 +209,8 @@ _Avoid_: allowlist, ignore list, exceptions
 
 **Silencer**:
 An in-code marker that switches off one of quality-gates' own gates, such as
-Python's `# pragma: no cover`, Swift's `swiftlint:disable` or lizard's
-`#lizard forgive`. `comment-debt` finds it at a file and line; it is
+Python's `# pragma: no cover`, Swift's `swiftlint:disable`, Rust's
+`#[allow(clippy::too_many_lines)]` or lizard's `#lizard forgive`. `comment-debt` finds it at a file and line; it is
 held in `silencer-baseline.json`, a count per file that only shrinks, and is
 part of the tolerated list. A marker that silences no gate of ours, such as
 `# noqa`, is not one.
