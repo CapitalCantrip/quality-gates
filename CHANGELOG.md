@@ -127,6 +127,34 @@
   shows no count that grew, and ask the builder for the `tolerated-growth`
   label. `/cc-swift` and `/setup-standards` now say to record the disable lines
   they tell a consumer to add; run `qg-skills`.
+- **TypeScript's `istanbul ignore`, `c8 ignore` and `v8 ignore` comments are
+  silencers (ADR-010 addendum 2026-11-26, #236).** They take lines and branches
+  out of the coverage report `crap --lang typescript` reads, and the comment
+  gate counted each as an ordinary comment line, so a function over the limit
+  passed with its untested branches hidden. With `no-comments-typescript`
+  chosen, `comment-debt` now reports a `//`, `/* */` or `/** */` comment that
+  opens with `istanbul`, `c8` or `v8`, then `ignore` and `if`, `else`, `next`,
+  `file`, `start` or `stop` (a reason or a count after it), at its file and
+  line, held in `silencer-baseline.json` and no longer a comment line. It counts
+  a form any one of the coverage tools reads (nyc and `istanbul-lib-instrument`,
+  `c8`, Vitest's `v8` provider), checked against the real tools. A multi-line
+  marker is a silencer on the line its marker word sits on, and no other: its
+  reason lines stay comment debt. A marker in a string, template or regex
+  literal is neither a silencer nor comment debt, though a coverage tool may
+  still read it there: `c8` matches `/* c8 ignore start */` anywhere on a line,
+  Vitest's `v8` provider matches `istanbul`, `c8` or `v8` then `ignore start`
+  or `stop` on any raw source line, and its `istanbul` provider matches
+  `istanbul ignore start` or `stop` the same way, so `const s = 'v8 ignore start';`
+  hides the code below it and the gate counts it nowhere (a known gap, ADR-010 addendum); `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and
+  `prettier-ignore` stay exempt. On bumping the pin, a TypeScript consumer with
+  `no-comments-typescript` chosen runs `comment-debt --update` once and commits
+  `silencer-baseline.json` and `comment-debt.json`: their comment debt falls and
+  their silencer baseline records the markers, by the same lines. If
+  `silencer-baseline.json` already exists from an earlier bump, `--update`
+  records no new silencer: run `comment-debt --rerecord`, check that `git diff
+  comment-debt.json` shows no count that grew, and ask the builder for the
+  `tolerated-growth` label. `/no-comments` and `/setup-standards` now say so;
+  run `qg-skills`.
 
 ## 0.14.2 — 2026-11-26
 

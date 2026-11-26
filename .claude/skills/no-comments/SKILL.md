@@ -20,7 +20,15 @@ they sit on a line, a string included, as coverage.py reads the line. Swift's
 `// swiftlint:disable`, in every form and for any rule, is a silencer too (it
 switches off the complexity lint): with `no-comments-swift` chosen, a `//` line
 comment holding it counts, a block or doc comment does not (SwiftLint ignores
-it there), and a string never does. A
+it there), and a string never does. TypeScript's `istanbul ignore`, `c8 ignore`
+and `v8 ignore` comments (hints `if`, `else`, `next`, `file`, `start`, `stop`,
+a reason after) are silencers too (they hide code from the coverage half of
+`crap`): with `no-comments-typescript` chosen, a `//`, `/* */` or `/** */`
+comment that opens with one counts, on the line its marker word sits on only, so
+the reason lines of a multi-line marker stay comment lines, and a marker in a
+string never does (a tool may still read it there: a known gap);
+`eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` stay
+exempt. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.

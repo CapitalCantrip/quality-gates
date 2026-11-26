@@ -71,7 +71,7 @@ never reach a consumer.
 
 ### The comment gate in more languages
 
-Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Addendum 2026-11-26: Swift's `swiftlint:disable` is a silencer (#235)](#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235)
+Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Addendum 2026-11-26: Swift's `swiftlint:disable` is a silencer (#235)](#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [Addendum 2026-11-26: TypeScript's `istanbul`, `c8` and `v8 ignore` markers are silencers (#236)](#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236)
 
 **Languages.** Rust, TypeScript (including `.tsx`, `.js`, `.jsx`, `.mjs` and
 `.cjs`), Swift and shell join Python. Shell becomes a language in the choice
@@ -421,3 +421,116 @@ dependencies can see a resolver conflict if its own requirements need another
 radon or lizard; it then moves its own requirement or installs with
 `uv tool install`. That cost is smaller than a score that changes with the day
 of the install. Every other kind in the pinning table is unchanged.
+
+## Addendum 2026-11-26: TypeScript's `istanbul`, `c8` and `v8 ignore` markers are silencers (#236)
+
+Amends: [The comment gate in more languages](#the-comment-gate-in-more-languages)
+
+Settled at the 3a ticket cut (#236, plan #232); it is the TypeScript row the
+silencers addendum left to its own ticket. `/* istanbul ignore next */` and its
+`c8` and `v8` forms take lines and branches out of the coverage report, and
+`crap --lang typescript` reads that report, so a function over the limit passes
+with its untested branches hidden. Until now each marker counted as one comment
+line like any comment.
+
+**What the tools honour,** run on 2026-11-26 against real reports, as #235 did
+for SwiftLint. Each form was measured by whether the uncovered lines or branches
+of the marked code left the Istanbul JSON.
+
+| Tool (versions run) | Reads |
+|---|---|
+| `istanbul-lib-instrument` 6.0.3 (nyc, babel-plugin-istanbul, Jest's default) | the word `istanbul` only. `//` and `/* */`, where the comment text opens with `istanbul ignore` and `if`, `else`, `next` or `file`, with any whitespace. Not `/** */`. No `start` or `stop`. Whatever follows the hint is ignored |
+| `v8-to-istanbul` 9.3.0 under `c8` 12.0.0 (Jest's `v8` provider) | the words `c8` and `v8`, line by line. `/* c8 ignore next [N]` with exactly one space after `/*`, and `start` and `stop`. Not `//`, not `/*c8`, not `/**`. No `if`, `else` or `file` |
+| `ast-v8-to-istanbul` 1.0.8 under Vitest 5.1.2's `v8` provider | all three words, each hint (`if`, `else`, `next`, `file`, `start`, `stop`) and each form (`//`, `/* */`, `/** */`), with any whitespace; 54 of 54 combinations hid code or dropped the file |
+| `@vitest/istanbul-lib-instrument` 2.1.1 under Vitest 5.1.2's `istanbul` provider | what `istanbul-lib-instrument` reads, and also `istanbul ignore start` or `stop` on any raw source line (it runs with `ignoreLines: true`), with no comment opener |
+
+**The gate cannot tell which tool made the report,** since `crap` reads one
+Istanbul JSON whatever wrote it. So the silencer is what any of the three reads,
+under one pattern: a `//`, `/* */` or `/** */` comment whose text opens with
+`istanbul`, `c8` or `v8`, then `ignore`, then one of `if`, `else`, `next`,
+`file`, `start` or `stop` ending at a word boundary, with any whitespace between
+the words. Whatever follows the hint, a reason or a count (`next 3`), is part of
+the silencer. The three words are lower case, as the tools read them. A marker
+that only one tool reads is counted: a marker no tool reads costs the consumer
+one baseline entry, and a form that a tool reads and the gate does not count
+lets code through.
+
+**A comment that only looks like a marker is not a silencer** and stays an
+ordinary comment line: `ignore` with no hint, `ignore nextx`, `ignore-next`,
+capitals, a `@preserve` or other word before the marker, `nyc ignore next`, and
+`/// istanbul ignore next`, which no tool reads. A marker that comes after other
+text in its comment (`// why: c8 ignore next`, `/* why c8 ignore next */`, or a
+later line of a block comment that opens with prose) is not read:
+`istanbul-lib-instrument` and `v8-to-istanbul` do not honour it there. White
+space, a line break included, may sit between the comment opener and the marker
+and between its words (`/*\n   istanbul ignore next */`, `/* istanbul\n
+ignore next */`): `istanbul-lib-instrument` and Vitest's `v8` provider honour
+both, so both are read, and the silencer is reported on the line the marker
+word `istanbul`, `c8` or `v8` sits on. The reader looks only at comments, so a
+marker inside a string, template literal or regex literal is neither a silencer
+nor comment debt.
+
+**A silencer is the one line its marker word sits on, and no more.** In
+`/* istanbul ignore next -- the reason\n continues */`, line 1 is the silencer
+and the continuation lines stay comment debt; where the marker starts on the
+second line, line 2 is the silencer and line 1 stays comment debt, as `#249` item 1 left to this
+ticket. The alternative, taking the whole block into the silencer, would let any
+length of reason leave the comment count by sitting under a marker, and the
+reason is the prose the comment gate exists to count: agents copy a comment
+that excuses a shortcut as permission to take it again. Counting the marker line
+only keeps the silencer baseline a count of markers and the comment baseline a
+count of prose, and the cost to a consumer is that each reason line stays debt
+until deleted. It is also what a Python docstring holding a pragma does (the
+other lines stay debt), so the two languages agree. A marker with its reason on
+one line leaves no comment line.
+
+**Known gaps, left open: a marker outside a comment hides code, and the gate
+counts it nowhere.** The reader looks only at comments, as the ticket says, and
+the tools read raw source lines, so each of these hides coverage from `crap`
+and is neither a silencer nor comment debt (each run on 2026-11-26):
+
+- `v8-to-istanbul` under `c8` matches `/* c8 ignore start */` anywhere on a
+  line, a string or template literal included: `const s = '/* c8 ignore start */';`
+  hides every line after it up to a `stop` or the end of the file. `/* c8
+  ignore next */` in a string hides its own line.
+- Vitest's `v8` provider matches `istanbul`, `c8` or `v8` then `ignore start`
+  or `stop` on any raw source line, with no comment opener: `const s = 'v8
+  ignore start';` hides the code below it to a `stop` or the end of the file.
+- Vitest's `istanbul` provider matches `istanbul ignore start` or `stop` on any
+  raw source line: `const s = "istanbul ignore start";` hides the code below it
+  the same way.
+- Vitest's `start` and `stop` are also read on any line of a block comment, where
+  the gate reads only the line the marker opens.
+- `node:coverage ignore next`, `disable` and `enable`, which Node's runner,
+  `v8-to-istanbul` and Vitest read, are a fourth marker word this ticket does not
+  name.
+
+Two smaller points. A multi-line `c8 ignore next` hides only its own
+continuation line under `c8` (the code below stays in the report) and is
+counted all the same. Where a marker stands is not checked: one the tool cannot
+attach to a node, such as a trailing `// istanbul ignore next` after a
+statement's last token, hides nothing and is counted.
+
+**`eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` stay
+bare tool pragmas, exempt,** since they switch off no gate of ours.
+
+**The silencers are read only when `no-comments-typescript` is chosen,** as the
+comment gate reads nothing else of a language: without it the markers go
+uncounted. JavaScript files (`.js`, `.jsx`, `.mjs`, `.cjs`) read the same way.
+
+**The silencer baseline holds them** exactly as it holds Python's and Swift's:
+count per file, only shrinking, `--update` recording them when the file does not
+exist yet. A consumer's comment debt falls and their silencer count rises by the
+same lines, so they record once. Where `silencer-baseline.json` is not there yet
+(a bump from before silencers), `comment-debt --update` writes it. Where it is,
+`--update` records no new silencer, so the consumer runs `comment-debt
+--rerecord` and asks the builder for the `tolerated-growth` label, as Swift's
+step does.
+
+**Rejected.**
+
+- **Counting only `istanbul`.** `c8` and `v8` hide the same lines from the same
+  report, and a project on Vitest or `c8` has no `istanbul` marker to count.
+- **Counting only what every tool reads.** Almost nothing is read by all three,
+  so a consumer would pick the form their tool alone reads.
+- **The whole block comment as the silencer.** See above.

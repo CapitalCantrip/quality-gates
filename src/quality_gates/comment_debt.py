@@ -26,6 +26,7 @@ PRAGMA = re.compile(
 PYTHON_SILENCER = re.compile(r"#\s*(?:pragma|PRAGMA)[:\s]?\s*(?:no|NO)\s*(?:cover|COVER|branch|BRANCH)")
 CODING = re.compile(r"^#.*coding[:=]")
 FINDING_KIND = "comment lines"
+MARKER_GROUP = "marker"
 SILENCER_KIND = "silencer"
 TAG = "comment-debt: "
 UPDATE_REFUSAL = "--update only lowers the baseline. It will not record new comments.\n"
@@ -111,8 +112,14 @@ def silences_nothing(reading, source):
     return ()
 
 
+def marker_line(comment, found):
+    at = found.start(MARKER_GROUP) if MARKER_GROUP in found.re.groupindex else found.start()
+    return comment.start + comment.text.count(code_reader.NEWLINE, 0, at)
+
+
 def in_comments(pattern):
-    return lambda reading, source: tuple(sorted({c.start for c in reading.comments if pattern.search(c.text)}))
+    found = lambda reading: ((c, pattern.search(c.text)) for c in reading.comments)
+    return lambda reading, source: tuple(sorted({marker_line(c, m) for c, m in found(reading) if m}))
 
 
 def in_line_comments(pattern):
@@ -200,6 +207,8 @@ TEMPLATE_PIECE = r"(?:\\[\s\S]|\$(?!\{)|[^`\\$])*(?:`|\$\{)"
 ESLINT_RULES = r"[@\w/-]+(?:\s*,\s*[@\w/-]+)*"
 TYPESCRIPT_PRAGMA = rf"eslint-(?:disable(?:-next-line|-line)?|enable)(?:\s+{ESLINT_RULES})?|@ts-expect-error|@ts-ignore|prettier-ignore"
 
+TYPESCRIPT_SILENCER = re.compile(r"\A(?://|/\*\*?)\s*(?P<marker>(?:istanbul|c8|v8)\s+ignore\s+(?:if|else|next|file|start|stop)\b)")
+
 TYPESCRIPT = CommentSyntax(code_reader.Syntax(
     line=("//",),
     block=(("/*", "*/"),),
@@ -272,7 +281,7 @@ class CommentLanguage:
 LANGUAGES = {
     "python": CommentLanguage("no-comments", python_silencers),
     "rust": CommentLanguage("no-comments-rust", silences_nothing, RUST),
-    "typescript": CommentLanguage("no-comments-typescript", silences_nothing, TYPESCRIPT),
+    "typescript": CommentLanguage("no-comments-typescript", in_comments(TYPESCRIPT_SILENCER), TYPESCRIPT),
     "swift": CommentLanguage("no-comments-swift", in_line_comments(SWIFT_SILENCER), SWIFT),
     "shell": CommentLanguage("no-comments-shell", silences_nothing, SHELL),
 }
