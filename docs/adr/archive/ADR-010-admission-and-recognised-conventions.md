@@ -34,6 +34,8 @@ builder settled them together in a grilling session on 2026-11-01
 
 ### Admitting an outside source
 
+Amended by: [Addendum 2026-11-26: counting tools are pinned exactly (#198)](#addendum-2026-11-26-counting-tools-are-pinned-exactly-198)
+
 **Licence.** Material copied in needs a permissive licence (MIT, Apache-2.0,
 BSD, ISC), because adapting it ships it under ours. A dependency, which runs as
 a separate tool and is never copied, may have any OSI-approved licence.
@@ -144,6 +146,8 @@ outside tool.
   that read it are told in the CHANGELOG.
 
 ## Rejected
+
+Amended by: [Addendum 2026-11-26: counting tools are pinned exactly (#198)](#addendum-2026-11-26-counting-tools-are-pinned-exactly-198)
 
 - **Every allowed comment form as a loosening.** A Rust project with `unsafe`
   code would carry a permanent warning for what its community requires, and the
@@ -331,3 +335,47 @@ Until each lands, its row matches nothing.
 - **Counting only a bare `# pragma: no cover`.** coverage.py honours the
   pragma with prose after it, so a counted-only-when-bare rule lets a reason
   hide the silencer.
+
+## Addendum 2026-11-26: counting tools are pinned exactly (#198)
+
+Amends: [Admitting an outside source](#admitting-an-outside-source), [Rejected](#rejected)
+
+Settled in the build plan (#232, 2026-11-25) and written up in #198. It closes
+#173 and #123.
+
+**Before this,** a Python package this package installs carried a minimum
+version, with the version CI tested recorded beside it, and the *Rejected* list
+turned down exact pins because they "break consumers' installs". The minimum
+left the date of the install to choose which lizard counted. lizard 1.25.0 split
+TypeScript functions that 1.24.x had merged, so a consumer's baseline failed on
+an unchanged tag the day an install resolved the new release (#173).
+
+**Now, a counting tool is pinned to an exact version.** radon 6.0.1 and lizard
+1.26.1 are the only two packages this package installs, and both count code, so
+`pyproject.toml` asks for `radon==6.0.1` and `lizard==1.26.1`. The admission
+record's `minimum_version` and `tested_version` both name that same version, and
+a test fails when the requirement is not `==`, or when either field disagrees
+with it. The test holds every entry of `dependencies` to this rule, so a package
+that counts nothing needs the rule and the test changed first.
+
+**Moving a counting tool is a release.** The change that moves it:
+
+- reads the tool's changelog for counting changes, and runs the full suite
+  against the new version;
+- records every counting change in ADR-001, and moves the admission record and
+  `pyproject.toml` together;
+- sets `LAST_SEEN` in `.github/workflows/lizard.yml`, for lizard;
+- says in its CHANGELOG entry what a consumer re-keys after bumping the pin.
+
+**radon is pinned at 6.0.1,** the version CI tests today: the workflows run
+`pip install -e .`, which took the newest radon the old floor of 6 allowed, and
+6.0.1 is the latest on PyPI and the admission record's `tested_version`. Pinning
+it changes no score.
+
+**Why the *Rejected* reason no longer holds for these two.** A consumer who
+installs quality-gates with `uv tool install` gets its own environment, so the
+pins touch nothing else. A project that adds quality-gates to its dev
+dependencies can see a resolver conflict if its own requirements need another
+radon or lizard; it then moves its own requirement or installs with
+`uv tool install`. That cost is smaller than a score that changes with the day
+of the install. Every other kind in the pinning table is unchanged.

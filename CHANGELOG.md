@@ -2,6 +2,25 @@
 
 ## Unreleased
 
+- **radon and lizard are pinned to exact versions, and TypeScript and Swift
+  counts move (#198, #123, #173).** The package asks for `radon==6.0.1` and
+  `lizard==1.26.1`, so the date of an install no longer chooses the counter; it
+  used to ask for `radon>=6` and `lizard>=1.24.2`. lizard 1.25.0 to 1.26.1 split
+  TypeScript functions that 1.24.x had merged with their neighbour, count the
+  `?` of a ternary between comparisons, and stop counting words in JSX text.
+  They also count `guard` and `if` condition-list commas and string
+  interpolation in Swift, and report computed properties as functions, so some
+  functions appear that no baseline holds, some disappear, and some score higher
+  or lower. On a public Swift project, rows above CC 8 went from 73 to 96. On
+  bumping the pin, run `cc-check --lang typescript --baseline <file>` and `crap`
+  for TypeScript, JavaScript and Swift; where a baseline now fails as new or
+  worse, run the gate once with `--rerecord`, commit the file, and ask the
+  builder for the `tolerated-growth` label on that pull request (an agent never
+  applies it). This is the last time a counter moves without a release saying
+  so. A project that adds
+  quality-gates to its dev dependencies and needs another radon or lizard now
+  gets a resolver conflict: move its own requirement, or install with
+  `uv tool install`.
 - **A file the complexity gates cannot read now fails as unmeasured (#212).**
   `cc-check` and `crap` used to pass a Python file that did not parse or was
   not UTF-8 as clean; each now names it as `UNMEASURED` in the ratchet's

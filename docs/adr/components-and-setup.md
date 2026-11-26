@@ -173,9 +173,15 @@ Source: [ADR-010](archive/ADR-010-admission-and-recognised-conventions.md#admitt
   "stable" reason. A source with no admission does not ship. The monthly
   upstream workflow flags a source with no release in 12 months.
 - **Pinning:** a downloaded tool gets an exact, checksum-verified version; a
-  Python package this package installs gets a minimum version plus the version
-  CI tested; a tool setup installs into a project gets an exact version moved
-  by a pin bump.
+  Python package this package installs is a counting tool and gets an exact
+  version, written in `pyproject.toml`, with the admission record's
+  `minimum_version` and `tested_version` both naming it; a tool setup installs
+  into a project gets an exact version moved by a pin bump. A test fails when a
+  requirement in `pyproject.toml` is not `==` or disagrees with its admission.
+  Moving a counting tool is a release: read its changelog, run the suite,
+  record each counting change in ADR-001, set `LAST_SEEN` in the `lizard`
+  workflow for lizard, and write the consumer's re-key steps in the CHANGELOG.
+  ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-counting-tools-are-pinned-exactly-198))
 - **A conflict with a decision here** is resolved by an entry in
   `docs/upstream-adaptations.md` for copied text, or a new decision for a
   dependency.

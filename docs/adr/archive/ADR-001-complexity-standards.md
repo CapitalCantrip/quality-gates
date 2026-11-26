@@ -1341,6 +1341,8 @@ list, and never walks the same real folder twice in one scan:
 
 Amends: [Addendum 2026-10-07: TypeScript and JavaScript (accepted 2026-10-08)](#addendum-2026-10-07-typescript-and-javascript-accepted-2026-10-08), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-12: TypeScript and JavaScript counting](#current-rule-restated-2026-10-12-typescript-and-javascript-counting)
 
+Amended by: [Addendum 2026-11-26: lizard 1.26.1 and radon 6.0.1 are pinned, and TypeScript counts move (#198)](#addendum-2026-11-26-lizard-1261-and-radon-601-are-pinned-and-typescript-counts-move-198)
+
 **TypeScript and JavaScript are the files ending in `.ts`, `.tsx`, `.js`, `.jsx`,
 `.cjs` and `.mjs`.** `languages.py` holds that list, and the `--help` text of
 `crap` and `cc-check` prints it from there.
@@ -1362,6 +1364,8 @@ untested. lizard runs without `-m`.
 ## Current rule, restated 2026-10-22: how lizard reads Swift
 
 Amends: [Addendum 2026-10-11: a workaround for two lizard Swift bugs (v0.8.3)](#addendum-2026-10-11-a-workaround-for-two-lizard-swift-bugs-v083), [Addendum 2026-10-12: the `(set)` rule no longer depends on the word before it, except `init` (v0.9.1)](#addendum-2026-10-12-the-set-rule-no-longer-depends-on-the-word-before-it-except-init-v091), [Addendum 2026-10-22: lizard 1.24.2 is the floor and the Swift workaround is gone (v0.11.0)](#addendum-2026-10-22-lizard-1242-is-the-floor-and-the-swift-workaround-is-gone-v0110), [Current rule, restated 2026-10-12: the lizard Swift workaround](#current-rule-restated-2026-10-12-the-lizard-swift-workaround)
+
+Amended by: [Addendum 2026-11-26: lizard 1.26.1 and radon 6.0.1 are pinned, and TypeScript counts move (#198)](#addendum-2026-11-26-lizard-1261-and-radon-601-are-pinned-and-typescript-counts-move-198)
 
 **A Swift scan runs plain `lizard`, at 1.24.2 or newer, with no correction.**
 That release reads these Swift constructs as follows:
@@ -1607,3 +1611,83 @@ unchanged: it scores such a file and does not skip it.
 
 **Consequence.** On bumping the pin, a file the gates could not read now fails
 as `UNMEASURED`: fix it or take it out of the scan.
+
+## Addendum 2026-11-26: lizard 1.26.1 and radon 6.0.1 are pinned, and TypeScript counts move (#198)
+
+Amends: [Current rule, restated 2026-10-22: TypeScript and JavaScript counting](#current-rule-restated-2026-10-22-typescript-and-javascript-counting), [Current rule, restated 2026-10-22: how lizard reads Swift](#current-rule-restated-2026-10-22-how-lizard-reads-swift)
+
+The limits are unchanged. Which lizard counts changes, and with it some
+TypeScript and Swift scores (#198, #123). The builder chose to accept the
+newer counts on #173, as the build plan recorded on 2026-11-25 (#232), over bounding lizard
+below 1.25.
+
+**Before this,** the package asked for `lizard>=1.24.2`, so the date of the
+install chose the counter. lizard 1.25.0 split TypeScript functions that 1.24.x
+had merged with their neighbour, and a consumer's baseline failed on an
+unchanged tag (#173).
+
+**Now,** the package pins lizard 1.26.1 and radon 6.0.1 exactly (ADR-010
+addendum of the same date). Where the two restated rules above say "1.24.2 or
+newer", they now mean the one version the package pins, and the compendium
+says so without naming a number.
+
+**What changed in lizard from 1.24.2 to 1.26.1,** read from lizard's own
+`CHANGELOG.md` at tag 1.26.1 on 2026-11-26, and checked against the suite on
+1.26.1 (1279 tests when first run, and the repo's own complexity check clean).
+The GitHub release notes cover 1.24.3, 1.25.0 and 1.26.0 only; 1.25.1 and 1.26.1
+have none, and 1.25.1 holds most of the Swift changes.
+
+- **Swift changed in 1.25.0 and 1.25.1.** 1.25.0 stops reading a keyword
+  argument label with a separate local name (`func f(for value: Int)`) as
+  control flow. 1.25.1 counts each top-level comma of an `if`, `guard` or
+  `while` condition list as a decision, stops counting an enum `case`
+  declaration, reports a computed property with an implicit getter and a
+  closure-initialised property as a function named after the property, and
+  counts decisions inside string interpolation.
+- **TypeScript and JavaScript changed in 1.24.3, 1.25.0, 1.25.1, 1.26.0 and
+  1.26.1.** 1.24.3 ends a function at the right place after a return-type
+  annotation and handles nested template literals. 1.25.0 fixes callback
+  boundaries, where an arrow function ends, labelled blocks, and regular
+  expressions read as division, and counts conditions inside nested template
+  interpolations and unspaced ternaries while an optional marker or a
+  keyword-named property adds no false decision. 1.25.1 reads JSX element text
+  as text, so words such as `if` and `?` in children stop counting, and a
+  template literal type in an `interface` body or an object type alias no longer
+  ends the declaration early. 1.26.0
+  handles grouped async arrows, tells a generic call from a generic arrow, and
+  reads JSX render props. 1.26.1 counts the `?` of a ternary between
+  comparisons (`a < b ? c > d : e`), which was one path too few, and a `//` in
+  JSX text no longer swallows the closing tag.
+- **The visible effect is that merged functions split.** On LocalBar's UI,
+  1.25.0 gave `phaseLabel` CC 8 where 1.24.3 had merged it with `phaseColor`
+  at 18, left `checkResultLabel` under 8 where it had carried `GeneralTab`'s
+  branches at 13, and showed `GeneralTab` at 10 and `AddInstanceSheet` at 14,
+  both hidden before. A read-only run of 1.24.2 and 1.26.1 over the 57 tracked
+  TypeScript and JavaScript files of that project on 2026-11-26 gave 322 and 350
+  function rows; of the 158 file-and-function-name pairs both found, 27 differ
+  in CC or in how many rows carry the name.
+- **Swift scores move too.** The same run over the 106 tracked Swift files of a
+  public Swift project (TokenBar) gave 1149 and 1443 function rows, and 73 and
+  96 rows above CC 8. All 1021 file-and-function-name pairs 1.24.2 found are
+  still found, 258 are new, and 219 of the 1021 differ in CC or in how many
+  rows carry the name. The Swift CC gate is SwiftLint, so these scores reach
+  only `crap`.
+
+**Effect on existing baselines.** A TypeScript or JavaScript function can
+appear that no baseline holds, can disappear, and can score higher or lower. A
+Swift `crap` baseline gains rows for computed properties and closure-initialised
+properties, and a function can score higher where it has `guard` or `if`
+condition lists with commas or interpolated strings with a ternary.
+
+**Consumer steps on bumping the pin.** Run `cc-check --lang typescript
+--baseline <file>` and `crap` for TypeScript, JavaScript and Swift. A baseline
+whose scores moved fails as new or worse; run each gate once with `--rerecord`
+to record the baseline afresh from the tree (ADR-009 addendum 2026-11-26), fix
+or baseline nothing by hand, and commit it. CI's `qg tolerated` then asks for
+the `tolerated-growth` label on that pull request: ask the builder for it, since
+an agent never applies it. Run on a TypeScript fixture whose baseline 1.24.2 had
+recorded at 12, 1.26.1 failed at 13 and `--rerecord` recorded 13.
+
+**Consequence.** This is the last time a counter moves without a release saying
+so. From now on a counting tool moves only in a release whose CHANGELOG entry
+names what to re-key.

@@ -14,7 +14,7 @@ jobs:
     runs-on: ubuntu-latest
     env:
       GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      LAST_SEEN: "1.24.2"
+      LAST_SEEN: "1.26.1"
       TITLE: "lizard has a new release: check it for score changes"
     steps:
       - name: Compare PyPI's latest lizard with the last one we looked at
@@ -27,5 +27,5 @@ jobs:
             echo "An issue for this is already open."
             exit 0
           fi
-          printf 'PyPI has lizard %s; the last release looked at was %s.\n\nRead its changelog for Swift and TypeScript changes and run the tests against it (README § Releasing). Record any counting change in ADR-001 before raising the floor. Then set `LAST_SEEN` in `.github/workflows/lizard.yml` to %s and close this issue.\n' "$latest" "$LAST_SEEN" "$latest" > body.md
+          printf 'PyPI has lizard %s; the last release looked at was %s.\n\nRead its changelog for Swift and TypeScript changes, check its dependencies, and run the tests against it (README § Releasing). Record any counting change in ADR-001 before moving the pin in `pyproject.toml` and the admission in `components.json`. Then set `LAST_SEEN` in `.github/workflows/lizard.yml` to %s and close this issue.\n' "$latest" "$LAST_SEEN" "$latest" > body.md
           gh issue create --repo "$GITHUB_REPOSITORY" --title "$TITLE" --label needs-triage --body-file body.md

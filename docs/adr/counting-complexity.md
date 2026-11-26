@@ -131,7 +131,7 @@ Two functions that start and end on the same line get the same coverage.
 `.cjs` and `.mjs`.** `languages.py` holds that list, and the `--help` text of
 `crap` and `cc-check` prints it from there.
 
-**lizard counts both gates,** at 1.24.2 or newer, for the reason radon counts
+**lizard counts both gates,** at the one version the package pins, for the reason radon counts
 both for Python: with one counter a fully covered function's CRAP equals its CC,
 so the ceilings meet at 8. Each `if`, loop, `case`, `catch`, `&&`, `||`, `??`,
 `??=` and `?:` counts one path, and a nested arrow function gets its own score.
@@ -149,8 +149,8 @@ untested. lizard runs without `-m`.
 ## How lizard reads Swift
 
 <!-- rule:swift-reading -->
-**A Swift scan runs plain `lizard`, at 1.24.2 or newer, with no correction.**
-That release reads these Swift constructs as follows:
+**A Swift scan runs plain `lizard`, at the one version the package pins, with no
+correction.** That version reads these Swift constructs as follows:
 
 - A failable initialiser, `init?` or `init!`, is a Function named `init` with
   its own CC and lines; its `?` or `!` is not counted as a condition.
@@ -161,6 +161,9 @@ That release reads these Swift constructs as follows:
 - A call to an initialiser, `.init(...)`, `self.init(...)`, `super.init(...)`
   or `Foo.init(...)`, is a call, not a declaration, so the function holding it
   and the one after it each keep their own row and CC.
+- A computed property with an implicit getter (`var body: some View { ... }`)
+  and a property initialised by a closure (`let f: (Int) -> Int = { ... }`) are
+  each a Function named after the property.
 
 A property's own `get`, `set`, `willSet` and `didSet` blocks are Functions.
 
@@ -175,6 +178,13 @@ them. Any other exit is a tool error that shows lizard's error output.
 - **One counter per measure.** Python CC is counted by radon because `crap`
   counts with radon, so a fully covered function's CRAP equals its CC and the
   two ceilings meet at 8. ([ADR-001 § Decision](archive/ADR-001-complexity-standards.md#decision))
+- **A counter moves only in a release.** The package pins radon and lizard to
+  exact versions, so the date of an install never changes a score. Moving one is
+  a release whose CHANGELOG entry says what a consumer re-keys, and the move
+  records each counting change in ADR-001. The pins are in `pyproject.toml`;
+  [Components and setup](components-and-setup.md#admitting-outside-sources)
+  says how they are checked.
+  ([ADR-001 addendum 2026-11-26](archive/ADR-001-complexity-standards.md#addendum-2026-11-26-lizard-1261-and-radon-601-are-pinned-and-typescript-counts-move-198))
 - **CRAP is a gate only with coverage data.** `crap --no-coverage` is a
   worst-case ranking, never a result. A function the report holds no figure
   for is `UNMEASURED` and fails, rather than scoring worst case.

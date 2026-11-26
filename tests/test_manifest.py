@@ -13,7 +13,7 @@ from quality_gates import manifest  # noqa: E402
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST_FILES = ("components.json", "upstream.json")
 RADON = {"name": "radon", "kind": "dependency", "licence": "MIT", "practice": "One maintainer who ships rarely.",
-         "last_release": "2023-03-26", "minimum_version": "6", "tested_version": "6.0.1"}
+         "last_release": "2023-03-26", "minimum_version": "6.0.1", "tested_version": "6.0.1"}
 SKILLS = {"name": "someone/skills", "kind": "upstream", "licence": "MIT", "practice": "Publishes skills he uses daily.",
           "last_release": "2026-10-29"}
 RUFF = {"name": "ruff", "kind": "test-only", "licence": "GPL-3.0-only", "practice": "A funded team ships weekly.",
@@ -97,7 +97,7 @@ class AdmissionRecords(unittest.TestCase):
         loaded = manifest.components_from(COMPONENTS)
         radon = next(a for a in loaded.admissions if a.name == "radon")
         self.assertEqual((radon.kind, radon.licence, radon.last_release, radon.minimum_version, radon.tested_version),
-                         ("dependency", "MIT", datetime.date(2023, 3, 26), "6", "6.0.1"))
+                         ("dependency", "MIT", datetime.date(2023, 3, 26), "6.0.1", "6.0.1"))
 
 
 class ExplainerRecords(unittest.TestCase):
@@ -110,9 +110,9 @@ class ExplainerRecords(unittest.TestCase):
 
 
 class DependencyVersions(unittest.TestCase):
-    def test_a_dependency_origin_takes_its_version_from_the_minimum_its_admission_records(self):
+    def test_a_dependency_origin_is_an_exact_pin_of_the_version_its_admission_records(self):
         origin = manifest.components_from(COMPONENTS).components[0].parts[2].origin
-        self.assertEqual(origin.as_dict(), {"type": "dependency", "name": "radon", "version": ">=6"})
+        self.assertEqual(origin.as_dict(), {"type": "dependency", "name": "radon", "version": "==6.0.1"})
 
     def test_an_origin_whose_admission_records_no_minimum_has_no_version(self):
         origin = manifest.components_from(COMPONENTS).components[0].origin
@@ -238,7 +238,7 @@ class MalformedManifest(unittest.TestCase):
         return str(failure.exception)
 
     def test_a_well_formed_manifest_loads(self):
-        self.assertEqual(manifest.components_from(COMPONENTS).components[0].parts[2].origin.version, ">=6")
+        self.assertEqual(manifest.components_from(COMPONENTS).components[0].parts[2].origin.version, "==6.0.1")
 
     def test_a_component_missing_a_field_fails_naming_the_component_and_the_field(self):
         message = self.rejected(changed(COMPONENTS, lambda d: d["components"][0].pop("description")))

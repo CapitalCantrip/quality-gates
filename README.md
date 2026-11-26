@@ -435,7 +435,9 @@ file-level record `qg-upstream` reads.
   sentence on the author's practice, ending in a full stop), and either
   `last_release` (a date like `2026-10-29`) or `stable` (the reason it needs no
   releases), never both. A Python package this package installs also has
-  `minimum_version` and `tested_version`, the version CI ran. An admission holds no repo
+  `minimum_version` and `tested_version`, both the exact version `pyproject.toml`
+  pins ([ADR-010 addendum 2026-11-26](docs/adr/archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-counting-tools-are-pinned-exactly-198)).
+  An admission holds no repo
   or commit: those stay in `upstream.json`, whose `sources` each need an
   `upstream` admission. Loading fails when any is missing or breaks the rule,
   and when an `origin` name or an `adapts` entry has no admission, or an
@@ -446,8 +448,8 @@ file-level record `qg-upstream` reads.
 - `origin`: `{"type": "ours"}`, `{"type": "upstream", "name": "<repo>"}` (with
   `"changed": true` when the copy is adapted), or `{"type": "dependency",
   "name": "<tool>"}`. A dependency's version is not repeated in its origin:
-  loading fills `version` with `>=` and the `minimum_version` its admission
-  records, so `qg status` and its `--json` show it. A component's origin is the
+  loading fills `version` with `==` and the `minimum_version` its admission
+  records. A component's origin is the
   one most of its parts have; a part with a different one carries its own. An
   `ours` part may list `"adapts": ["<repo>"]` for files it takes from an
   upstream.
@@ -635,7 +637,10 @@ line, like any other tool error.
 
 - Instead of `uv tool install`, you can add the same requirement to the
   project's dev dependencies; `/setup-standards` does this for a Python
-  project. lizard, which counts Swift and TypeScript, installs with the package.
+  project. lizard, which counts Swift and TypeScript, installs with the package,
+  and radon and lizard are pinned to exact versions: a project whose own
+  dependencies need another radon or lizard gets a resolver conflict, and then
+  moves its own requirement or installs with `uv tool install`.
 - The `coverage` extra installs coverage.py beside the gates, and
   `--with-executables-from coverage` puts its command on your PATH. That
   `coverage` runs tests with the tool's own Python, so it suits a project whose
@@ -826,11 +831,15 @@ consumer receives gets its line under Unreleased when it merges, not at
 release time. Label the pull request `no-consumer-change` when the change
 reaches no consumer, such as a refactor with no change in behaviour.
 
-The `lizard` workflow checks PyPI every Monday and opens an issue when it
-finds a lizard release newer than the last one checked. A lizard release can
-change scores, so read its changelog for Swift and TypeScript changes, run the
-tests against it, and record any counting change in ADR-001 before raising the
-floor.
+radon and lizard are pinned to exact versions in `pyproject.toml`, so moving
+one is a release. The `lizard` workflow checks PyPI every Monday and opens an
+issue when it finds a lizard release newer than the last one checked. A lizard
+release can change scores, so read its changelog for Swift and TypeScript
+changes, run the tests against it, and record any counting change in ADR-001
+before moving the pin. Move the pin in `pyproject.toml` and the admission
+record in `components.json` together, set `LAST_SEEN` in
+`.github/workflows/lizard.yml`, and write in the CHANGELOG entry what a consumer
+re-keys.
 
 ## Keeping the copied skills current
 

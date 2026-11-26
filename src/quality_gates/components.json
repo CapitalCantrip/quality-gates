@@ -7,7 +7,7 @@
       "licence": "MIT",
       "practice": "A long-standing complexity and maintainability counter that Michele Lacchia started and volunteers keep working.",
       "stable": "Cyclomatic complexity is a finished algorithm; the last release is 2023-03-26, the last commit 2024-10-20, and 6.0.1 passes every test here on Python 3.9 to 3.13.",
-      "minimum_version": "6",
+      "minimum_version": "6.0.1",
       "tested_version": "6.0.1"
     },
     {
@@ -15,9 +15,9 @@
       "kind": "dependency",
       "licence": "MIT",
       "practice": "Terry Yin's multi-language complexity counter, on PyPI for many years and still releasing.",
-      "last_release": "2026-10-24",
-      "minimum_version": "1.24.2",
-      "tested_version": "1.24.2"
+      "last_release": "2026-11-16",
+      "minimum_version": "1.26.1",
+      "tested_version": "1.26.1"
     },
     {
       "name": "mattpocock/skills",

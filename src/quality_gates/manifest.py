@@ -35,7 +35,7 @@ ADMISSION_REQUIRED = ("name", "kind", "licence", "practice")
 VERSION_FIELDS = ("minimum_version", "tested_version")
 ADMISSION_FIELDS = ADMISSION_REQUIRED + ("last_release", "stable") + VERSION_FIELDS
 ONE_SENTENCE = r"^[^\n]+\.$"
-VERSION_FLOOR = ">="
+VERSION_PIN = "=="
 MARKDOWN_SUFFIX = ".md"
 BROKEN_EXIT = 3
 
@@ -311,7 +311,7 @@ def check_component_admitted(component, kinds, name):
 def versioned(origin, minimums):
     if origin is None or origin.version is not None or minimums.get(origin.name) is None:
         return origin
-    return replace(origin, version=VERSION_FLOOR + minimums[origin.name])
+    return replace(origin, version=VERSION_PIN + minimums[origin.name])
 
 
 def with_versions(component, minimums):
