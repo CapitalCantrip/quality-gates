@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 0.15.0 — 2026-11-27
+
 **On bumping the pin,** do these in order; each step applies only to a project
 that uses what it names, and one pull request can carry them all.
 
