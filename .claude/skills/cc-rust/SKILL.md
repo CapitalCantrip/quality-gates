@@ -55,6 +55,12 @@ using `cargo clippy`, and optionally scaffolds the project-level gate.
 
 The deny attributes from `setup` make both FAILs break the build.
 
+## Recording existing debt
+
+A function already over the limit gets `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]` above it. With `no-comments-rust` chosen, `comment-debt` counts that attribute as a silencer, held in `silencer-baseline.json`; without it the attribute goes uncounted. `/setup-standards` step 3 gives the commands that record the attributes (`comment-debt --update` once, or `--rerecord` where the default branch already has a silencer baseline). An allow or `#[expect(…)]` added once the file is recorded fails the gate: fix the function.
+
+Done when `comment-debt` passes with the attributes in place (with `no-comments-rust` chosen) and `cargo clippy --all-targets` reports no error.
+
 ## Architectural constraints — apply when writing new Rust in this session
 
 - Maximum cognitive complexity: 10

@@ -28,7 +28,12 @@ comment that opens with one counts, on the line its marker word sits on only, so
 the reason lines of a multi-line marker stay comment lines, and a marker in a
 string never does (a tool may still read it there: a known gap);
 `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` stay
-exempt. A
+exempt. Rust's `#[allow(…)]` or `#[expect(…)]`
+naming `clippy::cognitive_complexity` (or its old name `clippy::cyclomatic_complexity`)
+or `clippy::too_many_lines` is a silencer as well (it switches off the complexity
+lint), outer or inner, alone or in a list: with `no-comments-rust` chosen it is
+read from the code, so a lint name in a comment or string is not one, `allow` of
+any other lint is not, and a comment on its line still counts. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.

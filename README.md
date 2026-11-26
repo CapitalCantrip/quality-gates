@@ -192,8 +192,9 @@ Which gates score each language, and which components install for it:
 Code carries no comments, docstrings or strings used as comments; bare pragmas
 such as `# noqa` are exempt. A marker that switches off one of our own gates,
 Python's `# pragma: no cover` and `# pragma: no branch`, Swift's
-`// swiftlint:disable` in every form and TypeScript's `istanbul ignore`,
-`c8 ignore` and `v8 ignore` comments, is a *silencer*: it is
+`// swiftlint:disable` in every form, TypeScript's `istanbul ignore`,
+`c8 ignore` and `v8 ignore` comments and Rust's `#[allow(…)]` of
+`clippy::cognitive_complexity` or `clippy::too_many_lines`, is a *silencer*: it is
 not counted as a comment line, and the gate holds it in `silencer-baseline.json`
 as a count per file that only shrinks (`comment-debt --update` records the ones
 already there once). Comments drift from the code and agents copy them as
@@ -216,7 +217,13 @@ counts, doc comments included, once per line; a comment marker inside a string
 or other literal does not. In Rust that covers raw strings and char literals,
 and a bare `// @generated` is exempt; with `rust-safety` switched on, a
 `// SAFETY:` comment directly above `unsafe` does not count either
-([recognised conventions](docs/recognised-conventions.md)). In TypeScript and
+([recognised conventions](docs/recognised-conventions.md)). An `#[allow(…)]` or
+`#[expect(…)]` attribute, outer or inner and inside `cfg_attr` too, that names
+`clippy::cognitive_complexity` (or its old name `clippy::cyclomatic_complexity`)
+or `clippy::too_many_lines` switches off the Rust complexity gate, so it is a
+silencer, read from the code and counted where the Rust comment row is chosen (a
+lint name in a string or comment is not one, nor is `allow` of another lint, and
+a comment on its line still counts). In TypeScript and
 JavaScript, `//` inside a template literal (however deep its `${}` nests) or a
 regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
 `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` are exempt, while
