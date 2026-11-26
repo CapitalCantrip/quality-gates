@@ -1635,7 +1635,7 @@ says so without naming a number.
 `CHANGELOG.md` at tag 1.26.1 on 2026-11-26, and checked against the suite on
 1.26.1 (1279 tests when first run, and the repo's own complexity check clean).
 The GitHub release notes cover 1.24.3, 1.25.0 and 1.26.0 only; 1.25.1 and 1.26.1
-have none, and 1.25.1 holds the Swift changes.
+have none, and 1.25.1 holds most of the Swift changes.
 
 - **Swift changed in 1.25.0 and 1.25.1.** 1.25.0 stops reading a keyword
   argument label with a separate local name (`func f(for value: Int)`) as
@@ -1651,10 +1651,13 @@ have none, and 1.25.1 holds the Swift changes.
   expressions read as division, and counts conditions inside nested template
   interpolations and unspaced ternaries while an optional marker or a
   keyword-named property adds no false decision. 1.25.1 reads JSX element text
-  as text, so words such as `if` and `?` in children stop counting. 1.26.0
+  as text, so words such as `if` and `?` in children stop counting, and a
+  template literal type in an `interface` body or an object type alias no longer
+  ends the declaration early. 1.26.0
   handles grouped async arrows, tells a generic call from a generic arrow, and
   reads JSX render props. 1.26.1 counts the `?` of a ternary between
-  comparisons (`a < b ? c > d : e`), which was one path too few.
+  comparisons (`a < b ? c > d : e`), which was one path too few, and a `//` in
+  JSX text no longer swallows the closing tag.
 - **The visible effect is that merged functions split.** On LocalBar's UI,
   1.25.0 gave `phaseLabel` CC 8 where 1.24.3 had merged it with `phaseColor`
   at 18, left `checkResultLabel` under 8 where it had carried `GeneralTab`'s
@@ -1677,11 +1680,13 @@ properties, and a function can score higher where it has `guard` or `if`
 condition lists with commas or interpolated strings with a ternary.
 
 **Consumer steps on bumping the pin.** Run `cc-check --lang typescript
---baseline <file>` and `crap` for TypeScript, JavaScript and Swift. `--update`
-only lowers a score and records nothing new, so add each newly visible
-function to the baseline once, by hand, as LocalBar did in LocalBar#128, then
-run `--update` to lower or drop the rows that improved. A newly visible function
-above 8 is fixed or baselined like any other.
+--baseline <file>` and `crap` for TypeScript, JavaScript and Swift. A baseline
+whose scores moved fails as new or worse; run each gate once with `--rerecord`
+to record the baseline afresh from the tree (ADR-009 addendum 2026-11-26), fix
+or baseline nothing by hand, and commit it. CI's `qg tolerated` then asks for
+the `tolerated-growth` label on that pull request: ask the builder for it, since
+an agent never applies it. Run on a TypeScript fixture whose baseline 1.24.2 had
+recorded at 12, 1.26.1 failed at 13 and `--rerecord` recorded 13.
 
 **Consequence.** This is the last time a counter moves without a release saying
 so. From now on a counting tool moves only in a release whose CHANGELOG entry

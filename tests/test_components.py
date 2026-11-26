@@ -40,7 +40,7 @@ EXACT_PIN = re.compile(r"^([\w-]+)==([\d.]+)$")
 
 def requirement_entries(pyproject):
     listed = re.search(r"(?m)^dependencies = \[(.*)\]$", pyproject).group(1)
-    return re.findall(r'"([^"]*)"', listed)
+    return [double or single for double, single in re.findall(r'"([^"]*)"|\'([^\']*)\'', listed)]
 
 
 def exact_pins(pyproject):
@@ -256,6 +256,11 @@ class ExactPinRule(unittest.TestCase):
 
     def test_an_entry_with_an_environment_marker_is_not_an_exact_pin(self):
         self.assertEqual(exact_pins(self.pinned("foo==1.0; python_version < '3.10'")), {})
+
+    def test_a_single_quoted_entry_is_read_like_a_double_quoted_one(self):
+        listed = "dependencies = ['radon==6.0.1', 'pyyaml', \"lizard==1.26.1\"]\n"
+        self.assertEqual(requirement_entries(listed), ["radon==6.0.1", "pyyaml", "lizard==1.26.1"])
+        self.assertEqual(exact_pins(listed), {"radon": "6.0.1", "lizard": "1.26.1"})
 
     def test_an_entry_is_read_whole_so_one_bad_entry_among_good_ones_shows_in_the_entry_list(self):
         listed = self.pinned("radon==6.0.1", "pyyaml", "lizard==1.26.1")

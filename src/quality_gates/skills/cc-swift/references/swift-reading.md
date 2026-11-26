@@ -14,6 +14,9 @@ correction.** That version reads these Swift constructs as follows:
 - A call to an initialiser, `.init(...)`, `self.init(...)`, `super.init(...)`
   or `Foo.init(...)`, is a call, not a declaration, so the function holding it
   and the one after it each keep their own row and CC.
+- A computed property with an implicit getter (`var body: some View { ... }`)
+  and a property initialised by a closure (`let f: (Int) -> Int = { ... }`) are
+  each a Function named after the property.
 
 A property's own `get`, `set`, `willSet` and `didSet` blocks are Functions.
 

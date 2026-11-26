@@ -13,10 +13,11 @@
   functions appear that no baseline holds, some disappear, and some score higher
   or lower. On a public Swift project, rows above CC 8 went from 73 to 96. On
   bumping the pin, run `cc-check --lang typescript --baseline <file>` and `crap`
-  for TypeScript, JavaScript and Swift. `--update` only lowers a score, so add
-  each newly visible function to the baseline once, by hand, then run
-  `--update`; fix or baseline any function that now fails. This is the last time
-  a counter moves without a release saying so. A project that adds
+  for TypeScript, JavaScript and Swift; where a baseline now fails as new or
+  worse, run the gate once with `--rerecord`, commit the file, and ask the
+  builder for the `tolerated-growth` label on that pull request (an agent never
+  applies it). This is the last time a counter moves without a release saying
+  so. A project that adds
   quality-gates to its dev dependencies and needs another radon or lizard now
   gets a resolver conflict: move its own requirement, or install with
   `uv tool install`.
