@@ -13,6 +13,15 @@ file.
    to add lines PR #211 missed).
    Source: sprint 3 retro, finding 6 (#207, 2026-11-24).
 
+11. **A step that tells a consumer to rename, move or split a file, or to
+    change a workflow, has been run end to end through every gate that reads
+    that file, `qg tolerated` included.** With no safe step to give, the
+    step says to ask the builder.
+    Reason: #243's fix round advised a baseline file per language; `qg
+    tolerated` reads only the fixed names, so growth in the new file passed
+    CI without the builder's label.
+    Source: sprint 3a retro (2026-11-27).
+
 ## Writing into a consumer's project
 
 2. **Code that writes, overwrites or deletes in a consumer's project checks
@@ -78,6 +87,23 @@ file.
     rule the old path kept, and its ADR sentence described the intent, not
     the code.
     Source: #192 retro (2026-11-26).
+
+12. **Each new or changed sentence in an ADR, compendium page, skill,
+    README, GLOSSARY or CHANGELOG names, in the report, the code line or
+    test that makes it true.** A sentence about what an outside tool does
+    (lizard, clippy, SwiftLint, coverage.py, GitHub) names the real run that
+    shows it.
+    Reason: in sprint 3a, #192, #236, #244 and #255 each shipped or nearly
+    shipped a sentence the code or the tool contradicted; the reviewer
+    found each by a real run.
+    Source: sprint 3a retro (2026-11-27).
+
+13. **A fix that changes behaviour makes every sentence about that behaviour
+    true in the same commit:** compendium, skills, README, GLOSSARY and
+    CHANGELOG.
+    Reason: #196's and #243's second rounds found hard findings in sentences
+    a first-round fix had made false.
+    Source: sprint 3a retro (2026-11-27).
 
 ## Tests
 
