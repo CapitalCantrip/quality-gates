@@ -393,15 +393,28 @@ disable line, they are code, not comments.
 code text the comment reader already separates from comments and strings
 (`reading.blanked`), finds each attribute (`#[…]` outer, `#![…]` inner, with or
 without space between `#`, `!` and `[`), and counts it when an `allow(…)` or
-`expect(…)` inside it names `clippy::cognitive_complexity` or
-`clippy::too_many_lines`, alone or in a longer list, with a trailing comma or a
-`reason = "…"`, spaced around `::` or not. It is found at the line of the
+`expect(…)` inside it names `clippy::cognitive_complexity` (or its old name
+`clippy::cyclomatic_complexity`, which clippy 0.1.98 applies to the same lint
+with only a rename warning) or `clippy::too_many_lines`, alone or in a longer
+list, with a trailing comma or a `reason = "…"`, spaced around `::` or not. The
+`allow` or `expect` must be the attribute itself or an argument of `cfg_attr`
+after its condition, nested `cfg_attr` included: `#[my_macro(allow(…))]` is not
+a silencer, as another macro decides what its argument means. An attribute with
+no closing bracket is read to the end of the file as one attribute, so it
+cannot count the attributes after it a second time. It is found at the line of the
 attribute's `#`, so one split over several lines is at its first line. One
 attribute naming both lints is one silencer; two attributes on one line are two.
 A lint name in a string, a raw string, a comment (nested block comments
 included) or the string argument of another attribute is not a silencer, because
 those are blanked before the reader looks. `#[allow(…)]` for any other lint, and
 `deny`, `warn` and `forbid` of these two (what `cc-rust setup` writes), are not.
+
+**A Rust silencer is code, so a comment on its line still counts.** Python's
+pragma and Swift's disable are comments, and the silencer swallows the comment
+line it sits in. Rust's attribute is not a comment, so
+`#[allow(clippy::too_many_lines)] // TODO` is one silencer and one comment line,
+held in `silencer-baseline.json` and `comment-debt.json` each. The language row
+says which kind its silencer is (`comment_borne`).
 
 **`expect` counts, and so does `cfg_attr`.** `#[expect(…)]` (stable from Rust
 1.81) is an `allow` that also warns when the lint would not have fired. It
@@ -411,13 +424,16 @@ does. `#[cfg_attr(condition, allow(…))]` counts whatever the condition, becaus
 the gate does not evaluate `cfg`: a condition that is off today is on in another
 build, and clippy 0.1.98 honoured the always-true form.
 
-**Not counted, and known.** The two lint names are read literally, as #237 asks.
-Clippy 0.1.98 also stops reporting under `#[allow(clippy::pedantic)]`
-(`too_many_lines`) and `#[allow(clippy::all)]` (`cognitive_complexity`), under a
-per-function `#[clippy::cognitive_complexity = "99"]`, and with a raised
-threshold in `clippy.toml` or a `[lints.clippy]` allow in `Cargo.toml`. None of
-them is a silencer yet. `#[allow(warnings)]` does not switch off a lint the
-project denies, so the deny attributes of `cc-rust setup` hold against it.
+**Not counted, and known.** The lint names are read literally, as #237 asks.
+Under the in-source `#![deny(…)]` that `cc-rust setup` writes, clippy 0.1.98 also
+stops reporting `too_many_lines` under `#[allow(clippy::pedantic)]` and
+`cognitive_complexity` under `#[allow(clippy::restriction)]`, and
+`cognitive_complexity` under a per-function `#[clippy::cognitive_complexity =
+"99"]` or a raised threshold in `clippy.toml`. None of them is a silencer yet.
+`#[allow(clippy::all)]`, `clippy::complexity`, `clippy::nursery` and
+`clippy::style` stop neither lint, and neither does `#[allow(warnings)]`. A
+`[lints.clippy]` allow in `Cargo.toml` does nothing against the deny attributes;
+it matters only to a project without them.
 
 **The silencers are read only when `no-comments-rust` is chosen,** as the
 comment gate reads nothing else of a language. A Rust consumer with `cc-rust`

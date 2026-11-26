@@ -158,9 +158,11 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     chosen; `swiftlint:enable` stays exempt, a `swiftlint:disable` in a string
     literal is neither, and one in a block or doc comment, which SwiftLint
     ignores, stays a comment line. Rust's `#[allow(…)]` or `#[expect(…)]`
-    naming `clippy::cognitive_complexity` or `clippy::too_many_lines`, outer or
+    naming `clippy::cognitive_complexity` (or its old name
+    `clippy::cyclomatic_complexity`) or `clippy::too_many_lines`, outer or
     inner, alone or in a longer list, inside `cfg_attr` too, is one, read from
-    the code and not the comments, and only when `no-comments-rust` is chosen: a
+    the code and not the comments (so a comment on its line still counts), and
+    only when `no-comments-rust` is chosen: a
     lint name in a string, raw string or comment is not one, nor is `allow` of
     any other lint or `deny` of these two. TypeScript follows in its own ticket
     (quality-gates#236); counting a silencer whenever the gate it switches off

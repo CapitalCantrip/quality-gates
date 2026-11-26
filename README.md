@@ -218,10 +218,11 @@ and a bare `// @generated` is exempt; with `rust-safety` switched on, a
 `// SAFETY:` comment directly above `unsafe` does not count either
 ([recognised conventions](docs/recognised-conventions.md)). An `#[allow(…)]` or
 `#[expect(…)]` attribute, outer or inner and inside `cfg_attr` too, that names
-`clippy::cognitive_complexity` or `clippy::too_many_lines` switches off the Rust
-complexity gate, so it is a silencer, read from the code and counted where the
-Rust comment row is chosen (a lint name in a string or comment is not one, nor
-is `allow` of another lint). In TypeScript and
+`clippy::cognitive_complexity` (or its old name `clippy::cyclomatic_complexity`)
+or `clippy::too_many_lines` switches off the Rust complexity gate, so it is a
+silencer, read from the code and counted where the Rust comment row is chosen (a
+lint name in a string or comment is not one, nor is `allow` of another lint, and
+a comment on its line still counts). In TypeScript and
 JavaScript, `//` inside a template literal (however deep its `${}` nests) or a
 regex literal does not count, and bare `eslint-disable`/`eslint-enable`,
 `@ts-expect-error`, `@ts-ignore` and `prettier-ignore` are exempt, while

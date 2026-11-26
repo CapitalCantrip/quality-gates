@@ -114,13 +114,17 @@
   line, held in `silencer-baseline.json`. Outer and inner attributes count, each
   lint alone or in a longer list (`allow(dead_code, clippy::too_many_lines)`),
   inside `cfg_attr` too, and `#[expect(…)]` of either lint counts as `allow`
-  does, since clippy stops reporting under it. An attribute split over several
+  does, since clippy stops reporting under it; so does the old name
+  `clippy::cyclomatic_complexity`. An `allow` inside another macro's attribute
+  (`#[my_macro(allow(…))]`) does not. The attribute is code, so a comment on its
+  line still counts as a comment line. An attribute split over several
   lines is found at its first line; one attribute naming both lints is one
   silencer. The attributes are read from the code, so a lint name in a string,
   raw string or comment is not a silencer, nor is `allow` of any other lint or
-  `deny` of these two. Group allows such as `#[allow(clippy::pedantic)]`, a
-  per-function `#[clippy::cognitive_complexity = "N"]` and raised thresholds in
-  `clippy.toml` are not counted yet, and a Rust consumer without
+  `deny` of these two. Under `cc-rust setup`'s deny attributes, clippy also stops
+  reporting under `#[allow(clippy::pedantic)]` and `#[allow(clippy::restriction)]`,
+  a per-function `#[clippy::cognitive_complexity = "N"]` and a raised threshold in
+  `clippy.toml`: none is counted yet, and a Rust consumer without
   `no-comments-rust` still has its allow attributes uncounted. On bumping the
   pin, a Rust consumer with `no-comments-rust` chosen runs
   `comment-debt --update` once and commits `silencer-baseline.json` to record

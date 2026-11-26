@@ -189,30 +189,49 @@ RUST = CommentSyntax(code_reader.Syntax(
 
 
 RUST_ATTRIBUTE_OPENER = re.compile(r"#\s*!?\s*\[")
-RUST_LINT_SWITCH = re.compile(r"(?<![\w:])(?:allow|expect)\s*\(")
-RUST_COMPLEXITY_LINT = re.compile(r"(?<![\w:])clippy\s*::\s*(?:cognitive_complexity|too_many_lines)\b")
-SQUARE = "[]"
-ROUND = "()"
-
-
-def group_end(text, at, pair):
-    depth = 1
-    for position in range(at, len(text)):
-        depth += (text[position] == pair[0]) - (text[position] == pair[1])
-        if not depth:
-            return position
-    return len(text)
+RUST_LINT_SWITCH = re.compile(r"\s*(?:allow|expect)\s*\(")
+RUST_CFG_ATTR = re.compile(r"\s*cfg_attr\s*\(")
+RUST_COMPLEXITY_LINT = re.compile(
+    r"(?<![\w:])clippy\s*::\s*(?:cognitive_complexity|cyclomatic_complexity|too_many_lines)\b")
+SQUARE = ("[", "]")
+ROUND = ("(", ")")
+OPENING_BRACKETS = "([{"
+CLOSING_BRACKETS = ")]}"
 
 
 def rust_attributes(blanked):
-    for opener in RUST_ATTRIBUTE_OPENER.finditer(blanked):
-        line = blanked.count(code_reader.NEWLINE, 0, opener.start()) + 1
-        yield line, blanked[opener.end():group_end(blanked, opener.end(), SQUARE)]
+    line, counted = 1, 0
+    opener = RUST_ATTRIBUTE_OPENER.search(blanked)
+    while opener:
+        line += blanked.count(code_reader.NEWLINE, counted, opener.start())
+        counted = opener.start()
+        end = code_reader.closing_end(blanked, opener.end() - 1, SQUARE, True)
+        body_end = len(blanked) if end is None else end - 1
+        yield line, blanked[opener.end():body_end]
+        opener = RUST_ATTRIBUTE_OPENER.search(blanked, body_end + 1)
+
+
+def top_level_items(text):
+    items, depth, start = [], 0, 0
+    for at, char in enumerate(text):
+        depth += (char in OPENING_BRACKETS) - (char in CLOSING_BRACKETS)
+        if char == "," and not depth:
+            items.append(text[start:at])
+            start = at + 1
+    return items + [text[start:]]
+
+
+def inside_brackets(text, opener, pair):
+    end = code_reader.closing_end(text, opener.end() - 1, pair, True)
+    return text[opener.end():len(text) if end is None else end - 1]
 
 
 def switches_off_a_complexity_lint(attribute):
-    return any(RUST_COMPLEXITY_LINT.search(attribute[switch.end():group_end(attribute, switch.end(), ROUND)])
-               for switch in RUST_LINT_SWITCH.finditer(attribute))
+    switch, conditional = RUST_LINT_SWITCH.match(attribute), RUST_CFG_ATTR.match(attribute)
+    if switch:
+        return bool(RUST_COMPLEXITY_LINT.search(inside_brackets(attribute, switch, ROUND)))
+    return bool(conditional) and any(switches_off_a_complexity_lint(item) for item in
+                                     top_level_items(inside_brackets(attribute, conditional, ROUND))[1:])
 
 
 def rust_silencers(reading, source):
@@ -290,6 +309,7 @@ class CommentLanguage:
     component: str
     silencer: Callable
     syntax: Optional[CommentSyntax] = None
+    comment_borne: bool = True
 
     def reading(self, source, conventions):
         if self.syntax is None:
@@ -297,12 +317,13 @@ class CommentLanguage:
         else:
             code, debt = read_comments(self.syntax, source, conventions)
         silenced = self.silencer(code, source)
-        return FileReading({line: kind for line, kind in debt.items() if line not in silenced}, silenced)
+        hidden = silenced if self.comment_borne else ()
+        return FileReading({line: kind for line, kind in debt.items() if line not in hidden}, silenced)
 
 
 LANGUAGES = {
     "python": CommentLanguage("no-comments", python_silencers),
-    "rust": CommentLanguage("no-comments-rust", rust_silencers, RUST),
+    "rust": CommentLanguage("no-comments-rust", rust_silencers, RUST, comment_borne=False),
     "typescript": CommentLanguage("no-comments-typescript", silences_nothing, TYPESCRIPT),
     "swift": CommentLanguage("no-comments-swift", in_line_comments(SWIFT_SILENCER), SWIFT),
     "shell": CommentLanguage("no-comments-shell", silences_nothing, SHELL),

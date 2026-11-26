@@ -6,6 +6,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import time
 import unittest
 from pathlib import Path
 
@@ -609,6 +610,29 @@ class RustSilencerReaderTest(unittest.TestCase):
         found = rust_reading(f'#[allow({LENGTH})]\nimpl A {{\n    fn f(&self) {{}}\n}}\n#![allow({COMPLEXITY})]\n')
         self.assertEqual(found.silencers, (1, 5))
 
+    def test_the_old_clippy_name_cyclomatic_complexity_is_a_silencer_because_clippy_applies_it_to_cognitive_complexity(self):
+        self.silenced_at('#[allow(clippy::cyclomatic_complexity)]')
+        self.silenced_at('#![expect(dead_code, clippy::cyclomatic_complexity)]')
+
+    def test_an_allow_inside_another_macro_attribute_is_not_a_silencer(self):
+        self.silences_nothing(rust_with(f'#[my_macro(allow({LENGTH}))]'))
+        self.silences_nothing(rust_with(f'#[cfg_attr(a, my_macro(allow({LENGTH})))]'))
+        self.silences_nothing(rust_with(f'#[cfg_attr(allow({LENGTH}), derive(Debug))]'))
+
+    def test_an_unclosed_attribute_does_not_make_a_later_attribute_count_twice(self):
+        source = f'#[allow({LENGTH})\nfn a() {{}}\n#[allow({COMPLEXITY})]\nfn b() {{}}\n'
+        self.assertEqual(rust_reading(source).silencers, (1,))
+
+    def test_a_file_of_a_hundred_thousand_attributes_is_read_in_bounded_time(self):
+        source = '#[allow(dead_code)]\nfn f() {}\n' * 100000
+        started = time.monotonic()
+        self.assertEqual(rust_reading(source).silencers, ())
+        self.assertLess(time.monotonic() - started, 5)
+
+    def test_a_comment_on_the_line_of_an_allow_stays_a_comment_line_because_the_allow_is_code(self):
+        found = rust_reading(f'#[allow({LENGTH})] // why\nfn f() {{}}\n')
+        self.assertEqual((found.silencers, list(found.debt)), ((1,), [1]))
+
     def test_a_lint_name_inside_a_string_is_not_a_silencer(self):
         self.silences_nothing(f'let a = "#[allow({LENGTH})]";\nlet b = "#![allow({COMPLEXITY})]";\n')
 
@@ -708,7 +732,7 @@ class RustSilencerGateTest(SilencerGateCase):
 
     @unittest.skipUnless(clippy_is_installed(), 'cargo clippy is not installed')
     def test_clippy_honours_the_expect_a_cfg_attr_and_a_split_attribute_the_gate_counts(self):
-        for marker in (f'#[expect({COMPLEXITY})]\n', f'#[cfg_attr(all(), allow({COMPLEXITY}))]\n',
+        for marker in ('#[allow(clippy::cyclomatic_complexity)]\n', f'#[expect({COMPLEXITY})]\n', f'#[cfg_attr(all(), allow({COMPLEXITY}))]\n',
                        f'#[allow(\n    {COMPLEXITY}\n)]\n', '# [allow(clippy :: cognitive_complexity)]\n'):
             with self.subTest(marker=marker):
                 self.assertEqual(self.clippy_exit(rust_function_over_the_limit(marker)), 0)
@@ -718,6 +742,11 @@ class RustSilencerGateTest(SilencerGateCase):
         self.put('lib.rs', rust_function_over_the_limit(ALLOW_COMPLEXITY))
         self.assertEqual(self.gate('--update')[0], 0)
         self.assertEqual(json.loads(self.comments.read_text()), {})
+
+    def test_an_allow_with_a_comment_beside_it_is_recorded_in_both_baselines(self):
+        self.put('lib.rs', f'#[allow({LENGTH})] // why\nfn g() {{}}\n')
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual((self.recorded(), json.loads(self.comments.read_text())), ({'lib.rs': 1}, {'lib.rs': 1}))
 
     def test_a_new_allow_added_after_recording_fails_and_names_its_line(self):
         self.put('lib.rs', rust_function_over_the_limit(ALLOW_COMPLEXITY))

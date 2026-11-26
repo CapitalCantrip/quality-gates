@@ -96,9 +96,11 @@ often.
   with one, so with that component the silencer baseline is where that debt is
   counted, and without it the lines go uncounted); Rust's is an `#[allow(…)]` or
   `#[expect(…)]` attribute naming `clippy::cognitive_complexity` or
-  `clippy::too_many_lines`, read from the code when `no-comments-rust` is
-  chosen (the Rust setup step records existing debt with one, so the silencer
-  baseline is where that debt is counted); TypeScript follows in quality-gates#236.
+  `clippy::too_many_lines` (or the old `clippy::cyclomatic_complexity`), read from
+  the code when `no-comments-rust` is chosen (the Rust setup step records
+  existing debt with one, so with that component the silencer baseline is where
+  that debt is counted, and without it the attributes go uncounted);
+  TypeScript follows in quality-gates#236.
   ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237))
 
 ## Loosening
