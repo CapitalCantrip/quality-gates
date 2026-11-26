@@ -212,6 +212,7 @@ TYPESCRIPT = CommentSyntax(code_reader.Syntax(
 SWIFT_PIECE = r'(?:\\(?!\()[\s\S]|[^"\\\n])*(?:"|\\\()'
 SWIFT_MULTILINE_PIECE = r'(?:\\(?!\()[\s\S]|(?!""")[^\\])*(?:"""|\\\()'
 SWIFT_INTERPOLATION = ("(", ")")
+SWIFT_SILENCER = re.compile(r"swiftlint:disable\b")
 
 SWIFT = CommentSyntax(code_reader.Syntax(
     line=("//",),
@@ -225,7 +226,7 @@ SWIFT = CommentSyntax(code_reader.Syntax(
                             code_reader.Interpolation(SWIFT_INTERPOLATION, SWIFT_MULTILINE_PIECE)),
         code_reader.Literal(r'"', r'"' + SWIFT_PIECE, code_reader.Interpolation(SWIFT_INTERPOLATION, SWIFT_PIECE)),
     ),
-), re.compile(r"//\s*swiftlint:(?:disable|enable)(?::(?:next|this|previous))?(?:\s+[\w-]+)*\s*"), {})
+), re.compile(r"//\s*swiftlint:enable(?:\s+[\w-]+)*\s*"), {})
 
 
 SHELL_WORD_BREAK = r"\s;&|()<>"
@@ -267,7 +268,7 @@ LANGUAGES = {
     "python": CommentLanguage("no-comments", python_silencers),
     "rust": CommentLanguage("no-comments-rust", silences_nothing, RUST),
     "typescript": CommentLanguage("no-comments-typescript", silences_nothing, TYPESCRIPT),
-    "swift": CommentLanguage("no-comments-swift", silences_nothing, SWIFT),
+    "swift": CommentLanguage("no-comments-swift", in_comments(SWIFT_SILENCER), SWIFT),
     "shell": CommentLanguage("no-comments-shell", silences_nothing, SHELL),
 }
 

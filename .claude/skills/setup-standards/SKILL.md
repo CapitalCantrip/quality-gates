@@ -186,8 +186,12 @@ from the repo root and commit the file it writes.
   fix the measuring or take them out of the scan, then rerun. Do not report
   them as debt.
 - **Swift:** run SwiftLint. Each function already over the limit gets
-  `// swiftlint:disable:next cyclomatic_complexity` above it; that pragma is its
-  baseline entry. Then record CRAP from the project's coverage. In a SwiftPM
+  `// swiftlint:disable:next cyclomatic_complexity` above it; that line is its
+  baseline entry, and `comment-debt` counts it as a silencer. Record the lines:
+  delete `silencer-baseline.json` (step 2 wrote it before these lines existed;
+  `--update` records silencers only when the file is missing, and a baseline the
+  default branch holds needs `--rerecord`), run `comment-debt --update` once, and
+  commit the file. Then record CRAP from the project's coverage. In a SwiftPM
   package with a test target, run `swift test --enable-code-coverage`, then
   `crap --lang swift Sources/ --llvm-cov-json "$(swift test --show-codecov-path)" --baseline crap-baseline.json --update`.
   In an Xcode project with an `.xcresult`, run

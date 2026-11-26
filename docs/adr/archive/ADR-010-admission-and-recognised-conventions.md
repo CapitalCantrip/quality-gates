@@ -71,7 +71,7 @@ never reach a consumer.
 
 ### The comment gate in more languages
 
-Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding)
+Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Addendum 2026-11-26: Swift's `swiftlint:disable` is a silencer (#235)](#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235)
 
 **Languages.** Rust, TypeScript (including `.tsx`, `.js`, `.jsx`, `.mjs` and
 `.cjs`), Swift and shell join Python. Shell becomes a language in the choice
@@ -335,6 +335,38 @@ Until each lands, its row matches nothing.
 - **Counting only a bare `# pragma: no cover`.** coverage.py honours the
   pragma with prose after it, so a counted-only-when-bare rule lets a reason
   hide the silencer.
+
+## Addendum 2026-11-26: Swift's `swiftlint:disable` is a silencer (#235)
+
+Amends: [The comment gate in more languages](#the-comment-gate-in-more-languages)
+
+Settled at the 3a ticket cut (#235, plan #232); it is the Swift row the silencers
+addendum left to its own ticket, and with Rust's (#237) it closes #204.
+`swiftlint:disable` switches off SwiftLint's `cyclomatic_complexity`, the Swift
+complexity gate, and until now the comment gate exempted it as a bare tool pragma, so
+adding one was how a failing function got to pass.
+
+**Every `swiftlint:disable` is a silencer, and no longer a bare pragma.** The
+forms are plain, `:next`, `:this` and `:previous`, with or without rule names and
+whatever rule they name: the literal reading. A list of complexity rule names
+would have to guess which names SwiftLint ties to complexity, and one miss lets
+a failing function pass. The match is the word `swiftlint:disable` anywhere in a
+comment of any kind (line, block or doc), with anything after it. A silencer is
+not also a comment line, so a disable that carries prose is a silencer and not
+comment debt. The reader looks only at comments, so a `swiftlint:disable`
+inside a string literal is neither a silencer nor debt.
+
+**`swiftlint:enable` stays a bare tool pragma, exempt.** It only closes what a
+`disable` opened and switches nothing off. Prose after it counts as before.
+
+**The silencer baseline holds the Swift ones** exactly as it holds Python's:
+count per file, only shrinking, `--update` recording them when the file does
+not exist yet. A consumer who recorded existing debt with a disable line (the
+setup step for Swift) records those lines once with `comment-debt --update`.
+That step comes after `qg setup` has written `silencer-baseline.json`, and
+`--update` records a silencer only when the file does not exist, so the step
+deletes that file first, where the default branch holds none. `/cc-swift` and
+`/setup-standards` say so.
 
 ## Addendum 2026-11-26: counting tools are pinned exactly (#198)
 

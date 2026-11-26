@@ -53,6 +53,10 @@ cyclomatic_complexity:
 `ignores_case_statements: true` stops an exhaustive `switch` over an enum from
 counting one per case (the [complexity ceiling](references/complexity-ceiling.md)). If a project's file disagrees, report it.
 
+## Recording existing debt
+
+A function already over the limit gets `// swiftlint:disable:next cyclomatic_complexity` above it, and `comment-debt` counts that line as a silencer, in `silencer-baseline.json`, a count per file that only shrinks. After adding the lines, delete `silencer-baseline.json` if the default branch has none, run `comment-debt --update` once and commit the file. `--update` records silencers only when the file is missing. A disable added once the file is recorded fails the gate: fix the function.
+
 ## Architectural constraints — apply when writing new Swift in this session
 
 - Maximum CC: 8 (agent ceiling: the [complexity ceiling](references/complexity-ceiling.md))

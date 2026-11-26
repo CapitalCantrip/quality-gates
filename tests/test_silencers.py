@@ -3,6 +3,7 @@ import dataclasses
 import io
 import json
 import re
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -331,3 +332,180 @@ class SetupRecordsSilencersTest(unittest.TestCase):
         self.assertEqual(json.loads((self.root / 'silencer-baseline.json').read_text()), {'m.py': 1})
         self.assertEqual(json.loads((self.root / 'comment-debt.json').read_text()), {'m.py': 1})
         self.assertEqual(cd.main([], root=self.root, out=io.StringIO()), 0)
+
+
+SWIFT = cd.LANGUAGES['swift']
+RULES = 'cyclomatic_complexity force_cast'
+
+
+def swift_reading(source):
+    return SWIFT.reading(source, ())
+
+
+def swift_with(comment):
+    return f'{comment}\nfunc f(_ x: Int) -> Int {{\n    return x\n}}\n'
+
+
+class SwiftSilencerReaderTest(unittest.TestCase):
+
+    def silenced_by(self, comment):
+        found = swift_reading(swift_with(comment))
+        self.assertEqual((found.silencers, found.debt), ((1,), {}))
+
+    def test_a_plain_swiftlint_disable_is_a_silencer(self):
+        self.silenced_by('// swiftlint:disable')
+
+    def test_a_plain_swiftlint_disable_naming_rules_is_a_silencer(self):
+        self.silenced_by(f'// swiftlint:disable {RULES}')
+
+    def test_a_swiftlint_disable_next_is_a_silencer(self):
+        self.silenced_by('// swiftlint:disable:next')
+
+    def test_a_swiftlint_disable_next_naming_rules_is_a_silencer(self):
+        self.silenced_by(f'// swiftlint:disable:next {RULES}')
+
+    def test_a_swiftlint_disable_this_is_a_silencer(self):
+        self.silenced_by('// swiftlint:disable:this')
+
+    def test_a_swiftlint_disable_this_naming_rules_is_a_silencer(self):
+        self.silenced_by(f'// swiftlint:disable:this {RULES}')
+
+    def test_a_swiftlint_disable_previous_is_a_silencer(self):
+        self.silenced_by('// swiftlint:disable:previous')
+
+    def test_a_swiftlint_disable_previous_naming_rules_is_a_silencer(self):
+        self.silenced_by(f'// swiftlint:disable:previous {RULES}')
+
+    def test_a_swiftlint_disable_naming_a_rule_other_than_complexity_is_still_a_silencer(self):
+        self.silenced_by('// swiftlint:disable force_cast')
+
+    def test_a_swiftlint_disable_that_carries_prose_is_a_silencer_and_not_also_a_comment_line(self):
+        self.silenced_by('// swiftlint:disable force_cast, the API returns Any')
+
+    def test_a_swiftlint_disable_in_a_block_comment_or_a_doc_comment_is_a_silencer(self):
+        for comment in ('/* swiftlint:disable:next cyclomatic_complexity */', '/// swiftlint:disable cyclomatic_complexity'):
+            with self.subTest(comment=comment):
+                self.silenced_by(comment)
+
+    def test_a_trailing_swiftlint_disable_this_is_a_silencer_on_its_own_line(self):
+        found = swift_reading('func f() {  // swiftlint:disable:this cyclomatic_complexity\n}\n')
+        self.assertEqual((found.silencers, found.debt), ((1,), {}))
+
+    def test_swiftlint_enable_is_neither_a_comment_line_nor_a_silencer(self):
+        for comment in ('// swiftlint:enable', f'// swiftlint:enable {RULES}'):
+            with self.subTest(comment=comment):
+                found = swift_reading(swift_with(comment))
+                self.assertEqual((found.silencers, found.debt), ((), {}))
+
+    def test_a_swiftlint_disable_inside_a_string_literal_is_neither_a_comment_line_nor_a_silencer(self):
+        source = ('let a = "// swiftlint:disable"\nlet b = "x \\(y) // swiftlint:disable:next force_cast"\n'
+                  'let c = """\n  // swiftlint:disable\n  """\nlet d = #"// swiftlint:disable"#\n')
+        found = swift_reading(source)
+        self.assertEqual((found.silencers, found.debt), ((), {}))
+
+    def test_a_word_that_only_starts_like_swiftlint_disable_is_not_a_silencer(self):
+        found = swift_reading('// swiftlint:disabled\n// swiftlint\n')
+        self.assertEqual((found.silencers, list(found.debt)), ((), [1, 2]))
+
+    def test_a_comment_beside_a_swiftlint_disable_on_another_line_stays_a_comment_line(self):
+        found = swift_reading('// why\n// swiftlint:disable:next force_cast\nlet a = b as! C\n')
+        self.assertEqual((found.silencers, list(found.debt)), ((2,), [1]))
+
+
+def swift_function_over_the_limit(marker):
+    ifs = ''.join(f'    if x == {n} {{ return {n} }}\n' for n in range(1, 10))
+    return f'{marker}func f(_ x: Int) -> Int {{\n{ifs}    return 0\n}}\n'
+
+
+DISABLE_NEXT = '// swiftlint:disable:next cyclomatic_complexity\n'
+SWIFTLINT_CONFIG = 'only_rules:\n  - cyclomatic_complexity\ncyclomatic_complexity:\n  warning: 8\n  error: 8\n'
+
+
+class SwiftSilencerGateTest(unittest.TestCase):
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.addCleanup(self.tmp.cleanup)
+        self.root = Path(self.tmp.name)
+        subprocess.run(['git', 'init', '-q'], cwd=self.root, check=True)
+        (self.root / 'quality-gates.json').write_text(json.dumps({
+            'format_version': 1, 'languages': ['swift'], 'exclude': [],
+            'components': {'chosen': ['no-comments-swift'], 'declined': []}, 'commit_time_limit_seconds': 2,
+            'settings': {'no-comments': {'exclude': [], 'conventions': []}},
+        }))
+        self.comments = self.root / 'comment-debt.json'
+        self.silencers = self.root / 'silencer-baseline.json'
+
+    def put(self, name, text):
+        (self.root / name).write_text(text)
+        subprocess.run(['git', 'add', name], cwd=self.root, check=True)
+
+    def gate(self, *argv):
+        out = io.StringIO()
+        return cd.main(list(argv), root=self.root, out=out), out.getvalue()
+
+    def recorded(self):
+        return json.loads(self.silencers.read_text())
+
+    def swiftlint_exit(self):
+        (self.root / '.swiftlint.yml').write_text(SWIFTLINT_CONFIG)
+        run = subprocess.run(['swiftlint', 'lint', '--quiet', '--config', '.swiftlint.yml', 'A.swift'],
+                             cwd=self.root, capture_output=True, text=True)
+        return run.returncode
+
+    @unittest.skipUnless(shutil.which('swiftlint'), 'swiftlint is not installed')
+    def test_a_function_over_the_limit_hidden_by_swiftlint_disable_next_passes_swiftlint_and_fails_the_comment_gate_until_it_is_recorded(self):
+        self.put('A.swift', swift_function_over_the_limit(DISABLE_NEXT))
+        self.assertEqual(self.swiftlint_exit(), 0)
+        self.comments.write_text('{}\n')
+        self.silencers.write_text('{}\n')
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL A.swift: 1 silencers, baseline allows 0 — lines 1', out)
+        self.silencers.unlink()
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual(self.recorded(), {'A.swift': 1})
+        self.assertEqual(self.gate()[0], 0)
+
+    @unittest.skipUnless(shutil.which('swiftlint'), 'swiftlint is not installed')
+    def test_the_same_function_without_its_swiftlint_disable_fails_swiftlint(self):
+        self.put('A.swift', swift_function_over_the_limit(''))
+        self.assertEqual(self.swiftlint_exit(), 2)
+
+    def test_the_swiftlint_disable_lines_are_not_recorded_as_comment_debt(self):
+        self.put('A.swift', swift_function_over_the_limit(DISABLE_NEXT))
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual(json.loads(self.comments.read_text()), {})
+
+    def test_a_new_swiftlint_disable_added_after_recording_fails_and_names_its_line(self):
+        self.put('A.swift', swift_function_over_the_limit(DISABLE_NEXT))
+        self.gate('--update')
+        self.put('A.swift', swift_function_over_the_limit(DISABLE_NEXT) + DISABLE_NEXT + 'let a = b as! C\n')
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL A.swift: 2 silencers, baseline allows 1 — lines 1, 14', out)
+
+    def test_update_will_not_record_a_new_swiftlint_disable(self):
+        self.put('A.swift', 'let a = 1\n')
+        self.gate('--update')
+        self.put('A.swift', DISABLE_NEXT + 'let a = b as! C\n')
+        code, out = self.gate('--update')
+        self.assertEqual(code, 1)
+        self.assertIn('It will not record a new silencer', out)
+        self.assertEqual(self.recorded(), {})
+
+    def test_a_swiftlint_disable_that_is_removed_shows_as_paid_until_update_lowers_the_baseline(self):
+        self.put('A.swift', DISABLE_NEXT + 'let a = b as! C\n' + DISABLE_NEXT + 'let d = e as! F\n')
+        self.gate('--update')
+        self.put('A.swift', DISABLE_NEXT + 'let a = b as! C\n')
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn('PAID A.swift: 1 silencers, baseline still says 2', out)
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual(self.recorded(), {'A.swift': 1})
+        self.assertEqual(self.gate()[0], 0)
+
+    def test_swiftlint_enable_and_a_swiftlint_disable_in_a_string_literal_leave_both_baselines_empty(self):
+        self.put('A.swift', 'let a = "// swiftlint:disable"\n// swiftlint:enable force_cast\n')
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual((self.recorded(), json.loads(self.comments.read_text())), ({}, {}))
