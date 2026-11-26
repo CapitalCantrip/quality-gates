@@ -5,7 +5,7 @@ from dataclasses import dataclass
 
 from quality_gates import comment_debt, project_files, ratchet, skills_sync, status
 from quality_gates.errors import TOOL_ERROR_EXIT, ToolError
-from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, STEP_KINDS, BrokenFileError, known_languages, load_components
+from quality_gates.manifest import BROKEN_EXIT, COMPONENTS_PATH, BrokenFileError, known_languages, load_components
 
 SUMMARY = "propose the languages and components, and record them in quality-gates.json with --go"
 REFUSED_EXIT = 1
@@ -61,7 +61,7 @@ def cost_of(component):
 
 
 def is_gate(component):
-    return any(part.kind in STEP_KINDS for part in component.parts)
+    return bool(component.gates())
 
 
 def check_component_names(manifest, names):

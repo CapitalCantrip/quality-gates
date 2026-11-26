@@ -55,6 +55,8 @@ file when its trigger matches; read only the files that apply.
 - **Date every "this can't be done"** — when recording or relying on a finding
   that something is impossible or unsupported.
   [principles/date-every-cant-be-done.md](principles/date-every-cant-be-done.md)
+- **File an escape** — when you fix a problem that a merged change introduced.
+  [principles/file-an-escape.md](principles/file-an-escape.md)
 - **Stop and report when a loop runs on** — when an hour or three review rounds
   have passed without a commit.
   [principles/stop-and-report.md](principles/stop-and-report.md)

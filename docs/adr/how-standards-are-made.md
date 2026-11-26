@@ -77,6 +77,20 @@ recur in another project.** One-off and project-specific lessons stay in their
 project.
 <!-- /rule:promotion-path -->
 
+## The escape log
+
+**A threshold, or the order of the gates, changes only with the escape count
+cited.** An escape is a problem that got past every gate and was found later.
+Each project on a GitHub tracker has an `escaped` label and an issue template that asks what
+happened, how it was found, the earliest point it could have been stopped (idea,
+spec, module map, ticket brief, build, review, gate) and which gate should have
+caught it (or "none could"); an agent files one when it fixes a problem a merged change introduced,
+and never applies the builder's labels (`tolerated-growth`, `loosening`). The
+count by stage and by gate comes from `docs/agents/escape-log.md`, which the between-sprints
+retro step runs, and the ADR that changes a threshold or the order of the gates
+quotes it, even when it is zero.
+([ADR-002 addendum 2026-11-26](archive/ADR-002-engineering-standards.md#addendum-2026-11-26-the-escape-log-196))
+
 ## Asking the builder
 
 <!-- rule:asking-the-builder -->
@@ -157,17 +171,25 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     names, whatever rule it names), read only when `no-comments-swift` is
     chosen; `swiftlint:enable` stays exempt, a `swiftlint:disable` in a string
     literal is neither, and one in a block or doc comment, which SwiftLint
-    ignores, stays a comment line. Rust's `#[allow(…)]` or `#[expect(…)]`
+    ignores, stays a comment line. TypeScript's are the `istanbul ignore`,
+    `c8 ignore` and `v8 ignore` markers (hints `if`, `else`, `next`, `file`,
+    `start`, `stop`, with a reason after), in a `//`, `/* */` or `/** */`
+    comment that they open, read only when `no-comments-typescript` is chosen;
+    `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore`
+    stay exempt, a marker in a string, template or regex literal is neither,
+    and only the line the marker word sits on is the silencer, so the reason
+    lines of a multi-line marker stay comment debt. A marker outside a comment
+    that a coverage tool still reads (`'v8 ignore start'` in a string) hides
+    code and is counted nowhere: a known gap. Rust's `#[allow(…)]` or `#[expect(…)]`
     naming `clippy::cognitive_complexity` (or its old name
     `clippy::cyclomatic_complexity`) or `clippy::too_many_lines`, outer or
     inner, alone or in a longer list, inside `cfg_attr` too, is one, read from
     the code and not the comments (so a comment on its line still counts), and
-    only when `no-comments-rust` is chosen: a
-    lint name in a string, raw string or comment is not one, nor is `allow` of
-    any other lint or `deny` of these two. TypeScript follows in its own ticket
-    (quality-gates#236); counting a silencer whenever the gate it switches off
-    is chosen is quality-gates#252.
-    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [addendum 2026-11-26, Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237))
+    only when `no-comments-rust` is chosen: a lint name in a string, raw string
+    or comment is not one, nor is `allow` of any other lint or `deny` of these
+    two. Counting a silencer whenever the gate it switches off is chosen is
+    quality-gates#252.
+    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [addendum 2026-11-26, TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [addendum 2026-11-26, Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237))
   - **Each new language is its own component** (`no-comments-rust`,
     `no-comments-typescript`, `no-comments-swift`, `no-comments-shell`);
     `no-comments` stays Python's. A language is checked only when its

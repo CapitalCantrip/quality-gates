@@ -13,7 +13,9 @@ only to learn why something was decided.
 - **A standard changes only through an ADR.** Changing a threshold, a counting
   tool or what a gate covers means a new ADR in `docs/adr/archive/`, or a dated
   addendum on the one it amends, then the compendium page, the code, the skills
-  and the README in the same PR. None of them may disagree with the ADR.
+  and the README in the same PR. None of them may disagree with the ADR. A
+  threshold or gate-order change also quotes the escape count by stage and by gate
+  (`docs/agents/escape-log.md`).
 - **What a consumer receives is released, at most once a day.** `README.md`
   § Releasing says what counts and lists the steps. The `CHANGELOG.md` entry
   says what a consumer must do when they bump the pin; a change under
@@ -49,7 +51,8 @@ The build plan is #232: sprints, the between-sprints routine and model tiers.
 Its body is the plan and where it stands; its opening paragraph says who may
 change it and what goes in comments. #207 is the history from 2026-11-16 to
 11-25, and #37 the history before that. The tracker and the five triage
-labels: see Agent skills below.
+labels: see Agent skills below. Escapes (problems that got past the gates) are
+issues labelled `escaped`; how to file and count them: `docs/agents/escape-log.md`.
 
 ## Agent skills
 

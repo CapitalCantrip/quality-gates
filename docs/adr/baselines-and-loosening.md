@@ -94,14 +94,15 @@ often.
   Swift's is a `// swiftlint:disable` line comment in every form, read when
   `no-comments-swift` is chosen (the Swift setup step records existing debt
   with one, so with that component the silencer baseline is where that debt is
-  counted, and without it the lines go uncounted); Rust's is an `#[allow(…)]` or
-  `#[expect(…)]` attribute naming `clippy::cognitive_complexity` or
-  `clippy::too_many_lines` (or the old `clippy::cyclomatic_complexity`), read from
-  the code when `no-comments-rust` is chosen (the Rust setup step records
-  existing debt with one, so with that component the silencer baseline is where
-  that debt is counted, and without it the attributes go uncounted);
-  TypeScript follows in quality-gates#236.
-  ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237))
+  counted, and without it the lines go uncounted); TypeScript's are `istanbul ignore`,
+  `c8 ignore` and `v8 ignore` comments, read when `no-comments-typescript` is
+  chosen; Rust's is an `#[allow(…)]` or `#[expect(…)]` attribute naming
+  `clippy::cognitive_complexity` or `clippy::too_many_lines` (or the old
+  `clippy::cyclomatic_complexity`), read from the code when `no-comments-rust` is
+  chosen (the Rust setup step records existing debt with one, so with that
+  component the silencer baseline is where that debt is counted, and without it
+  the attributes go uncounted).
+  ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237))
 
 ## Loosening
 

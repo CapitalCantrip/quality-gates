@@ -16,8 +16,12 @@ needs it.
 files of each language, and it applies the choice file, so the gate lists no
 files itself. It also owns reading and writing every
 file quality-gates keeps in a project: the choice file, baselines, the hook,
-CI, the instruction file, `docs/agents/*` and the PR template. Every write goes
-through one planned-changes step that setup shows before the builder's "go".
+CI, the instruction file, `docs/agents/*`, the PR template and the escaped
+issue template. `qg setup`'s writes go
+through one planned-changes step that setup shows before the builder's "go";
+`qg-agent-docs` writes `docs/agents/*`, the PR template and the escaped issue
+template itself, each only after checking that its path and its record stay
+inside the project.
 Setup never edits a CI workflow (quality-gates#234): it checks that a workflow
 running on pull requests runs `qg tolerated` in a step, and prints the step to
 paste when none does. Decided, not built yet: code edits the hook only between
@@ -44,9 +48,11 @@ a missing baseline (quality-gates#193). Built (quality-gates#195): Python's
 row reads `# pragma: no cover` and `# pragma: no branch` off the physical
 source lines, and `comment-debt` judges the silencers against
 `silencer-baseline.json` beside the comment lines; Swift's
-row reads `swiftlint:disable` in every `//` line comment (quality-gates#235); Rust's
-row reads the `allow` and `expect` attributes that name a complexity lint from
-`reading.blanked`, the code with comments and strings blanked (quality-gates#237); TypeScript's row matches nothing until quality-gates#236, and shell's has no silencer. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding))
+row reads `swiftlint:disable` in every `//` line comment (quality-gates#235);
+TypeScript's reads `istanbul ignore`, `c8 ignore` and `v8 ignore` at the start of a
+comment (quality-gates#236); Rust's reads the `allow` and `expect` attributes that
+name a complexity lint from `reading.blanked`, the code with comments and strings
+blanked (quality-gates#237); shell's has no silencer. ([ADR-011 addendum 2026-11-25](archive/ADR-011-code-structure.md#addendum-2026-11-25-mains-copy-of-a-file-and-the-tolerated-module), [ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236), [Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237))
 
 ## One language registry
 

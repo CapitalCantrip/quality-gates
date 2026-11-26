@@ -85,7 +85,12 @@ TEMPLATE_BASES = AGENT_DOCS / ".base"
 ISSUE_TRACKER_DOC = AGENT_DOCS / "issue-tracker.md"
 TRIAGE_LABELS_DOC = AGENT_DOCS / "triage-labels.md"
 DOMAIN_DOC = AGENT_DOCS / "domain.md"
-PR_TEMPLATE = Path(".github") / "pull_request_template.md"
+GITHUB_FOLDER = Path(".github")
+PR_TEMPLATE = GITHUB_FOLDER / "pull_request_template.md"
+ISSUE_TEMPLATES = GITHUB_FOLDER / "ISSUE_TEMPLATE"
+ESCAPED_TEMPLATE = ISSUE_TEMPLATES / "escaped.md"
+ESCAPED_NAME = "escaped"
+FORM_SUFFIXES = (".yml", ".yaml")
 COMMENT_DEBT_BASELINE = "comment-debt.json"
 CC_BASELINE = "cc-baseline.json"
 CRAP_BASELINE = "crap-baseline.json"
@@ -224,14 +229,14 @@ def frontmatter_lines(path):
     except (OSError, UnicodeDecodeError):
         return []
     if not lines or lines[0].strip() != FRONTMATTER_FENCE:
-        return []
+        return lines if path.suffix.lower() in FORM_SUFFIXES else []
     for end, line in enumerate(lines[1:], 1):
         if line.strip() == FRONTMATTER_FENCE:
             return lines[1:end]
     return []
 
 
-def declared_agent_name(path):
+def declared_name(path):
     for line in frontmatter_lines(path):
         found = FRONTMATTER_NAME.match(line)
         if found:
@@ -260,7 +265,7 @@ def clashes_in(dest, source, listed, names):
     found = []
     for path in agent_files_in(dest):
         if path.name not in {agent_file(Path(), name).name for name in listed}:
-            claimed = sorted({path.stem.lower(), declared_agent_name(path)} & names)
+            claimed = sorted({path.stem.lower(), declared_name(path)} & names)
             found += [(path, name) for name in claimed if claims_shipped_name(path, name, source)]
     return found
 
@@ -456,6 +461,68 @@ def write_kept(root, name, text):
     path = root / name
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(text, encoding="utf-8")
+
+
+def claims_the_escaped_name(path):
+    return path.stem.lower() == ESCAPED_NAME or declared_name(path) == ESCAPED_NAME
+
+
+def other_escaped_template(root):
+    folder = root / ISSUE_TEMPLATES
+    if not folder.is_dir():
+        return None
+    for path in sorted(p for p in folder.iterdir() if p.name != ESCAPED_TEMPLATE.name and p.is_file()):
+        shown = (ISSUE_TEMPLATES / path.name).as_posix()
+        try:
+            path.read_bytes()
+        except OSError:
+            return f"{shown} cannot be read"
+        if claims_the_escaped_name(path):
+            return f"{shown} is already an escaped template"
+    return None
+
+
+def leads_outside(root, name):
+    path = root / name
+    shown = name.as_posix()
+    try:
+        inside = path.resolve().is_relative_to(root.resolve())
+    except (OSError, RuntimeError):
+        return f"{shown} cannot be resolved"
+    if not inside:
+        return f"{shown} leads outside the project"
+    if path.is_symlink() and not path.exists():
+        return f"{shown} is a link that leads nowhere"
+    return None
+
+
+def planned_file_problem(root, name):
+    root = Path(root)
+    return leads_outside(root, name) or leads_outside(root, template_base(name))
+
+
+def not_a_folder(root, folder):
+    path = root / folder
+    return f"{folder.as_posix()} is not a folder" if path.exists() and not path.is_dir() else None
+
+
+def unusable_file(root, name):
+    path = root / name
+    if path.exists() and not path.is_file():
+        return f"{name.as_posix()} is not a file"
+    try:
+        read_kept(root, name)
+    except (UnicodeDecodeError, OSError):
+        return f"{name.as_posix()} cannot be read as text"
+    return None
+
+
+def escaped_template_problem(root):
+    root = Path(root)
+    checks = (lambda: planned_file_problem(root, ESCAPED_TEMPLATE), lambda: not_a_folder(root, GITHUB_FOLDER),
+              lambda: not_a_folder(root, ISSUE_TEMPLATES), lambda: unusable_file(root, ESCAPED_TEMPLATE),
+              lambda: unusable_file(root, template_base(ESCAPED_TEMPLATE)), lambda: other_escaped_template(root))
+    return next((problem for problem in (check() for check in checks) if problem), None)
 
 
 def read_instruction_file(root):
