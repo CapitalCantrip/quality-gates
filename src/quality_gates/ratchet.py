@@ -17,6 +17,12 @@ BAD_BASELINE = "bad baseline {}: {}"
 NOT_AN_OBJECT = "must be an object, got {}"
 NOT_A_NUMBER = "value for {} must be a number, got {}"
 NAN = "NaN"
+RERECORD_FLAG = "--rerecord"
+RERECORD_HELP = "record the baseline afresh from the tree, replacing it; CI then asks for the builder's label"
+MAIN_HAS_THE_BASELINE = ("{file}: the default branch {branch} has this baseline committed. "
+                         "Restore it with `git checkout {branch} -- {restore}` and run --update from there, "
+                         "or record it afresh with --rerecord; the pull request then needs the builder's "
+                         "`tolerated-growth` label.")
 UNREAD_FILE = "could not be opened, does not parse or is not UTF-8"
 UNMEASURED_ADVICE = (
     "Unmeasured functions fail the gate. Measure their files or take them out of the scan; "
@@ -100,6 +106,7 @@ class Asked:
     updating: bool = False
     judged: bool = True
     covers: Callable[[str], bool] = covers_every_file
+    rerecording: bool = False
 
 
 def location(root, file, function) -> Location:
@@ -245,6 +252,19 @@ def baseline_from(data: bytes, where, out=None) -> dict:
     return baseline
 
 
+def refuse_recreating(file: Path, out=None) -> None:
+    holder = project_files.main_holding(file)
+    if holder is not None:
+        raise BaselineError(MAIN_HAS_THE_BASELINE.format(file=file, restore=holder.restore, branch=holder.branch), out)
+
+
+def stored_to_write(file: Path, updating: bool, rerecording: bool, out=None) -> Optional[dict]:
+    stored = stored_baseline(file, updating, out)
+    if updating and stored is None and not rerecording:
+        refuse_recreating(file, out)
+    return stored
+
+
 def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
     try:
         if not file.exists():
@@ -255,14 +275,24 @@ def stored_baseline(file: Path, updating: bool, out=None) -> Optional[dict]:
     return baseline_from(data, file, out)
 
 
-def silencer_asked(root, updating: bool = False, covers: Callable[[str], bool] = covers_every_file) -> Asked:
-    return Asked(project_files.silencer_baseline(root), updating, covers=covers)
+def baseline_at(root, ref, name) -> Optional[dict]:
+    data = project_files.copy_at(root, ref, name)
+    return None if data is None else baseline_from(data, f"{ref}:{name}")
+
+
+def silencer_asked(root, updating: bool = False, covers: Callable[[str], bool] = covers_every_file,
+                   rerecording: bool = False) -> Asked:
+    return Asked(project_files.silencer_baseline(root), updating, covers=covers, rerecording=rerecording)
 
 
 def readable(asked: Asked, out=None) -> Asked:
     if asked.judged and asked.baseline is not None:
-        stored_baseline(asked.baseline, asked.updating, out)
+        stored_to_write(asked.baseline, asked.updating, asked.rerecording, out)
     return asked
+
+
+def add_rerecord(group) -> None:
+    group.add_argument(RERECORD_FLAG, dest="rerecord", action="store_true", help=RERECORD_HELP)
 
 
 def told_on(error: ToolError, err):
@@ -301,19 +331,24 @@ class Settled:
 
 
 def settle(find: Callable[[], list], file: Path, updating: bool, root=None, out=None,
-           covers: Callable[[str], bool] = covers_every_file) -> Settled:
+           covers: Callable[[str], bool] = covers_every_file, rerecording: bool = False) -> Settled:
     find = keyed(find, root)
-    stored = stored_baseline(file, updating, out)
+    stored = stored_to_write(file, updating, rerecording, out)
     held = held_back(stored, covers)
     findings = find()
     unmeasured = frozenset(unmeasured_keys(findings))
-    judged = strongest(findings) if stored is None else {k: v for k, v in stored.items() if k not in held}
+    judged = rerecorded(findings, without(stored or {}, held)) if stored is None or rerecording else without(stored, held)
     result = judge(findings, judged)
     if not updating or result.having(Outcome.FAILED):
         return Settled(findings, result, unmeasured)
     written = lowered(result, stored, covers)
     write(file, written, out)
     return Settled(findings, judge(findings, without(written, held)), unmeasured, written)
+
+
+def rerecorded(findings: list, stored: dict) -> dict:
+    dark = dark_keys(findings, stored)
+    return {**{key: number for key, number in stored.items() if key in dark}, **strongest(findings)}
 
 
 def without(scores: dict, held: dict) -> dict:
@@ -426,7 +461,7 @@ def enforce(find: Callable[[], list], asked: Asked, out, wording: Wording = FUNC
         found = find()
         describe_unread(found, out)
         return judge(found, {})
-    settled = settle(find, asked.baseline, asked.updating, root, out, asked.covers)
+    settled = settle(find, asked.baseline, asked.updating, root, out, asked.covers, asked.rerecording)
     describe(settled, asked.baseline, asked.updating, out, wording)
     return settled.result
 

@@ -25,15 +25,34 @@
 - **`qg-skills` reads `.claude/settings.json` before copying anything.** A
   broken or wrongly shaped one used to stop it after the skills were already
   overwritten; now nothing changes until you fix it.
-- **A `qg tolerated` CI step** (ADR-011 addenda 2026-11-25 and 2026-11-26).
-  The step runs under `shell: bash`, fetches the pull request's base and runs
-  `qg tolerated --against origin/<base>`; for now it always prints *the
-  tolerated list did not grow*. On bumping the pin, paste the step from the
-  `setup-standards` skill's `ci-tolerated.md` at the end of the steps of the
-  job that runs the gates, in a workflow that runs on pull requests, and
-  commit it. `qg setup` never edits a workflow: when no such workflow runs
-  `qg tolerated`, it prints the step to paste, and `qg setup --json` lists it
-  under `notes`. No score, threshold or scanned file changes.
+- **A `qg tolerated` CI step fails a pull request that grows the tolerated
+  list without the builder's label** (ADR-011 addenda 2026-11-25 and
+  2026-11-26, ADR-009 addendum 2026-11-26). Growth is a baseline entry that is
+  new or higher, or a new or wider prefix in `exclude` or
+  `settings.no-comments.exclude`; adopting a gate with no baseline on the
+  base is not growth. The step prints one line saying what grew; the builder
+  applies `tolerated-growth` (or `loosening` on a loosening pull request) to
+  say yes, and an agent never applies either. On bumping the pin, paste the
+  step from the `setup-standards` skill's `ci-tolerated.md` at the end of the
+  steps of the job that runs the gates, in a workflow that runs on pull
+  requests, add `types: [opened, synchronize, reopened, labeled, unlabeled]`
+  to that workflow's `pull_request` trigger, and commit it. `qg setup` never
+  edits a workflow: when no such workflow runs `qg tolerated`, it prints the
+  step to paste, and when the step does not pass `QG_PR_LABELS` or the
+  trigger lacks those types, it says what to add; `qg setup --json` lists the
+  same under `notes`. No score, threshold or scanned file changes.
+- **`--update` will not recreate a baseline that main has; `--rerecord`
+  records one afresh** (`cc-check`, `crap`, `comment-debt`; ADR-009 addendum
+  2026-11-26). Deleting a committed baseline and running `--update` used to
+  record every new and worse function; now it exits 2 and says to restore the
+  file with `git checkout <branch> -- <file>`, or to run `--rerecord`. A first
+  baseline, where the default branch has none, is recorded as before.
+  `--rerecord` records measured entries afresh and keeps unmeasured ones; in
+  `comment-debt` it records the silencer baseline too. An unreadable baseline
+  stops it: delete the file first. On
+  bumping the pin: wherever an earlier entry, or this release, says to delete
+  a baseline and run `--update`, run the gate with `--rerecord` instead and
+  ask the builder for the `tolerated-growth` label on that pull request.
 - **Python's `# pragma: no cover` and `# pragma: no branch` are silencers
   (ADR-010 addendum 2026-11-26).** `comment-debt` now reports a marker that
   switches off one of our own gates as its own finding, held in

@@ -218,7 +218,10 @@ except a CRAP gate step 2 or 3 says to report as not done, which is reported
 not done with its reason.
 
 On an upgrade, a baseline that fails after the bump is re-recorded as the
-release's CHANGELOG entry says under *When you bump the pin*.
+release's CHANGELOG entry says under *When you bump the pin*. From 0.15.0,
+re-record with the gate's `--rerecord` in place of deleting the baseline and
+running `--update`; the pull request then needs the builder's
+`tolerated-growth` label.
 
 ## 4. Hooks
 
@@ -282,8 +285,9 @@ Make CI enforce what the hooks enforce, plus the slow gates.
   workflow runs SwiftLint only.
 - **The tolerated list:** paste the step in
   [ci-tolerated.md](ci-tolerated.md) at the end of the steps of the job that
-  runs the gates, in a workflow that runs on pull requests. `qg setup` never
-  edits a workflow; it prints the same step when none runs it.
+  runs the gates, in a workflow that runs on pull requests, and give that
+  workflow's `pull_request` trigger the types the file names. `qg setup`
+  never edits a workflow; it prints the same step when none runs it.
 
 A project with no tests gets no CRAP step: report CRAP as **not done**, as
 step 3 says.

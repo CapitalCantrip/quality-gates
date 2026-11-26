@@ -372,7 +372,11 @@ other, the same on every machine and in CI. The details are in the
 - `--update` only lowers scores and removes entries. It never raises a score or
   adds a function; it exits 1 and writes nothing if the tree has either.
 - Without the baseline file, the check exits 2; `--update` creates it from the
-  current tree.
+  current tree, unless the default branch has it committed: then restore it.
+- `--rerecord` records the measured entries afresh from the tree, keeping
+  unmeasured ones; an unreadable baseline must be deleted first. Use it when
+  a release's CHANGELOG says to re-record; the pull request
+  then needs the builder's `tolerated-growth` label.
 
 Commit the baseline, then add a test that calls the gate's `main` with it so CI
 enforces it:
@@ -714,11 +718,15 @@ line, like any other tool error.
       Flags Swift functions that are too tangled to follow, ...
   ```
 
-- `qg tolerated --against <ref>` checks that `<ref>` names a commit and
-  prints *the tolerated list did not grow*, exit 0. Comparing the
+- `qg tolerated --against <ref>` compares the
   [tolerated list](GLOSSARY.md) in the working tree with the list at `<ref>`
-  is quality-gates#192. A ref that names no commit, a folder outside a git
-  repo, or no git on the PATH exits 2 with one line on stderr.
+  and prints one line: *the tolerated list did not grow*, exit 0, or what
+  grew. Growth exits 1 unless `QG_PR_LABELS`, which the CI step fills from
+  the pull request's labels, holds `tolerated-growth` or `loosening`; then it
+  exits 0 and still prints the line. What counts as growth is in
+  [Baselines and loosening](docs/adr/baselines-and-loosening.md). A ref that
+  names no commit, an unreadable baseline, a folder outside a git repo, or no
+  git on the PATH exits 2 with one line on stderr.
 
 - `qg setup` proposes the project's languages and one row per component, with
   its description, its cost (commit delay, CI time, outside tools) and a tick

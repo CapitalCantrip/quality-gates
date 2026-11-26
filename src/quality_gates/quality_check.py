@@ -43,7 +43,9 @@ def build_parser():
     )
     parser.add_argument("--format", choices=["text", "json"], default="text", help="output format (default: text)")
     parser.add_argument("--baseline", metavar="FILE", help="fail only on functions that are new or worse than this file")
-    parser.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
+    recording = parser.add_mutually_exclusive_group()
+    recording.add_argument("--update", action="store_true", help="lower the baseline to match the tree")
+    ratchet.add_rerecord(recording)
     return parser
 
 
@@ -115,7 +117,8 @@ def report(found, flagged, args):
 
 def asked(args) -> ratchet.Asked:
     baseline = None if args.baseline is None else Path(args.baseline)
-    return ratchet.Asked(baseline, args.update, judged=args.format == "text" or baseline is not None)
+    return ratchet.Asked(baseline, args.update or args.rerecord, judged=args.format == "text" or baseline is not None,
+                         rerecording=args.rerecord)
 
 
 def parse_args(argv):
@@ -123,6 +126,8 @@ def parse_args(argv):
     args = parser.parse_args(argv)
     if args.update and args.baseline is None:
         parser.error("--update needs --baseline")
+    if args.rerecord and args.baseline is None:
+        parser.error("--rerecord needs --baseline")
     if args.baseline is not None:
         given_path("--baseline", args.baseline)
     return args

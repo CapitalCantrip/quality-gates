@@ -23,6 +23,11 @@ for them. The decision stays with the builder; the analysis stays with you.
 - Reversible: everything else. Pick the default you would recommend, say so in
   a line, and carry on.
 
+**Never apply the builder's labels yourself.** `tolerated-growth` and
+`loosening` are the builder's yes on record for a pull request that grows the
+tolerated list or loosens a standard. When `qg tolerated` fails, shrink the
+growth or ask the builder for the label.
+
 A question that fails the format is rewritten before it is sent: name the
 stake, cut the options to the two or three that differ in something the
 builder notices, and lead with the one you recommend.

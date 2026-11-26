@@ -71,11 +71,14 @@ TOLERATED_STEP = """      - name: qg tolerated
         shell: bash
         env:
           BASE: ${{ github.base_ref }}
+          QG_PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
         run: |
           git fetch --no-tags --depth=1 origin "+refs/heads/${BASE}:refs/remotes/origin/${BASE}"
           qg tolerated --against "origin/${BASE}"
 """
-WORKFLOW_WITH_STEP = WORKFLOW.replace("      - run: comment-debt\n", "      - run: comment-debt\n" + TOLERATED_STEP)
+WORKFLOW_WITH_STEP = WORKFLOW.replace("      - run: comment-debt\n", "      - run: comment-debt\n" + TOLERATED_STEP).replace(
+    "on: [pull_request, push]\n",
+    "on:\n  push:\n  pull_request:\n    types: [opened, synchronize, reopened, labeled, unlabeled]\n")
 
 
 def git_init(folder):

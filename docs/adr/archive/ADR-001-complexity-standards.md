@@ -91,7 +91,7 @@ Amended by: [Addendum 2026-10-10: SwiftPM coverage (v0.8.0)](#addendum-2026-10-1
 
 Amends: [Decision](#decision)
 
-Amended by: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090), [Current rule, restated 2026-10-12: the baseline ratchet](#current-rule-restated-2026-10-12-the-baseline-ratchet), [Current rule, restated 2026-10-12: baseline keys](#current-rule-restated-2026-10-12-baseline-keys), [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120)
+Amended by: [Amended 2026-10-08, on acceptance](#amended-2026-10-08-on-acceptance), [Addendum 2026-10-12: baseline keys use the real path (v0.9.0)](#addendum-2026-10-12-baseline-keys-use-the-real-path-v090), [Current rule, restated 2026-10-12: the baseline ratchet](#current-rule-restated-2026-10-12-the-baseline-ratchet), [Current rule, restated 2026-10-12: baseline keys](#current-rule-restated-2026-10-12-baseline-keys), [Addendum 2026-10-25: unmeasured functions (v0.12.0)](#addendum-2026-10-25-unmeasured-functions-v0120), [ADR-009 addendum 2026-11-26: `--update` will not recreate main's baseline](ADR-009-recorded-reasons-and-loosening.md#addendum-2026-11-26-the-tolerated-check-as-built---update-will-not-recreate-mains-baseline)
 
 The standards above are unchanged. `cc-check` and `crap` gained `--baseline` so a
 repo with existing debt can enforce them in CI without first paying it all off.

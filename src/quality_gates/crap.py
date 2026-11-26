@@ -323,8 +323,10 @@ def build_parser() -> argparse.ArgumentParser:
                    help="Exit 2 (tool error) when coverage file is older than the newest source file scanned")
     p.add_argument("--baseline", metavar="FILE",
                    help="Fail only on functions that are new or worse than this file; needs coverage")
-    p.add_argument("--update", action="store_true",
-                   help="Lower the baseline to match the tree")
+    recording = p.add_mutually_exclusive_group()
+    recording.add_argument("--update", action="store_true",
+                           help="Lower the baseline to match the tree")
+    ratchet.add_rerecord(recording)
     return p
 
 
@@ -447,6 +449,8 @@ def _check_baseline_args(args, report: Optional[CoverageReport]) -> None:
         given_path("--baseline", args.baseline)
     if args.update and args.baseline is None:
         raise ToolError("--update needs --baseline")
+    if args.rerecord and args.baseline is None:
+        raise ToolError("--rerecord needs --baseline")
     if args.baseline and report is None:
         raise ToolError("--baseline needs coverage data. Worst-case scores are a ranking, not a gate (ADR-001).")
 
@@ -465,7 +469,8 @@ def findings(results: list, unread: list = ()) -> list:
 
 
 def _asked(args) -> ratchet.Asked:
-    return ratchet.Asked(Path(args.baseline) if args.baseline else None, args.update)
+    return ratchet.Asked(Path(args.baseline) if args.baseline else None, args.update or args.rerecord,
+                         rerecording=args.rerecord)
 
 
 def gate(argv, root) -> ratchet.Result:
