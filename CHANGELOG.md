@@ -106,6 +106,30 @@
   shows no count that grew, and ask the builder for the `tolerated-growth`
   label. `/cc-swift` and `/setup-standards` now say to record the disable lines
   they tell a consumer to add; run `qg-skills`.
+- **Rust's complexity `allow` attributes are silencers (ADR-010 addendum
+  2026-11-26, #237).** `#[allow(clippy::cognitive_complexity)]` and
+  `#[allow(clippy::too_many_lines)]` switch off the two lints `cc-rust` denies,
+  and nothing counted them, so a failing function passed with one above it. With
+  `no-comments-rust` chosen, `comment-debt` now reports each at its file and
+  line, held in `silencer-baseline.json`. Outer and inner attributes count, each
+  lint alone or in a longer list (`allow(dead_code, clippy::too_many_lines)`),
+  inside `cfg_attr` too, and `#[expect(…)]` of either lint counts as `allow`
+  does, since clippy stops reporting under it. An attribute split over several
+  lines is found at its first line; one attribute naming both lints is one
+  silencer. The attributes are read from the code, so a lint name in a string,
+  raw string or comment is not a silencer, nor is `allow` of any other lint or
+  `deny` of these two. Group allows such as `#[allow(clippy::pedantic)]`, a
+  per-function `#[clippy::cognitive_complexity = "N"]` and raised thresholds in
+  `clippy.toml` are not counted yet, and a Rust consumer without
+  `no-comments-rust` still has its allow attributes uncounted. On bumping the
+  pin, a Rust consumer with `no-comments-rust` chosen runs
+  `comment-debt --update` once and commits `silencer-baseline.json` to record
+  their allow attributes. If `silencer-baseline.json` already exists from an
+  earlier bump, `--update` records no new silencer: run `comment-debt --rerecord`,
+  which replaces both `comment-debt.json` and `silencer-baseline.json` afresh, so
+  check that `git diff comment-debt.json` shows no count that grew, and ask the
+  builder for the `tolerated-growth` label. `/cc-rust` and `/setup-standards`
+  now say to record the attributes they tell a consumer to add; run `qg-skills`.
 
 ## 0.14.2 — 2026-11-26
 

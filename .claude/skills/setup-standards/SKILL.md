@@ -218,6 +218,16 @@ from the repo root and commit the file it writes.
 - **Rust:** run `cargo clippy --all-targets`. Each function it fails gets
   `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]`;
   that attribute is its baseline entry. Its comments were recorded in step 2.
+  With `no-comments-rust` chosen, `comment-debt` counts each attribute as a
+  silencer, so record them: run `comment-debt`. If it fails as new silencers on
+  the lines you added, then where the default branch has no
+  `silencer-baseline.json`, delete the file (step 2 wrote it before these lines
+  existed) and run `comment-debt --update`; otherwise run
+  `comment-debt --rerecord` and ask the builder for the `tolerated-growth`
+  label. `--rerecord` rewrites `comment-debt.json` too: check its diff and that
+  no count grew, and remove any comment you added, then rerun. Commit the
+  files, and `comment-debt` passes. Without `no-comments-rust` the attributes
+  go uncounted and nothing records them.
 
 A project in any language with no tests has no coverage for `crap` to read, so
 CRAP is not set up for it. Report CRAP as **not done**, with the reason (no

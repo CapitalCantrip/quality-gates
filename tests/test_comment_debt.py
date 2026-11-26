@@ -74,7 +74,7 @@ def rust_lines(source, conventions=()):
 
 SILENCERS_TO_COME = (
     '# prag' 'ma: no cover', '# prag' 'ma: no branch', '/* istanbul ignore next */', '// c8 ignore next',
-    '#[allow(clippy::cognitive_complexity)]', '', 'x = 1',
+    '', 'x = 1',
 )
 
 
@@ -87,7 +87,7 @@ class SilencerKindTest(unittest.TestCase):
 
     def test_no_other_language_silences_anything_yet(self):
         for name, row in cd.LANGUAGES.items():
-            if name in ('python', 'swift'):
+            if name in ('python', 'swift', 'rust'):
                 continue
             for line in SILENCERS_TO_COME:
                 with self.subTest(name=name, line=line):

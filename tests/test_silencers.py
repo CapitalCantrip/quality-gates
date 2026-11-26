@@ -520,3 +520,264 @@ class SwiftSilencerGateTest(SilencerGateCase):
         self.put('A.swift', 'let a = "// swiftlint:disable"\n// swiftlint:enable force_cast\n')
         self.assertEqual(self.gate('--update')[0], 0)
         self.assertEqual((self.recorded(), json.loads(self.comments.read_text())), ({}, {}))
+
+
+RUST = cd.LANGUAGES['rust']
+COMPLEXITY = 'clippy::cognitive_complexity'
+LENGTH = 'clippy::too_many_lines'
+
+
+def rust_reading(source):
+    return RUST.reading(source, ())
+
+
+def rust_with(attribute):
+    return f'{attribute}\nfn f(x: i32) -> i32 {{\n    x\n}}\n'
+
+
+class RustSilencerReaderTest(unittest.TestCase):
+
+    def silenced_at(self, attribute, lines=(1,)):
+        found = rust_reading(rust_with(attribute))
+        self.assertEqual((found.silencers, found.debt), (lines, {}))
+
+    def silences_nothing(self, source):
+        found = rust_reading(source)
+        self.assertEqual((found.silencers, found.debt), ((), {}))
+
+    def test_an_outer_allow_of_cognitive_complexity_is_a_silencer(self):
+        self.silenced_at(f'#[allow({COMPLEXITY})]')
+
+    def test_an_outer_allow_of_too_many_lines_is_a_silencer(self):
+        self.silenced_at(f'#[allow({LENGTH})]')
+
+    def test_an_inner_allow_of_cognitive_complexity_is_a_silencer(self):
+        self.silenced_at(f'#![allow({COMPLEXITY})]')
+
+    def test_an_inner_allow_of_too_many_lines_is_a_silencer(self):
+        self.silenced_at(f'#![allow({LENGTH})]')
+
+    def test_an_outer_allow_of_cognitive_complexity_inside_a_longer_list_is_a_silencer(self):
+        self.silenced_at(f'#[allow(dead_code, {COMPLEXITY}, unused_mut)]')
+
+    def test_an_outer_allow_of_too_many_lines_inside_a_longer_list_is_a_silencer(self):
+        self.silenced_at(f'#[allow(dead_code, {LENGTH})]')
+
+    def test_an_inner_allow_of_cognitive_complexity_inside_a_longer_list_is_a_silencer(self):
+        self.silenced_at(f'#![allow(dead_code, {COMPLEXITY})]')
+
+    def test_an_inner_allow_of_too_many_lines_inside_a_longer_list_is_a_silencer(self):
+        self.silenced_at(f'#![allow({LENGTH}, dead_code)]')
+
+    def test_one_attribute_naming_both_lints_is_one_silencer(self):
+        self.silenced_at(f'#[allow({COMPLEXITY}, {LENGTH})]')
+
+    def test_two_attributes_on_one_line_are_two_silencers(self):
+        found = rust_reading(f'#[allow({COMPLEXITY})] #[allow({LENGTH})] fn f() {{}}\n')
+        self.assertEqual(found.silencers, (1, 1))
+
+    def test_an_attribute_split_over_several_lines_is_found_at_its_first_line(self):
+        self.silenced_at(f'#[allow(\n    dead_code,\n    {LENGTH}\n)]')
+
+    def test_two_split_attributes_are_each_found_at_their_own_first_line(self):
+        source = f'#[allow(\n    {LENGTH}\n)]\nfn a() {{}}\n#[allow(\n    {COMPLEXITY}\n)]\nfn b() {{}}\n'
+        self.assertEqual(rust_reading(source).silencers, (1, 5))
+
+    def test_a_space_between_the_hash_and_the_bracket_still_makes_a_silencer(self):
+        self.silenced_at(f'# [allow({LENGTH})]')
+
+    def test_a_space_around_the_path_separator_still_makes_a_silencer(self):
+        self.silenced_at('#[allow(clippy :: too_many_lines)]')
+
+    def test_a_trailing_comma_and_a_reason_still_make_a_silencer(self):
+        self.silenced_at(f'#[allow({LENGTH}, {COMPLEXITY}, reason = "why",)]')
+
+    def test_an_allow_inside_cfg_attr_is_a_silencer(self):
+        self.silenced_at(f'#[cfg_attr(test, allow({COMPLEXITY}))]')
+
+    def test_an_allow_nested_in_two_cfg_attrs_is_a_silencer(self):
+        self.silenced_at(f'#[cfg_attr(a, cfg_attr(b, allow(dead_code, {LENGTH})))]')
+
+    def test_an_allow_after_another_allow_in_one_cfg_attr_is_a_silencer(self):
+        self.silenced_at(f'#[cfg_attr(a, allow(dead_code), allow({LENGTH}))]')
+
+    def test_an_expect_of_either_lint_is_a_silencer_because_clippy_then_stops_reporting_it(self):
+        self.silenced_at(f'#[expect({COMPLEXITY})]')
+        self.silenced_at(f'#![expect(dead_code, {LENGTH})]')
+
+    def test_an_allow_on_an_impl_or_a_module_that_holds_the_functions_is_a_silencer(self):
+        found = rust_reading(f'#[allow({LENGTH})]\nimpl A {{\n    fn f(&self) {{}}\n}}\n#![allow({COMPLEXITY})]\n')
+        self.assertEqual(found.silencers, (1, 5))
+
+    def test_a_lint_name_inside_a_string_is_not_a_silencer(self):
+        self.silences_nothing(f'let a = "#[allow({LENGTH})]";\nlet b = "#![allow({COMPLEXITY})]";\n')
+
+    def test_a_lint_name_inside_a_raw_string_is_not_a_silencer(self):
+        self.silences_nothing(f'let a = r#"#[allow({LENGTH})]"#;\nlet b = r##"\n#![allow({COMPLEXITY})]\n"##;\n')
+
+    def test_a_lint_name_inside_a_string_argument_of_another_attribute_is_not_a_silencer(self):
+        self.silences_nothing(f'#[cfg(feature = "allow({LENGTH})")]\nfn f() {{}}\n#[doc(alias = "allow({COMPLEXITY})")]\nfn g() {{}}\n')
+
+    def test_a_lint_name_inside_a_comment_is_not_a_silencer_and_the_comment_stays_debt(self):
+        for comment in (f'// #[allow({LENGTH})]', f'/* #[allow({COMPLEXITY})] */', f'/* a /* #[allow({LENGTH})] */ b */',
+                        f'/// #[allow({LENGTH})]', f'//! #![allow({COMPLEXITY})]', f'/** #[allow({LENGTH})] */'):
+            with self.subTest(comment=comment):
+                found = rust_reading(f'{comment}\nfn f() {{}}\n')
+                self.assertEqual((found.silencers, list(found.debt)), ((), [1]))
+
+    def test_an_allow_for_any_other_lint_is_not_a_silencer(self):
+        for attribute in ('#[allow(dead_code)]', '#[allow(clippy::needless_return)]', '#[allow(unused_mut, clippy::len_zero)]',
+                          '#![allow(clippy::too_many_arguments)]', '#[allow(clippy::type_complexity)]', '#[allow()]'):
+            with self.subTest(attribute=attribute):
+                self.silences_nothing(rust_with(attribute))
+
+    def test_the_setup_attributes_that_deny_or_warn_are_not_silencers(self):
+        for attribute in (f'#![deny({COMPLEXITY})]', f'#![deny({LENGTH})]', f'#[warn({LENGTH})]', f'#![forbid({COMPLEXITY})]',
+                          f'#[cfg_attr(test, deny({LENGTH}), allow(dead_code))]'):
+            with self.subTest(attribute=attribute):
+                self.silences_nothing(rust_with(attribute))
+
+    def test_a_name_that_only_starts_like_a_complexity_lint_is_not_a_silencer(self):
+        for attribute in ('#[allow(clippy::too_many_lines_extra)]', '#[allow(clippy::cognitive_complexity2)]',
+                          f'#[allow(other::{LENGTH})]', '#[allow(too_many_lines)]'):
+            with self.subTest(attribute=attribute):
+                self.silences_nothing(rust_with(attribute))
+
+    def test_a_comment_beside_an_allow_on_another_line_stays_a_comment_line(self):
+        found = rust_reading(f'// why\n#[allow({LENGTH})]\nfn f() {{}}\n')
+        self.assertEqual((found.silencers, list(found.debt)), ((2,), [1]))
+
+    def test_an_allow_is_not_comment_debt(self):
+        self.assertEqual(rust_reading(f'#[allow({LENGTH})]\nfn f() {{}}\n').debt, {})
+
+
+def rust_function_over_the_limit(marker):
+    ifs = ''.join(f'    if x == {n} {{ total += {n}; }}\n' for n in range(1, 13))
+    return f'{marker}fn f(x: i32) -> i32 {{\n    let mut total = 0;\n{ifs}    total\n}}\n'
+
+
+ALLOW_COMPLEXITY = f'#[allow({COMPLEXITY})]\n'
+DENY_BOTH = f'#![deny({COMPLEXITY})]\n#![deny({LENGTH})]\n'
+CLIPPY_CONFIG = 'cognitive-complexity-threshold = 10\ntoo-many-lines-threshold = 25\n'
+CARGO_MANIFEST = '[package]\nname = "probe"\nversion = "0.1.0"\nedition = "2021"\n'
+
+
+def clippy_is_installed():
+    if not shutil.which('cargo'):
+        return False
+    return subprocess.run(['cargo', 'clippy', '--version'], capture_output=True).returncode == 0
+
+
+class RustSilencerGateTest(SilencerGateCase):
+
+    def setUp(self):
+        super().setUp()
+        (self.root / 'quality-gates.json').write_text(json.dumps({
+            'format_version': 1, 'languages': ['rust'], 'exclude': [],
+            'components': {'chosen': ['no-comments-rust'], 'declined': []}, 'commit_time_limit_seconds': 2,
+            'settings': {'no-comments': {'exclude': [], 'conventions': []}},
+        }))
+
+    def clippy_exit(self, function):
+        (self.root / 'src').mkdir(exist_ok=True)
+        (self.root / 'Cargo.toml').write_text(CARGO_MANIFEST)
+        (self.root / 'clippy.toml').write_text(CLIPPY_CONFIG)
+        (self.root / 'src' / 'main.rs').write_text(f'{DENY_BOTH}fn main() {{}}\n{function}')
+        run = subprocess.run(['cargo', 'clippy', '--offline', '--quiet'], cwd=self.root, capture_output=True, text=True)
+        return run.returncode
+
+    def test_a_function_over_the_limit_hidden_by_an_allow_of_cognitive_complexity_fails_the_comment_gate_until_it_is_recorded(self):
+        self.put('lib.rs', rust_function_over_the_limit(ALLOW_COMPLEXITY))
+        self.comments.write_text('{}\n')
+        self.silencers.write_text('{}\n')
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL lib.rs: 1 silencers, baseline allows 0 — lines 1', out)
+        self.silencers.unlink()
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual(self.recorded(), {'lib.rs': 1})
+        self.assertEqual(self.gate()[0], 0)
+
+    @unittest.skipUnless(clippy_is_installed(), 'cargo clippy is not installed')
+    def test_clippy_passes_the_function_over_the_limit_that_an_allow_of_cognitive_complexity_hides(self):
+        self.assertEqual(self.clippy_exit(rust_function_over_the_limit(ALLOW_COMPLEXITY)), 0)
+
+    @unittest.skipUnless(clippy_is_installed(), 'cargo clippy is not installed')
+    def test_the_same_function_without_its_allow_fails_clippy(self):
+        self.assertEqual(self.clippy_exit(rust_function_over_the_limit('')), 101)
+
+    @unittest.skipUnless(clippy_is_installed(), 'cargo clippy is not installed')
+    def test_clippy_honours_the_expect_a_cfg_attr_and_a_split_attribute_the_gate_counts(self):
+        for marker in (f'#[expect({COMPLEXITY})]\n', f'#[cfg_attr(all(), allow({COMPLEXITY}))]\n',
+                       f'#[allow(\n    {COMPLEXITY}\n)]\n', '# [allow(clippy :: cognitive_complexity)]\n'):
+            with self.subTest(marker=marker):
+                self.assertEqual(self.clippy_exit(rust_function_over_the_limit(marker)), 0)
+                self.assertEqual(rust_reading(marker + 'fn f() {}\n').silencers, (1,))
+
+    def test_the_allow_lines_are_not_recorded_as_comment_debt(self):
+        self.put('lib.rs', rust_function_over_the_limit(ALLOW_COMPLEXITY))
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual(json.loads(self.comments.read_text()), {})
+
+    def test_a_new_allow_added_after_recording_fails_and_names_its_line(self):
+        self.put('lib.rs', rust_function_over_the_limit(ALLOW_COMPLEXITY))
+        self.gate('--update')
+        self.put('lib.rs', rust_function_over_the_limit(ALLOW_COMPLEXITY) + f'#[allow({LENGTH})]\nfn g() {{}}\n')
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn('FAIL lib.rs: 2 silencers, baseline allows 1 — lines 1, 18', out)
+
+    def test_update_will_not_record_a_new_allow(self):
+        self.put('lib.rs', 'fn g() {}\n')
+        self.gate('--update')
+        self.put('lib.rs', ALLOW_COMPLEXITY + 'fn g() {}\n')
+        code, out = self.gate('--update')
+        self.assertEqual(code, 1)
+        self.assertIn('It will not record a new silencer', out)
+        self.assertEqual(self.recorded(), {})
+
+    def test_an_allow_that_is_removed_shows_as_paid_until_update_lowers_the_baseline(self):
+        self.put('lib.rs', ALLOW_COMPLEXITY + 'fn g() {}\n' + f'#![allow({LENGTH})]\n')
+        self.gate('--update')
+        self.put('lib.rs', ALLOW_COMPLEXITY + 'fn g() {}\n')
+        code, out = self.gate()
+        self.assertEqual(code, 1)
+        self.assertIn('PAID lib.rs: 1 silencers, baseline still says 2', out)
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual(self.recorded(), {'lib.rs': 1})
+        self.assertEqual(self.gate()[0], 0)
+
+    def test_an_allow_for_another_lint_and_a_lint_name_in_a_string_leave_both_baselines_empty(self):
+        self.put('lib.rs', f'#[allow(dead_code)]\nfn g() {{}}\nconst A: &str = r#"#[allow({LENGTH})]"#;\n')
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual((self.recorded(), json.loads(self.comments.read_text())), ({}, {}))
+
+    def test_an_allow_goes_uncounted_while_the_rust_comment_row_is_not_chosen(self):
+        (self.root / 'quality-gates.json').write_text(json.dumps({
+            'format_version': 1, 'languages': ['python', 'rust'], 'exclude': [],
+            'components': {'chosen': ['no-comments'], 'declined': ['no-comments-rust']}, 'commit_time_limit_seconds': 2,
+            'settings': {'no-comments': {'exclude': [], 'conventions': []}},
+        }))
+        self.put('lib.rs', rust_function_over_the_limit(ALLOW_COMPLEXITY))
+        self.assertEqual(self.gate('--update')[0], 0)
+        self.assertEqual(self.recorded(), {})
+
+    def test_the_status_names_the_allow_lines_beside_the_comment_total(self):
+        self.put('lib.rs', f'// why\n#[allow({LENGTH})]\nfn g() {{}}\n')
+        self.assertIn('# Silencers: 1 in 1 files\n', self.gate('--status')[1])
+        self.assertIn('# Silencers: 1 in 1 files\n', self.gate('--report', 'rust')[1])
+
+
+class SetupRecordsRustSilencersTest(unittest.TestCase):
+
+    def test_choosing_the_rust_comment_row_records_the_allow_lines_already_there_so_the_gate_then_passes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            subprocess.run(['git', 'init', '-q'], cwd=root, check=True)
+            (root / 'lib.rs').write_text(f'#[allow({COMPLEXITY})]\nfn g() {{}}\n')
+            subprocess.run(['git', 'add', 'lib.rs'], cwd=root, check=True)
+            with contextlib.redirect_stdout(io.StringIO()):
+                code = setup_choices.main(['--go', '--choose', 'no-comments-rust'], root=root)
+            self.assertEqual(code, 0)
+            self.assertEqual(json.loads((root / 'silencer-baseline.json').read_text()), {'lib.rs': 1})
+            self.assertEqual(cd.main([], root=root, out=io.StringIO()), 0)

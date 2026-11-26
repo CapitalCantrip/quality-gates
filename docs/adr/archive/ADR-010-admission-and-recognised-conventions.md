@@ -71,7 +71,7 @@ never reach a consumer.
 
 ### The comment gate in more languages
 
-Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Addendum 2026-11-26: Swift's `swiftlint:disable` is a silencer (#235)](#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235)
+Amended by: [Addendum 2026-11-10: a component per comment language, and a choice about existing debt](#addendum-2026-11-10-a-component-per-comment-language-and-a-choice-about-existing-debt), [Addendum 2026-11-23: where `SAFETY:` applies, which pragmas are bare, and triple-slash references](#addendum-2026-11-23-where-safety-applies-which-pragmas-are-bare-and-triple-slash-references), [Addendum 2026-11-26: silencers, a second kind of finding](#addendum-2026-11-26-silencers-a-second-kind-of-finding), [Addendum 2026-11-26: Swift's `swiftlint:disable` is a silencer (#235)](#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [Addendum 2026-11-26: Rust's complexity `allow` attributes are silencers (#237)](#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237)
 
 **Languages.** Rust, TypeScript (including `.tsx`, `.js`, `.jsx`, `.mjs` and
 `.cjs`), Swift and shell join Python. Shell becomes a language in the choice
@@ -377,6 +377,64 @@ deletes the file and runs `--update`; otherwise it runs `--rerecord`, which
 records the comment baseline afresh too and needs the builder's
 `tolerated-growth` label. `/setup-standards` says so and `/cc-swift` points
 there.
+
+## Addendum 2026-11-26: Rust's complexity `allow` attributes are silencers (#237)
+
+Amends: [The comment gate in more languages](#the-comment-gate-in-more-languages)
+
+Settled at the 3a ticket cut (#237, plan #232); it is the Rust row the silencers
+addendum left to its own ticket, and with Swift's (#235) it closes #204.
+`#[allow(clippy::cognitive_complexity)]` and `#[allow(clippy::too_many_lines)]`
+switch off the two lints `cc-rust` denies, and nothing counted them, so adding
+one was how a failing function got to pass. Unlike Python's pragma and Swift's
+disable line, they are code, not comments.
+
+**An attribute that switches off either lint is a silencer.** The row reads the
+code text the comment reader already separates from comments and strings
+(`reading.blanked`), finds each attribute (`#[…]` outer, `#![…]` inner, with or
+without space between `#`, `!` and `[`), and counts it when an `allow(…)` or
+`expect(…)` inside it names `clippy::cognitive_complexity` or
+`clippy::too_many_lines`, alone or in a longer list, with a trailing comma or a
+`reason = "…"`, spaced around `::` or not. It is found at the line of the
+attribute's `#`, so one split over several lines is at its first line. One
+attribute naming both lints is one silencer; two attributes on one line are two.
+A lint name in a string, a raw string, a comment (nested block comments
+included) or the string argument of another attribute is not a silencer, because
+those are blanked before the reader looks. `#[allow(…)]` for any other lint, and
+`deny`, `warn` and `forbid` of these two (what `cc-rust setup` writes), are not.
+
+**`expect` counts, and so does `cfg_attr`.** `#[expect(…)]` (stable from Rust
+1.81) is an `allow` that also warns when the lint would not have fired. It
+switches the lint off, and clippy 0.1.98 (rustc 1.98.1) reported nothing for a
+function over the limit under it, so it hides a failing function as `allow`
+does. `#[cfg_attr(condition, allow(…))]` counts whatever the condition, because
+the gate does not evaluate `cfg`: a condition that is off today is on in another
+build, and clippy 0.1.98 honoured the always-true form.
+
+**Not counted, and known.** The two lint names are read literally, as #237 asks.
+Clippy 0.1.98 also stops reporting under `#[allow(clippy::pedantic)]`
+(`too_many_lines`) and `#[allow(clippy::all)]` (`cognitive_complexity`), under a
+per-function `#[clippy::cognitive_complexity = "99"]`, and with a raised
+threshold in `clippy.toml` or a `[lints.clippy]` allow in `Cargo.toml`. None of
+them is a silencer yet. `#[allow(warnings)]` does not switch off a lint the
+project denies, so the deny attributes of `cc-rust setup` hold against it.
+
+**The silencers are read only when `no-comments-rust` is chosen,** as the
+comment gate reads nothing else of a language. A Rust consumer with `cc-rust`
+and without the Rust comment row can still add an allow uncounted. Widening
+the scope to any chosen gate a silencer switches off is #252's decision, shared
+with Swift, and not made here.
+
+**The silencer baseline holds the Rust ones** exactly as it holds Python's and
+Swift's: count per file, only shrinking, `--update` recording them when the file
+does not exist yet. A consumer who records existing debt with an allow attribute
+(the setup step for Rust) runs `comment-debt` after adding them. `qg setup`
+writes `silencer-baseline.json` before those attributes exist, and `--update`
+records a silencer only when the file does not exist, so where the default branch
+holds none the step deletes the file and runs `--update`; otherwise it runs
+`--rerecord`, which records the comment baseline afresh too and needs the
+builder's `tolerated-growth` label. `/setup-standards` says so and `/cc-rust`
+points there.
 
 ## Addendum 2026-11-26: counting tools are pinned exactly (#198)
 

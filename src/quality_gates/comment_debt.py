@@ -188,6 +188,37 @@ RUST = CommentSyntax(code_reader.Syntax(
 ), re.compile(r"//\s*@generated\s*"), {"rust-safety": safety_comments})
 
 
+RUST_ATTRIBUTE_OPENER = re.compile(r"#\s*!?\s*\[")
+RUST_LINT_SWITCH = re.compile(r"(?<![\w:])(?:allow|expect)\s*\(")
+RUST_COMPLEXITY_LINT = re.compile(r"(?<![\w:])clippy\s*::\s*(?:cognitive_complexity|too_many_lines)\b")
+SQUARE = "[]"
+ROUND = "()"
+
+
+def group_end(text, at, pair):
+    depth = 1
+    for position in range(at, len(text)):
+        depth += (text[position] == pair[0]) - (text[position] == pair[1])
+        if not depth:
+            return position
+    return len(text)
+
+
+def rust_attributes(blanked):
+    for opener in RUST_ATTRIBUTE_OPENER.finditer(blanked):
+        line = blanked.count(code_reader.NEWLINE, 0, opener.start()) + 1
+        yield line, blanked[opener.end():group_end(blanked, opener.end(), SQUARE)]
+
+
+def switches_off_a_complexity_lint(attribute):
+    return any(RUST_COMPLEXITY_LINT.search(attribute[switch.end():group_end(attribute, switch.end(), ROUND)])
+               for switch in RUST_LINT_SWITCH.finditer(attribute))
+
+
+def rust_silencers(reading, source):
+    return tuple(line for line, attribute in rust_attributes(reading.blanked) if switches_off_a_complexity_lint(attribute))
+
+
 BEFORE_A_REGEX = r"[(,=:;!&|?{\[*%>^~]"
 OPERATORS_BEFORE_A_REGEX = (r"(?<!\+)\+", r"(?<!-)-", r"<\s", r"[\w$\]}]\sof")
 KEYWORDS_BEFORE_A_REGEX = ("return", "typeof", "instanceof", "in", "new", "void", "delete", "case", "yield",
@@ -271,7 +302,7 @@ class CommentLanguage:
 
 LANGUAGES = {
     "python": CommentLanguage("no-comments", python_silencers),
-    "rust": CommentLanguage("no-comments-rust", silences_nothing, RUST),
+    "rust": CommentLanguage("no-comments-rust", rust_silencers, RUST),
     "typescript": CommentLanguage("no-comments-typescript", silences_nothing, TYPESCRIPT),
     "swift": CommentLanguage("no-comments-swift", in_line_comments(SWIFT_SILENCER), SWIFT),
     "shell": CommentLanguage("no-comments-shell", silences_nothing, SHELL),

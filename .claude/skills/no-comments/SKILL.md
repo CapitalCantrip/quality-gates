@@ -20,7 +20,11 @@ they sit on a line, a string included, as coverage.py reads the line. Swift's
 `// swiftlint:disable`, in every form and for any rule, is a silencer too (it
 switches off the complexity lint): with `no-comments-swift` chosen, a `//` line
 comment holding it counts, a block or doc comment does not (SwiftLint ignores
-it there), and a string never does. A
+it there), and a string never does. So is Rust's `#[allow(…)]` or `#[expect(…)]`
+naming `clippy::cognitive_complexity` or `clippy::too_many_lines` (it switches off
+the complexity lint), outer or inner, alone or in a list: with `no-comments-rust`
+chosen it is read from the code, so a lint name in a comment or string is not
+one, and `allow` of any other lint is not. A
 recognised convention, such as Rust's `// SAFETY:` above `unsafe`
 (`rust-safety`), counts until it is switched on in
 `settings.no-comments.conventions`; `qg explain no-comments` names them.

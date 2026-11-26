@@ -157,9 +157,15 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     names, whatever rule it names), read only when `no-comments-swift` is
     chosen; `swiftlint:enable` stays exempt, a `swiftlint:disable` in a string
     literal is neither, and one in a block or doc comment, which SwiftLint
-    ignores, stays a comment line. TypeScript and Rust
-    follow in their own tickets (quality-gates#236, #237).
-    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235))
+    ignores, stays a comment line. Rust's `#[allow(…)]` or `#[expect(…)]`
+    naming `clippy::cognitive_complexity` or `clippy::too_many_lines`, outer or
+    inner, alone or in a longer list, inside `cfg_attr` too, is one, read from
+    the code and not the comments, and only when `no-comments-rust` is chosen: a
+    lint name in a string, raw string or comment is not one, nor is `allow` of
+    any other lint or `deny` of these two. TypeScript follows in its own ticket
+    (quality-gates#236); counting a silencer whenever the gate it switches off
+    is chosen is quality-gates#252.
+    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [addendum 2026-11-26, Rust](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-rusts-complexity-allow-attributes-are-silencers-237))
   - **Each new language is its own component** (`no-comments-rust`,
     `no-comments-typescript`, `no-comments-swift`, `no-comments-shell`);
     `no-comments` stays Python's. A language is checked only when its
