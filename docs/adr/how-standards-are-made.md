@@ -157,9 +157,16 @@ comment gate ships today, in Python, Rust, TypeScript, Swift and shell.
     names, whatever rule it names), read only when `no-comments-swift` is
     chosen; `swiftlint:enable` stays exempt, a `swiftlint:disable` in a string
     literal is neither, and one in a block or doc comment, which SwiftLint
-    ignores, stays a comment line. TypeScript and Rust
-    follow in their own tickets (quality-gates#236, #237).
-    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235))
+    ignores, stays a comment line. TypeScript's are the `istanbul ignore`,
+    `c8 ignore` and `v8 ignore` markers (hints `if`, `else`, `next`, `file`,
+    `start`, `stop`, with a reason after), in a `//`, `/* */` or `/** */`
+    comment that they open, read only when `no-comments-typescript` is chosen;
+    `eslint-disable`, `@ts-expect-error`, `@ts-ignore` and `prettier-ignore`
+    stay exempt, a marker in a string, template or regex literal is neither,
+    and only the first line of a multi-line marker is the silencer, so its
+    reason lines stay comment debt. Rust follows in its own ticket
+    (quality-gates#237).
+    ([ADR-010 addendum 2026-11-26](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-silencers-a-second-kind-of-finding), [addendum 2026-11-26, Swift](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-swifts-swiftlintdisable-is-a-silencer-235), [addendum 2026-11-26, TypeScript](archive/ADR-010-admission-and-recognised-conventions.md#addendum-2026-11-26-typescripts-istanbul-c8-and-v8-ignore-markers-are-silencers-236))
   - **Each new language is its own component** (`no-comments-rust`,
     `no-comments-typescript`, `no-comments-swift`, `no-comments-shell`);
     `no-comments` stays Python's. A language is checked only when its

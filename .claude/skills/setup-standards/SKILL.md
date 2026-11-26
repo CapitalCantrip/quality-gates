@@ -214,7 +214,15 @@ from the repo root and commit the file it writes.
   collect coverage as in step 2 and run
   `crap --lang typescript <source dirs> --istanbul-json coverage/coverage-final.json --baseline crap-baseline.json --update`.
   Add `coverage/` to `.gitignore`. A project on `node --test` gets no CRAP
-  baseline: report CRAP as not done, as step 2 says.
+  baseline: report CRAP as not done, as step 2 says. With `no-comments-typescript`
+  chosen, `comment-debt` counts each `istanbul ignore`, `c8 ignore` and
+  `v8 ignore` comment as a silencer, so after a pin bump record the ones already
+  there: run `comment-debt`. If it fails as new silencers, then where the
+  default branch has no `silencer-baseline.json`, run `comment-debt --update`;
+  otherwise run `comment-debt --rerecord` and ask the builder for the
+  `tolerated-growth` label. `--rerecord` rewrites `comment-debt.json` too: check
+  its diff and that no count grew, then rerun. Add no marker to make CRAP pass:
+  a new one fails the gate, so test the code it would hide.
 - **Rust:** run `cargo clippy --all-targets`. Each function it fails gets
   `#[allow(clippy::cognitive_complexity)]` or `#[allow(clippy::too_many_lines)]`;
   that attribute is its baseline entry. Its comments were recorded in step 2.
