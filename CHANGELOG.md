@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- **`review-against-spec` runs both axes in turn when it cannot spawn sub-agents.** Run `qg-skills` and commit `.claude/`.
+- **`review-against-spec` runs both axes in turn when it cannot spawn sub-agents; `implement-spec` merges and then deletes the branch, and points fix briefs at `CODING_STANDARDS.md` rules 11 to 13.** Run `qg-skills` and commit `.claude/`.
 
 ## 0.15.0 — 2026-11-27
 
