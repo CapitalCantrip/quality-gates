@@ -86,6 +86,26 @@
   Your comment-debt count drops by any pragma that carried prose. `qg setup`
   now records `silencer-baseline.json` beside `comment-debt.json` when it
   switches a comment language on. TypeScript, Swift and Rust silencers follow.
+- **Swift's `// swiftlint:disable` is a silencer (ADR-010 addendum 2026-11-26,
+  #235).** `swiftlint:disable` switches off SwiftLint's `cyclomatic_complexity`,
+  and the comment gate used to exempt it, so a failing function passed with one
+  above it. With `no-comments-swift` chosen, `comment-debt` now reports it at
+  its file and line, in every form (plain, `:next`, `:this` and `:previous`,
+  with or without rule names, whatever rule it names), held in
+  `silencer-baseline.json` and no longer exempt. Only a `//` line comment
+  counts: SwiftLint ignores a disable in a block or doc comment, so there it
+  stays an ordinary comment line. `swiftlint:enable` in every form stays
+  exempt; a `swiftlint:disable` in a string literal is neither a silencer nor
+  comment debt. A disable that carried prose used to count as a comment line and
+  no longer does. On bumping the pin, a Swift consumer with `no-comments-swift`
+  chosen runs `comment-debt --update` once and commits `silencer-baseline.json`
+  to record their disable lines. If `silencer-baseline.json` already exists
+  from an earlier bump, `--update` records no new silencer: run
+  `comment-debt --rerecord`, which replaces both `comment-debt.json` and
+  `silencer-baseline.json` afresh, so check that `git diff comment-debt.json`
+  shows no count that grew, and ask the builder for the `tolerated-growth`
+  label. `/cc-swift` and `/setup-standards` now say to record the disable lines
+  they tell a consumer to add; run `qg-skills`.
 
 ## 0.14.2 — 2026-11-26
 
