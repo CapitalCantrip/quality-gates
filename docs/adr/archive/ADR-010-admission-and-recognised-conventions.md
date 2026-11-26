@@ -705,9 +705,10 @@ over-count.
   lists each. The JSX ones are the comment reader's own limit and affect comment
   debt the same way.
 
-A related escape that is not about the marker: lizard skips a file whose opening
-lines say `GENERATED CODE`, so no function in it reaches either gate with no
-marker to count. It is filed separately (#261).
+A related escape that is not about the marker: lizard stops reading a file at
+any comment containing `GENERATED CODE`, wherever it stands, so no function
+after it reaches either gate and there is no marker to count. It is filed
+separately (#261).
 
 **Rejected.**
 

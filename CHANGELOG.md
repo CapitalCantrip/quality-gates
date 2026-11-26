@@ -203,8 +203,9 @@
   trailing forgive there is not counted though lizard honours it (#260), and a
   forgive in JSX text, a template literal's `${ }`, after `//` and U+2028, U+2029
   or a lone carriage return, in a Swift extended regex, or above an expression
-  lizard abandons is counted though lizard ignores it. A file whose opening
-  lines say `GENERATED CODE` is skipped by lizard whole (#261). On bumping the pin, a TypeScript, JavaScript or Swift
+  lizard abandons is counted though lizard ignores it. lizard stops reading a
+  file at any comment containing `GENERATED CODE`, so no function after it is
+  scored (#261). On bumping the pin, a TypeScript, JavaScript or Swift
   consumer with the comment row chosen and a `#lizard forgive` in their code runs
   `comment-debt --update` once and commits `silencer-baseline.json` and
   `comment-debt.json`: their comment debt falls and their silencer baseline
